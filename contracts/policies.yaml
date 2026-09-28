@@ -1,0 +1,76 @@
+# policies.yaml — motor de políticas fuera del modelo. Versionar cada cambio (git). El LLM nunca lee ni edita esto.
+version: 1
+default: deny            # nada se ejecuta si ninguna regla lo permite
+
+identity:
+  session_ttl_minutes: 15
+  require_otp_for: [bloquear_tarjeta, abrir_caso, ver_transacciones]
+  document_alone_authenticates: false     # regla del reto: un DNI o customer_id solo no prueba identidad
+
+scope:
+  only_own_products: true                 # la tool filtra por customer_id de la sesión; no es un prompt
+  cross_customer_request: deny_and_log    # "muéstrame la cuenta de otro cliente" → DENY con policy_id
+
+scoring:                                 # de dónde sale el fraud_score que leen las zonas
+  provider: dataset                      # dataset | reglas | modelo | llm
+  providers:
+    dataset: {note: "lee transactions.fraud_score del gold para transacciones preseteadas; arranque del demo", version: "gold-v1"}
+    reglas:  {note: "heurística: monto vs p95 del cliente, canal, hora, país distinto; sin entrenamiento", version: "rules-v0"}
+    modelo:  {note: "plan B: GBM/LR sobre features de transactions contra is_fraud, held-out temporal; solo si Slack dice que el score no existe en tiempo real", version: "model-v0"}
+    llm:     {note: "solo para ilustrar en el demo; NUNCA decide bloqueo (zona forzada a humano si es la fuente)", version: "llm-v0"}
+  record_source_in_audit: true           # la fuente y versión van a la auditoría y a la tarjeta de handoff
+  null_score_zone: humano
+
+zones:                                   # sobre el score que devuelve scoring.provider (0–100). Umbrales: EDA 26-sep [dato]
+  alta:   {score_min: 50, score_max: 100, note: "precisión 100%, recall 48.8% sobre fraudes con score (38.7% del total); propiedad del generador sintético"}
+  media:  {score_min: 30, score_max: 49,  note: "precisión con >=30: 79.6%"}
+  humano: {score_min: 0,  score_max: 29,  include_null: true, note: "20.6% de los fraudes no tiene score"}
+
+amount_gate:                             # sobre transactions.amount_usd. [supuesto] calibrar con el snapshot
+  max_auto_block_usd: 1000               # por encima, aunque la zona sea alta, va a confirmar
+  max_auto_case_usd: 5000                # por encima, aunque la zona sea alta, va a humano
+
+approval:                                # modo de aprobación por acción: auto | human_required | manual_check
+  supervised_mode: false                 # interruptor global desde la consola; true fuerza human_required en todo; cada cambio se audita
+  per_action:
+    abrir_caso:        {alta: auto, media: auto, humano: auto}                 # registrar no es una decisión de dinero
+    bloquear_tarjeta:  {alta: auto, media: human_required, humano: human_required}
+    abono_provisional: {alta: human_required, media: human_required, humano: human_required}   # nunca auto
+    desbloquear_tarjeta: {alta: human_required, media: human_required, humano: human_required}
+  manual_check_leaves_case_in: en_revision   # con manual_check la acción se ejecuta y el caso queda en revisión
+
+actions:
+  ticket:           {zones: [alta, media, humano], verify: estado_caso}         # siempre; el modo lo da approval.per_action.abrir_caso
+  bloquear_tarjeta: {zones: [alta, media], verify: estado_producto, expect: Blocked, media_requires: customer_confirmation}
+  abono_provisional: {zones: [], decided_by: human, note: "obligación por país; nunca el modelo"}
+
+actors:                                  # dos juegos de tools que nunca se cruzan; cada llamada se audita con su actor
+  cliente:   {via: mcp, tools: [buscar_transaccion, obtener_score, calcular_plazo, bloquear_tarjeta, abrir_caso, estado_producto, estado_caso]}
+  analista:  {via: api, tools: [listar_casos, ver_caso, aprobar_abono, aprobar_bloqueo, desbloquear_tarjeta, pedir_datos_cliente, marcar_ambiguo, cerrar_caso, reabrir_caso, modo_supervisado], executed_by: human_only, copilot: proposes_only}
+
+clarify:
+  intent_confidence_min: 0.80            # bajo esto, preguntar; τ se fija en validación
+  max_candidate_transactions: 3          # más candidatas → pedir monto/fecha; si persiste → humano
+  max_clarification_turns: 2
+
+handoff:
+  triggers: [zone_humano, amount_over_case_gate, identity_unverified, clarification_exhausted, tool_failure, language_low_confidence]
+  payload_schema: contracts/handoff.schema.json
+  never_include_raw_transcript: true
+
+regulatory_clock:                        # [externo] días hábiles según calendario del país
+  MX: {producto: debito, abono_dias_habiles: 2, condicion: "operaciones de las 48 h previas", dictamen_dias: 45,
+       fuente: "https://www.gob.mx/condusef/articulos/cargos-no-reconocidos?idiom=es"}
+  AR: {resolucion_dias_habiles: 10, fuente: "https://www.bcra.gob.ar/archivos/Pdfs/texord/t-pusf.pdf"}
+  CO: {respuesta_dias: 15, fuente: "https://www.superfinanciera.gov.co/preguntas-frecuentes/3/3-derechos-de-peticion-ante-entidades-vigiladas/"}
+  BR: {ouvidoria_dias_habiles: 10, prorroga_una_vez: true, fuente: "Resolução CMN 4.860 (2020)", note: "solo para el demo en portugués; el dataset no tiene BR"}
+
+reliability:
+  tool_retries: 2
+  tool_timeout_ms: 800
+  on_failure: escalate_with_unconfirmed_action   # nunca reportar una acción no verificada
+  idempotency_key: "{session_id}:{transaction_id}:{action}"
+
+security:
+  prompt_injection: {strategy: "instrucciones y datos separados; tools con allowlist; texto del cliente nunca cambia permisos"}
+  external_llm_data: {send_synthetic_only: true, confirm_in_slack: true}

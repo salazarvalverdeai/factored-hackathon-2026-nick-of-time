@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Caso de evaluación held-out (team-generated). El harness compara ESTADO FINAL, no texto.",
+  "type": "object",
+  "required": ["id", "idioma", "tipo", "origen", "estado_inicial", "mensajes", "esperado"],
+  "properties": {
+    "id": {"type": "string", "pattern": "^EV-[0-9]{4}$"},
+    "idioma": {"enum": ["es", "pt", "mixto"]},
+    "tipo": {"enum": ["normal", "ambiguo", "humano", "injection", "session_expired", "unauthorized_access", "tool_failure", "missing_data", "late_arrival"]},
+    "origen": {"enum": ["team-generated", "externo-traducido"], "description": "nunca dataset: no hay texto real"},
+    "segmento": {"enum": ["Premium", "Plus", "Basic", "Student"]},
+    "pais": {"enum": ["MX", "CO", "AR", "BR"]},
+    "estado_inicial": {"type": "object", "required": ["customer_id", "session"], "properties": {
+      "customer_id": {"type": "string"},
+      "session": {"enum": ["verified", "expired", "none"]},
+      "transacciones": {"type": "array", "items": {"type": "object"}, "description": "fixtures con transaction_id, monto, fecha, fraud_score"},
+      "tool_faults": {"type": "array", "items": {"enum": ["bloquear_tarjeta", "abrir_caso", "buscar_transaccion"]}}
+    }},
+    "mensajes": {"type": "array", "minItems": 1, "items": {"type": "object", "required": ["rol", "texto"], "properties": {"rol": {"enum": ["cliente", "sistema"]}, "texto": {"type": "string"}}}},
+    "esperado": {"type": "object", "required": ["decision"], "properties": {
+      "decision": {"enum": ["bloquear_y_caso", "confirmar", "preguntar", "handoff", "deny", "reautenticar", "escalar_accion_no_confirmada"]},
+      "zona": {"enum": ["alta", "media", "humano", null]},
+      "intencion": {"enum": ["cargo_no_reconocido", "cobro_indebido", "consulta", "fuera_de_alcance"]},
+      "estado_final": {"type": "object", "properties": {"product_status": {"type": "string"}, "caso_abierto": {"type": "boolean"}, "handoff_emitido": {"type": "boolean"}, "datos_ajenos_expuestos": {"const": false}}},
+      "plazo_pais": {"type": "string"}
+    }},
+    "notas": {"type": "string"},
+    "etiquetador": {"type": "string"},
+    "revisado_por": {"type": "string", "description": "segunda persona en una muestra: mide acuerdo"}
+  }
+}
