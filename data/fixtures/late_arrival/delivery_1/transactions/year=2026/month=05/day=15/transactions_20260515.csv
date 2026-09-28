@@ -1,0 +1,7 @@
+﻿transaction_id,transaction_date,process_date,product_id,customer_id,transaction_type,transaction_category,amount,currency,amount_usd,channel,branch_id,merchant_name,merchant_category,transaction_country,transaction_city,transaction_status,response_code,is_fraud,fraud_score,latitude,longitude
+FX-TRX-0001,2026-05-15 09:10:00,2026-05-15,FX-PRD-001,FX-CLI-001,Purchase,Food,120.50,USD,,POS,,FIXTURE Tienda,Food,México,,Approved,00,False,3.10,,
+FX-TRX-0002,2026-05-15 10:00:00,2026-05-15,FX-PRD-002,FX-CLI-001,Deposit,,500.00,USD,,Branch,,,,México,,Approved,00,False,3.10,,
+FX-TRX-0003,2026-05-15 11:30:00,2026-05-15,FX-PRD-003,FX-CLI-002,Withdrawal,,80.00,USD,,ATM,,,,Mexico,,Approved,00,False,3.10,,
+FX-TRX-0004,2026-05-15 12:00:00,2026-05-15,FX-PRD-004,FX-CLI-003,Transfer,,250000.00,COP,60.00,App,,,,Colombia,,Approved,00,False,3.10,,
+FX-TRX-0005,2026-05-15 13:45:00,2026-05-15,FX-PRD-001,FX-CLI-005,Purchase,,35.00,USD,,POS,,,,México,,Approved,00,False,3.10,,
+FX-TRX-0015,2025-05-31 22:00:00,2026-05-15,FX-PRD-001,FX-CLI-001,Purchase,,15.00,USD,,POS,,,,México,,Approved,00,False,3.10,,

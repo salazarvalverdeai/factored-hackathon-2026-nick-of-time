@@ -1,0 +1,6 @@
+﻿complaint_id,creation_date,process_date,customer_id,case_type,category,subcategory,reception_channel,affected_product_id,related_branch_id,origin_interaction_id,description,claimed_amount,currency,priority,status,assigned_agent_id,assignment_date,first_response_date,resolution_date,closing_date,sla_breached,resolution_days,resolution,compensation_granted,resolution_satisfaction,is_repeat_complainer
+FX-CMP-001,2026-05-16 09:00:00,2026-05-16,FX-CLI-001,Claim,Transactions,Cargo no reconocido,Call Center,FX-PRD-001,,,FIXTURE: queja de Transactions,,,High,Open,,,,,,False,,,,,False
+FX-CMP-002,2026-05-16 10:00:00,2026-05-16,FX-CLI-002,Complaint,Fees,Cobro indebido,Call Center,FX-PRD-004,,,FIXTURE: queja de Fees,,,Medium,Open,,,,,,False,,,,,False
+FX-CMP-003,2026-05-16 11:00:00,2026-05-16,FX-CLI-003,Request,Transactions,,Call Center,FX-PRD-777,,,FIXTURE: queja de Transactions,,,Medium,Open,,,,,,False,,,,,False
+FX-CMP-004,2026-05-16 12:00:00,2026-05-16,FX-CLI-005,Complaint,,,Call Center,,,,FIXTURE: queja de sin categoría,,,Medium,Open,,,,,,False,,,,,False
+FX-CMP-005,2026-05-16 13:00:00,2026-05-16,FX-CLI-004,Suggestion,Service,,Call Center,,,,FIXTURE: queja de Service,,,Medium,Open,,,,,,False,,,,,False

@@ -1,0 +1,7 @@
+﻿customer_id,document_number,document_type,first_name,last_name,date_of_birth,gender,email,mobile_phone,landline_phone,address,city,state,country,postal_code,detected_accent,segment,credit_score,estimated_monthly_income,occupation,marital_status,education_level,registration_date,registration_branch_id,customer_status,last_updated,accepts_marketing
+FX-CLI-001,FX0010000,Pasaporte,FIXTURE,Cliente 001,,O,,,,,,,México,,,Basic,700.0,,,,,2020-01-15 10:00:00,,Active,2026-05-01 09:00:00,False
+FX-CLI-003,FX0030000,Pasaporte,FIXTURE,Cliente 003,,O,,,,,,,Colombia,,,Plus,,,,,,2020-01-15 10:00:00,,Active,2026-04-02 15:30:00,False
+FX-CLI-004,FX0040000,Pasaporte,FIXTURE,Cliente 004,,O,,,,,,,Argentina,,,Premium,,,,,,2020-01-15 10:00:00,,Active,2027-01-15 08:00:00,False
+FX-CLI-005,FX0050000,Pasaporte,FIXTURE,Cliente 005,,O,,,,,,,Colombia,,,Student,,,,,,2020-01-15 10:00:00,,Active,2026-03-11 11:11:00,False
+FX-CLI-002,FX0020000,Pasaporte,FIXTURE,Cliente 002,,O,,,,,,,México,,,Plus,,,,,,2020-01-15 10:00:00,,Active,2026-05-19 10:00:00,False
+FX-CLI-006,FX0060000,Pasaporte,FIXTURE,Cliente 006,,O,,,,,,,México,,,Basic,,,,,,2026-05-18 17:00:00,,Active,2026-05-18 17:00:00,False

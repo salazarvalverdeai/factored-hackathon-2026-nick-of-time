@@ -1,0 +1,3 @@
+grupo,n_complaints,n_con_resolucion,resolucion_dias_p50,resolucion_dias_p95,pct_resueltos_cerrados
+Todo el banco,67095,15363,16.0,29.0,24.027
+W3 (CMP-01..03),24431,5622,16.0,29.0,24.162

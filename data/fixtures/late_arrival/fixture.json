@@ -1,0 +1,61 @@
+{
+  "fixture": true,
+  "name": "late_arrival",
+  "description": "FIXTURE sintético (no sale del dataset): dos entregas con la forma del bucket de S3 para demostrar llegadas tardías, re-entregas, upsert por PK, cambio de schema y el contrato de gold (ventana de 12 meses, customer_id resuelto por join, is_fraud solo en gold_eval, tablas derivadas). Generado por make_fixture.py.",
+  "deliveries": [
+    {
+      "name": "delivery_1",
+      "delivered_at": "2026-05-17T23:00:00-05:00",
+      "purpose": "Carga inicial con problemas de calidad conocidos: 1 duplicado exacto, 2 etiquetas Mexico, 1 transacción antes de la apertura, 1 transacción con customer_id que no es el dueño del producto (gold lo resuelve al dueño), FK huérfanas (1 transacción, 1 complaint), 1 complaint con producto de otro cliente, fechas futuras (1 customer, 1 product), 1 complaint sin category y 1 evento de 2025-05-31 fuera de la ventana."
+    },
+    {
+      "name": "delivery_2",
+      "delivered_at": "2026-05-21T09:00:00-05:00",
+      "purpose": "Llegadas tardías y cambio de schema: re-entrega del snapshot de customers (1 update, 1 insert), re-entrega de la partición del 16 (sin el duplicado, +1 fila) y partición nueva del 20 con schema v2 (txn_country renombrada, merchant_mcc nueva), 3 eventos del 12–14 de mayo y la corrección de FX-TRX-0008 (Pending → Approved)."
+    }
+  ],
+  "expected": {
+    "delivery_1": {
+      "rows_bronze": {"customers": 5, "products": 6, "transactions": 11, "complaints": 5},
+      "rows_silver": {"customers": 5, "products": 6, "transactions": 10, "complaints": 4},
+      "rows_gold": {"customers": 5, "products": 6, "transactions": 9, "complaints": 4, "customer_profile": 5,
+                    "transactions_enriched": 9, "transaction_labels": 9},
+      "checks": {
+        "DUP-01/transactions": 1, "DUP-02/transactions": 0, "CON-01/complaints": 1, "NUL-01/complaints": 1,
+        "LBL-01/transactions": 2, "ORD-01/transactions": 1, "OWN-01/transactions": 1, "OWN-02/complaints": 1,
+        "FK-02/transactions": 0, "FK-03/transactions": 1, "FK-05/complaints": 1, "FUT-01/customers": 1,
+        "FUT-02/products": 1, "LATE-01/transactions": 0, "SCH-01/transactions": 0, "WIN-01/transactions": 1
+      },
+      "gold_diff": {
+        "customers": {"inserted": 5, "updated": 0, "deleted": 0},
+        "transactions": {"inserted": 9, "updated": 0, "deleted": 0}
+      }
+    },
+    "delivery_2": {
+      "rows_bronze": {"customers": 6, "products": 6, "transactions": 16, "complaints": 5},
+      "rows_silver": {"customers": 6, "products": 6, "transactions": 15, "complaints": 4},
+      "rows_gold": {"customers": 6, "products": 6, "transactions": 14, "complaints": 4, "customer_profile": 6,
+                    "transactions_enriched": 14, "transaction_labels": 14},
+      "checks": {
+        "DUP-01/transactions": 0, "DUP-02/transactions": 1, "CON-01/complaints": 1,
+        "LBL-01/transactions": 3, "ORD-01/transactions": 1, "OWN-01/transactions": 1, "OWN-02/complaints": 1,
+        "FUT-01/customers": 1, "LATE-01/transactions": 4, "SCH-01/transactions": 1, "WIN-01/transactions": 1
+      },
+      "files": {"new": 1, "changed": 2, "removed": 0},
+      "schema_changes": {
+        "transactions/year=2026/month=05/day=20/transactions_20260520.csv": {
+          "added": ["merchant_mcc"], "missing": [], "renamed": {"txn_country": "transaction_country"}
+        }
+      },
+      "gold_diff": {
+        "customers": {"inserted": 1, "updated": 1, "deleted": 0},
+        "products": {"inserted": 0, "updated": 0, "deleted": 0},
+        "transactions": {"inserted": 5, "updated": 1, "deleted": 0},
+        "complaints": {"inserted": 0, "updated": 0, "deleted": 0},
+        "customer_profile": {"inserted": 1, "updated": 4, "deleted": 0},
+        "transactions_enriched": {"inserted": 5, "updated": 3, "deleted": 0},
+        "transaction_labels": {"inserted": 5, "updated": 0, "deleted": 0}
+      }
+    }
+  }
+}

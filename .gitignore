@@ -1,0 +1,25 @@
+# secretos
+.env
+*.pem
+
+# datos: nada del dataset entra a git. Sí entran el código del pipeline, los fixtures sintéticos, el reporte generado
+# y el manifest de gold; data/gold y data/gold_eval (Parquet) quedan fuera.
+data/*
+!data/pipeline/
+!data/fixtures/
+!data/quality_report.md
+!data/gold/
+data/gold/*
+!data/gold/manifest.json
+*.parquet
+*.duckdb
+*.duckdb.wal
+
+# python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# sistema
+.DS_Store

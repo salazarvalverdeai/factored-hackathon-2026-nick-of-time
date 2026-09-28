@@ -1,0 +1,6 @@
+﻿transaction_id,transaction_date,process_date,product_id,customer_id,transaction_type,transaction_category,amount,currency,amount_usd,channel,branch_id,merchant_name,merchant_category,txn_country,transaction_city,transaction_status,response_code,is_fraud,fraud_score,latitude,longitude,merchant_mcc
+FX-TRX-0008,2026-05-16 10:15:00,2026-05-20,FX-PRD-004,FX-CLI-003,Purchase,,150000.00,COP,,POS,,,,Colombia,,Approved,00,False,3.10,,,5411
+FX-TRX-0011,2026-05-12 14:00:00,2026-05-20,FX-PRD-001,FX-CLI-001,Purchase,,60.00,USD,,POS,,,,México,,Approved,00,False,3.10,,,5999
+FX-TRX-0012,2026-05-13 18:30:00,2026-05-20,FX-PRD-004,FX-CLI-003,Withdrawal,,100000.00,COP,,ATM,,,,Colombia,,Approved,00,False,3.10,,,6011
+FX-TRX-0013,2026-05-14 07:45:00,2026-05-20,FX-PRD-005,FX-CLI-004,Purchase,,5000.00,ARS,,POS,,,,Argentina,,Approved,00,True,55.00,,,5812
+FX-TRX-0014,2026-05-20 09:00:00,2026-05-20,FX-PRD-003,FX-CLI-002,Purchase,,25.00,USD,,POS,,,,Mexico,,Approved,00,False,3.10,,,5411

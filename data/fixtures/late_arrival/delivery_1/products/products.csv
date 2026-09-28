@@ -1,0 +1,7 @@
+﻿product_id,customer_id,product_type,product_number,currency,current_balance,credit_limit,interest_rate,opening_date,expiration_date,opening_branch_id,product_status,opening_channel,has_linked_app,days_past_due,last_transaction_date,last_updated
+FX-PRD-001,FX-CLI-001,Tarjeta Crédito,FX-001,USD,1000.00,5000.00,,2024-01-10,,,Active,App,True,,,2026-05-10 08:00:00
+FX-PRD-002,FX-CLI-001,Cuenta Ahorro,FX-002,USD,1000.00,,,2026-05-16,,,Active,App,True,,,2026-05-10 08:00:00
+FX-PRD-003,FX-CLI-002,Tarjeta Débito,FX-003,USD,1000.00,,,2025-03-01,,,Active,App,True,,,2026-05-10 08:00:00
+FX-PRD-004,FX-CLI-003,Cuenta Corriente,FX-004,COP,1000.00,,,2023-05-05,,,Active,App,True,,,2026-05-10 08:00:00
+FX-PRD-005,FX-CLI-004,Tarjeta Crédito,FX-005,ARS,1000.00,900000.00,,2022-11-11,,,Active,App,True,,,2026-05-10 08:00:00
+FX-PRD-006,FX-CLI-005,Préstamo Personal,FX-006,COP,1000.00,,,2025-08-20,,,Active,App,True,,,2026-12-31 00:00:00

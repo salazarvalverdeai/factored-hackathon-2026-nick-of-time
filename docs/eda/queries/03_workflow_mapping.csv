@@ -1,0 +1,36 @@
+rule_id,version,source,priority,condition,workflow,confidence,justification
+INT-01,v1,interactions,1,reason_category = 'Transaccional',W1_cuentas_pagos,media,"Consultas sobre movimientos, pagos y transferencias: núcleo de W1. Media porque puede incluir movimientos de tarjeta (W2) o cargos a disputar (W3) y no hay campo que lo distinga"
+INT-02,v1,interactions,2,reason_category = 'Queja',W3_disputas,baja,Una queja bancaria suele originar un reclamo o disputa. Baja: puede ser queja de servicio o de sucursal y complaints no se vincula con la interacción (origin_interaction_id 100% nulo)
+INT-03,v1,interactions,3,reason_category = 'Comercial',W4_credito,baja,Contactos comerciales = oferta y elegibilidad de productos; en banca minorista predominan tarjetas y préstamos. Baja: también incluye ahorro e inversión y no hay producto confiable por interacción
+INT-04,v1,interactions,4,reason_category = 'Técnico',OTRO,media,Soporte técnico (app/canales digitales) no es uno de los 4 workflows. Media: una falla técnica puede ser de tarjeta (W2)
+INT-05,v1,interactions,5,reason_category = 'Retención',OTRO,alta,Retención/cancelación no es uno de los 4 workflows
+INT-06,v1,interactions,6,reason_category = 'Producto',AMBIGUO,baja,"Consulta de producto: puede ser cuenta (W1), tarjeta (W2) o crédito (W4). mentioned_products es 99.35% huérfano y no permite decidir"
+TRS-01,v1,transcripts,1,customer_text LIKE '%cuenta de ahorros%',W1_cuentas_pagos,alta,Plantilla 'saldo actual en mi cuenta de ahorros': consulta de saldo de cuenta. Ojo: la plantilla es independiente de reason_category y de los productos del cliente
+TRS-02,v1,transcripts,2,customer_text LIKE '%tarjeta de crédito%',W2_tarjetas,media,Plantilla 'saldo de mi tarjeta de crédito' + respuesta con límite disponible: servicio de tarjeta. Media: una consulta de saldo también encaja en W1. Misma advertencia de independencia
+TRS-03,v1,transcripts,3,TRUE,AMBIGUO,baja,Texto sin plantilla reconocida (no ocurre en v1)
+CMP-01,v1,complaints,1,category = 'Transactions' AND case_type = 'Claim',W3_disputas,alta,Reclamo formal por 'Cargo no reconocido': intake de disputa. Nota: case_type es independiente de category en los datos (la confianza refleja semántica no evidencia)
+CMP-02,v1,complaints,2,"category = 'Transactions' AND case_type IN ('Complaint', 'Request')",W3_disputas,media,Queja o solicitud por 'Cargo no reconocido': disputa aunque no esté tipificada como Claim
+CMP-03,v1,complaints,3,"category = 'Fees' AND case_type IN ('Claim', 'Complaint')",W3_disputas,media,Reclamo o queja por 'Cobro indebido': disputa de comisión/cargo
+CMP-04,v1,complaints,4,category = 'Fees' AND case_type = 'Request',W1_cuentas_pagos,baja,Solicitud sobre comisiones: consulta de cuenta más que disputa
+CMP-05,v1,complaints,5,"category IN ('Technical', 'Branch', 'Service')",OTRO,alta,"'Problema con app', 'Atención en sucursal' y 'Calidad de servicio' no son de los 4 workflows"
+CMP-06,v1,complaints,6,case_type = 'Suggestion',OTRO,media,Sugerencias sobre transacciones o comisiones: no es intake de disputa
+CMP-07,v1,complaints,7,TRUE,AMBIGUO,baja,Resto (no ocurre en v1)
+TRX-01,v1,transactions,1,is_fraud,W3_disputas,alta,Transacción marcada como fraude: origina reclamo/disputa del cliente
+TRX-02,v1,transactions,2,transaction_status = 'Reversed',W3_disputas,media,Reverso: resultado típico de una disputa o contracargo. Media: también hay reversos operativos
+TRX-03,v1,transactions,3,"transaction_status = 'Declined' AND product_type IN ('Tarjeta Crédito', 'Tarjeta Débito')",W2_tarjetas,alta,Declinación de tarjeta con response_code ISO 8583: disparador clásico de soporte de tarjetas
+TRX-04,v1,transactions,4,"transaction_status = 'Declined' AND product_type IN ('Cuenta Ahorro', 'Cuenta Corriente')",W1_cuentas_pagos,media,Pago o transferencia rechazada desde cuenta: consulta de pagos
+TRX-05,v1,transactions,5,"transaction_status = 'Pending' AND product_type IN ('Cuenta Ahorro', 'Cuenta Corriente')",W1_cuentas_pagos,media,Pago o transferencia pendiente: consulta de pagos
+TRX-06,v1,transactions,6,"product_type IN ('Tarjeta Crédito', 'Tarjeta Débito')",W2_tarjetas,baja,Actividad normal de tarjeta: contexto de W2 no evento de contacto
+TRX-07,v1,transactions,7,"product_type IN ('Cuenta Ahorro', 'Cuenta Corriente')",W1_cuentas_pagos,baja,Actividad normal de cuenta: contexto de W1 no evento de contacto
+TRX-08,v1,transactions,8,"product_type IN ('Préstamo Personal', 'Préstamo Hipotecario')",W4_credito,baja,Pagos y ajustes de préstamos: servicio de crédito (no elegibilidad)
+TRX-09,v1,transactions,9,TRUE,OTRO,media,Inversión y Seguro: fuera de los 4 workflows
+PRD-01,v1,products,1,"product_type IN ('Tarjeta Crédito', 'Tarjeta Débito') AND product_status = 'Blocked'",W2_tarjetas,alta,Tarjeta bloqueada: disparador de soporte de tarjetas (estado al corte: foto única)
+PRD-02,v1,products,2,"product_type IN ('Tarjeta Crédito', 'Tarjeta Débito')",W2_tarjetas,alta,Cartera de tarjetas
+PRD-03,v1,products,3,"product_type IN ('Préstamo Personal', 'Préstamo Hipotecario')",W4_credito,alta,Cartera de préstamos
+PRD-04,v1,products,4,"product_type IN ('Cuenta Ahorro', 'Cuenta Corriente')",W1_cuentas_pagos,alta,Cartera de cuentas
+PRD-05,v1,products,5,TRUE,OTRO,alta,Inversión y Seguro
+DEV-01,v1,digital_events,1,"page_url IN ('/payments', '/transfer', '/accounts', '/transactions')",W1_cuentas_pagos,alta,"Páginas de pagos, transferencias, cuentas y movimientos"
+DEV-02,v1,digital_events,2,page_url = '/products/credit-card',W2_tarjetas,media,Página de tarjeta de crédito. Media: puede ser una solicitud de tarjeta (W4)
+DEV-03,v1,digital_events,3,page_url = '/products/loans',W4_credito,alta,Página de préstamos
+DEV-04,v1,digital_events,4,"page_url IN ('/login', '/logout', '/home', '/help', '/products', '/products/savings')",OTRO,media,"Navegación general, autenticación, ayuda y ahorro"
+DEV-05,v1,digital_events,5,TRUE,AMBIGUO,baja,Evento sin page_url
