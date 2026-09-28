@@ -19,8 +19,8 @@ Fuera a propósito: investigación del caso, contracargo con la red, abono autom
 
 | Alcance | Contenido |
 | --- | --- |
-| Entra (mínimo funcional) | Intake ES/PT; identidad mock con OTP; transacción del propio cliente; ticket automático en las tres zonas; triage por zona con bloqueo verificado; reloj regulatorio por país; tarjeta de handoff; consola del analista con sus tools; **modo de aprobación configurable** (auto, con aprobación humana o con verificación manual, activable por acción y con interruptor global); trazas y auditoría; harness held-out; deploy público; README reproducible |
-| Entra si sobra tiempo | Grafo de evidencia por caso; Jev como tercer brazo del clasificador; `/analytics` embebido; voz en `/chat` con ElevenLabs |
+| Entra (mínimo funcional) | Intake ES/PT; identidad mock con OTP; transacción del propio cliente; ticket automático en las tres zonas; triage por zona con bloqueo verificado; reloj regulatorio por país; **modo de aprobación configurable** (auto, con aprobación humana o con verificación manual; en zona alta el sistema actúa ya y el caso queda en verificación); **cierre siempre humano**, también de los casos automáticos; tarjeta de handoff; consola del analista con cola de cinco estados y sus tools; **notificación al cliente en cada estado** (log en el demo); **guardrails con ID** en entrada, sesión, tools, política, salida y operación, cada uno con su caso de prueba; trazas y auditoría; harness held-out sellado; deploy público; README reproducible |
+| Entra si sobra tiempo | Notificación por Telegram (provisional); grafo de evidencia por caso; Jev como tercer brazo; `/analytics` embebido; voz en `/chat` con ElevenLabs |
 | No entra | Investigación del caso, contracargo, abono automático, voz en tiempo real, WhatsApp real, multi-agente, Graph RAG, fine-tuning, modelo de fraude propio |
 
 Dos actores, dos juegos de tools que nunca se cruzan: el cliente (a través del agente, vía MCP) puede buscar su transacción, obtener el score, calcular el plazo, bloquear su tarjeta y abrir su caso, siempre con verificación; el analista (desde la consola, vía API) lista y ve casos, aprueba abono o bloqueo, desbloquea, pide datos, marca ambiguo, cierra y reabre. El copiloto propone; solo el humano ejecuta las suyas.
@@ -46,7 +46,9 @@ Dos términos nuevos desde hoy: **modo de aprobación** es el ajuste por acción
 
 ## Arquitectura
 
-![Arquitectura A/B](assets/arquitectura_despliegue_A_B.svg)
+![Arquitectura v2 mapeada al ciclo del reto](assets/arquitectura_v2_ciclo_reto.svg)
+
+Opciones de despliegue A y B: `assets/arquitectura_despliegue_A_B.svg`. Flujo del analista: `assets/flujo_analista.svg`.
 
 El grafo y las tools se escriben una vez; A y B difieren solo en dónde corre el grafo y en cómo llama a las tools (MCP por red o import directo). GianMarco construye la EC2 primero porque es la base de ambas; Freddy levanta A encima cuando Platform tenga URL y Slack apruebe.
 
@@ -65,7 +67,53 @@ Arriba, los seis pasos que recorre un caso; abajo, la pieza que cada uno aporta 
 | David | Gold v1 y v2 con contratos, manifest, fixtures de demo y de llegadas tardías, `/datos` | Recuperar (lo que leen las tools) y la evidencia de data engineering | David |
 | Diego | Queries del pitch, negocio y plazos, especificación de vistas, set de evaluación ES/PT, tablero | El problema en números, los casos que prueban el sistema, la tabla de resultados | Diego |
 
-Stack, contratos, números verificados y pendientes: `05_anexos.md`. Detalle por persona: `01_freddy.md`, `02_gianmarco.md`, `03_david.md`, `04_diego.md`.
+Repo: `factored-hackathon-2026-contrareloj`. Detalle por persona en `docs/equipo/`; stack, contratos, números y pendientes en `docs/anexos.md`; diferenciales en `docs/diferenciales.md`; contratos en `contracts/`; esquemas en `eval/`.
+
+## Guardrails, por capa
+
+Ninguno vive solo en el prompt: cada uno tiene un lugar en código, un ID que citan los DENY y un caso en el harness. Lista completa con implementación en `contracts/policies.yaml` (`guardrails`).
+
+| ID | Capa | Qué protege | Caso que lo prueba |
+| --- | --- | --- | --- |
+| G-IN-01 | Entrada | Prompt injection directa e indirecta: texto del cliente y salidas de tools como datos delimitados; clasificador de injection → zona humano | injection |
+| G-IN-02 | Entrada | Datos inventados por el cliente: monto, fecha y comercio solo sirven para buscar; score, producto y país salen del gold | injection |
+| G-IN-03 | Entrada | Idioma y ambigüedad: ES/PT con umbral; baja confianza → pregunta, luego humano | ambiguo |
+| G-IN-04 | Entrada | PII y fuera de alcance: PAN/CVV/contraseña se rechazan; temas fuera de disputas → abstención | fuera_de_alcance |
+| G-SES-01 / 02 | Sesión | OTP con TTL; `customer_id` solo desde la sesión; acceso a otro cliente → DENY | session_expired, unauthorized_access |
+| G-TOOL-01 / 02 | Tools | Allowlist y esquemas estrictos; escrituras con modo de aprobación, idempotencia y post-condición; abono nunca auto | unauthorized_access, tool_failure |
+| G-POL-01 | Política | Deny por defecto; toda denegación es una fila en `policy_denials` | todos |
+| G-OUT-01 / 02 | Salida | Grounding: todo número, fecha, ID o estado existe en una tool o en la política; "bloqueada" solo con estado verificado | missing_data, tool_failure |
+| G-OUT-03 / 04 | Salida | Sin datos ajenos ni secretos en la respuesta; sin promesas que la política no dio; abstención explícita | unauthorized_access, missing_data |
+| G-OPS-01 / 02 | Operación | Tope de tokens antes de llamar, reintentos acotados, timeout; auditoría inmutable con actor y `trace_id` | tope, inspección |
+
+## Datos de prueba: qué sale del dataset y qué ponemos nosotros
+
+El dataset da la verdad del estado (clientes, productos, transacciones, scores, país) y las etiquetas de fraude; no da conversaciones ni resultados de disputas atados a una transacción. La partición se hace una sola vez en gold: `split` por cliente (`hash(customer_id) mod 10`: 0–6 entrenamiento, 7 desarrollo, 8–9 held-out) y `periodo` por tiempo (ajuste jun-2025 a feb-2026, medición mar–may-2026).
+
+| Conjunto | De dónde sale | Para qué | Split y sello |
+| --- | --- | --- | --- |
+| Test del ML sobre `is_fraud` | 100% dataset (`gold_eval`) | Zonas del score y, si hace falta, el scoring de respaldo | Ajuste con clientes 0–6 × periodo de ajuste; medición en 8–9 × periodo de medición |
+| Held-out del agente (~180 casos) | Estado real de clientes 8–9 + mensaje escrito por nosotros; el resultado esperado se deriva del registro | Safe resolution, unsafe outcomes, escalation quality, latencia, costo, pass^4; bloqueos del agente contra `is_fraud` real | Sellado el jueves 1 (`eval/heldout.sha256`); se corre el sábado 4 veces; nada se ajusta después |
+| Casos de desarrollo (~60) | Clientes de la partición 7 | Construir y depurar | Sin sello |
+| Set del clasificador de texto (300–400 frases) | Team-generated ES/PT con intención y slots | Componente aprendido vs baselines | 70/15/15 por autor o plantilla; nada del test aparece en el held-out ni en el prompt |
+
+## Diferenciales frente a otros equipos
+
+Con ~180 equipos y 10 días, la mayoría convergerá en un chat con RAG sobre políticas inventadas, casi siempre W1, con el LLM decidiendo, métricas de contención sobre una demo y sin held-out. Lo que nos separa, cada uno atado a un criterio del reto y con una prueba que se muestra:
+
+| Diferencial | Criterio del reto | Cómo se demuestra |
+| --- | --- | --- |
+| Verificación visible: aceptado ≠ verificado; tool caída → acción no confirmada | Punto 2 | Caso `tool_failure` en el video |
+| Política fuera del modelo, con cada DENY como fila y guardrails con ID | Puntos 3 y 5 | La inyección engaña al texto y no a la regla |
+| Modo de aprobación configurable y cierre siempre humano | "AI should not be autonomous just because it can" | Interruptor supervisado en la consola |
+| Evaluación por estado final, pass^4, n por celda, ES/PT y ataques, sobre held-out sellado | Puntos 4 y 5 | Tabla con fallas incluidas |
+| Bloqueos del agente medidos contra `is_fraud` real del dataset | Unsafe outcomes | Métrica que no escribimos nosotros |
+| Los 15 números reproducibles con `make setup` en 60 s y corregidos en público | Punto 1, Data Analytics | Índice número → query → CSV en `docs/eda/README.md` |
+| Reloj regulatorio por país con fuente | Business reasoning | Día hábil 2 visible en el caso |
+| Dos actores con tools separadas y notificación al cliente en cada estado | Escalation quality | Consola + panel del cliente |
+| Etiquetas dato / externo / supuesto / simulado / proyectado en todo | Honestidad que pide el kickoff | Cada número del pitch y del README |
+
+Dónde podríamos perder: si el caso end-to-end no corre el miércoles 30; si el clasificador ES/PT queda flojo y el componente aprendido parece decorado (el baseline de reglas va antes que el modelo); y si la demo se ve pobre frente a interfaces bonitas (`/chat` parte de `agent-chat-ui`).
 
 ## Calendario e hitos
 

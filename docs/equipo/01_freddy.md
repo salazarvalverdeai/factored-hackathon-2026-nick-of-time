@@ -50,3 +50,10 @@ Viernes debe existir: los tres casos obligatorios corriendo contra la URL de Pla
 
 ## Dónde encuentro lo mío
 `contracts/` (policies.yaml, tools.py, handoff.schema.json, gold_contract.md) · `apps/api/graph/`, `apps/api/policy/`, `apps/api/mcp/`, `apps/api/classifier/` · `eval/` (harness, casos, resultados) · `docs/decisiones.md`, `docs/ml.md`.
+
+## Cambios del lunes en la tarde
+- Guardrails con ID en `contracts/policies.yaml` (`guardrails`); cada DENY cita su ID; cada guardrail tiene un caso en `eval/`. Yo escribo el clasificador de injection (reglas + LR) y el filtro de grounding de salida (comparación exacta contra resultados de tools).
+- Particiones en gold: `split` por cliente y `periodo` por tiempo; el held-out se sella el jueves 1 con `eval/heldout.sha256`; se corre el sábado 4 veces y no se ajusta después.
+- Dos matrices para Diego: set del clasificador (300–400 frases, 70/15/15) y held-out del agente (~180 casos solo con clientes 8–9).
+- Métrica nueva: bloqueos del agente contra `is_fraud` real (solo `gold_eval`, solo el harness).
+- Cierre siempre humano y `notificar_cliente`: la zona alta ejecuta y deja el caso en `verificacion`; el nodo escalar dispara la notificación por estado.

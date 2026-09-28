@@ -35,3 +35,9 @@ Viernes debe existir: chat público con los tres casos visibles y consola con ba
 
 ## Dónde encuentro lo mío
 `docker-compose.yml`, `Caddyfile`, `.github/workflows/` · `apps/api/` (FastAPI, `audit/`, `routes/casos.py`) · `apps/web/` (Next: `/chat`, `/consola`, páginas) · `contracts/handoff.schema.json` · `infra/`.
+
+## Cambios del lunes en la tarde
+- Cola del caso con cinco estados (`nuevo → verificacion → revision → resuelto → cerrado`) y cierre solo humano; bandeja ordenada por SLA (verificación 4 h, revisión 24 h); cola "ambiguo" aparte. Flujo en `docs/assets/flujo_analista.svg`.
+- `notificar_cliente` con proveedor `log` (panel "Mis notificaciones" en `/chat`) para el demo; Telegram provisional si sobra tiempo; cada envío es un evento en `case_events`.
+- Filtro de salida (G-OUT-03): la respuesta no puede contener IDs ni montos que no sean de la sesión.
+- `POST /api/casos/{id}/accion` acepta `AccionAnalistaIn` de `contracts/tools.py` y devuelve estado nuevo y notificación disparada.

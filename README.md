@@ -18,7 +18,7 @@ Factored AI & Data Hackathon 2026, equipo Contrarreloj. Dataset sintético LATAM
 La guía de construcción del equipo empieza en [`docs/README.md`](docs/README.md). Documentos, contratos y esquemas:
 
 - [`docs/README.md`](docs/README.md) — índice del equipo y guía de construcción.\
-  Qué construimos, conceptos compartidos, arquitectura, quién aporta qué, calendario, reglas y dependencias.
+  Qué construimos, conceptos, arquitectura, quién aporta qué, guardrails por capa, datos de prueba, calendario y reglas.
 - [`docs/equipo/01_freddy.md`](docs/equipo/01_freddy.md) — Freddy: agente, políticas, MCP, ML, integración.\
   Qué recibe y entrega, tools por actor, modo de aprobación configurable y tareas.
 - [`docs/equipo/02_gianmarco.md`](docs/equipo/02_gianmarco.md) — GianMarco: deploy, chat, consola, páginas.\
@@ -33,6 +33,8 @@ La guía de construcción del equipo empieza en [`docs/README.md`](docs/README.m
   Decisiones y por qué, páginas de la app, estructura del repo, auto-deploy y criterios de aceptación.
 - [`docs/conceptos.md`](docs/conceptos.md) — guía de conceptos de la idea W3.\
   One-pager, glosario, AS IS / TO BE, plazos legales, evaluación, business case y riesgos.
+- [`docs/diferenciales.md`](docs/diferenciales.md) — diferenciales frente a otros equipos (para el README final y el video).\
+  Cada diferencial atado a un criterio del reto y a la prueba que se muestra; dónde podríamos perder.
 - [`problem.md`](problem.md) — definición del problema W3: intake de disputas con reloj regulatorio.\
   Alcance, despliegue, componente aprendido vs baseline, cómo se mide, riesgos, reparto y calendario.
 - [`docs/tasks.md`](docs/tasks.md) — tablero de tareas por día (lun 28 a dom 4).\
@@ -42,21 +44,25 @@ La guía de construcción del equipo empieza en [`docs/README.md`](docs/README.m
 - [`contracts/gold_contract.propuesta.md`](contracts/gold_contract.propuesta.md) — propuesta de Freddy: qué lee el agente del gold y qué no.\
   Pendiente de conciliar con `gold_contract.md` (David).
 - [`contracts/policies.yaml`](contracts/policies.yaml) — motor de políticas fuera del modelo (`default: deny`).\
-  Identidad, alcance por cliente, zonas, umbrales y modo de aprobación; el LLM nunca lo lee ni lo edita.
+  Identidad, zonas, modo de aprobación, cola del analista, notificaciones, guardrails con ID y splits; el LLM no lo lee.
 - [`contracts/tools.py`](contracts/tools.py) — contratos tipados de las tools (pydantic).\
-  Los permisos viven aquí: cada tool resuelve `customer_id` desde la sesión, nunca desde el texto.
+  Tools del cliente y del analista con sus permisos; cada tool resuelve `customer_id` desde la sesión, nunca del texto.
 - [`contracts/handoff.schema.json`](contracts/handoff.schema.json) — JSON Schema de la tarjeta de handoff.\
   Lo que recibe el humano: solicitud, hechos verificados, acciones, evidencia, preguntas abiertas y plazo.
 - [`eval/eval_case.schema.json`](eval/eval_case.schema.json) — JSON Schema de un caso de evaluación held-out.\
-  El harness compara estado final, no texto; IDs `EV-NNNN`, idioma, tipo de caso, país y segmento.
+  El harness compara estado final, no texto; IDs `EV-NNNN`, tipo de caso (incluye ataques y `tope`) y conjunto.
 - [`eval/ejemplos.jsonl`](eval/ejemplos.jsonl) — casos de ejemplo que cumplen el esquema.\
   Referencia para armar el set ES/PT (`EV-0001` es el caso normal end-to-end).
 - [`docs/assets/arquitectura.svg`](docs/assets/arquitectura.svg) — diagrama de arquitectura.\
   El LLM entiende, las reglas deciden, las tools actúan, la verificación confirma.
 - [`docs/assets/arquitectura_despliegue_A_B.svg`](docs/assets/arquitectura_despliegue_A_B.svg) — despliegue opción A vs B.\
-  Mismo grafo y tools; cambia dónde corre el grafo y cómo llama a las tools. Se usa en `docs/README.md`.
+  Mismo grafo y tools; cambia dónde corre el grafo y cómo llama a las tools.
+- [`docs/assets/arquitectura_v2_ciclo_reto.svg`](docs/assets/arquitectura_v2_ciclo_reto.svg) — arquitectura v2 mapeada al ciclo del reto.\
+  Understand → Decide → Act → Verify → Escalate, con los requisitos mínimos de cada etapa. Se usa en `docs/README.md`.
 - [`docs/assets/flujo_3_zonas.svg`](docs/assets/flujo_3_zonas.svg) — flujo de un caso por las tres zonas.\
   Entender, identidad, recuperar, decidir por reglas, y los casos en que el sistema dice "no".
+- [`docs/assets/flujo_analista.svg`](docs/assets/flujo_analista.svg) — flujo del analista y cola del caso.\
+  El sistema actúa rápido, la persona verifica y cierra, el cliente se entera en cada estado.
 - [`docs/assets/grafo_evidencia.svg`](docs/assets/grafo_evidencia.svg) — grafo de evidencia para el revisor.\
   Cada nodo es una fila del log de ejecución (cliente, producto, transacción, score).
 - [`docs/assets/pipeline_y_duenos.svg`](docs/assets/pipeline_y_duenos.svg) — pasos de un caso y qué aporta cada persona.\

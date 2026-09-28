@@ -14,6 +14,14 @@
 - Ningún dato de credenciales, ni columnas del diccionario que no se usen (menos es más).
 - `manifest.json`: versión, fecha, filas por tabla, hash por archivo, rango de fechas, checks aplicados con conteos.
 
+## 0b. Particiones (una sola vez, en gold; todo lo demás cuelga de aquí)
+- `customers.split` = `hash(customer_id) mod 10` → `train` (0–6), `dev` (7), `heldout` (8–9). Se propaga a
+  `products`, `transactions`, `demo_customers`, `demo_transactions` y `demo_index.csv`.
+- `transactions.periodo` = `fit` (2025-06-01 a 2026-02-28) o `measure` (2026-03-01 a 2026-05-31).
+- Reglas: los casos de desarrollo usan solo clientes `dev`; el held-out del agente usa solo `heldout`; el modelo de
+  fraude y la calibración de zonas se ajustan con `train` × `fit` y se miden en `heldout` × `measure`.
+- Regla G6 (además de G1–G5): `gold_eval/` lo lee únicamente el harness; ninguna tool ni el agente tienen ruta a él.
+
 ## 1. Tablas base que leen las tools
 
 | Tabla | Grano | Columnas | Quién la usa |
@@ -47,7 +55,7 @@ el estado mutable y **después** el gold. David no tiene que hacer nada aquí; e
 |---|---|---|
 | `demo_customers` | 30–50 clientes reales del dataset elegidos a mano: 3 países × 4 segmentos, con al menos 3 productos y actividad reciente; columna `demo_language` (`es` o `pt` asignado por nosotros, etiquetado como team-generated) | filtro + muestreo con semilla fija |
 | `demo_transactions` | Para cada cliente demo, sus transacciones de los últimos 90 días **más** un conjunto marcado por zona: `zona_esperada` (`alta` ≥ 50, `media` 30–49, `humano` < 30 o NULL), `escenario` (normal, ambiguo con 3 candidatas, monto alto, sin score, reversada) | selección con semilla fija; nada inventado: son transacciones reales del dataset |
-| `demo_index.csv` | Tabla legible: `customer_id`, país, segmento, idioma, `transaction_id`, monto, fecha, score, zona esperada, escenario | Datos 2 escribe los mensajes de los casos de eval a partir de esta tabla |
+| `demo_index.csv` | Tabla legible: `customer_id`, país, segmento, idioma, `split` (dev o heldout), `transaction_id`, monto, fecha, score, zona esperada, escenario | Datos 2 escribe los mensajes de los casos de eval a partir de esta tabla |
 
 ## 5. Solo para evaluación y analytics (fuera del alcance de las tools)
 
@@ -63,7 +71,7 @@ el estado mutable y **después** el gold. David no tiene que hacer nada aquí; e
 - El agente declara en `/datos` la versión del manifest que está usando.
 
 ## 7. Entregas mínimas por día
-- **Mar 29:** `customers`, `products`, `transactions` (12 meses) en gold + manifest v1 + `make setup`. Con esto
+- **Mar 29:** `customers`, `products`, `transactions` (12 meses) en gold con `split` y `periodo` + manifest v1 + `make setup`. Con esto
   el agente ya corre EV-0001.
 - **Mié 30:** `customer_profile`, `transactions_enriched`, `product_state_snapshot`, `demo_*`.
 - **Jue 1:** `gold_eval/`, `gold_analytics/`, fixture de late arrival, manifest v2.

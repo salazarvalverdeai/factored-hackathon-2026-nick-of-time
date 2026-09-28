@@ -37,3 +37,8 @@ Viernes debe existir: gold v2 con derivadas y fixtures; `make setup` reproduce; 
 
 ## Dónde encuentro lo mío
 `data/pipeline/` (contracts.py, bronze/silver/gold) · `data/gold/manifest.json`, `data/quality_report.md` · `data/fixtures/` · `docs/eda/` (README índice, notas_pipeline.md) · `queries/pitch/` · `contracts/gold_contract.md`.
+
+## Cambios del lunes en la tarde
+- Columnas `split` (`hash(customer_id) mod 10`: 0–6 train, 7 dev, 8–9 held-out) y `periodo` (`fit` jun-2025 a feb-2026, `measure` mar–may-2026) en `customers` y `transactions`, propagadas a `demo_index.csv`. Regla G6: `gold_eval/` lo lee solo el harness.
+- Fijar versiones en `requirements.txt` (DuckDB incluido).
+- Push del repo público en cuanto Freddy comparta el nombre final y las cuentas de GitHub; no hay bloqueo de Slack.

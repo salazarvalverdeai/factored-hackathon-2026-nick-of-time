@@ -34,6 +34,12 @@
 ## Números del pitch verificados
 Los 15 números se reproducen con `python -m queries.run`; ver `docs/eda/README.md` (tabla número → query → CSV) y `04_diego.md` (explicación en palabras). Tres cambian de redacción: duración mediana en vez de AHT; recall 48.8% sobre fraudes con score (38.7% del total); 679 solo como promedio de 36.4%.
 
+## Cambios del lunes en la tarde
+- `policies.yaml`: `case_queue`, `notifications`, `guardrails` (15 con ID), `data_splits`; `bloquear_tarjeta` en zona alta → `manual_check`; `close: human_only`.
+- `tools.py`: `calcular_plazo`, `notificar_cliente`, `AccionAnalistaIn/Out`, `Transaccion.split`.
+- `eval_case.schema.json`: `conjunto`, `guardrail_ids`, `estado_cola`, `notificaciones`. `handoff.schema.json`: `estado_cola`, `notificaciones_enviadas`, `guardrails_disparados`.
+- Repo `factored-hackathon-2026-contrareloj`: `docs/README.md`, `docs/equipo/*.md`, `docs/anexos.md`, `docs/stack.md`, `docs/conceptos.md`, `docs/diferenciales.md`, `docs/assets/*.svg`, `contracts/`, `eval/`.
+
 ## Pendientes
 - [ ] Cuentas de GitHub de los cuatro; push del repo público (David) en cuanto Freddy comparta el nombre final.
 - [ ] Confirmar en Slack la hora límite: lunes 5 de octubre, 5:00 pm.
@@ -45,4 +51,4 @@ Los 15 números se reproducen con `python -m queries.run`; ver `docs/eda/README.
 - [ ] Umbrales de monto calibrados con el snapshot.
 - [ ] Defaults del modo de aprobación por acción y por zona en `policies.yaml`.
 - [ ] Fijar versiones en `requirements.txt` (DuckDB incluido).
-- [ ] Decidir cierre humano de casos auto y notificaciones al cliente (propuesta pendiente de aprobar).
+- [ ] Decidir clasificador de injection (reglas + LR recomendado, o Llama Guard) y grounding de salida (comparación exacta recomendada, o LLM juez).

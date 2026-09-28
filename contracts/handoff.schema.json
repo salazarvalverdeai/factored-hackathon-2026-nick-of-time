@@ -2,22 +2,202 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "Tarjeta de handoff — lo que recibe el humano (nunca el transcript crudo)",
   "type": "object",
-  "required": ["case_id", "idioma", "zona", "solicitud", "hechos_verificados", "acciones", "evidencia", "preguntas_abiertas", "plazo", "trace_id"],
+  "required": [
+    "case_id",
+    "idioma",
+    "zona",
+    "solicitud",
+    "hechos_verificados",
+    "acciones",
+    "evidencia",
+    "preguntas_abiertas",
+    "plazo",
+    "trace_id"
+  ],
   "properties": {
-    "case_id": {"type": "string"},
-    "idioma": {"enum": ["es", "pt"]},
-    "zona": {"enum": ["alta", "media", "humano"]},
-    "motivo_handoff": {"enum": ["zone_humano", "amount_over_case_gate", "identity_unverified", "clarification_exhausted", "tool_failure", "language_low_confidence"]},
-    "solicitud": {"type": "string", "description": "en una frase, redactada por el sistema: tipo, monto, fecha, comercio"},
-    "hechos_verificados": {"type": "array", "items": {"type": "object", "required": ["hecho", "fuente_id"], "properties": {"hecho": {"type": "string"}, "fuente_id": {"type": "string", "description": "transaction_id, product_id, session_id, rule_id"}}}},
-    "acciones": {"type": "array", "items": {"type": "object", "required": ["tool", "action_id", "resultado", "verificado"], "properties": {"tool": {"type": "string"}, "action_id": {"type": "string"}, "resultado": {"type": "string"}, "verificado": {"type": "boolean"}, "verification_id": {"type": "string"}}}},
-    "evidencia": {"type": "array", "items": {"type": "string"}, "description": "IDs: T-, P-, A-, V-, R-, K-"},
-    "preguntas_abiertas": {"type": "array", "items": {"type": "string"}},
-    "propuesta_copiloto": {"type": "object", "properties": {"accion": {"enum": ["aprobar_abono", "bloquear", "pedir_datos", "cerrar_sin_accion"]}, "justificacion": {"type": "string"}, "requiere_humano": {"const": true}}},
-    "plazo": {"type": "object", "required": ["pais", "fuente"], "properties": {"pais": {"type": "string"}, "producto": {"type": "string"}, "fecha_abono": {"type": "string", "format": "date"}, "fecha_dictamen": {"type": "string", "format": "date"}, "fuente": {"type": "string"}}},
-    "trace_id": {"type": "string"},
-    "score": {"type": ["number", "null"]},
-    "intent_confidence": {"type": "number"}
+    "case_id": {
+      "type": "string"
+    },
+    "idioma": {
+      "enum": [
+        "es",
+        "pt"
+      ]
+    },
+    "zona": {
+      "enum": [
+        "alta",
+        "media",
+        "humano"
+      ]
+    },
+    "motivo_handoff": {
+      "enum": [
+        "zone_humano",
+        "amount_over_case_gate",
+        "identity_unverified",
+        "clarification_exhausted",
+        "tool_failure",
+        "language_low_confidence"
+      ]
+    },
+    "solicitud": {
+      "type": "string",
+      "description": "en una frase, redactada por el sistema: tipo, monto, fecha, comercio"
+    },
+    "hechos_verificados": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "hecho",
+          "fuente_id"
+        ],
+        "properties": {
+          "hecho": {
+            "type": "string"
+          },
+          "fuente_id": {
+            "type": "string",
+            "description": "transaction_id, product_id, session_id, rule_id"
+          }
+        }
+      }
+    },
+    "acciones": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "tool",
+          "action_id",
+          "resultado",
+          "verificado"
+        ],
+        "properties": {
+          "tool": {
+            "type": "string"
+          },
+          "action_id": {
+            "type": "string"
+          },
+          "resultado": {
+            "type": "string"
+          },
+          "verificado": {
+            "type": "boolean"
+          },
+          "verification_id": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "evidencia": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "IDs: T-, P-, A-, V-, R-, K-"
+    },
+    "preguntas_abiertas": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "propuesta_copiloto": {
+      "type": "object",
+      "properties": {
+        "accion": {
+          "enum": [
+            "aprobar_abono",
+            "bloquear",
+            "pedir_datos",
+            "cerrar_sin_accion"
+          ]
+        },
+        "justificacion": {
+          "type": "string"
+        },
+        "requiere_humano": {
+          "const": true
+        }
+      }
+    },
+    "plazo": {
+      "type": "object",
+      "required": [
+        "pais",
+        "fuente"
+      ],
+      "properties": {
+        "pais": {
+          "type": "string"
+        },
+        "producto": {
+          "type": "string"
+        },
+        "fecha_abono": {
+          "type": "string",
+          "format": "date"
+        },
+        "fecha_dictamen": {
+          "type": "string",
+          "format": "date"
+        },
+        "fuente": {
+          "type": "string"
+        }
+      }
+    },
+    "trace_id": {
+      "type": "string"
+    },
+    "score": {
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "intent_confidence": {
+      "type": "number"
+    },
+    "estado_cola": {
+      "enum": [
+        "nuevo",
+        "verificacion",
+        "revision",
+        "resuelto",
+        "cerrado"
+      ]
+    },
+    "notificaciones_enviadas": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "evento": {
+            "type": "string"
+          },
+          "proveedor": {
+            "type": "string"
+          },
+          "entregado": {
+            "type": "boolean"
+          },
+          "ts": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "guardrails_disparados": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
   },
   "additionalProperties": false
 }

@@ -34,10 +34,11 @@ approval:                                # modo de aprobación por acción: auto
   supervised_mode: false                 # interruptor global desde la consola; true fuerza human_required en todo; cada cambio se audita
   per_action:
     abrir_caso:        {alta: auto, media: auto, humano: auto}                 # registrar no es una decisión de dinero
-    bloquear_tarjeta:  {alta: auto, media: human_required, humano: human_required}
+    bloquear_tarjeta:  {alta: manual_check, media: human_required, humano: human_required}   # alta: ejecuta y verifica ya; el caso queda en 'verificacion' hasta que un analista lo cierre
     abono_provisional: {alta: human_required, media: human_required, humano: human_required}   # nunca auto
     desbloquear_tarjeta: {alta: human_required, media: human_required, humano: human_required}
-  manual_check_leaves_case_in: en_revision   # con manual_check la acción se ejecuta y el caso queda en revisión
+  manual_check_leaves_case_in: verificacion  # con manual_check la acción se ejecuta y el caso queda en verificación hasta el visto bueno humano
+  close: human_only                        # ningún caso se cierra sin una persona, tampoco los automáticos
 
 actions:
   ticket:           {zones: [alta, media, humano], verify: estado_caso}         # siempre; el modo lo da approval.per_action.abrir_caso
@@ -74,3 +75,45 @@ reliability:
 security:
   prompt_injection: {strategy: "instrucciones y datos separados; tools con allowlist; texto del cliente nunca cambia permisos"}
   external_llm_data: {send_synthetic_only: true, confirm_in_slack: true}
+
+case_queue:                              # cola del analista; el estado del caso es su último evento en case_events
+  states: [nuevo, verificacion, revision, resuelto, cerrado]
+  transitions:
+    nuevo:        [verificacion, revision]          # verificacion = acción automática ya ejecutada; revision = handoff sin acción
+    verificacion: [resuelto, revision]
+    revision:     [resuelto, revision]              # pedir_datos_cliente mantiene revision
+    resuelto:     [cerrado, revision]               # reabrir vuelve a revision
+    cerrado:      []
+  sla_hours: {verificacion: 4, revision: 24}       # [supuesto] para el demo; se muestra en la consola
+  ambiguo_queue: {state: revision, tag: ambiguo, owner_required: true}
+
+notifications:                           # lo que el cliente recibe en cada estado; cada envío es un evento en case_events
+  provider: log                          # log (panel "Mis notificaciones" en /chat, demo) | telegram (provisional si alcanza) | email (mock)
+  events:
+    caso_abierto:       {template: "Abrimos tu caso {case_id}. Plazo legal: {plazo}.", channels: [log, telegram]}
+    tarjeta_bloqueada:  {template: "Tu tarjeta {product_last4} quedó bloqueada (verificado). Caso {case_id}.", channels: [log, telegram]}
+    en_revision:        {template: "Un analista está revisando tu caso {case_id}.", channels: [log]}
+    resuelto:           {template: "Tu caso {case_id} fue resuelto: {resultado}.", channels: [log, telegram, email]}
+  never_send: [transcript, score, policy_ids]      # el cliente no recibe internals
+
+guardrails:                              # cada uno vive en código; cada DENY cita su id; cada uno tiene un caso en eval/
+  - {id: G-IN-01, layer: entrada, name: prompt injection directa e indirecta, impl: "texto del cliente y salidas de tools como datos delimitados; clasificador de injection (reglas + LR) → zona humano", test: injection}
+  - {id: G-IN-02, layer: entrada, name: datos inventados por el cliente, impl: "monto/fecha/comercio solo para buscar; score, producto y país salen del gold", test: injection}
+  - {id: G-IN-03, layer: entrada, name: idioma y ambigüedad, impl: "detección ES/PT con umbral; baja confianza → pregunta, luego humano", test: ambiguo}
+  - {id: G-IN-04, layer: entrada, name: PII y fuera de alcance, impl: "regex PAN/CVV/contraseña → rechazar y pedir no enviarlo; tema fuera de disputas → abstención", test: fuera_de_alcance}
+  - {id: G-SES-01, layer: sesion, name: identidad y alcance, impl: "OTP mock TTL 15 min; customer_id solo desde sesión; vencida → sin datos", test: session_expired}
+  - {id: G-SES-02, layer: sesion, name: acceso a otro cliente, impl: "la tool filtra por sesión; DENY con policy_id", test: unauthorized_access}
+  - {id: G-TOOL-01, layer: tools, name: allowlist y esquemas estrictos, impl: "el agente solo ve tools del cliente; Pydantic rechaza argumentos inesperados; rate limit por sesión", test: unauthorized_access}
+  - {id: G-TOOL-02, layer: tools, name: escrituras controladas, impl: "modo de aprobación por acción; idempotency key; post-condición obligatoria; abono nunca auto", test: tool_failure}
+  - {id: G-POL-01, layer: politica, name: deny por defecto y registro, impl: "policies.yaml versionado; toda denegación es fila en policy_denials", test: todos}
+  - {id: G-OUT-01, layer: salida, name: grounding, impl: "todo número, fecha, ID o estado en la respuesta existe en un resultado de tool o en la política; si no, se descarta y se registra", test: missing_data}
+  - {id: G-OUT-02, layer: salida, name: solo lo verificado, impl: "'bloqueada' solo con estado_producto == Blocked; 'caso #' solo con estado_caso == Abierto", test: tool_failure}
+  - {id: G-OUT-03, layer: salida, name: fuga de datos ajenos y secretos, impl: "filtro de salida rechaza IDs/montos que no son de la sesión; nunca YAML ni claves", test: unauthorized_access}
+  - {id: G-OUT-04, layer: salida, name: tono y abstención, impl: "sin promesas de dinero ni plazos que la política no dio; abstención explícita", test: missing_data}
+  - {id: G-OPS-01, layer: operacion, name: presupuesto y reintentos, impl: "tope de tokens por conversación y por día chequeado antes de llamar; reintentos 2; timeout 800 ms", test: tope}
+  - {id: G-OPS-02, layer: operacion, name: auditoría inmutable, impl: "cada evento con actor, trace_id y hash de la entrada; nada se borra", test: inspeccion}
+
+data_splits:                             # ver contracts/gold_contract.md; el harness lee gold_eval solo para puntuar
+  by_customer: {rule: "hash(customer_id) mod 10", train: [0,1,2,3,4,5,6], dev: [7], heldout: [8,9]}
+  by_period:   {fit: "2025-06-01..2026-02-28", measure: "2026-03-01..2026-05-31"}
+  heldout_seal: {day: "2026-10-01", how: "sha256 de los IDs de clientes y transacciones incluidos, en eval/heldout.sha256"}
