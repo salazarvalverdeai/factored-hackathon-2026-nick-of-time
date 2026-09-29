@@ -9,7 +9,7 @@ SELECT 'transactions', c.country, x.currency, count(*),
        round(100.0 * count(*) / sum(count(*)) OVER (PARTITION BY c.country), 2)
 FROM transactions x JOIN customers c USING (customer_id) GROUP BY c.country, x.currency
 UNION ALL
-SELECT 'complaints', c.country, coalesce(k.currency, '(nulo)'), count(*),
+SELECT 'complaints', c.country, coalesce(k.currency, '(null)'), count(*),
        round(100.0 * count(*) / sum(count(*)) OVER (PARTITION BY c.country), 2)
 FROM complaints k JOIN customers c USING (customer_id) GROUP BY c.country, k.currency
 ORDER BY tbl, country, n DESC

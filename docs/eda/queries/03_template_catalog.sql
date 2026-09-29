@@ -11,5 +11,5 @@ SELECT 'complaints.description', description, {case_cmp}, count(*) FROM complain
 UNION ALL
 SELECT 'complaints.resolution', resolution, {case_cmp}, count(*) FROM complaints WHERE resolution IS NOT NULL GROUP BY ALL
 UNION ALL
-SELECT 'satisfaction_surveys.open_comments', open_comments, 'TRANSVERSAL', count(*) FROM satisfaction_surveys
+SELECT 'satisfaction_surveys.open_comments', open_comments, 'CROSS_CUTTING', count(*) FROM satisfaction_surveys
 WHERE open_comments IS NOT NULL GROUP BY ALL

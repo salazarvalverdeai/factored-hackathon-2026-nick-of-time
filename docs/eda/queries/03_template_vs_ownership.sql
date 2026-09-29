@@ -7,8 +7,8 @@ WITH own AS (
     FROM products GROUP BY 1
 ),
 t AS (
-    SELECT CASE WHEN customer_text LIKE '%tarjeta de crédito%' THEN 'saldo_tarjeta_credito'
-                WHEN customer_text LIKE '%cuenta de ahorros%' THEN 'saldo_cuenta_ahorros' ELSE 'otra' END AS template_base,
+    SELECT CASE WHEN customer_text LIKE '%tarjeta de crédito%' THEN 'credit_card_balance'
+                WHEN customer_text LIKE '%cuenta de ahorros%' THEN 'savings_account_balance' ELSE 'other' END AS template_base,
            customer_id
     FROM call_transcripts
 )
@@ -17,7 +17,7 @@ SELECT template_base AS grp, count(*) AS n,
        round(100.0 * avg(coalesce(has_savings, FALSE)::INT), 2) AS pct_owns_savings
 FROM t LEFT JOIN own USING (customer_id) GROUP BY 1
 UNION ALL
-SELECT 'todos los clientes', count(*), round(100.0 * avg(coalesce(has_credit_card, FALSE)::INT), 2),
+SELECT 'all customers', count(*), round(100.0 * avg(coalesce(has_credit_card, FALSE)::INT), 2),
        round(100.0 * avg(coalesce(has_savings, FALSE)::INT), 2)
 FROM customers LEFT JOIN own USING (customer_id)
 ORDER BY grp

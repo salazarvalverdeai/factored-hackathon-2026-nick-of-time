@@ -3,11 +3,11 @@
 -- n_extra = rows - distinct key values ("surplus" rows if the key were unique).
 SELECT 'call_center_interactions' AS tbl, '(customer_id, interaction_date)' AS key_def,
        count(*) AS n_rows, count(DISTINCT (customer_id, interaction_date)) AS n_distinct FROM call_center_interactions
-UNION ALL SELECT 'call_center_interactions', '(customer_id, día, reason_category, channel)',
+UNION ALL SELECT 'call_center_interactions', '(customer_id, day, reason_category, channel)',
        count(*), count(DISTINCT (customer_id, interaction_date::DATE, reason_category, channel)) FROM call_center_interactions
 UNION ALL SELECT 'transactions', '(product_id, transaction_date, amount)',
        count(*), count(DISTINCT (product_id, transaction_date, amount)) FROM transactions
-UNION ALL SELECT 'transactions', '(customer_id, día, amount, transaction_type)',
+UNION ALL SELECT 'transactions', '(customer_id, day, amount, transaction_type)',
        count(*), count(DISTINCT (customer_id, transaction_date::DATE, amount, transaction_type)) FROM transactions
 UNION ALL SELECT 'complaints', '(customer_id, creation_date)',
        count(*), count(DISTINCT (customer_id, creation_date)) FROM complaints

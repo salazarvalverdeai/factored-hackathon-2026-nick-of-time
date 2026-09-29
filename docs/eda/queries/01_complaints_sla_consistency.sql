@@ -2,7 +2,7 @@
 -- If % SLA breached depends on neither resolution_days nor status, the scorecard metric is generator noise.
 -- Produces: outputs/tables/01_complaints_sla_consistency.csv (via eda/quality.py).
 SELECT 'resolution_days' AS dimension,
-       CASE WHEN resolution_days IS NULL THEN 'sin resolver (nulo)'
+       CASE WHEN resolution_days IS NULL THEN 'unresolved (null)'
             WHEN resolution_days <= 5 THEN '01-05' WHEN resolution_days <= 10 THEN '06-10'
             WHEN resolution_days <= 15 THEN '11-15' WHEN resolution_days <= 20 THEN '16-20'
             WHEN resolution_days <= 25 THEN '21-25' ELSE '26-30' END AS value,
