@@ -2,7 +2,7 @@
   "dataset": "latam_bank_gold",
   "version": 1,
   "version_created_at": "2026-09-28T20:01:08+00:00",
-  "run_at": "2026-09-28T20:01:08+00:00",
+  "run_at": "2026-09-29T12:44:12+00:00",
   "pipeline_version": "0.1.0",
   "contract": {
     "file": "contracts/gold_contract.md",
@@ -14,32 +14,32 @@
     "rules": [
       {
         "id": "G1",
-        "rule": "ninguna tabla de data/gold/ tiene is_fraud",
-        "value": "ninguna",
+        "rule": "no table in data/gold/ has is_fraud",
+        "value": "none",
         "ok": true
       },
       {
         "id": "G2",
-        "rule": "transaction_date en [2025-06-01, 2026-06-01)",
-        "value": "2025-06-01 00:00:16 → 2026-05-31 23:57:20; fuera: 0",
+        "rule": "transaction_date in [2025-06-01, 2026-06-01)",
+        "value": "2025-06-01 00:00:16 → 2026-05-31 23:57:20; outside: 0",
         "ok": true
       },
       {
         "id": "G3",
-        "rule": "transactions.customer_id = dueño del producto (join)",
-        "value": "0 filas distintas",
+        "rule": "transactions.customer_id = product owner (join)",
+        "value": "0 differing rows",
         "ok": true
       },
       {
         "id": "G4",
-        "rule": "transaction_labels 1:1 con gold.transactions",
-        "value": "sin etiqueta: 0; etiqueta sin transacción: 0",
+        "rule": "transaction_labels 1:1 with gold.transactions",
+        "value": "without label: 0; label without transaction: 0",
         "ok": true
       },
       {
         "id": "G5",
-        "rule": "customer_profile 1 fila por cliente; transactions_enriched 1 por transacción",
-        "value": "profile 150000 (únicos 150000) vs customers 150000; enriched 1477723 (únicos 1477723) vs transactions 1477723",
+        "rule": "customer_profile 1 row per customer; transactions_enriched 1 per transaction",
+        "value": "profile 150000 (unique 150000) vs customers 150000; enriched 1477723 (unique 1477723) vs transactions 1477723",
         "ok": true
       }
     ]
@@ -302,14 +302,18 @@
       }
     }
   },
-  "changed_tables": [
-    "customers",
-    "products",
-    "transactions",
-    "complaints",
-    "transaction_labels",
-    "transactions_enriched",
-    "customer_profile"
-  ],
-  "previous": null
+  "changed_tables": [],
+  "previous": {
+    "version": 1,
+    "run_at": "2026-09-28T20:01:08+00:00",
+    "sha256": {
+      "customers": "a6ad9e0e3d01775a6f7af4d1f78afe425a16de05bfed96d2abdb6d99b85ed3a4",
+      "products": "a05d6177c7b1f2728b987396416ab4a369966064a729203f5a4f9a64669c9ecf",
+      "transactions": "37296dbfec9be696f486a24e7a17d0c8342a4898b28ccb30859855aad20e4f91",
+      "complaints": "6e4a5db4744fc5f890ace6ff7d691458c9f503f047dc0d5091cba2cb17837e02",
+      "transaction_labels": "96194cdaa295c2c73f3ea8d31f43b995ef67240dc2f9e4eeb9ff6fd60ec889ed",
+      "transactions_enriched": "15d74f2f8efa757e04b97ab270cc058f45937ddf95c59a3964b4b5aaf1ab68f6",
+      "customer_profile": "39213080a40ffa25e82257b7038c933cc79d0fdb902379733f02ed618ab4e3b1"
+    }
+  }
 }
