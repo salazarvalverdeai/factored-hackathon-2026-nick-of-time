@@ -1,19 +1,19 @@
-"""Pipeline bronze → silver → gold del dataset LATAM Bank (tablas de la idea W3: customers, products, transactions,
-complaints).
+"""Bronze → silver → gold pipeline for the LATAM Bank dataset (tables for the W3 idea: customers, products,
+transactions, complaints).
 
-    python -m data.pipeline run --source s3        # bronze desde S3 (credenciales de .env), silver, gold
-    python -m data.pipeline run --source local     # mismo flujo sobre el espejo local data/<tabla>/ (sin red)
-    python -m data.pipeline fixture                # fixture etiquetado de llegadas tardías y cambio de schema
-    python -m data.pipeline report                 # data/quality_report.md desde los resultados de las corridas
+    python -m data.pipeline run --source s3        # bronze from S3 (credentials from .env), silver, gold
+    python -m data.pipeline run --source local     # same flow over the local mirror data/<table>/ (no network)
+    python -m data.pipeline fixture                # labeled fixture of late arrivals and schema change
+    python -m data.pipeline report                 # data/quality_report.md from the run results
 
-Capas (bajo el directorio de trabajo, `data/` por defecto):
-    bronze/<tabla>.parquet   copia fiel del CSV (todo VARCHAR) + linaje (_source_key, _loaded_at, _partition_date)
-    silver/<tabla>.parquet   tipado según el contrato (contracts.py), renombres declarados, normalización de
-                             etiquetas, dedup/upsert por PK y validación pandera; filas que violan el contrato van a
-                             silver/_quarantine/<tabla>.parquet
-    gold/<tabla>.parquet     según contracts/gold_contract.md: silver + flags de calidad (qc_*), transactions en la
-                             ventana de 12 meses con customer_id resuelto por join y sin is_fraud, más customer_profile
-                             y transactions_enriched; gold/manifest.json (versión, fecha, filas, sha256 de cada tabla);
-                             gold/run_results.json con todos los conteos del reporte
-    gold_eval/<tabla>.parquet  transaction_labels (transaction_id, is_fraud): solo para evaluación
+Layers (under the working directory, `data/` by default):
+    bronze/<table>.parquet   faithful copy of the CSV (all VARCHAR) + lineage (_source_key, _loaded_at, _partition_date)
+    silver/<table>.parquet   typed per the contract (contracts.py), declared renames, label normalization,
+                             dedup/upsert by PK and pandera validation; rows that violate the contract go to
+                             silver/_quarantine/<table>.parquet
+    gold/<table>.parquet     per contracts/gold_contract.md: silver + quality flags (qc_*), transactions in the
+                             12-month window with customer_id resolved by join and without is_fraud, plus
+                             customer_profile and transactions_enriched; gold/manifest.json (version, date, rows,
+                             sha256 of each table); gold/run_results.json with all the report counts
+    gold_eval/<table>.parquet  transaction_labels (transaction_id, is_fraud): for evaluation only
 """

@@ -1,7 +1,7 @@
-"""Genera data/quality_report.md desde los resultados de las corridas (nunca a mano).
+"""Generates data/quality_report.md from the run results (never by hand).
 
-Entradas: data/gold/run_results.json (corrida real) y data/_fixture_run/fixture_results.json (fixture). Si falta
-alguna, la sección correspondiente lo dice y explica cómo producirla.
+Inputs: data/gold/run_results.json (real run) and data/_fixture_run/fixture_results.json (fixture). If either is
+missing, the corresponding section says so and explains how to produce it.
 """
 from __future__ import annotations
 
@@ -33,7 +33,7 @@ def eda_cell(c: dict) -> str:
     e = c["eda"]
     if not e:
         return "—"
-    mark = "igual" if (e["n"], e["denominator"]) == (c["n"], c["denominator"]) else "**distinto**"
+    mark = "same" if (e["n"], e["denominator"]) == (c["n"], c["denominator"]) else "**different**"
     return f"{n(e['n'])} / {n(e['denominator'])} ({mark}; `{e['source']}`)"
 
 
@@ -46,29 +46,29 @@ def section_summary(r: dict) -> list[str]:
                      n(s["quarantined"]), n(s["rows_silver"]), n(g["rows"]), f"`{g['sha256'][:12]}`"])
     src = r["source"]
     w = src["transactions_window"]
-    return ["## 1. Resumen por tabla", "",
-            *table(["Tabla", "Archivos", "Filas bronze", "Duplicados exactos", "Versiones de PK", "Cuarentena",
-                    "Filas silver", "Filas gold", "sha256 gold"], rows, "---|---:|---:|---:|---:|---:|---:|---:|---"),
-            f"`transactions` en gold cubre la ventana [{w[0]}, {w[1]}) (contrato R1). Bronze lee sus particiones desde "
-            f"un día antes del inicio en adelante; {n(src['files_out_of_scope'])} archivos fuera de ese alcance no se "
-            "descargan ni se leen. Silver tiene todo lo leído; el check WIN-01 cuenta lo que no pasa a gold.", "", ""
-            "Bronze es la copia fiel del CSV (todo texto + linaje). Silver aplica el contrato: tipos, renombres "
-            "declarados, normalización de etiquetas, dedup/upsert por PK y validación pandera. Gold agrega flags "
-            "`qc_*` por fila y no borra nada. Una fila con problemas de calidad se marca, y la capa de servicio decide "
-            "qué hacer con ella.", ""]
+    return ["## 1. Summary by table", "",
+            *table(["Table", "Files", "Bronze rows", "Exact duplicates", "PK versions", "Quarantine",
+                    "Silver rows", "Gold rows", "Gold sha256"], rows, "---|---:|---:|---:|---:|---:|---:|---:|---"),
+            f"`transactions` in gold covers the window [{w[0]}, {w[1]}) (contract R1). Bronze reads its partitions "
+            f"from one day before the start onward; {n(src['files_out_of_scope'])} files outside that scope are not "
+            "downloaded or read. Silver has everything that was read; check WIN-01 counts what does not go to gold.", "", ""
+            "Bronze is the faithful copy of the CSV (all text + lineage). Silver applies the contract: types, declared "
+            "renames, label normalization, dedup/upsert by PK and pandera validation. Gold adds per-row `qc_*` flags "
+            "and deletes nothing. A row with quality problems is flagged, and the serving layer decides what to do "
+            "with it.", ""]
 
 
 def section_contract(r: dict) -> list[str]:
     m = r["gold"]["manifest"]
-    rules = [[x["id"], x["rule"], x["value"], "cumple" if x["ok"] else "**no cumple**"] for x in r["gold"]["contract_rules"]]
+    rules = [[x["id"], x["rule"], x["value"], "pass" if x["ok"] else "**fail**"] for x in r["gold"]["contract_rules"]]
     tabs = [[f"`{t}`", f"`{meta['path']}`", n(meta["rows"]), n(len(meta["columns"])), f"`{meta['sha256'][:12]}`"]
             for t, meta in m["tables"].items()]
-    return ["## 2. Contrato de gold", "",
-            f"Contrato: `{m['contract']['file']}` ({m['contract']['version']}). La solución lee solo `data/gold/`; "
-            "`is_fraud` vive en `data/gold_eval/` y la evaluación la une por `transaction_id`. Las reglas se "
-            "verifican antes de publicar: si una falla, gold no se reemplaza.", "",
-            *table(["Regla", "Condición", "Valor", "Estado"], rules),
-            *table(["Tabla", "Ruta (bajo data/)", "Filas", "Columnas", "sha256"], tabs, "---|---|---:|---:|---")]
+    return ["## 2. Gold contract", "",
+            f"Contract: `{m['contract']['file']}` ({m['contract']['version']}). The solution reads only `data/gold/`; "
+            "`is_fraud` lives in `data/gold_eval/` and the evaluation joins it by `transaction_id`. The rules are "
+            "verified before publishing: if one fails, gold is not replaced.", "",
+            *table(["Rule", "Condition", "Value", "Status"], rules),
+            *table(["Table", "Path (under data/)", "Rows", "Columns", "sha256"], tabs, "---|---|---:|---:|---")]
 
 
 def section_checks(r: dict) -> list[str]:
@@ -76,17 +76,17 @@ def section_checks(r: dict) -> list[str]:
              c["action"], eda_cell(c)] for c in r["checks"]]
     with_eda = [c for c in r["checks"] if c["eda"]]
     same = sum((c["eda"]["n"], c["eda"]["denominator"]) == (c["n"], c["denominator"]) for c in with_eda)
-    eda_note = (f"**{same} de {len(with_eda)} checks con referencia en el EDA dan exactamente la misma cifra** "
-                "(numerador y denominador)." if with_eda else
-                "Sin comparación con el EDA en este repo: `outputs/tables/` quedó en el repo del EDA, donde el mismo "
-                "pipeline sobre el dataset completo reproduce las cifras de `data_quality.md`. Aquí `transactions` "
-                "cubre solo la ventana de 12 meses, así que sus conteos no son comparables con el EDA.")
-    return ["## 3. Checks con conteos", "",
-            "Violaciones = filas (o archivos, en SCH-01) que fallan el check; denominador = filas donde el check "
-            "aplica. La última columna es la cifra del EDA para el mismo check (`outputs/tables/01_*.csv`, "
-            "documentada en `docs/eda/data_quality.md` §B–C).", "",
-            *table(["ID", "Tabla", "Check", "Descripción", "Violaciones", "Denominador", "%", "Acción",
-                    "EDA (violaciones / denominador)"], rows, "---|---|---|---|---:|---:|---:|---|---"),
+    eda_note = (f"**{same} of {len(with_eda)} checks with an EDA reference give exactly the same figure** "
+                "(numerator and denominator)." if with_eda else
+                "No comparison with the EDA in this repo: `outputs/tables/` stayed in the EDA repo, where the same "
+                "pipeline over the full dataset reproduces the figures in `data_quality.md`. Here `transactions` "
+                "covers only the 12-month window, so its counts are not comparable with the EDA.")
+    return ["## 3. Checks with counts", "",
+            "Violations = rows (or files, in SCH-01) that fail the check; denominator = rows where the check "
+            "applies. The last column is the EDA figure for the same check (`outputs/tables/01_*.csv`, "
+            "documented in `docs/eda/data_quality.md` §B–C).", "",
+            *table(["ID", "Table", "Check", "Description", "Violations", "Denominator", "%", "Action",
+                    "EDA (violations / denominator)"], rows, "---|---|---|---|---:|---:|---:|---|---"),
             eda_note, ""]
 
 
@@ -99,18 +99,18 @@ def section_contracts(r: dict) -> list[str]:
         rows.append([f"`{t}`", n(len(contracts.columns(t))), n(len(contracts.required_columns(t))),
                      n(s["contract_checks"]), n(s["rows_after_dedup"]), n(s["quarantined"]),
                      ", ".join(f"`{f['column']}`: {f['check']} ({n(f['rows'])})" for f in s["contract_failures"])
-                     or "ninguna", ", ".join(f"`{c}`" for c in s["extra_columns"]) or "—",
+                     or "none", ", ".join(f"`{c}`" for c in s["extra_columns"]) or "—",
                      ", ".join(f"`{k}` ({n(v)})" for k, v in s["renamed"].items()) or "—"])
         if failing:
-            details.append(f"- `{t}`: {n(s['quarantined'])} filas en `silver/_quarantine/{t}.parquet` con el motivo "
-                           "en `_quarantine_reason`.")
-    return ["## 4. Contratos de schema de silver (pandera)", "",
-            "Contratos en `data/pipeline/contracts.py` (versión " + r["contract_version"] + "): columnas, tipos, "
-            "obligatorias, PK única y dominios (enums y rangos observados en el EDA). Una columna del archivo que no "
-            "está en el contrato se conserva en bronze y no pasa a silver. Un renombre solo se acepta si está "
-            "declarado como alias.", "",
-            *table(["Tabla", "Columnas", "Obligatorias", "Reglas", "Filas validadas", "En cuarentena",
-                    "Fallas (columna: check, filas)", "Columnas fuera del contrato", "Alias usados (filas)"], rows,
+            details.append(f"- `{t}`: {n(s['quarantined'])} rows in `silver/_quarantine/{t}.parquet` with the reason "
+                           "in `_quarantine_reason`.")
+    return ["## 4. Silver schema contracts (pandera)", "",
+            "Contracts in `data/pipeline/contracts.py` (version " + r["contract_version"] + "): columns, types, "
+            "required columns, unique PK and domains (enums and ranges observed in the EDA). A file column that is "
+            "not in the contract is kept in bronze and does not go to silver. A rename is accepted only if it is "
+            "declared as an alias.", "",
+            *table(["Table", "Columns", "Required", "Rules", "Validated rows", "Quarantined",
+                    "Failures (column: check, rows)", "Columns outside the contract", "Aliases used (rows)"], rows,
                    "---|---:|---:|---:|---:|---:|---|---|---"),
             *details, ""]
 
@@ -124,100 +124,100 @@ def section_lag(r: dict) -> list[str]:
         hist = ", ".join(f"{k} d: {n(v)}" for k, v in late["lag_hist"].items())
         rows.append([f"`{t}`", n(late["denominator"]), n(late["n_late"]), n(late["max_lag_days"]), hist,
                      n(late["partition_mismatch"])])
-    return ["## 5. Llegadas tardías y rezago", "",
-            "Rezago = `process_date − fecha del evento` en días. Positivo = llegada tardía (flag `qc_late_arrival`). "
-            "Un rezago de −1 no es un error: el día operativo del archivo corta a las 06:00 u 08:00 "
+    return ["## 5. Late arrivals and lag", "",
+            "Lag = `process_date − event date` in days. Positive = late arrival (flag `qc_late_arrival`). "
+            "A lag of −1 is not an error: the file's operating day cuts off at 06:00 or 08:00 "
             "(`data_quality.md` §B4).", "",
-            *table(["Tabla", "Filas", "Tardías (> 0 d)", "Rezago máx.", "Distribución del rezago",
-                    "Partición ≠ process_date"], rows, "---|---:|---:|---:|---|---:")]
+            *table(["Table", "Rows", "Late (> 0 d)", "Max lag", "Lag distribution",
+                    "Partition ≠ process_date"], rows, "---|---:|---:|---:|---|---:")]
 
 
 def section_changes(r: dict) -> list[str]:
     m = r["gold"]["manifest"]
-    out = ["## 6. Qué cambió respecto de la corrida anterior", ""]
+    out = ["## 6. What changed since the previous run", ""]
     fc = r["file_changes"]
     if fc is None:
-        return out + ["Primera corrida en este directorio: no hay versión anterior con qué comparar.", ""]
-    out += [f"Corrida anterior: {r['previous_run_at']}. Archivos: {n(len(fc['new']))} nuevos, "
-            f"{n(len(fc['changed']))} cambiados (md5 distinto), {n(len(fc['removed']))} retirados, "
-            f"{n(fc['unchanged'])} sin cambio.", ""]
-    listed = [f"- {kind}: `{f['key']}` ({n(f.get('n_rows'))} filas)"
+        return out + ["First run in this directory: there is no previous version to compare with.", ""]
+    out += [f"Previous run: {r['previous_run_at']}. Files: {n(len(fc['new']))} new, "
+            f"{n(len(fc['changed']))} changed (different md5), {n(len(fc['removed']))} removed, "
+            f"{n(fc['unchanged'])} unchanged.", ""]
+    listed = [f"- {kind}: `{f['key']}` ({n(f.get('n_rows'))} rows)"
               for kind in ("new", "changed", "removed") for f in fc[kind][:20]]
     out += [*listed, ""] if listed else []
     rows = [[f"`{t}`", n(d["inserted"]), n(d["updated"]), n(d["deleted"]), n(d["unchanged"])]
             for t, d in r["gold"]["diff"].items()]
     prev = m["previous"]["version"] if m["previous"] else "—"
-    out += [*table(["Tabla gold", "Insertadas", "Actualizadas", "Borradas", "Sin cambio"], rows,
+    out += [*table(["Gold table", "Inserted", "Updated", "Deleted", "Unchanged"], rows,
                        "---|---:|---:|---:|---:"),
-            f"Versión gold: v{prev} → v{m['version']} "
-            f"({'sin cambios de contenido: mismo sha256 en todas las tablas' if not m['changed_tables'] else 'cambiaron ' + ', '.join(m['changed_tables'])}).",
+            f"Gold version: v{prev} → v{m['version']} "
+            f"({'no content changes: same sha256 in all tables' if not m['changed_tables'] else 'changed: ' + ', '.join(m['changed_tables'])}).",
             ""]
     return out
 
 
 def section_fixture(fx: dict | None) -> list[str]:
-    out = ["## 7. Fixture `late_arrival`: llegadas tardías, cambio de schema y contrato de gold", ""]
+    out = ["## 7. `late_arrival` fixture: late arrivals, schema change and gold contract", ""]
     if fx is None:
-        return out + ["Sin resultados: correr `python -m data.pipeline fixture`.", ""]
+        return out + ["No results: run `python -m data.pipeline fixture`.", ""]
     spec, runs = fx["spec"], fx["runs"]
-    out += ["> **FIXTURE, datos sintéticos de prueba (no salen del dataset).** El dataset real no tiene llegadas "
-            "tardías ni evolución de schema (`data_quality.md` §B4, §B6), así que la frescura se demuestra con dos "
-            "entregas etiquetadas en `data/fixtures/late_arrival/` (IDs `FX-`). El pipeline las procesa con el "
-            "mismo código que la corrida real, en `data/_fixture_run/`.", ""]
+    out += ["> **FIXTURE, synthetic test data (not from the dataset).** The real dataset has no late arrivals "
+            "or schema evolution (`data_quality.md` §B4, §B6), so freshness is demonstrated with two labeled "
+            "deliveries in `data/fixtures/late_arrival/` (IDs `FX-`). The pipeline processes them with the "
+            "same code as the real run, in `data/_fixture_run/`.", ""]
     for d, r in zip(spec["deliveries"], runs):
         m = r["gold"]["manifest"]
         ok = sum(x["ok"] for x in r["gold"]["contract_rules"])
-        out.append(f"- **{d['name']}** (entregada {d['delivered_at']}, gold v{m['version']}, contrato "
-                   f"{ok}/{len(r['gold']['contract_rules'])} reglas): {d['purpose']}")
+        out.append(f"- **{d['name']}** (delivered {d['delivered_at']}, gold v{m['version']}, contract "
+                   f"{ok}/{len(r['gold']['contract_rules'])} rules): {d['purpose']}")
     last = runs[-1]
     fc = last["file_changes"]
-    out += ["", f"### Qué cambió de {spec['deliveries'][0]['name']} a {spec['deliveries'][-1]['name']}", "",
-            "**Archivos**", ""]
-    rows = [["nuevo", f"`{f['key']}`", "—", n(f["n_rows"])] for f in fc["new"]] + \
-           [["re-entregado (md5 distinto)", f"`{f['key']}`", n(f["n_rows_before"]), n(f["n_rows"])]
+    out += ["", f"### What changed from {spec['deliveries'][0]['name']} to {spec['deliveries'][-1]['name']}", "",
+            "**Files**", ""]
+    rows = [["new", f"`{f['key']}`", "—", n(f["n_rows"])] for f in fc["new"]] + \
+           [["re-delivered (different md5)", f"`{f['key']}`", n(f["n_rows_before"]), n(f["n_rows"])]
             for f in fc["changed"]]
-    out += table(["Cambio", "Archivo", "Filas antes", "Filas ahora"], rows, "---|---|---:|---:")
+    out += table(["Change", "File", "Rows before", "Rows now"], rows, "---|---|---:|---:")
     drift = [f for f in last["files"] if f["schema_drift"]]
-    out += ["**Cambio de schema** (header del archivo vs contrato)", ""]
+    out += ["**Schema change** (file header vs contract)", ""]
     rows = [[f"`{f['key']}`", ", ".join(f"`{c}`" for c in f["header_added"]) or "—",
              ", ".join(f"`{c}`" for c in f["header_missing"]) or "—",
              ", ".join(f"`{a}` → `{c}`" for a, c in f["header_renamed"].items()) or "—"] for f in drift]
-    out += table(["Archivo", "Columnas nuevas", "Columnas faltantes", "Renombradas"], rows)
+    out += table(["File", "New columns", "Missing columns", "Renamed"], rows)
     s = last["silver"]["transactions"]
-    out += [f"Manejo: el alias declarado alimenta la columna canónica "
-            f"({', '.join(f'`{k}`: {n(v)} filas' for k, v in s['renamed'].items()) or 'sin alias'}); la columna "
-            f"nueva queda solo en bronze ({', '.join(f'`{c}`' for c in s['extra_columns']) or '—'}) hasta que el "
-            "contrato suba de versión. Ninguna fila se pierde por el cambio.", ""]
+    out += [f"Handling: the declared alias feeds the canonical column "
+            f"({', '.join(f'`{k}`: {n(v)} rows' for k, v in s['renamed'].items()) or 'no alias'}); the new "
+            f"column stays only in bronze ({', '.join(f'`{c}`' for c in s['extra_columns']) or '—'}) until the "
+            "contract version goes up. No row is lost because of the change.", ""]
     late = s["late"]
-    out += ["**Llegadas tardías**", "",
-            f"{n(late['n_late'])} transacciones con rezago positivo (máximo {n(late['max_lag_days'])} días). "
-            f"Distribución: {', '.join(f'{k} d: {n(v)}' for k, v in late['lag_hist'].items())}. Quedan en gold con "
-            "`qc_late_arrival = true`, y la corrección de una transacción ya cargada entra como upsert "
-            "(DUP-02: gana el `process_date` más reciente).", "",
-            "**Checks que cambiaron**", ""]
+    out += ["**Late arrivals**", "",
+            f"{n(late['n_late'])} transactions with positive lag (max {n(late['max_lag_days'])} days). "
+            f"Distribution: {', '.join(f'{k} d: {n(v)}' for k, v in late['lag_hist'].items())}. They stay in gold with "
+            "`qc_late_arrival = true`, and the correction of an already loaded transaction comes in as an upsert "
+            "(DUP-02: the latest `process_date` wins).", "",
+            "**Checks that changed**", ""]
     first = {(c["id"], c["table"]): c["n"] for c in runs[0]["checks"]}
     rows = [[c["id"], f"`{c['table']}`", c["check"], n(first.get((c["id"], c["table"]))), n(c["n"])]
             for c in last["checks"] if first.get((c["id"], c["table"])) != c["n"]]
-    out += table(["ID", "Tabla", "Check", spec["deliveries"][0]["name"], spec["deliveries"][-1]["name"]], rows,
+    out += table(["ID", "Table", "Check", spec["deliveries"][0]["name"], spec["deliveries"][-1]["name"]], rows,
                  "---|---|---|---:|---:")
     rows = [[f"`{t}`", n(d["inserted"]), n(d["updated"]), n(d["deleted"]), n(d["unchanged"])]
             for t, d in last["gold"]["diff"].items()]
     m0, m1 = runs[0]["gold"]["manifest"], last["gold"]["manifest"]
-    out += ["**Gold**", "", *table(["Tabla", "Insertadas", "Actualizadas", "Borradas", "Sin cambio"], rows,
+    out += ["**Gold**", "", *table(["Table", "Inserted", "Updated", "Deleted", "Unchanged"], rows,
                                    "---|---:|---:|---:|---:"),
-            f"Versión v{m0['version']} → v{m1['version']}; cambiaron: {', '.join(m1['changed_tables']) or 'ninguna'}.",
+            f"Version v{m0['version']} → v{m1['version']}; changed: {', '.join(m1['changed_tables']) or 'none'}.",
             ""]
     checks_all = [x for d, r in zip(spec["deliveries"], runs) for x in expected_vs_actual(r, spec["expected"][d["name"]])]
     bad = [x for x in checks_all if not x["ok"]]
-    out += [f"**Contra lo esperado** (`fixture.json` → `expected`): {n(len(checks_all) - len(bad))} de "
-            f"{n(len(checks_all))} conteos coinciden."]
-    out += [f"- NO coincide: {x['item']}: esperado {x['expected']}, obtenido {x['actual']}" for x in bad]
+    out += [f"**Against expected** (`fixture.json` → `expected`): {n(len(checks_all) - len(bad))} of "
+            f"{n(len(checks_all))} counts match."]
+    out += [f"- MISMATCH: {x['item']}: expected {x['expected']}, got {x['actual']}" for x in bad]
     return out + [""]
 
 
 def section_nulls(r: dict) -> list[str]:
-    out = ["## 8. Nulos por columna (silver)", "",
-           "Solo columnas con nulos. Obligatorias en negrita (deben ser 0). Nulos esperables y aleatorios según "
+    out = ["## 8. Nulls by column (silver)", "",
+           "Only columns with nulls. Required columns in bold (must be 0). Expected, random nulls per "
            "`data_quality.md` §B2.", ""]
     from data.pipeline import contracts
     for t in r["tables"]:
@@ -226,7 +226,7 @@ def section_nulls(r: dict) -> list[str]:
         req = set(contracts.required_columns(t))
         items = [f"{'**' if c in req else ''}`{c}`{'**' if c in req else ''} {pct(round(100 * v / rows_, 3))}"
                  for c, v in nulls.items() if v]
-        out.append(f"- `{t}` ({n(rows_)} filas): " + (", ".join(items) or "sin nulos"))
+        out.append(f"- `{t}` ({n(rows_)} rows): " + (", ".join(items) or "no nulls"))
     return out + [""]
 
 
@@ -235,28 +235,28 @@ def write_report() -> None:
     fx_path = FIXTURE_WORKDIR / "fixture_results.json"
     r = json.loads(real.read_text()) if real.exists() else None
     fx = json.loads(fx_path.read_text()) if fx_path.exists() else None
-    lines = ["# Reporte de calidad — pipeline LATAM Bank", ""]
+    lines = ["# Quality report — LATAM Bank pipeline", ""]
     if r is None:
-        lines += ["Sin corrida real: correr `make setup` o `python -m data.pipeline run --source s3`.", ""]
+        lines += ["No real run: run `make setup` or `python -m data.pipeline run --source s3`.", ""]
     else:
         m, src = r["gold"]["manifest"], r["source"]
-        lines += [f"> Generado por `python -m data.pipeline report` desde `data/gold/run_results.json` y "
-                  "`data/_fixture_run/fixture_results.json`. **No editar a mano**: `make setup` lo regenera.",
-                  f"> Corrida: {r['run_at']} ({r['seconds']} s). Pipeline {r['pipeline_version']}, contrato "
-                  f"{r['contract_version']}, **gold v{m['version']}** (contenido desde {m['version_created_at']}; "
+        lines += [f"> Generated by `python -m data.pipeline report` from `data/gold/run_results.json` and "
+                  "`data/_fixture_run/fixture_results.json`. **Do not edit by hand**: `make setup` regenerates it.",
+                  f"> Run: {r['run_at']} ({r['seconds']} s). Pipeline {r['pipeline_version']}, contract "
+                  f"{r['contract_version']}, **gold v{m['version']}** (content since {m['version_created_at']}; "
                   "`data/gold/manifest.json`).",
-                  f"> Fuente: `{src['location']}` ({src['mode']}), {n(src['files'])} archivos, "
-                  f"{src['bytes'] / 1e6:,.1f} MB, cargados entre {src['loaded_at_min']} y {src['loaded_at_max']}.",
-                  "> Alcance: las 4 tablas de la idea W3 y las derivadas de `contracts/gold_contract.md`.", ""]
+                  f"> Source: `{src['location']}` ({src['mode']}), {n(src['files'])} files, "
+                  f"{src['bytes'] / 1e6:,.1f} MB, loaded between {src['loaded_at_min']} and {src['loaded_at_max']}.",
+                  "> Scope: the 4 tables of the W3 idea and the derived tables from `contracts/gold_contract.md`.", ""]
         lines += (section_summary(r) + section_contract(r) + section_checks(r) + section_contracts(r) + section_lag(r)
                   + section_changes(r))
     lines += section_fixture(fx)
     if r is not None:
         lines += section_nulls(r)
-    lines += ["## Cómo se reproduce", "", "```bash",
-              "make setup     # venv + dependencias + pipeline desde S3 (.env) + fixture + este reporte",
-              "make pipeline  # solo la corrida real (SOURCE=local para usar un espejo local en data/, sin red)",
-              "make fixture   # solo el fixture late_arrival", "make report    # solo este archivo",
-              "make test      # pytest, sin red", "```", ""]
+    lines += ["## How to reproduce", "", "```bash",
+              "make setup     # venv + dependencies + pipeline from S3 (.env) + fixture + this report",
+              "make pipeline  # only the real run (SOURCE=local to use a local mirror in data/, no network)",
+              "make fixture   # only the late_arrival fixture", "make report    # only this file",
+              "make test      # pytest, no network", "```", ""]
     REPORT_PATH.write_text("\n".join(lines))
-    log.info("reporte: %s", REPORT_PATH)
+    log.info("report: %s", REPORT_PATH)

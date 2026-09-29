@@ -1,4 +1,4 @@
-"""Contratos pandera: aceptan filas válidas y rechazan, con el check correcto, las que no lo son."""
+"""Pandera contracts: they accept valid rows and reject invalid ones with the right check."""
 from __future__ import annotations
 
 from datetime import date, datetime
@@ -25,11 +25,11 @@ def test_valid_rows_pass():
 def test_invalid_rows_fail_with_the_right_checks():
     rows = [
         VALID_TX,
-        {**VALID_TX},                                                   # PK repetida
-        {**VALID_TX, "transaction_id": "T3", "transaction_country": "Mexico"},  # etiqueta sin normalizar
-        {**VALID_TX, "transaction_id": "T4", "fraud_score": 150.0},    # fuera de rango
-        {**VALID_TX, "transaction_id": "T5", "amount": None},          # obligatoria nula
-        {**VALID_TX, "transaction_id": "T6", "transaction_status": "Done"},  # fuera del dominio
+        {**VALID_TX},                                                   # repeated PK
+        {**VALID_TX, "transaction_id": "T3", "transaction_country": "Mexico"},  # label not normalized
+        {**VALID_TX, "transaction_id": "T4", "fraud_score": 150.0},    # out of range
+        {**VALID_TX, "transaction_id": "T5", "amount": None},          # required column null
+        {**VALID_TX, "transaction_id": "T6", "transaction_status": "Done"},  # outside the domain
     ]
     with pytest.raises(SchemaErrors) as exc:
         contracts.TRANSACTIONS.validate(contract_frame("transactions", rows), lazy=True)

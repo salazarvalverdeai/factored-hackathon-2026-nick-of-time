@@ -1,4 +1,4 @@
-"""CLI del pipeline. Ver data/pipeline/__init__.py."""
+"""Pipeline CLI. See data/pipeline/__init__.py."""
 from __future__ import annotations
 
 import argparse
@@ -11,10 +11,10 @@ def main() -> None:
     sub = parser.add_subparsers(dest="cmd", required=True)
     p_run = sub.add_parser("run", help="bronze → silver → gold → checks")
     p_run.add_argument("--source", choices=["s3", "local"], default="s3",
-                       help="s3: lista y sincroniza el bucket con las credenciales de .env; local: espejo data/")
+                       help="s3: lists and syncs the bucket with the credentials from .env; local: data/ mirror")
     p_run.add_argument("--tables", nargs="*", default=list(TABLES), choices=list(TABLES))
-    sub.add_parser("fixture", help="fixture late_arrival: delivery_1 y luego delivery_2 en data/_fixture_run/")
-    sub.add_parser("report", help="genera data/quality_report.md desde los resultados")
+    sub.add_parser("fixture", help="late_arrival fixture: delivery_1 and then delivery_2 in data/_fixture_run/")
+    sub.add_parser("report", help="generates data/quality_report.md from the results")
     args = parser.parse_args()
     setup_logging()
 

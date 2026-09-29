@@ -1,18 +1,19 @@
-"""Gold según contracts/gold_contract.md: silver + flags de calidad, tablas derivadas y etiquetas aparte.
+"""Gold per contracts/gold_contract.md: silver + quality flags, derived tables and labels kept apart.
 
-data/gold/       customers, products, complaints (completas); transactions (ventana de 12 meses, R1; `customer_id`
-                 resuelto por join con products, R2; sin `is_fraud`, R3); customer_profile y transactions_enriched (R4)
-data/gold_eval/  transaction_labels (transaction_id, is_fraud) para las mismas transacciones de gold (R3)
+data/gold/       customers, products, complaints (complete); transactions (12-month window, R1; `customer_id`
+                 resolved by join with products, R2; without `is_fraud`, R3); customer_profile and
+                 transactions_enriched (R4)
+data/gold_eval/  transaction_labels (transaction_id, is_fraud) for the same transactions as gold (R3)
 
-Los flags `qc_*` son booleanos nulos cuando el check no aplica (p. ej. complaint sin producto afectado). Los conteos de
-checks.py son agregaciones de estos flags: la definición de cada check vive en un solo lugar (FLAGS).
+The `qc_*` flags are booleans, null when the check does not apply (e.g. a complaint with no affected product). The
+counts in checks.py are aggregations of these flags: the definition of each check lives in a single place (FLAGS).
 
-Nada se borra en gold: una fila con un problema de calidad se marca y la capa de servicio decide. Las filas que violan
-el contrato de silver no llegan (quedan en silver/_quarantine/).
+Nothing is deleted in gold: a row with a quality problem is flagged and the serving layer decides. Rows that violate
+the silver contract do not get here (they stay in silver/_quarantine/).
 
-Todo se escribe primero en `_staging/`. Antes de publicar se verifican las reglas G1–G5 del contrato: si una falla, la
-corrida se detiene y gold queda como estaba. Después se compara cada tabla con la versión anterior por PK (insertadas,
-actualizadas, borradas, sin cambio) y la versión del manifest sube solo si cambió el sha256 de alguna tabla.
+Everything is written first to `_staging/`. Before publishing, the contract rules G1–G5 are verified: if one fails,
+the run stops and gold stays as it was. Then each table is compared with the previous version by PK (inserted,
+updated, deleted, unchanged) and the manifest version goes up only if the sha256 of some table changed.
 """
 from __future__ import annotations
 
@@ -33,7 +34,7 @@ DERIVED = ("customer_profile", "transactions_enriched")
 EVAL = ("transaction_labels",)
 PK = {**contracts.PRIMARY_KEY, "customer_profile": "customer_id", "transactions_enriched": "transaction_id",
       "transaction_labels": "transaction_id"}
-# Columnas que el contrato prohíbe en data/gold/ (R3)
+# Columns the contract forbids in data/gold/ (R3)
 FORBIDDEN_IN_GOLD = ("is_fraud",)
 
 
@@ -42,11 +43,11 @@ def in_window(col: str, alias: str = "x") -> str:
 
 
 def _future(col: str, alias: str) -> str:
-    """Fecha posterior al día de carga del archivo (en LOAD_TZ). Nulo si la fecha es nula."""
+    """Date after the file's load day (in LOAD_TZ). Null if the date is null."""
     return f"({alias}.{col}::DATE > timezone('{LOAD_TZ}', {alias}._loaded_at)::DATE)"
 
 
-# Flags por tabla: nombre → expresión SQL sobre los alias del FROM de gold_select
+# Flags per table: name → SQL expression over the FROM aliases of gold_select
 FLAGS: dict[str, dict[str, str]] = {
     "customers": {
         "qc_future_last_updated": _future("last_updated", "x"),
@@ -56,10 +57,10 @@ FLAGS: dict[str, dict[str, str]] = {
         "qc_future_last_updated": _future("last_updated", "x"),
     },
     "transactions": {
-        # c se une por el dueño del producto (R2): el cliente resuelto no existe en customers
+        # c is joined on the product owner (R2): the resolved customer does not exist in customers
         "qc_customer_orphan": "CASE WHEN p.product_id IS NOT NULL THEN c.customer_id IS NULL END",
         "qc_product_orphan": "(p.product_id IS NULL)",
-        # el customer_id del archivo no coincide con el dueño del producto (gold usa el dueño)
+        # the file's customer_id does not match the product owner (gold uses the owner)
         "qc_product_other_customer": "CASE WHEN p.product_id IS NOT NULL THEN x.customer_id <> p.customer_id END",
         "qc_before_product_open": "CASE WHEN p.product_id IS NOT NULL THEN x.transaction_date::DATE < p.opening_date END",
         "qc_future_date": _future("transaction_date", "x"),
@@ -135,7 +136,7 @@ PROFILE_SELECT = f"""
 
 
 def contract_checks(con: duckdb.DuckDBPyConnection, gold_tables: list[str]) -> list[dict]:
-    """Reglas G1–G5 de contracts/gold_contract.md sobre las vistas g_* (staging)."""
+    """Rules G1–G5 of contracts/gold_contract.md over the g_* views (staging)."""
     out = []
 
     def add(rid: str, rule: str, value, ok: bool) -> None:
@@ -143,18 +144,18 @@ def contract_checks(con: duckdb.DuckDBPyConnection, gold_tables: list[str]) -> l
 
     with_forbidden = [t for t in gold_tables for c in con.sql(f"DESCRIBE SELECT * FROM g_{t}").fetchall()
                       if c[0] in FORBIDDEN_IN_GOLD]
-    add("G1", "ninguna tabla de data/gold/ tiene is_fraud", with_forbidden or "ninguna", not with_forbidden)
+    add("G1", "no table in data/gold/ has is_fraud", with_forbidden or "none", not with_forbidden)
     lo, hi, n_out = con.sql(f"""SELECT min(transaction_date)::VARCHAR, max(transaction_date)::VARCHAR,
                                        count(*) FILTER (WHERE NOT {in_window('transaction_date', 'g_transactions')})
                                 FROM g_transactions""").fetchone()
-    add("G2", f"transaction_date en [{TX_WINDOW[0]}, {TX_WINDOW[1]})", f"{lo} → {hi}; fuera: {n_out}", n_out == 0)
+    add("G2", f"transaction_date in [{TX_WINDOW[0]}, {TX_WINDOW[1]})", f"{lo} → {hi}; outside: {n_out}", n_out == 0)
     n = con.sql("""SELECT count(*) FROM g_transactions t JOIN g_products p USING (product_id)
                    WHERE t.customer_id IS DISTINCT FROM p.customer_id""").fetchone()[0]
-    add("G3", "transactions.customer_id = dueño del producto (join)", f"{n} filas distintas", n == 0)
+    add("G3", "transactions.customer_id = product owner (join)", f"{n} differing rows", n == 0)
     a, b = con.sql("""SELECT (SELECT count(*) FROM g_transactions t ANTI JOIN g_transaction_labels l USING (transaction_id)),
                              (SELECT count(*) FROM g_transaction_labels l ANTI JOIN g_transactions t USING (transaction_id))
                    """).fetchone()
-    add("G4", "transaction_labels 1:1 con gold.transactions", f"sin etiqueta: {a}; etiqueta sin transacción: {b}",
+    add("G4", "transaction_labels 1:1 with gold.transactions", f"without label: {a}; label without transaction: {b}",
         a == 0 and b == 0)
     pc, pu, cc, ec, eu, tc = con.sql("""SELECT (SELECT count(*) FROM g_customer_profile),
                                                (SELECT count(DISTINCT customer_id) FROM g_customer_profile),
@@ -162,8 +163,8 @@ def contract_checks(con: duckdb.DuckDBPyConnection, gold_tables: list[str]) -> l
                                                (SELECT count(*) FROM g_transactions_enriched),
                                                (SELECT count(DISTINCT transaction_id) FROM g_transactions_enriched),
                                                (SELECT count(*) FROM g_transactions)""").fetchone()
-    add("G5", "customer_profile 1 fila por cliente; transactions_enriched 1 por transacción",
-        f"profile {pc} (únicos {pu}) vs customers {cc}; enriched {ec} (únicos {eu}) vs transactions {tc}",
+    add("G5", "customer_profile 1 row per customer; transactions_enriched 1 per transaction",
+        f"profile {pc} (unique {pu}) vs customers {cc}; enriched {ec} (unique {eu}) vs transactions {tc}",
         pc == pu == cc and ec == eu == tc)
     return out
 
@@ -177,7 +178,7 @@ def sha256_of(path) -> str:
 
 
 def diff(con: duckdb.DuckDBPyConnection, pk: str, old: str, new: str) -> dict:
-    """Cambios por PK entre dos versiones de una tabla (contenido = columnas sin linaje `_*`)."""
+    """Changes by PK between two versions of a table (content = columns without `_*` lineage)."""
     content = [c for c in con.sql(f"DESCRIBE SELECT * FROM read_parquet('{new}')").fetchall() if not c[0].startswith("_")]
     old_cols = {c[0] for c in con.sql(f"DESCRIBE SELECT * FROM read_parquet('{old}')").fetchall()}
     cols = [c[0] for c in content if c[0] in old_cols]
@@ -218,7 +219,7 @@ def build(con: duckdb.DuckDBPyConnection, layout: Layout, tables: tuple[str, ...
     rules = contract_checks(con, gold_tables)
     failed = [r for r in rules if not r["ok"]]
     if failed:
-        raise RuntimeError(f"gold no cumple {GOLD_CONTRACT.relative_to(ROOT)}: {failed} (staging sin publicar)")
+        raise RuntimeError(f"gold does not comply with {GOLD_CONTRACT.relative_to(ROOT)}: {failed} (staging not published)")
 
     tables_meta, diffs = {}, {}
     for name, layer in layer_of.items():
@@ -262,7 +263,7 @@ def build(con: duckdb.DuckDBPyConnection, layout: Layout, tables: tuple[str, ...
                                                    "sha256": prev_hashes},
     }
     layout.manifest.write_text(json.dumps(manifest, indent=2, ensure_ascii=False) + "\n")
-    log.info("gold v%d: %s (cambiaron: %s)", version,
-             ", ".join(f"{t} {m['rows']:,}" for t, m in tables_meta.items()), ", ".join(changed) or "ninguna")
+    log.info("gold v%d: %s (changed: %s)", version,
+             ", ".join(f"{t} {m['rows']:,}" for t, m in tables_meta.items()), ", ".join(changed) or "none")
     return {"manifest": manifest, "diff": diffs, "contract_rules": rules}
 

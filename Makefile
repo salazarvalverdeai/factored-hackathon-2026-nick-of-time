@@ -1,6 +1,6 @@
-# Reproduce el pipeline bronze → silver → gold, el fixture de llegadas tardías y data/quality_report.md.
-#   make setup              todo desde cero (necesita .env con credenciales S3; ver .env.example)
-#   make setup SOURCE=local lo mismo sobre el espejo local data/<tabla>/ (sin red)
+# Reproduces the bronze → silver → gold pipeline, the late-arrivals fixture and data/quality_report.md.
+#   make setup              everything from scratch (needs .env with S3 credentials; see .env.example)
+#   make setup SOURCE=local the same over the local mirror data/<table>/ (no network)
 PYTHON ?= python3
 PY := .venv/bin/python
 SOURCE ?= s3

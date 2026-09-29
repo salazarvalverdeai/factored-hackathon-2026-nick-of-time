@@ -1,13 +1,13 @@
-"""Silver: bronze tipado según el contrato, con dedup/upsert por PK y validación pandera.
+"""Silver: bronze typed per the contract, with dedup/upsert by PK and pandera validation.
 
-Pasos por tabla (cada uno deja un conteo en el resultado):
-1. Renombres declarados (contracts.ALIASES): el alias alimenta la columna canónica.
-2. Normalización de etiquetas (contracts.NORMALIZE), p. ej. `Mexico` → `México`; se cuenta antes de corregir.
-3. Cast con TRY_CAST al tipo del contrato; un valor no nulo que no castea es un "cast fallido" (queda nulo).
-4. Dedup: filas idénticas en todas las columnas del contrato = duplicado exacto; misma PK con contenido distinto =
-   versiones (upsert: gana process_date más reciente, luego la carga más reciente, luego la clave de archivo).
-5. Rezago de llegada en hechos: `_lag_days = process_date − fecha del evento` (> 0 = llegada tardía).
-6. Contrato pandera: las filas que lo violan van a silver/_quarantine/<tabla>.parquet con el motivo.
+Steps per table (each one leaves a count in the result):
+1. Declared renames (contracts.ALIASES): the alias feeds the canonical column.
+2. Label normalization (contracts.NORMALIZE), e.g. `Mexico` → `México`; counted before correcting.
+3. Cast with TRY_CAST to the contract type; a non-null value that does not cast is a "failed cast" (left null).
+4. Dedup: rows identical in all contract columns = exact duplicate; same PK with different content =
+   versions (upsert: the latest process_date wins, then the latest load, then the file key).
+5. Arrival lag in facts: `_lag_days = process_date − event date` (> 0 = late arrival).
+6. Pandera contract: rows that violate it go to silver/_quarantine/<table>.parquet with the reason.
 """
 from __future__ import annotations
 
@@ -32,7 +32,7 @@ def lit(value: str) -> str:
 
 
 def _raw_exprs(table: str, bronze_cols: list[str]) -> tuple[dict[str, str], list[str], dict[str, str]]:
-    """Expresión VARCHAR de cada columna canónica, columnas faltantes y alias usados."""
+    """VARCHAR expression for each canonical column, missing columns and aliases used."""
     aliases = contracts.ALIASES.get(table, {})
     exprs, missing, used = {}, [], {}
     for col in contracts.columns(table):
@@ -59,7 +59,7 @@ def _typed_expr(table: str, col: str) -> str:
 
 
 def _contract_failures(table: str, df: pl.DataFrame) -> tuple[list[dict], dict[int, str]]:
-    """Valida con pandera. Devuelve (fallas agregadas por columna y check, motivo por índice de fila)."""
+    """Validates with pandera. Returns (failures aggregated by column and check, reason by row index)."""
     cols = contracts.columns(table)
     try:
         contracts.SCHEMAS[table].validate(df.select(cols), lazy=True)
@@ -68,7 +68,7 @@ def _contract_failures(table: str, df: pl.DataFrame) -> tuple[list[dict], dict[i
         fc = e.failure_cases
     schema_level = fc.filter(pl.col("index").is_null())
     if schema_level.height:
-        raise RuntimeError(f"{table}: el contrato falla a nivel de schema:\n{schema_level}")
+        raise RuntimeError(f"{table}: the contract fails at schema level:\n{schema_level}")
     summary = (fc.group_by("column", "check").agg(pl.len().alias("n"), pl.col("index").n_unique().alias("rows"))
                .sort("column", "check"))
     reasons = (fc.group_by("index").agg(pl.concat_str([pl.col("column"), pl.col("check")], separator=":")
@@ -86,7 +86,7 @@ def build_table(con: duckdb.DuckDBPyConnection, table: str, layout: Layout) -> d
         SELECT {', '.join(f'{e} AS {q(c)}' for c, e in exprs.items())}, _source_key, _loaded_at, _partition_date
         FROM read_parquet('{bronze}')""")
 
-    # Conteos previos al tipado: alias usados, etiquetas a normalizar, cast fallidos
+    # Counts before typing: aliases used, labels to normalize, failed casts
     renamed = {a: con.sql(f"SELECT count({q(a)}) FROM read_parquet('{bronze}')").fetchone()[0] for a in used}
     normalized = {}
     for col, mapping in contracts.NORMALIZE.get(table, {}).items():
@@ -99,7 +99,7 @@ def build_table(con: duckdb.DuckDBPyConnection, table: str, layout: Layout) -> d
         for c in cols)
     cast_failures = {c: n for c, n in zip(cols, con.sql(f"SELECT {cast_sql} FROM _raw").fetchone()) if n}
 
-    # Tipado + normalización + dedup/upsert
+    # Typing + normalization + dedup/upsert
     norm_cols = [c for c in contracts.NORMALIZE.get(table, {})]
     norm_flag = " OR ".join(f"coalesce(r.{q(c)} IN ({', '.join(lit(a) for a in contracts.NORMALIZE[table][c])}), false)"
                             for c in norm_cols) or "false"
@@ -110,7 +110,7 @@ def build_table(con: duckdb.DuckDBPyConnection, table: str, layout: Layout) -> d
                {norm_flag} AS _qc_normalized, r._source_key, r._loaded_at, r._partition_date
         FROM _raw r""")
     col_list = ", ".join(q(c) for c in cols)
-    # Duplicados y versiones solo entre filas con PK; las de PK nula pasan tal cual (el contrato las pone en cuarentena)
+    # Duplicates and versions only among rows with a PK; rows with a null PK pass as is (the contract quarantines them)
     n_rows, n_keyed, n_distinct, n_pk = con.sql(f"""
         SELECT count(*), count({q(pk)}),
                (SELECT count(*) FROM (SELECT DISTINCT {col_list} FROM _typed WHERE {q(pk)} IS NOT NULL)),
@@ -128,7 +128,7 @@ def build_table(con: duckdb.DuckDBPyConnection, table: str, layout: Layout) -> d
     required_null = " OR ".join(f"{q(c)} IS NULL" for c in contracts.required_columns(table))
     n_required_null = con.sql(f"SELECT count(*) FILTER (WHERE {required_null}) FROM _dedup").fetchone()[0]
 
-    # Contrato pandera
+    # Pandera contract
     df = con.sql("SELECT * FROM _dedup").pl()
     failures, reasons = _contract_failures(table, df)
     bad = list(reasons)
@@ -163,6 +163,6 @@ def build_table(con: duckdb.DuckDBPyConnection, table: str, layout: Layout) -> d
                                for c in contracts.SCHEMAS[table].columns.values()),
         "late": late, "nulls": nulls,
     }
-    log.info("silver %s: %s → %s filas (dup exactos %d, versiones %d, cuarentena %d)", table, f"{n_rows:,}",
+    log.info("silver %s: %s → %s rows (exact dups %d, versions %d, quarantined %d)", table, f"{n_rows:,}",
              f"{silver.height:,}", result["exact_duplicates"], result["superseded_versions"], quarantine.height)
     return result

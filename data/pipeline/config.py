@@ -1,4 +1,4 @@
-"""Rutas, alcance y versiones del pipeline."""
+"""Pipeline paths, scope and versions."""
 from __future__ import annotations
 
 import logging
@@ -18,12 +18,12 @@ REPORT_PATH = DATA_DIR / "quality_report.md"
 EDA_TABLES_DIR = ROOT / "outputs" / "tables"
 
 PIPELINE_VERSION = "0.1.0"
-# Tablas que necesita la idea W3 (pitch_brief.md, bloque 3). Orden = orden de construcción (dimensiones primero).
+# Tables the W3 idea needs (pitch_brief.md, block 3). Order = build order (dimensions first).
 TABLES = ("customers", "products", "transactions", "complaints")
-# Zona horaria con la que se lee la fecha de carga (LastModified de S3) para el check de fechas futuras. Es la
-# convención de data_quality.md (carga "2026-08-31 hora Lima").
+# Time zone used to read the load date (S3 LastModified) for the future-dates check. It is the
+# convention in data_quality.md (load "2026-08-31 Lima time").
 LOAD_TZ = "America/Lima"
-# contracts/gold_contract.md R1: últimos 12 meses completos de transactions, [inicio, fin).
+# contracts/gold_contract.md R1: last 12 full months of transactions, [start, end).
 TX_WINDOW = ("2025-06-01", "2026-06-01")
 GOLD_CONTRACT = ROOT / "contracts" / "gold_contract.md"
 
@@ -35,7 +35,7 @@ def setup_logging() -> None:
 
 
 def load_env() -> dict[str, str]:
-    """Variables de .env (credenciales S3 incluidas). Nunca se loguean."""
+    """Variables from .env (S3 credentials included). They are never logged."""
     load_dotenv(ROOT / ".env")
     return {k: os.environ.get(k, "") for k in
             ("AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "AWS_DEFAULT_REGION", "S3_BUCKET", "S3_PREFIX",
@@ -44,7 +44,7 @@ def load_env() -> dict[str, str]:
 
 @dataclass(frozen=True)
 class Layout:
-    """Directorios de una corrida. La corrida real usa data/; el fixture, data/_fixture_run/."""
+    """Directories of a run. The real run uses data/; the fixture, data/_fixture_run/."""
     workdir: Path
 
     @property
@@ -81,9 +81,9 @@ class Layout:
 
 
 def in_scope(table: str, key: str) -> bool:
-    """Archivos que se leen. transactions: particiones desde un día antes de la ventana (el día operativo corrido deja
-    eventos del día siguiente en la partición anterior) en adelante, incluidas las posteriores al fin de la ventana
-    (pueden traer llegadas tardías). El resto de las tablas se lee completo."""
+    """Files that are read. transactions: partitions from one day before the window (the shifted operating day leaves
+    next-day events in the previous partition) onward, including those after the end of the window
+    (they may bring late arrivals). The rest of the tables are read in full."""
     m = re.search(r"_(\d{8})\.csv$", key)
     if table != "transactions" or not m:
         return True
