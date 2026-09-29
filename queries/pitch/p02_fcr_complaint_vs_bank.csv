@@ -1,3 +1,3 @@
-grupo,n_resueltas,denominador,fcr_pct,ic95_low,ic95_high
+group_name,n_resolved,denominator,fcr_pct,ci95_low,ci95_high
 "Queja (W3, INT-02)",51021,117021,43.6,43.316,43.884
-Todo el banco,526030,686296,76.648,76.547,76.748
+Whole bank,526030,686296,76.648,76.547,76.748
