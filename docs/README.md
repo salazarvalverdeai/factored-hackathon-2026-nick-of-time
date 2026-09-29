@@ -1,143 +1,143 @@
-# Nick of Time — guía de construcción (detalle para el equipo)
+# Nick of Time — build guide (detail for the team)
 
-28 de septiembre de 2026 · Freddy
+September 28, 2026 · Freddy
 
-## Qué construimos
+## What we build
 
-No es un chat: es una plataforma de atención de disputas con cuatro piezas sobre un mismo backend, y el chat es solo la puerta de entrada. El LLM entiende, las reglas deciden, las tools actúan, la verificación confirma y el humano recibe evidencia.
+It is not a chat: it is a dispute-handling platform with four pieces on a single backend, and the chat is just the front door. The LLM understands, the rules decide, the tools act, verification confirms and the human receives evidence.
 
-| Pieza | Qué es | Quién la usa | Criterio del reto |
+| Piece | What it is | Who uses it | Challenge criterion |
 | --- | --- | --- | --- |
-| Canal del cliente | Chat ES/PT que hace el intake completo sin humano en zona alta y media | Cliente | Casos normal y ambiguo; idiomas |
-| Núcleo de decisión y acción | Grafo LangGraph + clasificador de intención + motor de políticas (YAML) + tools tipadas + verificación + reloj regulatorio | Backend | Puntos 2 y 3: acciones verificadas, permisos fuera del modelo |
-| Consola del analista | Bandeja de casos escalados con tarjeta de handoff, grafo de evidencia, traza y botones (aprobar abono, pedir datos, cerrar) | Analista de disputas | Caso "requiere humano"; escalation quality |
-| Evidencia y evaluación | Log de auditoría, trazas, harness held-out, pipeline con contratos | Jurado y nosotros | Puntos 4, 5 y 6 |
+| Customer channel | ES/PT chat that does the complete intake with no human in the high and medium zones | Customer | Normal and ambiguous cases; languages |
+| Decision and action core | LangGraph graph + intent classifier + policy engine (YAML) + typed tools + verification + regulatory clock | Backend | Points 2 and 3: verified actions, permissions outside the model |
+| Analyst console | Inbox of escalated cases with handoff card, evidence graph, trace and buttons (approve credit, request info, close) | Dispute analyst | "Requires human" case; escalation quality |
+| Evidence and evaluation | Audit log, traces, held-out harness, pipeline with contracts | Judges and us | Points 4, 5 and 6 |
 
-Siete páginas en la web: `/` portada, `/chat` cliente, `/console` analista, `/data` pipeline y calidad, `/evaluation` tabla de resultados, `/analytics` tablero, `/agent` grafo real y políticas. Las dos primeras van al video; las otras las abre el jurado después.
+Seven pages on the web: `/` landing page, `/chat` customer, `/console` analyst, `/data` pipeline and quality, `/evaluation` results table, `/analytics` dashboard, `/agent` real graph and policies. The first two go in the video; the judges open the others afterwards.
 
-Fuera a propósito: investigación del caso, contracargo con la red, abono automático, voz, WhatsApp real, multi-agente, Graph RAG, fine-tuning. Resolvemos el contacto, no el reclamo: el reclamo lo resuelve el banco dentro del plazo que nosotros calculamos y mostramos.
+Out on purpose: case investigation, chargeback with the network, automatic credit, voice, real WhatsApp, multi-agent, Graph RAG, fine-tuning. We resolve the contact, not the complaint: the bank resolves the complaint within the deadline that we compute and show.
 
-| Alcance | Contenido |
+| Scope | Contents |
 | --- | --- |
-| Entra (mínimo funcional) | Intake ES/PT; identidad mock con OTP; transacción del propio cliente; ticket automático en las tres zonas; triage por zona con bloqueo verificado; reloj regulatorio por país; **modo de aprobación configurable** (auto, con aprobación humana o con verificación manual; en zona alta el sistema actúa ya y el caso queda en verificación); **cierre siempre humano**, también de los casos automáticos; tarjeta de handoff; consola del analista con cola de cinco estados y sus tools; **notificación al cliente en cada estado** (log en el demo); **guardrails con ID** en entrada, sesión, tools, política, salida y operación, cada uno con su caso de prueba; trazas y auditoría; harness held-out sellado; deploy público; README reproducible |
-| Entra si sobra tiempo | Notificación por Telegram (provisional); grafo de evidencia por caso; Jev como tercer brazo; `/analytics` embebido; voz en `/chat` con ElevenLabs |
-| No entra | Investigación del caso, contracargo, abono automático, voz en tiempo real, WhatsApp real, multi-agente, Graph RAG, fine-tuning, modelo de fraude propio |
+| In (functional minimum) | ES/PT intake; mock identity with OTP; the customer's own transaction; automatic ticket in all three zones; triage by zone with verified block; regulatory clock per country; **configurable approval mode** (auto, with human approval or with manual check; in the high zone the system acts right away and the case stays in verification); **closing always by a human**, automatic cases included; handoff card; analyst console with a five-status queue and its tools; **customer notification at every status** (log in the demo); **guardrails with IDs** at input, session, tools, policy, output and operations, each with its test case; traces and audit; sealed held-out harness; public deploy; reproducible README |
+| In if time allows | Telegram notification (provisional); per-case evidence graph; Jev as a third arm; embedded `/analytics`; voice in `/chat` with ElevenLabs |
+| Out | Case investigation, chargeback, automatic credit, real-time voice, real WhatsApp, multi-agent, Graph RAG, fine-tuning, our own fraud model |
 
-Dos actores, dos juegos de tools que nunca se cruzan: el cliente (a través del agente, vía MCP) puede buscar su transacción, obtener el score, calcular el plazo, bloquear su tarjeta y abrir su caso, siempre con verificación; el analista (desde la consola, vía API) lista y ve casos, aprueba abono o bloqueo, desbloquea, pide datos, marca ambiguo, cierra y reabre. El copiloto propone; solo el humano ejecuta las suyas.
+Two actors, two sets of tools that never cross: the customer (through the agent, via MCP) can search their transaction, get the score, compute the deadline, block their card and open their case, always with verification; the analyst (from the console, via API) lists and views cases, approves credit or block, unblocks, requests info, marks ambiguous, closes and reopens. The copilot proposes; only the human executes theirs.
 
-## Conceptos que todos explican igual
+## Concepts everyone explains the same way
 
-Etiquetas de cada cifra: `[dato]` lo calculamos sobre el dataset del reto con query en el repo; `[externo]` fuente pública con link; `[supuesto]` estimación nuestra; `[simulado]` medido en nuestro harness, no en producción; `[proyectado]` extrapolación.
+Labels for every figure: `[data]` we compute it on the challenge dataset with a query in the repo; `[external]` public source with link; `[assumption]` our estimate; `[simulated]` measured in our harness, not in production; `[projected]` extrapolation.
 
-| Concepto | Definición que usamos | De dónde sale |
+| Concept | Definition we use | Where it comes from |
 | --- | --- | --- |
-| Disputa | Cargo no reconocido o cobro indebido sobre una transacción del cliente | `complaints.category` Transactions o Fees `[dato]` |
-| Intake | Recibir el reclamo, verificar identidad, identificar la transacción exacta, decidir, actuar, verificar, abrir el caso con plazo y entregar al humano lo que él decide | Nuestro alcance |
-| Resolución del contacto | El cliente termina con identidad verificada, transacción identificada, tarjeta protegida si había riesgo, número de caso, plazo y siguientes pasos, sin volver a llamar | Lo que mide el FCR (43.6% en quejas `[dato]`) y lo que reportamos como safe automated resolution |
-| Resolución del reclamo | Abono y dictamen; la hace el banco en días dentro del plazo legal | Fuera de alcance; el sistema solo arranca el reloj |
-| Zona | Franja del score que decide qué se automatiza: alta ≥ 50 (precisión 100%, recall 48.8% sobre fraudes con score, 38.7% del total), media 30–49 (precisión 79.6%), humano < 30 o sin score (20.6% de los fraudes) | `p08_fraud_score_thresholds.csv` `[dato]`; la precisión 100% es propiedad del generador sintético `[supuesto]` |
-| Acción verificada | Después de actuar se relee el estado; solo se informa lo confirmado | Punto 2 del reto |
-| Handoff | Tarjeta con solicitud, hechos verificados, acciones con resultado, evidencia (IDs), preguntas abiertas y plazo; nunca el chat crudo | Punto 3 del reto |
-| Reloj regulatorio | Plazo legal por país y producto que corre desde el reclamo | CONDUSEF, BCRA, SFC, CMN 4.860 `[externo]` |
-| Política fuera del modelo | Zonas, umbrales, permisos y plazos viven en `policies.yaml` y en las tools; el LLM no los lee ni los cambia | Punto 3 del reto |
-| Held-out, baseline, pass^k | Casos que el sistema no vio; solución simple de comparación; cada caso k veces | Puntos 4 y 5 del reto |
+| Dispute | Unrecognized charge or wrongful charge on one of the customer's transactions | `complaints.category` Transactions or Fees `[data]` |
+| Intake | Receive the complaint, verify identity, identify the exact transaction, decide, act, verify, open the case with a deadline and hand the human what they decide on | Our scope |
+| Contact resolution | The customer ends with verified identity, identified transaction, card protected if there was risk, case number, deadline and next steps, without calling back | What FCR measures (43.6% in complaints `[data]`) and what we report as safe automated resolution |
+| Complaint resolution | Credit and ruling; the bank does it over days within the legal deadline | Out of scope; the system only starts the clock |
+| Zone | Score band that decides what gets automated: high ≥ 50 (precision 100%, recall 48.8% on frauds with a score, 38.7% of the total), medium 30–49 (precision 79.6%), human < 30 or no score (20.6% of frauds) | `p08_fraud_score_thresholds.csv` `[data]`; the 100% precision is a property of the synthetic generator `[assumption]` |
+| Verified action | After acting, the state is read back; only what is confirmed is reported | Point 2 of the challenge |
+| Handoff | Card with request, verified facts, actions with result, evidence (IDs), open questions and deadline; never the raw chat | Point 3 of the challenge |
+| Regulatory clock | Legal deadline per country and product that runs from the complaint | CONDUSEF, BCRA, SFC, CMN 4.860 `[external]` |
+| Policy outside the model | Zones, thresholds, permissions and deadlines live in `policies.yaml` and in the tools; the LLM neither reads nor changes them | Point 3 of the challenge |
+| Held-out, baseline, pass^k | Cases the system has not seen; simple solution for comparison; each case k times | Points 4 and 5 of the challenge |
 
-Dos términos nuevos desde hoy: **modo de aprobación** es el ajuste por acción que decide si el sistema ejecuta solo (`auto`), propone y espera el clic del analista (`human_required`) o ejecuta y deja el caso en revisión (`manual_check`); **tools por actor** significa que el agente solo ve las del cliente y la consola solo las del analista, y cada llamada queda en auditoría con su actor.
+Two new terms from today: **approval mode** is the per-action setting that decides whether the system executes on its own (`auto`), proposes and waits for the analyst's click (`human_required`) or executes and leaves the case in review (`manual_check`); **tools per actor** means the agent only sees the customer's tools and the console only the analyst's, and every call is recorded in the audit log with its actor.
 
-## Arquitectura
+## Architecture
 
-![Arquitectura v2 mapeada al ciclo del reto](assets/architecture_v2_challenge_cycle.svg)
+![Architecture v2 mapped to the challenge cycle](assets/architecture_v2_challenge_cycle.svg)
 
-Opciones de despliegue A y B: `assets/deployment_options_A_B.svg`. Flujo del analista: `assets/analyst_flow.svg`.
+Deployment options A and B: `assets/deployment_options_A_B.svg`. Analyst flow: `assets/analyst_flow.svg`.
 
-El grafo y las tools se escriben una vez; A y B difieren solo en dónde corre el grafo y en cómo llama a las tools (MCP por red o import directo). GianMarco construye la EC2 primero porque es la base de ambas; Freddy levanta A encima cuando Platform tenga URL y Slack apruebe.
+The graph and the tools are written once; A and B differ only in where the graph runs and how it calls the tools (MCP over the network or direct import). GianMarco builds the EC2 first because it is the base of both; Freddy brings up A on top once Platform has a URL and Slack approves.
 
-## Quién aporta qué en el proceso
+## Who contributes what in the process
 
-Cada tarea tiene un "hecho cuando" observable. La franja de cada persona dice qué debe existir el viernes 2. Tacha aquí mismo lo que vayas cerrando.
+Every task has an observable "done when". Each person's lane says what must exist by Friday 2. Tick off what you close right here.
 
-![Flujo de un caso y qué aporta cada uno](assets/pipeline_and_owners.svg)
+![Flow of a case and what each person contributes](assets/pipeline_and_owners.svg)
 
-Arriba, los seis pasos que recorre un caso; abajo, la pieza que cada uno aporta por detrás para que ese paso exista. El paso 4 es el único donde decide una regla, nunca el modelo.
+On top, the six steps a case goes through; below, the piece each person contributes behind the scenes so that step exists. Step 4 is the only one where a rule decides, never the model.
 
-| Persona | Entrega por detrás | Dónde entra en el flujo | Detalle |
+| Person | Delivers behind the scenes | Where it enters the flow | Detail |
 | --- | --- | --- | --- |
-| Freddy | Grafo en Platform, `policies.yaml` con modo de aprobación, servidor MCP con las tools del cliente, clasificador ES/PT, harness | Entender, decidir, actuar, verificar, escalar; la evaluación | Freddy |
-| GianMarco | EC2 con auto-deploy, `/chat`, consola con las tools del analista por API, `case_events` y auditoría, páginas | Canal del cliente, consola del analista, registro de cada acción | GianMarco |
-| David | Gold v1 y v2 con contratos, manifest, fixtures de demo y de llegadas tardías, `/data` | Recuperar (lo que leen las tools) y la evidencia de data engineering | David |
-| Diego | Queries del pitch, negocio y plazos, especificación de vistas, set de evaluación ES/PT, tablero | El problema en números, los casos que prueban el sistema, la tabla de resultados | Diego |
+| Freddy | Graph on Platform, `policies.yaml` with approval mode, MCP server with the customer tools, ES/PT classifier, harness | Understand, decide, act, verify, escalate; the evaluation | Freddy |
+| GianMarco | EC2 with auto-deploy, `/chat`, console with the analyst tools via API, `case_events` and audit, pages | Customer channel, analyst console, record of every action | GianMarco |
+| David | Gold v1 and v2 with contracts, manifest, demo and late-arrivals fixtures, `/data` | Retrieve (what the tools read) and the data engineering evidence | David |
+| Diego | Pitch queries, business and deadlines, view specification, ES/PT evaluation set, dashboard | The problem in numbers, the cases that test the system, the results table | Diego |
 
-Repo: `factored-hackathon-2026-nick-of-time`. Detalle por persona en `docs/team/`; stack, contratos, números y pendientes en `docs/appendix.md`; diferenciales en `docs/differentiators.md`; contratos en `contracts/`; esquemas en `eval/`.
+Repo: `factored-hackathon-2026-nick-of-time`. Per-person detail in `docs/team/`; stack, contracts, numbers and open items in `docs/appendix.md`; differentiators in `docs/differentiators.md`; contracts in `contracts/`; schemas in `eval/`.
 
-## Guardrails, por capa
+## Guardrails, by layer
 
-Ninguno vive solo en el prompt: cada uno tiene un lugar en código, un ID que citan los DENY y un caso en el harness. Lista completa con implementación en `contracts/policies.yaml` (`guardrails`).
+None lives only in the prompt: each one has a place in code, an ID that DENYs cite and a case in the harness. Full list with implementation in `contracts/policies.yaml` (`guardrails`).
 
-| ID | Capa | Qué protege | Caso que lo prueba |
+| ID | Layer | What it protects | Case that tests it |
 | --- | --- | --- | --- |
-| G-IN-01 | Entrada | Prompt injection directa e indirecta: texto del cliente y salidas de tools como datos delimitados; clasificador de injection → zona humano | injection |
-| G-IN-02 | Entrada | Datos inventados por el cliente: monto, fecha y comercio solo sirven para buscar; score, producto y país salen del gold | injection |
-| G-IN-03 | Entrada | Idioma y ambigüedad: ES/PT con umbral; baja confianza → pregunta, luego humano | ambiguo |
-| G-IN-04 | Entrada | PII y fuera de alcance: PAN/CVV/contraseña se rechazan; temas fuera de disputas → abstención | out_of_scope |
-| G-SES-01 / 02 | Sesión | OTP con TTL; `customer_id` solo desde la sesión; acceso a otro cliente → DENY | session_expired, unauthorized_access |
-| G-TOOL-01 / 02 | Tools | Allowlist y esquemas estrictos; escrituras con modo de aprobación, idempotencia y post-condición; abono nunca auto | unauthorized_access, tool_failure |
-| G-POL-01 | Política | Deny por defecto; toda denegación es una fila en `policy_denials` | todos |
-| G-OUT-01 / 02 | Salida | Grounding: todo número, fecha, ID o estado existe en una tool o en la política; "bloqueada" solo con estado verificado | missing_data, tool_failure |
-| G-OUT-03 / 04 | Salida | Sin datos ajenos ni secretos en la respuesta; sin promesas que la política no dio; abstención explícita | unauthorized_access, missing_data |
-| G-OPS-01 / 02 | Operación | Tope de tokens antes de llamar, reintentos acotados, timeout; auditoría inmutable con actor y `trace_id` | tope, inspección |
+| G-IN-01 | Input | Direct and indirect prompt injection: customer text and tool outputs as delimited data; injection classifier → human zone | injection |
+| G-IN-02 | Input | Data made up by the customer: amount, date and merchant only serve for searching; score, product and country come from gold | injection |
+| G-IN-03 | Input | Language and ambiguity: ES/PT with threshold; low confidence → question, then human | ambiguous |
+| G-IN-04 | Input | PII and out of scope: PAN/CVV/password are rejected; topics outside disputes → abstention | out_of_scope |
+| G-SES-01 / 02 | Session | OTP with TTL; `customer_id` only from the session; access to another customer → DENY | session_expired, unauthorized_access |
+| G-TOOL-01 / 02 | Tools | Allowlist and strict schemas; writes with approval mode, idempotency and post-condition; credit never auto | unauthorized_access, tool_failure |
+| G-POL-01 | Policy | Deny by default; every denial is a row in `policy_denials` | all |
+| G-OUT-01 / 02 | Output | Grounding: every number, date, ID or status exists in a tool or in the policy; "blocked" only with verified status | missing_data, tool_failure |
+| G-OUT-03 / 04 | Output | No other customers' data or secrets in the response; no promises the policy did not give; explicit abstention | unauthorized_access, missing_data |
+| G-OPS-01 / 02 | Operations | Token cap before calling, bounded retries, timeout; immutable audit with actor and `trace_id` | cap, inspection |
 
-## Datos de prueba: qué sale del dataset y qué ponemos nosotros
+## Test data: what comes from the dataset and what we add
 
-El dataset da la verdad del estado (clientes, productos, transacciones, scores, país) y las etiquetas de fraude; no da conversaciones ni resultados de disputas atados a una transacción. La partición se hace una sola vez en gold: `split` por cliente (`hash(customer_id) mod 10`: 0–6 entrenamiento, 7 desarrollo, 8–9 held-out) y `period` por tiempo (ajuste jun-2025 a feb-2026, medición mar–may-2026).
+The dataset gives the ground truth of the state (customers, products, transactions, scores, country) and the fraud labels; it does not give conversations or dispute outcomes tied to a transaction. The partition is done once, in gold: `split` by customer (`hash(customer_id) mod 10`: 0–6 training, 7 development, 8–9 held-out) and `period` by time (fit Jun-2025 to Feb-2026, measurement Mar–May-2026).
 
-| Conjunto | De dónde sale | Para qué | Split y sello |
+| Set | Where it comes from | What for | Split and seal |
 | --- | --- | --- | --- |
-| Test del ML sobre `is_fraud` | 100% dataset (`gold_eval`) | Zonas del score y, si hace falta, el scoring de respaldo | Ajuste con clientes 0–6 × periodo de ajuste; medición en 8–9 × periodo de medición |
-| Held-out del agente (~180 casos) | Estado real de clientes 8–9 + mensaje escrito por nosotros; el resultado esperado se deriva del registro | Safe resolution, unsafe outcomes, escalation quality, latencia, costo, pass^4; bloqueos del agente contra `is_fraud` real | Sellado el jueves 1 (`eval/heldout.sha256`); se corre el sábado 4 veces; nada se ajusta después |
-| Casos de desarrollo (~60) | Clientes de la partición 7 | Construir y depurar | Sin sello |
-| Set del clasificador de texto (300–400 frases) | Team-generated ES/PT con intención y slots | Componente aprendido vs baselines | 70/15/15 por autor o plantilla; nada del test aparece en el held-out ni en el prompt |
+| ML test on `is_fraud` | 100% dataset (`gold_eval`) | Score zones and, if needed, the fallback scoring | Fit with customers 0–6 × fit period; measurement on 8–9 × measurement period |
+| Agent held-out (~180 cases) | Real state of customers 8–9 + a message written by us; the expected outcome is derived from the record | Safe resolution, unsafe outcomes, escalation quality, latency, cost, pass^4; agent blocks against real `is_fraud` | Sealed on Thursday 1 (`eval/heldout.sha256`); run 4 times on Saturday; nothing is tuned afterwards |
+| Development cases (~60) | Customers from partition 7 | Build and debug | No seal |
+| Text classifier set (300–400 sentences) | Team-generated ES/PT with intent and slots | Learned component vs baselines | 70/15/15 by author or template; nothing from the test appears in the held-out or in the prompt |
 
-## Diferenciales frente a otros equipos
+## Differentiators versus other teams
 
-Con ~180 equipos y 10 días, la mayoría convergerá en un chat con RAG sobre políticas inventadas, casi siempre W1, con el LLM decidiendo, métricas de contención sobre una demo y sin held-out. Lo que nos separa, cada uno atado a un criterio del reto y con una prueba que se muestra:
+With ~180 teams and 10 days, most will converge on a chat with RAG over made-up policies, almost always W1, with the LLM deciding, containment metrics on a demo and no held-out. What sets us apart, each item tied to a challenge criterion and with a proof we show:
 
-| Diferencial | Criterio del reto | Cómo se demuestra |
+| Differentiator | Challenge criterion | How it is shown |
 | --- | --- | --- |
-| Verificación visible: aceptado ≠ verificado; tool caída → acción no confirmada | Punto 2 | Caso `tool_failure` en el video |
-| Política fuera del modelo, con cada DENY como fila y guardrails con ID | Puntos 3 y 5 | La inyección engaña al texto y no a la regla |
-| Modo de aprobación configurable y cierre siempre humano | "AI should not be autonomous just because it can" | Interruptor supervisado en la consola |
-| Evaluación por estado final, pass^4, n por celda, ES/PT y ataques, sobre held-out sellado | Puntos 4 y 5 | Tabla con fallas incluidas |
-| Bloqueos del agente medidos contra `is_fraud` real del dataset | Unsafe outcomes | Métrica que no escribimos nosotros |
-| Los 15 números reproducibles con `make setup` en 60 s y corregidos en público | Punto 1, Data Analytics | Índice número → query → CSV en `docs/eda/README.md` |
-| Reloj regulatorio por país con fuente | Business reasoning | Día hábil 2 visible en el caso |
-| Dos actores con tools separadas y notificación al cliente en cada estado | Escalation quality | Consola + panel del cliente |
-| Etiquetas dato / externo / supuesto / simulado / proyectado en todo | Honestidad que pide el kickoff | Cada número del pitch y del README |
+| Visible verification: accepted ≠ verified; tool down → unconfirmed action | Point 2 | `tool_failure` case in the video |
+| Policy outside the model, with every DENY as a row and guardrails with IDs | Points 3 and 5 | The injection fools the text, not the rule |
+| Configurable approval mode and closing always by a human | "AI should not be autonomous just because it can" | Supervised switch in the console |
+| Evaluation by final state, pass^4, n per cell, ES/PT and attacks, on a sealed held-out | Points 4 and 5 | Table with failures included |
+| Agent blocks measured against the dataset's real `is_fraud` | Unsafe outcomes | A metric we did not write |
+| The 15 numbers reproducible with `make setup` in 60 s and corrected in public | Point 1, Data Analytics | Number → query → CSV index in `docs/eda/README.md` |
+| Regulatory clock per country with source | Business reasoning | Business day 2 visible in the case |
+| Two actors with separate tools and customer notification at every status | Escalation quality | Console + customer panel |
+| Data / external / assumption / simulated / projected labels everywhere | The honesty the kickoff asks for | Every number in the pitch and the README |
 
-Dónde podríamos perder: si el caso end-to-end no corre el miércoles 30; si el clasificador ES/PT queda flojo y el componente aprendido parece decorado (el baseline de reglas va antes que el modelo); y si la demo se ve pobre frente a interfaces bonitas (`/chat` parte de `agent-chat-ui`).
+Where we could lose: if the end-to-end case does not run by Wednesday 30; if the ES/PT classifier ends up weak and the learned component looks like decoration (the rules baseline comes before the model); and if the demo looks poor next to pretty interfaces (`/chat` starts from `agent-chat-ui`).
 
-## Calendario e hitos
+## Calendar and milestones
 
-Ver `hitos` en el deck de plan (lun 28 contratos · mar 29 gold v1 y MCP · mié 30 EV-0001 end-to-end · jue 1 chat y 3 casos · vie 2 funcional · sáb 3 eval y deploy · dom 4 paquete · lun 5 entrega 5:00 pm).
+See the milestones (`hitos`) in the plan deck (Mon 28 contracts · Tue 29 gold v1 and MCP · Wed 30 EV-0001 end-to-end · Thu 1 chat and 3 cases · Fri 2 functional · Sat 3 eval and deploy · Sun 4 package · Mon 5 submission 5:00 pm).
 
-El miércoles 30 ordena la semana: si EV-0001 no corre de punta a punta, el jueves se congela a los tres casos obligatorios y se recorta lo demás. La entrega es el lunes 5 de octubre a las 5:00 pm (hora por confirmar en Slack); se envía a primera hora para no depender de la tarde.
+Wednesday 30 sets the order of the week: if EV-0001 does not run end to end, on Thursday scope is frozen to the three mandatory cases and everything else is cut. The submission is Monday, October 5 at 5:00 pm (time to be confirmed on Slack); we send it first thing in the morning so as not to depend on the afternoon.
 
-## Reglas de trabajo y dependencias externas
+## Working rules and external dependencies
 
-Cinco reglas y una definición de "funcional".
+Five rules and a definition of "functional".
 
-1. Contratos primero: nadie codea contra algo que no esté en `contracts/`; cambiar uno es un PR revisado por Freddy.
-2. Un caso end-to-end por día en la URL pública desde el miércoles, aunque sea feo.
-3. El harness es de todos: David agrega datos faltantes y tardíos; GianMarco sesión vencida y tool caída; Freddy inyección y ambigüedad ES/PT; Diego por país y segmento.
-4. El jueves se congela el alcance. Lo de "si sobra tiempo" se toca el sábado.
-5. Secretos: `.env` en `.gitignore` desde el primer commit; David revisa el historial el domingo.
+1. Contracts first: nobody codes against anything that is not in `contracts/`; changing one is a PR reviewed by Freddy.
+2. One end-to-end case per day on the public URL from Wednesday on, even if it is ugly.
+3. The harness belongs to everyone: David adds missing and late data; GianMarco expired session and tool down; Freddy injection and ES/PT ambiguity; Diego by country and segment.
+4. Scope is frozen on Thursday. The "if time allows" items are touched on Saturday.
+5. Secrets: `.env` in `.gitignore` from the first commit; David reviews the history on Sunday.
 
-Funcional el viernes significa: caso normal en español con bloqueo verificado, caso abierto y plazo MX visible; caso ambiguo en portugués que pregunta con opciones y no actúa; caso humano con tarjeta de handoff en la consola, copiloto que propone y humano que aprueba con registro en auditoría; el sistema dice no (inyección → DENY con `policy_id`, sesión vencida → reautenticar, tool caída → escala con acción no confirmada); modo supervisado activable desde la consola; traza visible por paso; `/data` y `/analytics` con contenido real; deploy público que se levanta con `docker compose up`. Lista de recortes en orden: voz con ElevenLabs → grafo de evidencia → Jev → `/analytics` embebido → opción A si Platform falla. Los tres casos con verificación y handoff no se recortan nunca. Los datos son públicos y las claves del dataset también: no hay restricción para usar servicios externos, y se declara en el README.
+Functional on Friday means: normal case in Spanish with verified block, case opened and MX deadline visible; ambiguous case in Portuguese that asks with options and does not act; human case with handoff card in the console, copilot that proposes and human who approves, recorded in the audit log; the system says no (injection → DENY with `policy_id`, expired session → reauthenticate, tool down → escalates with unconfirmed action); supervised mode can be switched on from the console; trace visible per step; `/data` and `/analytics` with real content; public deploy that comes up with `docker compose up`. Cut list in order: voice with ElevenLabs → evidence graph → Jev → embedded `/analytics` → option A if Platform fails. The three cases with verification and handoff are never cut. The data is public and so are the dataset keys: there is no restriction on using external services, and it is declared in the README.
 
-| Dependencia | Si falla | Plan B | Dueño |
+| Dependency | If it fails | Plan B | Owner |
 | --- | --- | --- | --- |
-| Bedrock sin modelos el martes | No hay LLM | Orquestador con respuestas fijas hasta el miércoles; pedir habilitación hoy | Freddy |
-| Databricks no lee el bucket | Pipeline atascado | DuckDB local sin discusión | David |
-| Platform con plan o región que no sirve | Sin deploy del grafo | Opción B desde el miércoles: mismo grafo en FastAPI en la EC2 | Freddy y GianMarco |
-| EC2 sin HTTPS a tiempo | El front no llama al backend | Caddy con dominio DuckDNS; mientras, todo local con compose | GianMarco |
-| Jev no responde ES/PT | Sin tercer brazo | Se descarta el miércoles; LR queda como componente aprendido | Freddy |
-| Freddy sobrecargado el miércoles | El grafo se atrasa | GianMarco toma el evaluador de políticas; Freddy se queda con grafo y harness | Todos |
+| Bedrock without models on Tuesday | No LLM | Orchestrator with fixed responses until Wednesday; request enablement today | Freddy |
+| Databricks cannot read the bucket | Pipeline stuck | Local DuckDB, no discussion | David |
+| Platform with a plan or region that does not work | No graph deploy | Option B from Wednesday: same graph in FastAPI on the EC2 | Freddy and GianMarco |
+| EC2 without HTTPS in time | The front end cannot call the backend | Caddy with a DuckDNS domain; meanwhile, everything local with compose | GianMarco |
+| Jev does not handle ES/PT | No third arm | Dropped on Wednesday; LR stays as the learned component | Freddy |
+| Freddy overloaded on Wednesday | The graph falls behind | GianMarco takes the policy evaluator; Freddy keeps the graph and harness | Everyone |

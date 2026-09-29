@@ -1,89 +1,89 @@
-# docs/eda — índice
+# docs/eda — index
 
-> Copia del EDA hecha el 28 sep 2026 desde el repo `factored-2026-eda-freddy`. Las rutas que citan los documentos y
-> que no están en este repo (`outputs/tables/`, `eda/`, `scripts/`, `docs/context/`, `docs/pitch/`) viven allá, igual
-> que el código que regenera las cifras del EDA. ¹ = archivo del repo del EDA.
+> Copy of the EDA made on Sep 28, 2026 from the repo `factored-2026-eda-freddy`. The paths cited by the documents that
+> are not in this repo (`outputs/tables/`, `eda/`, `scripts/`, `docs/context/`, `docs/pitch/`) live there, as does
+> the code that regenerates the EDA figures. ¹ = file in the EDA repo.
 
-Este índice ordena y enlaza los documentos del EDA del dataset LATAM Bank (sintético, Factored AI & Data Hackathon
-2026) y dice qué archivo respalda cada número que usa el pitch. **No reemplaza ni edita ningún documento del EDA**: las
-cifras y su contexto siguen en cada archivo. Etiquetas: `[medido]` sale del dataset con la query indicada,
-`[supuesto]` es una asunción con fuente y `[proyectado]` es un cálculo sobre supuestos.
+This index orders and links the EDA documents for the LATAM Bank dataset (synthetic, Factored AI & Data Hackathon
+2026) and says which file backs each number the pitch uses. **It does not replace or edit any EDA document**: the
+figures and their context stay in each file. Labels: `[measured]` comes from the dataset with the indicated query,
+`[assumption]` is an assumption with a source and `[projected]` is a calculation over assumptions.
 
-## Orden de lectura
+## Reading order
 
-| # | Documento | Para qué sirve | Cómo se produce |
+| # | Document | What it is for | How it is produced |
 |---|---|---|---|
-| 1 | [executive_summary.md](executive_summary.md) | Una página: qué tiene y qué no tiene el dataset, dónde hay señal, ranking de workflows, ideas y preguntas para Slack | a mano, desde `findings.md` |
-| 2 | [findings.md](findings.md) | Índice del EDA: resumen por workflow, comparación con la misma vara, ideas, vacíos y decisiones; anexo por fase (§0–§6) | a mano, desde `outputs/tables/` |
-| 3 | [workflows/W3_disputes.md](workflows/W3_disputes.md) | Expediente de la idea recomendada (8 secciones: mapeo, demanda, outcomes, labels, costo, vacíos, exploraciones, plantillas) | `python -m eda.report` |
-| 4 | [workflows/W1_accounts_payments.md](workflows/W1_accounts_payments.md), [W2_cards.md](workflows/W2_cards.md), [W4_credit.md](workflows/W4_credit.md) | Los otros tres expedientes, con la misma estructura | `python -m eda.report` |
-| 5 | [data_quality.md](data_quality.md) | Inventario (fase 0), calidad por tabla (fase 1) y §C: la evidencia de data engineering para el pitch | a mano, desde `outputs/tables/00_*`, `01_*` |
-| 6 | [workflow_mapping.md](workflow_mapping.md) | Reglas de mapeo v1 a los 4 workflows, cobertura y % ambiguo por fuente, motivo vs texto | `python -m eda.report` |
-| 7 | [eda_plan.md](eda_plan.md) | El plan por fases con el que se hizo todo lo anterior | a mano |
-| 8 | `docs/pitch/pitch_brief.md`¹ | Qué necesita cada bloque del pitch y de dónde sale cada número | a mano |
+| 1 | [executive_summary.md](executive_summary.md) | One page: what the dataset has and does not have, where there is signal, workflow ranking, ideas and questions for Slack | by hand, from `findings.md` |
+| 2 | [findings.md](findings.md) | EDA index: summary per workflow, same-yardstick comparison, ideas, gaps and decisions; annex per phase (§0–§6) | by hand, from `outputs/tables/` |
+| 3 | [workflows/W3_disputes.md](workflows/W3_disputes.md) | Dossier of the recommended idea (8 sections: mapping, demand, outcomes, labels, cost, gaps, explorations, templates) | `python -m eda.report` |
+| 4 | [workflows/W1_accounts_payments.md](workflows/W1_accounts_payments.md), [W2_cards.md](workflows/W2_cards.md), [W4_credit.md](workflows/W4_credit.md) | The other three dossiers, with the same structure | `python -m eda.report` |
+| 5 | [data_quality.md](data_quality.md) | Inventory (phase 0), quality per table (phase 1) and §C: the data engineering evidence for the pitch | by hand, from `outputs/tables/00_*`, `01_*` |
+| 6 | [workflow_mapping.md](workflow_mapping.md) | v1 mapping rules to the 4 workflows, coverage and % ambiguous per source, reason vs text | `python -m eda.report` |
+| 7 | [eda_plan.md](eda_plan.md) | The phased plan used to produce all of the above | by hand |
+| 8 | `docs/pitch/pitch_brief.md`¹ | What each pitch block needs and where each number comes from | by hand |
 
-Fuera de `docs/eda/`, pero ligado al EDA:
+Outside `docs/eda/`, but tied to the EDA:
 
-- [queries/](queries/): las `.sql` del EDA (`NN_tema.sql`, NN = fase 00–06), más las reglas de mapeo versionadas
-  [03_workflow_mapping.csv](queries/03_workflow_mapping.csv). Las ejecutan los módulos `eda/*.py` y escriben en
+- [queries/](queries/): the EDA `.sql` files (`NN_topic.sql`, NN = phase 00–06), plus the versioned mapping rules
+  [03_workflow_mapping.csv](queries/03_workflow_mapping.csv). They are run by the `eda/*.py` modules, which write to
   `outputs/tables/NN_*.csv`.
-- [../../queries/pitch/](../../queries/pitch/): una query de verificación por número del pitch, con su CSV de salida.
-  La tabla de abajo sale de esas queries.
-- [pipeline_notes.md](pipeline_notes.md): decisiones del pipeline y de la verificación de números, y lo que no se
-  pudo verificar.
-- [../../data/quality_report.md](../../data/quality_report.md): reporte del pipeline bronze → silver → gold. Repite, con
-  código de producción, los checks de `data_quality.md` §C que necesita la idea W3.
+- [../../queries/pitch/](../../queries/pitch/): one verification query per pitch number, with its output CSV.
+  The table below comes from those queries.
+- [pipeline_notes.md](pipeline_notes.md): decisions about the pipeline and the number verification, and what could not
+  be verified.
+- [../../data/quality_report.md](../../data/quality_report.md): report of the bronze → silver → gold pipeline. It repeats,
+  with production code, the `data_quality.md` §C checks that the W3 idea needs.
 
-## Mapa de archivos por fase
+## File map per phase
 
-| Fase | Módulo | Queries (`docs/eda/queries/`) | Tablas (`outputs/tables/`) | Documento |
+| Phase | Module | Queries (`docs/eda/queries/`) | Tables (`outputs/tables/`) | Document |
 |---|---|---|---|---|
-| 0 Inventario | `eda.inventory` | `00_*.sql` | `00_*.csv` | `data_quality.md` §A |
-| 1 Calidad | `eda.quality` | `01_*.sql` | `01_*.csv` | `data_quality.md` §B–C |
-| 2 Demanda | `eda.demand` | `02_*.sql` | `02_*.csv` | `findings.md` §2 |
-| 3 Mapeo | `eda.workflows` | `03_*.sql`, `03_workflow_mapping.csv` | `03_*.csv` | `workflow_mapping.md` |
-| 4 Outcomes | `eda.outcomes` | `04_*.sql` | `04_*.csv` | `findings.md` §4, expedientes §3 |
-| 5 Labels | `eda.labels` | `05_*.sql` | `05_*.csv` | `findings.md` §5, expedientes §4 |
-| 6 Costo | `eda.cost`, `eda.funnel` | `06_*.sql` | `06_*.csv` | `findings.md` §6, expedientes §5 |
-| 7 Reporte | `eda.report` | — | lee `outputs/tables/` | expedientes, `workflow_mapping.md` |
+| 0 Inventory | `eda.inventory` | `00_*.sql` | `00_*.csv` | `data_quality.md` §A |
+| 1 Quality | `eda.quality` | `01_*.sql` | `01_*.csv` | `data_quality.md` §B–C |
+| 2 Demand | `eda.demand` | `02_*.sql` | `02_*.csv` | `findings.md` §2 |
+| 3 Mapping | `eda.workflows` | `03_*.sql`, `03_workflow_mapping.csv` | `03_*.csv` | `workflow_mapping.md` |
+| 4 Outcomes | `eda.outcomes` | `04_*.sql` | `04_*.csv` | `findings.md` §4, dossiers §3 |
+| 5 Labels | `eda.labels` | `05_*.sql` | `05_*.csv` | `findings.md` §5, dossiers §4 |
+| 6 Cost | `eda.cost`, `eda.funnel` | `06_*.sql` | `06_*.csv` | `findings.md` §6, dossiers §5 |
+| 7 Report | `eda.report` | — | reads `outputs/tables/` | dossiers, `workflow_mapping.md` |
 
-## Números del pitch y su respaldo
+## Pitch numbers and their backing
 
-Cada fila tiene dos respaldos independientes. **Verificación**: una query nueva en `queries/pitch/` que recalcula el
-número directo desde los datos y deja su salida en un CSV al lado. **EDA**: la query y la tabla que lo produjeron
-originalmente. "¿Coincide?" compara el valor recalculado, redondeado a los decimales que usa el pitch, con el literal
-del pitch. La columna "Aparece en" busca el literal en los documentos. Todo el bloque lo regenera
-`python -m queries.run` en el repo del EDA, que tiene `scripts/db.py` y el caché de datos; aquí la tabla y los CSV de
-`queries/pitch/` son la copia de esa corrida.
+Each row has two independent backings. **Verification**: a new query in `queries/pitch/` that recalculates the
+number directly from the data and leaves its output in a CSV next to it. **EDA**: the query and table that originally
+produced it. "Match?" compares the recalculated value, rounded to the decimals the pitch uses, with the pitch
+literal. The "Appears in" column searches for the literal in the documents. The whole block is regenerated by
+`python -m queries.run` in the EDA repo, which has `scripts/db.py` and the data cache; here the table and the CSVs in
+`queries/pitch/` are the copy of that run.
 
-<!-- BEGIN pitch_numbers: generado por `python -m queries.run`; no editar a mano -->
+<!-- BEGIN pitch_numbers: generated by `python -m queries.run`; do not edit by hand -->
 
-| # | Número del pitch | En el pitch | Recalculado | ¿Coincide? | Acción en el pitch | Query → CSV (verificación) | Respaldo en el EDA (`docs/eda/queries/` → `outputs/tables/`) | Aparece en | Nota |
+| # | Pitch number | In the pitch | Recalculated | Match? | Action in the pitch | Query → CSV (verification) | EDA backing (`docs/eda/queries/` → `outputs/tables/`) | Appears in | Note |
 |---|---|---:|---:|---|---|---|---|---|---|
-| N01 | % de complaints que son W3 (cargos no reconocidos + cobros indebidos) | 36.4 | 36.413 | sí | usar tal cual | [p01_w3_share_complaints.sql](../../queries/pitch/p01_w3_share_complaints.sql) → [p01_w3_share_complaints.csv](../../queries/pitch/p01_w3_share_complaints.csv)<br>col. `pct_w3` | `03_apply_mapping.sql` → `03_coverage_summary.csv` (pct_W3_disputas) | `pitch_brief.md`¹, [findings.md](findings.md) |  |
-| N02 | Casos W3 por mes | 679 | 678.9 | sí | usar tal cual | [p01_w3_share_complaints.sql](../../queries/pitch/p01_w3_share_complaints.sql) → [p01_w3_share_complaints.csv](../../queries/pitch/p01_w3_share_complaints.csv)<br>col. `w3_per_month` | `04_complaints_base.sql` → `04_workflow_scorecard.csv` (volumen_mensual_complaints) | `pitch_brief.md`¹, [executive_summary.md](executive_summary.md), [findings.md](findings.md) | Media sobre 35 meses completos; el % de N01 usa toda la ventana. |
-| N03 | FCR de contactos `Queja` | 43.6 | 43.6 | sí | usar tal cual | [p02_fcr_complaint_vs_bank.sql](../../queries/pitch/p02_fcr_complaint_vs_bank.sql) → [p02_fcr_complaint_vs_bank.csv](../../queries/pitch/p02_fcr_complaint_vs_bank.csv)<br>col. `fcr_pct`, fila `grupo = Queja (W3, INT-02)` | `04_interactions_base.sql` → `04_workflow_scorecard.csv` (fcr_pct) | `pitch_brief.md`¹, [executive_summary.md](executive_summary.md), [findings.md](findings.md) | IC95 [43.316, 43.884], n = 117,021. Contactos `Queja` → W3 es una regla de confianza baja (INT-02). |
-| N04 | FCR de todo el banco | 76.6 | 76.648 | sí | usar tal cual, contra TODOS | [p02_fcr_complaint_vs_bank.sql](../../queries/pitch/p02_fcr_complaint_vs_bank.sql) → [p02_fcr_complaint_vs_bank.csv](../../queries/pitch/p02_fcr_complaint_vs_bank.csv)<br>col. `fcr_pct`, fila `grupo = Todo el banco` | `04_interactions_base.sql` → `04_workflow_scorecard.csv` (TODOS, fcr_pct) | `pitch_brief.md`¹, [executive_summary.md](executive_summary.md), [findings.md](findings.md) | n = 686,296. En `04_workflow_scorecard.csv` la columna W2 da casi lo mismo porque su población es una mezcla aleatoria de motivos; comparar contra TODOS, no contra W2. |
-| N05 | % de contactos `Queja` que requiere seguimiento | 63.0 | 62.968 | sí | usar tal cual | [p03_complaint_follow_up.sql](../../queries/pitch/p03_complaint_follow_up.sql) → [p03_complaint_follow_up.csv](../../queries/pitch/p03_complaint_follow_up.csv)<br>col. `seguimiento_pct`, fila `grupo = Queja (W3, INT-02)` | `04_interactions_base.sql` → `04_workflow_scorecard.csv` (seguimiento_pct) | `pitch_brief.md`¹, [findings.md](findings.md) | Banco: 34.832%. |
-| N06 | Duración de contactos `Queja` ("AHT 7.2") | 7.2 | 7.183 | sí | usar tal cual | [p04_complaint_duration_vs_bank.sql](../../queries/pitch/p04_complaint_duration_vs_bank.sql) → [p04_complaint_duration_vs_bank.csv](../../queries/pitch/p04_complaint_duration_vs_bank.csv)<br>col. `duracion_p50_min`, fila `grupo = Queja (W3, INT-02)` | `04_interactions_base.sql` → `04_workflow_scorecard.csv` (duracion_p50_min); `06_cost_base.sql` → `06_cost_by_workflow.csv` (aht_mean_min) | `pitch_brief.md`¹, [findings.md](findings.md), [W3_disputes.md](workflows/W3_disputes.md) | Mediana 7.183 min; media (AHT, meses completos) 7.243 min. Las dos redondean a 7.2. |
-| N07 | Duración del banco ("vs 4.9") | 4.9 | 4.85 | sí | **cambiar redacción** | [p04_complaint_duration_vs_bank.sql](../../queries/pitch/p04_complaint_duration_vs_bank.sql) → [p04_complaint_duration_vs_bank.csv](../../queries/pitch/p04_complaint_duration_vs_bank.csv)<br>col. `duracion_p50_min`, fila `grupo = Todo el banco` | `04_interactions_base.sql` → `04_workflow_scorecard.csv` (TODOS, duracion_p50_min) | `pitch_brief.md`¹ | **Es la mediana (4.85 min), no el AHT.** El AHT medio del banco es 5.358 min. "AHT 7.2 vs 4.9" compara una media con una mediana: usar "duración mediana 7.183 vs 4.85 min" o "AHT 7.243 vs 5.358 min". |
-| N08 | NPS de contactos `Queja` | -85.3 | -85.316 | sí | usar como comparación relativa | [p05_complaint_nps_vs_bank.sql](../../queries/pitch/p05_complaint_nps_vs_bank.sql) → [p05_complaint_nps_vs_bank.csv](../../queries/pitch/p05_complaint_nps_vs_bank.csv)<br>col. `nps`, fila `grupo = Queja (W3, INT-02)` | `04_interactions_base.sql` → `04_workflow_scorecard.csv` (nps) | `pitch_brief.md`¹, [executive_summary.md](executive_summary.md), [findings.md](findings.md), [W3_disputes.md](workflows/W3_disputes.md) | n = 10,821; escala observada 2–7, 0 promotores: NPS = −% detractores. Banco: -74.508. Solo vale como comparación relativa. |
-| N09 | Días de resolución p50 de complaints W3 | 16 | 16.0 | sí | usar solo como contexto, no como dolor | [p06_w3_resolution_days.sql](../../queries/pitch/p06_w3_resolution_days.sql) → [p06_w3_resolution_days.csv](../../queries/pitch/p06_w3_resolution_days.csv)<br>col. `resolucion_dias_p50`, fila `grupo = W3 (CMP-01..03)` | `04_complaints_base.sql` → `04_workflow_scorecard.csv` (resolucion_dias_p50) | `pitch_brief.md`¹, [findings.md](findings.md) | Igual al banco (16.0 días): no distingue a W3; n = 5,622 casos resueltos. |
-| N10 | Fraudes por mes | 120 | 119.8 | sí | usar tal cual | [p07_fraud_per_month.sql](../../queries/pitch/p07_fraud_per_month.sql) → [p07_fraud_per_month.csv](../../queries/pitch/p07_fraud_per_month.csv)<br>col. `fraudes_por_mes` | `04_trigger_events_monthly.sql` → `04_trigger_events_summary.csv` (TRX-01) | `pitch_brief.md`¹, [findings.md](findings.md) | 4,316 fraudes en total (0.098% de las transacciones); 891 sin `fraud_score`. |
-| N11 | Precisión con `fraud_score` ≥ 50 | 100 | 100.0 | sí | usar como "precisión histórica" | [p08_fraud_score_thresholds.sql](../../queries/pitch/p08_fraud_score_thresholds.sql) → [p08_fraud_score_thresholds.csv](../../queries/pitch/p08_fraud_score_thresholds.csv)<br>col. `precision_pct`, fila `threshold = 50` | `05_fraud_score_thresholds.sql` → `05_fraud_score_thresholds.csv` | `pitch_brief.md`¹, [executive_summary.md](executive_summary.md), [findings.md](findings.md) | 1,670 de 1,670 marcadas son fraude. Precisión histórica sobre toda la ventana, no un held-out. |
-| N12 | Recall con `fraud_score` ≥ 50 | 48.8 | 48.76 | sí | **aclarar denominador** | [p08_fraud_score_thresholds.sql](../../queries/pitch/p08_fraud_score_thresholds.sql) → [p08_fraud_score_thresholds.csv](../../queries/pitch/p08_fraud_score_thresholds.csv)<br>col. `recall_con_score_pct`, fila `threshold = 50` | `05_fraud_score_thresholds.sql` → `05_fraud_score_thresholds.csv` | `pitch_brief.md`¹, [executive_summary.md](executive_summary.md), [findings.md](findings.md), [W3_disputes.md](workflows/W3_disputes.md) | **Denominador: fraudes con score** (3,425). Sobre todos los fraudes (4,316) el recall es 38.69%. |
-| N13 | Precisión con `fraud_score` ≥ 30 | 79.6 | 79.58 | sí | usar tal cual | [p08_fraud_score_thresholds.sql](../../queries/pitch/p08_fraud_score_thresholds.sql) → [p08_fraud_score_thresholds.csv](../../queries/pitch/p08_fraud_score_thresholds.csv)<br>col. `precision_pct`, fila `threshold = 30` | `05_fraud_score_thresholds.sql` → `05_fraud_score_thresholds.csv` | `pitch_brief.md`¹, [findings.md](findings.md), [W3_disputes.md](workflows/W3_disputes.md) |  |
-| N14 | Recall con `fraud_score` ≥ 30 | 69.3 | 69.28 | sí | usar tal cual | [p08_fraud_score_thresholds.sql](../../queries/pitch/p08_fraud_score_thresholds.sql) → [p08_fraud_score_thresholds.csv](../../queries/pitch/p08_fraud_score_thresholds.csv)<br>col. `recall_con_score_pct`, fila `threshold = 30` | `05_fraud_score_thresholds.sql` → `05_fraud_score_thresholds.csv` | [executive_summary.md](executive_summary.md), [findings.md](findings.md) | Sobre todos los fraudes: 54.98%. |
-| N15 | Transacciones marcadas por mes con ≥ 50 | 45 | 45.1 | sí | **aclarar base mensual** | [p08_fraud_score_thresholds.sql](../../queries/pitch/p08_fraud_score_thresholds.sql) → [p08_fraud_score_thresholds.csv](../../queries/pitch/p08_fraud_score_thresholds.csv)<br>col. `marcadas_por_mes_37`, fila `threshold = 50` | `05_fraud_score_thresholds.sql` → `05_fraud_score_thresholds.csv` (flagged_per_month) | [findings.md](findings.md) | El EDA divide por 37 meses calendario. Con la base de "120 fraudes/mes" (35 meses completos) son 46.3/mes. |
+| N01 | % of complaints that are W3 (unrecognized charges + wrongful charges) | 36.4 | 36.413 | yes | use as is | [p01_w3_share_complaints.sql](../../queries/pitch/p01_w3_share_complaints.sql) → [p01_w3_share_complaints.csv](../../queries/pitch/p01_w3_share_complaints.csv)<br>col. `pct_w3` | `03_apply_mapping.sql` → `03_coverage_summary.csv` (pct_W3_disputes) | `pitch_brief.md`¹, [findings.md](findings.md) |  |
+| N02 | W3 cases per month | 679 | 678.9 | yes | use as is | [p01_w3_share_complaints.sql](../../queries/pitch/p01_w3_share_complaints.sql) → [p01_w3_share_complaints.csv](../../queries/pitch/p01_w3_share_complaints.csv)<br>col. `w3_per_month` | `04_complaints_base.sql` → `04_workflow_scorecard.csv` (volumen_mensual_complaints) | `pitch_brief.md`¹, [executive_summary.md](executive_summary.md), [findings.md](findings.md) | Mean over 35 full months; the % in N01 uses the whole window. |
+| N03 | FCR of `Queja` contacts | 43.6 | 43.6 | yes | use as is | [p02_fcr_complaint_vs_bank.sql](../../queries/pitch/p02_fcr_complaint_vs_bank.sql) → [p02_fcr_complaint_vs_bank.csv](../../queries/pitch/p02_fcr_complaint_vs_bank.csv)<br>col. `fcr_pct`, row `group_name = Queja (W3, INT-02)` | `04_interactions_base.sql` → `04_workflow_scorecard.csv` (fcr_pct) | `pitch_brief.md`¹, [executive_summary.md](executive_summary.md), [findings.md](findings.md) | CI95 [43.316, 43.884], n = 117,021. `Queja` contacts → W3 is a low-confidence rule (INT-02). |
+| N04 | Bank-wide FCR | 76.6 | 76.648 | yes | use as is, against ALL | [p02_fcr_complaint_vs_bank.sql](../../queries/pitch/p02_fcr_complaint_vs_bank.sql) → [p02_fcr_complaint_vs_bank.csv](../../queries/pitch/p02_fcr_complaint_vs_bank.csv)<br>col. `fcr_pct`, row `group_name = Whole bank` | `04_interactions_base.sql` → `04_workflow_scorecard.csv` (ALL, fcr_pct) | `pitch_brief.md`¹, [executive_summary.md](executive_summary.md), [findings.md](findings.md) | n = 686,296. In `04_workflow_scorecard.csv` the W2 column gives almost the same value because its population is a random mix of reasons; compare against ALL, not against W2. |
+| N05 | % of `Queja` contacts that require follow-up | 63.0 | 62.968 | yes | use as is | [p03_complaint_follow_up.sql](../../queries/pitch/p03_complaint_follow_up.sql) → [p03_complaint_follow_up.csv](../../queries/pitch/p03_complaint_follow_up.csv)<br>col. `follow_up_pct`, row `group_name = Queja (W3, INT-02)` | `04_interactions_base.sql` → `04_workflow_scorecard.csv` (seguimiento_pct) | `pitch_brief.md`¹, [findings.md](findings.md) | Bank: 34.832%. |
+| N06 | Duration of `Queja` contacts ("AHT 7.2") | 7.2 | 7.183 | yes | use as is | [p04_complaint_duration_vs_bank.sql](../../queries/pitch/p04_complaint_duration_vs_bank.sql) → [p04_complaint_duration_vs_bank.csv](../../queries/pitch/p04_complaint_duration_vs_bank.csv)<br>col. `duration_p50_min`, row `group_name = Queja (W3, INT-02)` | `04_interactions_base.sql` → `04_workflow_scorecard.csv` (duracion_p50_min); `06_cost_base.sql` → `06_cost_by_workflow.csv` (aht_mean_min) | `pitch_brief.md`¹, [findings.md](findings.md), [W3_disputes.md](workflows/W3_disputes.md) | Median 7.183 min; mean (AHT, full months) 7.243 min. Both round to 7.2. |
+| N07 | Bank duration ("vs 4.9") | 4.9 | 4.85 | yes | **change wording** | [p04_complaint_duration_vs_bank.sql](../../queries/pitch/p04_complaint_duration_vs_bank.sql) → [p04_complaint_duration_vs_bank.csv](../../queries/pitch/p04_complaint_duration_vs_bank.csv)<br>col. `duration_p50_min`, row `group_name = Whole bank` | `04_interactions_base.sql` → `04_workflow_scorecard.csv` (ALL, duracion_p50_min) | `pitch_brief.md`¹ | **It is the median (4.85 min), not the AHT.** The bank's mean AHT is 5.358 min. "AHT 7.2 vs 4.9" compares a mean with a median: use "median duration 7.183 vs 4.85 min" or "AHT 7.243 vs 5.358 min". |
+| N08 | NPS of `Queja` contacts | -85.3 | -85.316 | yes | use as a relative comparison | [p05_complaint_nps_vs_bank.sql](../../queries/pitch/p05_complaint_nps_vs_bank.sql) → [p05_complaint_nps_vs_bank.csv](../../queries/pitch/p05_complaint_nps_vs_bank.csv)<br>col. `nps`, row `group_name = Queja (W3, INT-02)` | `04_interactions_base.sql` → `04_workflow_scorecard.csv` (nps) | `pitch_brief.md`¹, [executive_summary.md](executive_summary.md), [findings.md](findings.md), [W3_disputes.md](workflows/W3_disputes.md) | n = 10,821; observed scale 2–7, 0 promoters: NPS = −% detractors. Bank: -74.508. Only valid as a relative comparison. |
+| N09 | Resolution days p50 of W3 complaints | 16 | 16.0 | yes | use only as context, not as pain | [p06_w3_resolution_days.sql](../../queries/pitch/p06_w3_resolution_days.sql) → [p06_w3_resolution_days.csv](../../queries/pitch/p06_w3_resolution_days.csv)<br>col. `resolution_days_p50`, row `group_name = W3 (CMP-01..03)` | `04_complaints_base.sql` → `04_workflow_scorecard.csv` (resolucion_dias_p50) | `pitch_brief.md`¹, [findings.md](findings.md) | Same as the bank (16.0 days): does not set W3 apart; n = 5,622 resolved cases. |
+| N10 | Frauds per month | 120 | 119.8 | yes | use as is | [p07_fraud_per_month.sql](../../queries/pitch/p07_fraud_per_month.sql) → [p07_fraud_per_month.csv](../../queries/pitch/p07_fraud_per_month.csv)<br>col. `frauds_per_month` | `04_trigger_events_monthly.sql` → `04_trigger_events_summary.csv` (TRX-01) | `pitch_brief.md`¹, [findings.md](findings.md) | 4,316 frauds in total (0.098% of transactions); 891 without `fraud_score`. |
+| N11 | Precision with `fraud_score` ≥ 50 | 100 | 100.0 | yes | use as "historical precision" | [p08_fraud_score_thresholds.sql](../../queries/pitch/p08_fraud_score_thresholds.sql) → [p08_fraud_score_thresholds.csv](../../queries/pitch/p08_fraud_score_thresholds.csv)<br>col. `precision_pct`, row `threshold = 50` | `05_fraud_score_thresholds.sql` → `05_fraud_score_thresholds.csv` | `pitch_brief.md`¹, [executive_summary.md](executive_summary.md), [findings.md](findings.md) | 1,670 of 1,670 flagged are fraud. Historical precision over the whole window, not a held-out set. |
+| N12 | Recall with `fraud_score` ≥ 50 | 48.8 | 48.76 | yes | **clarify denominator** | [p08_fraud_score_thresholds.sql](../../queries/pitch/p08_fraud_score_thresholds.sql) → [p08_fraud_score_thresholds.csv](../../queries/pitch/p08_fraud_score_thresholds.csv)<br>col. `recall_with_score_pct`, row `threshold = 50` | `05_fraud_score_thresholds.sql` → `05_fraud_score_thresholds.csv` | `pitch_brief.md`¹, [executive_summary.md](executive_summary.md), [findings.md](findings.md), [W3_disputes.md](workflows/W3_disputes.md) | **Denominator: frauds with a score** (3,425). Over all frauds (4,316) the recall is 38.69%. |
+| N13 | Precision with `fraud_score` ≥ 30 | 79.6 | 79.58 | yes | use as is | [p08_fraud_score_thresholds.sql](../../queries/pitch/p08_fraud_score_thresholds.sql) → [p08_fraud_score_thresholds.csv](../../queries/pitch/p08_fraud_score_thresholds.csv)<br>col. `precision_pct`, row `threshold = 30` | `05_fraud_score_thresholds.sql` → `05_fraud_score_thresholds.csv` | `pitch_brief.md`¹, [findings.md](findings.md), [W3_disputes.md](workflows/W3_disputes.md) |  |
+| N14 | Recall with `fraud_score` ≥ 30 | 69.3 | 69.28 | yes | use as is | [p08_fraud_score_thresholds.sql](../../queries/pitch/p08_fraud_score_thresholds.sql) → [p08_fraud_score_thresholds.csv](../../queries/pitch/p08_fraud_score_thresholds.csv)<br>col. `recall_with_score_pct`, row `threshold = 30` | `05_fraud_score_thresholds.sql` → `05_fraud_score_thresholds.csv` | [executive_summary.md](executive_summary.md), [findings.md](findings.md) | Over all frauds: 54.98%. |
+| N15 | Transactions flagged per month with ≥ 50 | 45 | 45.1 | yes | **clarify monthly base** | [p08_fraud_score_thresholds.sql](../../queries/pitch/p08_fraud_score_thresholds.sql) → [p08_fraud_score_thresholds.csv](../../queries/pitch/p08_fraud_score_thresholds.csv)<br>col. `flagged_per_month_37`, row `threshold = 50` | `05_fraud_score_thresholds.sql` → `05_fraud_score_thresholds.csv` (flagged_per_month) | [findings.md](findings.md) | The EDA divides by 37 calendar months. With the "120 frauds/month" base (35 full months) it is 46.3/month. |
 
-15 de 15 números coinciden al redondear al número de decimales que usa el pitch. Resumen en [pitch_numbers.csv](../../queries/pitch_numbers.csv).
+15 of 15 numbers match when rounded to the number of decimals the pitch uses. Summary in [pitch_numbers.csv](../../queries/pitch_numbers.csv).
 
 <!-- END pitch_numbers -->
 
-## Cómo regenerar
+## How to regenerate
 
 ```bash
-make setup     # en este repo: pipeline bronze → silver → gold según contracts/gold_contract.md y data/quality_report.md
+make setup     # in this repo: bronze → silver → gold pipeline per contracts/gold_contract.md and data/quality_report.md
 ```
-El EDA completo (`python -m eda.<módulo>`, `outputs/tables/`) y la verificación de números (`python -m queries.run`) se
-regeneran en el repo del EDA.
+The full EDA (`python -m eda.<module>`, `outputs/tables/`) and the number verification (`python -m queries.run`) are
+regenerated in the EDA repo.

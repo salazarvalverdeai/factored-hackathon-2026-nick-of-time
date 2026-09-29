@@ -1,6 +1,6 @@
--- Respalda: data_quality.md §B5 (¿sla_breached es coherente con la duración, el estado y la prioridad?).
--- Si % SLA incumplido no depende de resolution_days ni del estado, la métrica del scorecard es ruido del generador.
--- Produce: outputs/tables/01_complaints_sla_consistency.csv (vía eda/quality.py).
+-- Supports: data_quality.md §B5 (is sla_breached consistent with duration, status and priority?).
+-- If % SLA breached depends on neither resolution_days nor status, the scorecard metric is generator noise.
+-- Produces: outputs/tables/01_complaints_sla_consistency.csv (via eda/quality.py).
 SELECT 'resolution_days' AS dimension,
        CASE WHEN resolution_days IS NULL THEN 'sin resolver (nulo)'
             WHEN resolution_days <= 5 THEN '01-05' WHEN resolution_days <= 10 THEN '06-10'

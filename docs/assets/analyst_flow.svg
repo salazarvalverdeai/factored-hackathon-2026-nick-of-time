@@ -1,30 +1,30 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 640" font-family="Helvetica, Arial, sans-serif">
   <defs><marker id="arr" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#4b5563"/></marker></defs>
   <rect width="1200" height="640" fill="#ffffff"/>
-  <text x="600" y="32" text-anchor="middle" font-size="21" font-weight="bold" fill="#111827">Flujo del analista: el sistema actúa rápido, la persona verifica y cierra, el cliente se entera</text>
+  <text x="600" y="32" text-anchor="middle" font-size="21" font-weight="bold" fill="#111827">Analyst flow: the system acts fast, the person verifies and closes, the customer is informed</text>
 
-  <!-- Cola de estados -->
+  <!-- Status queue -->
   <g font-size="12">
-    <text x="40" y="70" font-size="13" font-weight="bold" fill="#111827">COLA DEL CASO (estado = último evento en case_events)</text>
+    <text x="40" y="70" font-size="13" font-weight="bold" fill="#111827">CASE QUEUE (status = last event in case_events)</text>
     <rect x="40" y="82" width="190" height="64" rx="8" fill="#eff6ff" stroke="#2563eb" stroke-width="2"/>
-    <text x="135" y="106" text-anchor="middle" font-weight="bold" fill="#1e3a8a">nuevo</text>
-    <text x="135" y="126" text-anchor="middle" font-size="11" fill="#1f2937">ticket abierto por el agente</text>
+    <text x="135" y="106" text-anchor="middle" font-weight="bold" fill="#1e3a8a">new</text>
+    <text x="135" y="126" text-anchor="middle" font-size="11" fill="#1f2937">ticket opened by the agent</text>
 
     <rect x="270" y="82" width="190" height="64" rx="8" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
-    <text x="365" y="106" text-anchor="middle" font-weight="bold" fill="#166534">verificación</text>
-    <text x="365" y="126" text-anchor="middle" font-size="11" fill="#1f2937">acción auto ya ejecutada (SLA 4 h)</text>
+    <text x="365" y="106" text-anchor="middle" font-weight="bold" fill="#166534">verification</text>
+    <text x="365" y="126" text-anchor="middle" font-size="11" fill="#1f2937">auto action already run (SLA 4 h)</text>
 
     <rect x="500" y="82" width="190" height="64" rx="8" fill="#fef2f2" stroke="#dc2626" stroke-width="2"/>
-    <text x="595" y="106" text-anchor="middle" font-weight="bold" fill="#991b1b">revisión</text>
-    <text x="595" y="126" text-anchor="middle" font-size="11" fill="#1f2937">handoff sin acción (SLA 24 h)</text>
+    <text x="595" y="106" text-anchor="middle" font-weight="bold" fill="#991b1b">review</text>
+    <text x="595" y="126" text-anchor="middle" font-size="11" fill="#1f2937">handoff without action (SLA 24 h)</text>
 
     <rect x="730" y="82" width="190" height="64" rx="8" fill="#fff7ed" stroke="#d97706" stroke-width="2"/>
-    <text x="825" y="106" text-anchor="middle" font-weight="bold" fill="#9a3412">resuelto</text>
-    <text x="825" y="126" text-anchor="middle" font-size="11" fill="#1f2937">decisión tomada por la persona</text>
+    <text x="825" y="106" text-anchor="middle" font-weight="bold" fill="#9a3412">resolved</text>
+    <text x="825" y="126" text-anchor="middle" font-size="11" fill="#1f2937">decision made by the person</text>
 
     <rect x="960" y="82" width="190" height="64" rx="8" fill="#f9fafb" stroke="#6b7280" stroke-width="2"/>
-    <text x="1055" y="106" text-anchor="middle" font-weight="bold" fill="#111827">cerrado</text>
-    <text x="1055" y="126" text-anchor="middle" font-size="11" fill="#1f2937">siempre por una persona</text>
+    <text x="1055" y="106" text-anchor="middle" font-weight="bold" fill="#111827">closed</text>
+    <text x="1055" y="126" text-anchor="middle" font-size="11" fill="#1f2937">always by a person</text>
   </g>
   <g stroke="#4b5563" stroke-width="2" fill="none">
     <line x1="230" y1="104" x2="268" y2="104" marker-end="url(#arr)"/>
@@ -35,51 +35,51 @@
     <line x1="920" y1="104" x2="958" y2="104" marker-end="url(#arr)"/>
     <path d="M825 146 V 175 H 595 V 148" marker-end="url(#arr)"/>
   </g>
-  <text x="365" y="160" text-anchor="middle" font-size="10.5" fill="#6b7280">zona humano: directo a revisión</text>
-  <text x="595" y="52" text-anchor="middle" font-size="10.5" fill="#6b7280">verificación OK → resuelto</text>
-  <text x="710" y="190" text-anchor="middle" font-size="10.5" fill="#6b7280">reabrir</text>
+  <text x="365" y="160" text-anchor="middle" font-size="10.5" fill="#6b7280">human zone: straight to review</text>
+  <text x="595" y="52" text-anchor="middle" font-size="10.5" fill="#6b7280">verification OK → resolved</text>
+  <text x="710" y="190" text-anchor="middle" font-size="10.5" fill="#6b7280">reopen</text>
 
-  <!-- Pasos del analista -->
-  <text x="40" y="228" font-size="13" font-weight="bold" fill="#111827">QUÉ HACE LA PERSONA (consola, tools del analista vía API; el copiloto propone, ella ejecuta)</text>
+  <!-- Analyst steps -->
+  <text x="40" y="228" font-size="13" font-weight="bold" fill="#111827">WHAT THE PERSON DOES (console, analyst tools via API; the copilot proposes, the person executes)</text>
   <g font-size="11.5">
     <rect x="40" y="240" width="210" height="130" rx="8" fill="#ffffff" stroke="#9ca3af" stroke-width="1.5"/>
-    <text x="145" y="262" text-anchor="middle" font-weight="bold" fill="#111827">1 · Toma el caso</text>
-    <text x="52" y="284" fill="#1f2937">• Bandeja ordenada por SLA y zona</text>
-    <text x="52" y="300" fill="#1f2937">• tomar → estado con dueño</text>
-    <text x="52" y="316" fill="#1f2937">• Modo supervisado visible</text>
-    <text x="52" y="332" fill="#1f2937">• Cola "ambiguo" aparte</text>
-    <text x="52" y="356" fill="#6b7280">tool: tomar</text>
+    <text x="145" y="262" text-anchor="middle" font-weight="bold" fill="#111827">1 · Takes the case</text>
+    <text x="52" y="284" fill="#1f2937">• Inbox sorted by SLA and zone</text>
+    <text x="52" y="300" fill="#1f2937">• take → status with owner</text>
+    <text x="52" y="316" fill="#1f2937">• Supervised mode visible</text>
+    <text x="52" y="332" fill="#1f2937">• Separate "ambiguous" queue</text>
+    <text x="52" y="356" fill="#6b7280">tool: take</text>
 
     <rect x="270" y="240" width="210" height="130" rx="8" fill="#ffffff" stroke="#9ca3af" stroke-width="1.5"/>
-    <text x="375" y="262" text-anchor="middle" font-weight="bold" fill="#111827">2 · Revisa la evidencia</text>
-    <text x="282" y="284" fill="#1f2937">• Tarjeta de handoff (5 bloques)</text>
-    <text x="282" y="300" fill="#1f2937">• Score, zona, regla y guardrails</text>
-    <text x="282" y="316" fill="#1f2937">• Grafo de evidencia con IDs</text>
-    <text x="282" y="332" fill="#1f2937">• Traza: qué se verificó y qué no</text>
+    <text x="375" y="262" text-anchor="middle" font-weight="bold" fill="#111827">2 · Reviews the evidence</text>
+    <text x="282" y="284" fill="#1f2937">• Handoff card (5 blocks)</text>
+    <text x="282" y="300" fill="#1f2937">• Score, zone, rule and guardrails</text>
+    <text x="282" y="316" fill="#1f2937">• Evidence graph with IDs</text>
+    <text x="282" y="332" fill="#1f2937">• Trace: what was verified, what not</text>
     <text x="282" y="356" fill="#6b7280">tool: get_case</text>
 
     <rect x="500" y="240" width="210" height="130" rx="8" fill="#fff7ed" stroke="#d97706" stroke-width="2"/>
-    <text x="605" y="262" text-anchor="middle" font-weight="bold" fill="#9a3412">3 · Decide</text>
-    <text x="512" y="284" fill="#1f2937">• approve_credit (regla del país)</text>
-    <text x="512" y="300" fill="#1f2937">• approve_block / desbloquear</text>
+    <text x="605" y="262" text-anchor="middle" font-weight="bold" fill="#9a3412">3 · Decides</text>
+    <text x="512" y="284" fill="#1f2937">• approve_credit (country rule)</text>
+    <text x="512" y="300" fill="#1f2937">• approve_block / unblock_card</text>
     <text x="512" y="316" fill="#1f2937">• request_customer_info</text>
-    <text x="512" y="332" fill="#1f2937">• mark_ambiguous · resolver</text>
-    <text x="512" y="356" fill="#6b7280">cada clic = evento con motivo</text>
+    <text x="512" y="332" fill="#1f2937">• mark_ambiguous · resolve</text>
+    <text x="512" y="356" fill="#6b7280">each click = event with reason</text>
 
     <rect x="730" y="240" width="210" height="130" rx="8" fill="#ffffff" stroke="#9ca3af" stroke-width="1.5"/>
-    <text x="835" y="262" text-anchor="middle" font-weight="bold" fill="#111827">4 · Cierra</text>
-    <text x="742" y="284" fill="#1f2937">• close_case solo humano</text>
-    <text x="742" y="300" fill="#1f2937">• También los casos auto</text>
-    <text x="742" y="316" fill="#1f2937">• reabrir si el cliente vuelve</text>
-    <text x="742" y="332" fill="#1f2937">• Queda en auditoría con actor</text>
+    <text x="835" y="262" text-anchor="middle" font-weight="bold" fill="#111827">4 · Closes</text>
+    <text x="742" y="284" fill="#1f2937">• close_case human only</text>
+    <text x="742" y="300" fill="#1f2937">• Auto cases too</text>
+    <text x="742" y="316" fill="#1f2937">• reopen if the customer returns</text>
+    <text x="742" y="332" fill="#1f2937">• Stays in the audit with actor</text>
     <text x="742" y="356" fill="#6b7280">tool: close_case · reopen_case</text>
 
     <rect x="960" y="240" width="190" height="130" rx="8" fill="#eff6ff" stroke="#2563eb" stroke-width="2"/>
-    <text x="1055" y="262" text-anchor="middle" font-weight="bold" fill="#1e3a8a">El cliente se entera</text>
-    <text x="972" y="284" fill="#1f2937">• caso_abierto</text>
-    <text x="972" y="300" fill="#1f2937">• tarjeta_bloqueada</text>
-    <text x="972" y="316" fill="#1f2937">• en_revision</text>
-    <text x="972" y="332" fill="#1f2937">• resuelto</text>
+    <text x="1055" y="262" text-anchor="middle" font-weight="bold" fill="#1e3a8a">The customer is informed</text>
+    <text x="972" y="284" fill="#1f2937">• case_opened</text>
+    <text x="972" y="300" fill="#1f2937">• card_blocked</text>
+    <text x="972" y="316" fill="#1f2937">• in_review</text>
+    <text x="972" y="332" fill="#1f2937">• resolved</text>
     <text x="972" y="356" fill="#6b7280">notify_customer: log · telegram · email</text>
   </g>
   <g stroke="#4b5563" stroke-width="2" fill="none">
@@ -89,14 +89,14 @@
     <line x1="940" y1="305" x2="958" y2="305" marker-end="url(#arr)"/>
   </g>
 
-  <!-- Qué ve el cliente vs analista -->
+  <!-- What the customer sees vs the analyst -->
   <rect x="40" y="400" width="1110" height="120" rx="8" fill="#f9fafb" stroke="#6b7280" stroke-width="1.5"/>
-  <text x="52" y="422" font-size="12.5" font-weight="bold" fill="#111827">Ejemplo, caso EV-0001 (MX, débito, score 72)</text>
-  <text x="52" y="444" font-size="11.5" fill="#1f2937">12:04 agente: bloqueo verificado + caso K-4471 abierto → cliente recibe "tarjeta bloqueada (verificado), caso K-4471, abono a más tardar el día hábil 2" → estado: verificación</text>
-  <text x="52" y="464" font-size="11.5" fill="#1f2937">14:10 analista toma el caso, ve evidencia (T-77120, R-07, V-3301 ✓), aprueba el abono según regla MX → estado: resuelto → cliente recibe "tu caso fue resuelto: abono aplicado"</text>
-  <text x="52" y="484" font-size="11.5" fill="#1f2937">14:12 analista cierra → estado: cerrado, evento con actor, motivo y trace_id. Nada de esto lo hizo el modelo: el modelo entendió, las reglas decidieron, las tools actuaron, la persona cerró.</text>
-  <text x="52" y="508" font-size="11" fill="#6b7280">Métrica del reto que esto alimenta: escalation quality (handoffs con contexto, perdidos e innecesarios) y unsafe outcomes (bloqueos del agente contra is_fraud real en held-out).</text>
+  <text x="52" y="422" font-size="12.5" font-weight="bold" fill="#111827">Example, case EV-0001 (MX, debit, score 72)</text>
+  <text x="52" y="444" font-size="11.5" fill="#1f2937">12:04 agent: verified block + case K-4471 opened → customer receives "tarjeta bloqueada (verificado), caso K-4471, abono a más tardar el día hábil 2" → status: verification</text>
+  <text x="52" y="464" font-size="11.5" fill="#1f2937">14:10 analyst takes the case, sees evidence (T-77120, R-07, V-3301 ✓), approves the credit per the MX rule → status: resolved → customer receives "tu caso fue resuelto: abono aplicado"</text>
+  <text x="52" y="484" font-size="11.5" fill="#1f2937">14:12 analyst closes → status: closed, event with actor, reason and trace_id. The model did none of this: the model understood, rules decided, tools acted, the person closed.</text>
+  <text x="52" y="508" font-size="11" fill="#6b7280">Challenge metric this feeds: escalation quality (handoffs with context, missed and unnecessary) and unsafe outcomes (agent blocks vs. actual is_fraud on held-out).</text>
 
-  <text x="600" y="560" text-anchor="middle" font-size="12" fill="#6b7280">Reglas: el agente nunca llama a las tools del analista · la consola nunca llama a las del cliente · ningún caso se cierra sin una persona · cada estado notifica al cliente.</text>
-  <text x="600" y="584" text-anchor="middle" font-size="11" fill="#9ca3af">Dueños: cola, consola y notificaciones (GianMarco) · estados y transiciones en policies.yaml (Freddy) · espec. de la vista (Diego)</text>
+  <text x="600" y="560" text-anchor="middle" font-size="12" fill="#6b7280">Rules: the agent never calls the analyst tools · the console never calls the customer ones · no case is closed without a person · every status notifies the customer.</text>
+  <text x="600" y="584" text-anchor="middle" font-size="11" fill="#9ca3af">Owners: queue, console and notifications (GianMarco) · statuses and transitions in policies.yaml (Freddy) · view spec (Diego)</text>
 </svg>

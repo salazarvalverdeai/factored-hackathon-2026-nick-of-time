@@ -1,9 +1,9 @@
--- Respalda: findings.md §6 y sección (5) de los expedientes (proxies de costo e insumos del business case).
--- Produce: agregados por (regla de interacción, regla de transcript) que eda/cost.py combina en
--- 06_cost_by_workflow.csv y 06_business_case_inputs.csv. Meses completos: 2023-07 a 2026-05 (35).
--- Plantilla: {case_int}, {case_trs} = reglas de 03_workflow_mapping.csv.
--- automatable_bound = resuelto en primer contacto, sin escalar, sin seguimiento y sin complaint del mismo cliente en
--- los 30 días siguientes (cota superior de "automatizable seguro": es una definición [supuesto] sobre datos medidos).
+-- Supports: findings.md §6 and section (5) of the dossiers (cost proxies and business case inputs).
+-- Produces: aggregates by (interaction rule, transcript rule) that eda/cost.py combines into
+-- 06_cost_by_workflow.csv and 06_business_case_inputs.csv. Full months: 2023-07 to 2026-05 (35).
+-- Template: {case_int}, {case_trs} = rules from 03_workflow_mapping.csv.
+-- automatable_bound = resolved on first contact, not escalated, no follow-up and no complaint from the same customer in
+-- the following 30 days (upper bound of "safely automatable": it is a definition [assumption] over measured data).
 WITH t AS (SELECT interaction_id, {case_trs} AS rule_trs FROM call_transcripts),
      i AS (
         SELECT i.*, {case_int} AS rule_int

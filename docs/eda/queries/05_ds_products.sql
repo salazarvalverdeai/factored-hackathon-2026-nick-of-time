@@ -1,6 +1,6 @@
--- Respalda: findings.md §5 (dataset del chequeo de señal aprendible para product_status = Blocked en tarjetas y
--- days_past_due > 0 en productos de crédito). Foto única: el estado es al corte, sin fecha del evento; el split
--- temporal es por opening_date. Excluidas: current_balance, last_transaction_date, last_updated (estado al corte).
+-- Supports: findings.md §5 (dataset for the learnable-signal check on product_status = Blocked for cards and
+-- days_past_due > 0 for credit products). Single snapshot: the status is as of the cutoff, with no event date; the
+-- temporal split is by opening_date. Excluded: current_balance, last_transaction_date, last_updated (status at the cutoff).
 WITH n AS (SELECT customer_id, count(*) AS n_products FROM products GROUP BY 1)
 SELECT p.opening_date, p.product_type,
        p.product_status = 'Blocked' AS is_blocked,

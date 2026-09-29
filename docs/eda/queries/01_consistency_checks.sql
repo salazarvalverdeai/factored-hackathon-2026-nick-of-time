@@ -1,6 +1,6 @@
--- Respalda: data_quality.md §B3 (consistencia entre tablas: pertenencia al cliente, cadena interaction→transcript→survey).
--- Produce: outputs/tables/01_consistency_checks.csv (vía eda/quality.py).
--- Relevante para el reto: "aislamiento de registros por cliente" y validez de joins para el scorecard.
+-- Supports: data_quality.md §B3 (cross-table consistency: customer ownership, interaction→transcript→survey chain).
+-- Produces: outputs/tables/01_consistency_checks.csv (via eda/quality.py).
+-- Relevant to the challenge: "per-customer record isolation" and join validity for the scorecard.
 WITH tr AS (
     SELECT t.*, i.customer_id AS i_customer_id, i.agent_id AS i_agent_id, i.reason_category AS i_reason_category,
            i.duration_seconds AS i_duration_seconds, i.has_transcript AS i_has_transcript,

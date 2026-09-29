@@ -1,10 +1,10 @@
--- Respalda: findings.md §5 y sección (4) de los expedientes (dataset del chequeo de señal aprendible en contactos).
--- Produce: dataset en memoria que eda/labels.py usa para 05_learnable_signal.csv (labels was_escalated,
--- not was_resolved, requires_followup). Features disponibles ANTES o AL INICIO del contacto:
---   motivo (supuesto: se conoce al inicio, p. ej. por IVR), canal, tipo, hora, día, espera (solo Inbound),
---   historia previa del cliente (solo contactos anteriores), cliente y agente (foto única: riesgo marcado).
--- Excluidas por ser posteriores o derivadas de la llamada: duración, sentimiento, acento detectado, has_transcript,
--- avg_csat del agente (agrega outcomes, incluidos futuros).
+-- Supports: findings.md §5 and section (4) of the dossiers (dataset for the learnable-signal check on contacts).
+-- Produces: an in-memory dataset that eda/labels.py uses for 05_learnable_signal.csv (labels was_escalated,
+-- not was_resolved, requires_followup). Features available BEFORE or AT THE START of the contact:
+--   reason (assumption: known at the start, e.g. via IVR), channel, type, hour, day, wait (Inbound only),
+--   the customer's prior history (earlier contacts only), customer and agent (single snapshot: risk flagged).
+-- Excluded because they come after or derive from the call: duration, sentiment, detected accent, has_transcript,
+-- the agent's avg_csat (aggregates outcomes, including future ones).
 WITH h AS (
     SELECT interaction_id,
            count(*) OVER w90 AS prev_contacts_90d,
@@ -30,4 +30,4 @@ FROM call_center_interactions i
 JOIN h USING (interaction_id)
 LEFT JOIN customers c USING (customer_id)
 LEFT JOIN service_agents a USING (agent_id)
-ORDER BY i.interaction_id  -- orden estable: el ajuste de los modelos depende del orden
+ORDER BY i.interaction_id  -- stable order: model fitting depends on the order

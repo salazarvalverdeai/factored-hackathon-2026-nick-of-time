@@ -1,5 +1,5 @@
--- Respalda: findings.md §5 (¿split temporal, por cliente o ambos?). Corte temporal: 2025-07-01.
--- Produce: outputs/tables/05_split_feasibility.csv (vía eda/labels.py).
+-- Supports: findings.md §5 (temporal split, by customer, or both?). Temporal cutoff: 2025-07-01.
+-- Produces: outputs/tables/05_split_feasibility.csv (via eda/labels.py).
 WITH i AS (SELECT customer_id, interaction_date >= TIMESTAMP '2025-07-01' AS is_test FROM call_center_interactions),
      cust AS (SELECT customer_id,
                      bool_or(interaction_date >= TIMESTAMP '2025-07-01') AS in_test,

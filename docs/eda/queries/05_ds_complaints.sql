@@ -1,6 +1,6 @@
--- Respalda: findings.md §5 (dataset del chequeo de señal aprendible para sla_breached).
--- Features al momento de crear el caso. Excluidas: status, fechas de asignación/respuesta/resolución, resolution,
--- compensation_granted, resolution_satisfaction (todas posteriores).
+-- Supports: findings.md §5 (dataset for the learnable-signal check on sla_breached).
+-- Features at case creation time. Excluded: status, assignment/response/resolution dates, resolution,
+-- compensation_granted, resolution_satisfaction (all known only later).
 WITH h AS (
     SELECT complaint_id,
            count(*) OVER (PARTITION BY customer_id ORDER BY creation_date

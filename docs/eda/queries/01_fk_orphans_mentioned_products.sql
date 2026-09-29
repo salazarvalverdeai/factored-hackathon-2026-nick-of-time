@@ -1,6 +1,6 @@
--- Respalda: data_quality.md §B3 (huérfanos en call_center_interactions.mentioned_products, lista separada por comas).
--- Produce: fila 'call_center_interactions.mentioned_products' de outputs/tables/01_fk_orphans.csv.
--- Denominador: IDs de producto mencionados (tras separar la lista), no interacciones.
+-- Supports: data_quality.md §B3 (orphans in call_center_interactions.mentioned_products, a comma-separated list).
+-- Produces: row 'call_center_interactions.mentioned_products' of outputs/tables/01_fk_orphans.csv.
+-- Denominator: mentioned product IDs (after splitting the list), not interactions.
 WITH m AS (
     SELECT trim(unnest(string_split(mentioned_products, ','))) AS product_id
     FROM call_center_interactions

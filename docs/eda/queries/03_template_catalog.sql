@@ -1,7 +1,7 @@
--- Respalda: sección (8) de los expedientes (catálogo de plantillas de texto, deduplicado, sin identificadores).
--- Produce: outputs/tables/03_template_catalog.csv (vía eda/workflows.py).
--- Solo texto y frecuencias: ningún customer_id, interaction_id, nombre, documento, email ni teléfono.
--- {case_trs} = reglas de transcripts (asigna workflow a la plantilla del cliente); {case_cmp} = reglas de complaints.
+-- Supports: section (8) of the dossiers (catalog of text templates, deduplicated, without identifiers).
+-- Produces: outputs/tables/03_template_catalog.csv (via eda/workflows.py).
+-- Text and frequencies only: no customer_id, interaction_id, name, document, email or phone.
+-- {case_trs} = transcripts rules (assigns a workflow to the customer template); {case_cmp} = complaints rules.
 SELECT 'call_transcripts.customer_text' AS field, customer_text AS template, {case_trs} AS rule_id, count(*) AS n
 FROM call_transcripts GROUP BY ALL
 UNION ALL

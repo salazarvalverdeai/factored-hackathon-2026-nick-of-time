@@ -1,17 +1,17 @@
-# Diferenciales frente a otros equipos (para el README final y el video)
+# Differentiators versus other teams (for the final README and the video)
 
-Con ~180 equipos y 10 días, la mayoría convergerá en un chat con RAG sobre políticas inventadas, casi siempre W1, con el LLM decidiendo, métricas de contención sobre una demo y sin held-out. Lo que nos separa, cada uno atado a un criterio del reto y con una prueba que se muestra:
+With ~180 teams and 10 days, most will converge on a chat with RAG over made-up policies, almost always W1, with the LLM deciding, containment metrics on a demo and no held-out. What sets us apart, each item tied to a challenge criterion and with a proof we show:
 
-| Diferencial | Criterio del reto | Cómo se demuestra |
+| Differentiator | Challenge criterion | How it is shown |
 | --- | --- | --- |
-| Verificación visible: aceptado ≠ verificado; tool caída → acción no confirmada | Punto 2 | Caso `tool_failure` en el video |
-| Política fuera del modelo, con cada DENY como fila y guardrails con ID | Puntos 3 y 5 | La inyección engaña al texto y no a la regla |
-| Modo de aprobación configurable y cierre siempre humano | "AI should not be autonomous just because it can" | Interruptor supervisado en la consola |
-| Evaluación por estado final, pass^4, n por celda, ES/PT y ataques, sobre held-out sellado | Puntos 4 y 5 | Tabla con fallas incluidas |
-| Bloqueos del agente medidos contra `is_fraud` real del dataset | Unsafe outcomes | Métrica que no escribimos nosotros |
-| Los 15 números reproducibles con `make setup` en 60 s y corregidos en público | Punto 1, Data Analytics | Índice número → query → CSV en `docs/eda/README.md` |
-| Reloj regulatorio por país con fuente | Business reasoning | Día hábil 2 visible en el caso |
-| Dos actores con tools separadas y notificación al cliente en cada estado | Escalation quality | Consola + panel del cliente |
-| Etiquetas dato / externo / supuesto / simulado / proyectado en todo | Honestidad que pide el kickoff | Cada número del pitch y del README |
+| Visible verification: accepted ≠ verified; tool down → unconfirmed action | Point 2 | `tool_failure` case in the video |
+| Policy outside the model, with every DENY as a row and guardrails with IDs | Points 3 and 5 | The injection fools the text, not the rule |
+| Configurable approval mode and closing always by a human | "AI should not be autonomous just because it can" | Supervised switch in the console |
+| Evaluation by final state, pass^4, n per cell, ES/PT and attacks, on a sealed held-out | Points 4 and 5 | Table with failures included |
+| Agent blocks measured against the dataset's real `is_fraud` | Unsafe outcomes | A metric we did not write |
+| The 15 numbers reproducible with `make setup` in 60 s and corrected in public | Point 1, Data Analytics | Number → query → CSV index in `docs/eda/README.md` |
+| Regulatory clock per country with source | Business reasoning | Business day 2 visible in the case |
+| Two actors with separate tools and customer notification at every status | Escalation quality | Console + customer panel |
+| Data / external / assumption / simulated / projected labels everywhere | The honesty the kickoff asks for | Every number in the pitch and the README |
 
-Dónde podríamos perder: si el caso end-to-end no corre el miércoles 30; si el clasificador ES/PT queda flojo y el componente aprendido parece decorado (el baseline de reglas va antes que el modelo); y si la demo se ve pobre frente a interfaces bonitas (`/chat` parte de `agent-chat-ui`).
+Where we could lose: if the end-to-end case does not run by Wednesday 30; if the ES/PT classifier ends up weak and the learned component looks like decoration (the rules baseline comes before the model); and if the demo looks poor next to pretty interfaces (`/chat` starts from `agent-chat-ui`).

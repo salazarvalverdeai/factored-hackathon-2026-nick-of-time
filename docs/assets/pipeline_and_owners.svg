@@ -3,131 +3,131 @@
     <marker id="arr" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#4b5563"/></marker>
   </defs>
   <rect width="1200" height="720" fill="#ffffff"/>
-  <text x="600" y="34" text-anchor="middle" font-size="22" font-weight="bold" fill="#111827">Pipeline y plataforma: quién es dueño de cada bloque</text>
+  <text x="600" y="34" text-anchor="middle" font-size="22" font-weight="bold" fill="#111827">Pipeline and platform: who owns each block</text>
 
-  <!-- Leyenda -->
+  <!-- Legend -->
   <g font-size="12">
-    <rect x="40" y="52" width="16" height="16" rx="3" fill="#7c3aed"/><text x="62" y="65" fill="#1f2937">Datos 1 · Data Engineering</text>
-    <rect x="250" y="52" width="16" height="16" rx="3" fill="#d97706"/><text x="272" y="65" fill="#1f2937">Freddy · AI/ML + integración</text>
+    <rect x="40" y="52" width="16" height="16" rx="3" fill="#7c3aed"/><text x="62" y="65" fill="#1f2937">Data 1 · Data Engineering</text>
+    <rect x="250" y="52" width="16" height="16" rx="3" fill="#d97706"/><text x="272" y="65" fill="#1f2937">Freddy · AI/ML + integration</text>
     <rect x="470" y="52" width="16" height="16" rx="3" fill="#2563eb"/><text x="492" y="65" fill="#1f2937">Full stack · backend, UI, deploy</text>
-    <rect x="720" y="52" width="16" height="16" rx="3" fill="#16a34a"/><text x="742" y="65" fill="#1f2937">Datos 2 · Analytics + set de evaluación</text>
+    <rect x="720" y="52" width="16" height="16" rx="3" fill="#16a34a"/><text x="742" y="65" fill="#1f2937">Data 2 · Analytics + evaluation set</text>
   </g>
 
-  <!-- Fila 1: pipeline de datos -->
-  <text x="40" y="104" font-size="14" font-weight="bold" fill="#4c1d95">PIPELINE DE DATOS (S3 → snapshot)</text>
+  <!-- Row 1: data pipeline -->
+  <text x="40" y="104" font-size="14" font-weight="bold" fill="#4c1d95">DATA PIPELINE (S3 → snapshot)</text>
   <g font-size="12">
     <rect x="40" y="114" width="180" height="70" rx="8" fill="#f5f3ff" stroke="#7c3aed" stroke-width="2"/>
-    <text x="130" y="138" text-anchor="middle" font-weight="bold" fill="#4c1d95">Bronze · S3 crudo</text>
-    <text x="130" y="156" text-anchor="middle" fill="#1f2937">13 tablas, read-only</text>
-    <text x="130" y="172" text-anchor="middle" fill="#1f2937">particiones por fecha</text>
+    <text x="130" y="138" text-anchor="middle" font-weight="bold" fill="#4c1d95">Bronze · raw S3</text>
+    <text x="130" y="156" text-anchor="middle" fill="#1f2937">13 tables, read-only</text>
+    <text x="130" y="172" text-anchor="middle" fill="#1f2937">partitions by date</text>
 
     <rect x="260" y="114" width="200" height="70" rx="8" fill="#f5f3ff" stroke="#7c3aed" stroke-width="2"/>
-    <text x="360" y="138" text-anchor="middle" font-weight="bold" fill="#4c1d95">Silver · contratos y checks</text>
-    <text x="360" y="156" text-anchor="middle" fill="#1f2937">schema · dedupe · FK cruzada</text>
-    <text x="360" y="172" text-anchor="middle" fill="#1f2937">fechas futuras · México/Mexico</text>
+    <text x="360" y="138" text-anchor="middle" font-weight="bold" fill="#4c1d95">Silver · contracts and checks</text>
+    <text x="360" y="156" text-anchor="middle" fill="#1f2937">schema · dedupe · cross FK</text>
+    <text x="360" y="172" text-anchor="middle" fill="#1f2937">future dates · México/Mexico</text>
 
     <rect x="500" y="114" width="200" height="70" rx="8" fill="#f5f3ff" stroke="#7c3aed" stroke-width="2"/>
-    <text x="600" y="138" text-anchor="middle" font-weight="bold" fill="#4c1d95">Gold · snapshot Parquet v1</text>
-    <text x="600" y="156" text-anchor="middle" fill="#1f2937">tablas que leen las tools</text>
-    <text x="600" y="172" text-anchor="middle" fill="#1f2937">manifest = linaje</text>
+    <text x="600" y="138" text-anchor="middle" font-weight="bold" fill="#4c1d95">Gold · Parquet snapshot v1</text>
+    <text x="600" y="156" text-anchor="middle" fill="#1f2937">tables the tools read</text>
+    <text x="600" y="172" text-anchor="middle" fill="#1f2937">manifest = lineage</text>
 
     <rect x="740" y="114" width="200" height="70" rx="8" fill="#f5f3ff" stroke="#7c3aed" stroke-width="2" stroke-dasharray="6 4"/>
-    <text x="840" y="138" text-anchor="middle" font-weight="bold" fill="#4c1d95">Fixture de updates</text>
-    <text x="840" y="156" text-anchor="middle" fill="#1f2937">llegadas tardías · schema v2</text>
-    <text x="840" y="172" text-anchor="middle" fill="#1f2937">etiquetado como fixture</text>
+    <text x="840" y="138" text-anchor="middle" font-weight="bold" fill="#4c1d95">Updates fixture</text>
+    <text x="840" y="156" text-anchor="middle" fill="#1f2937">late arrivals · schema v2</text>
+    <text x="840" y="172" text-anchor="middle" fill="#1f2937">labeled as a fixture</text>
 
     <rect x="980" y="114" width="180" height="70" rx="8" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
-    <text x="1070" y="138" text-anchor="middle" font-weight="bold" fill="#166534">Reporte de calidad</text>
-    <text x="1070" y="156" text-anchor="middle" fill="#1f2937">conteos por check</text>
-    <text x="1070" y="172" text-anchor="middle" fill="#1f2937">+ EDA y queries del pitch</text>
+    <text x="1070" y="138" text-anchor="middle" font-weight="bold" fill="#166534">Quality report</text>
+    <text x="1070" y="156" text-anchor="middle" fill="#1f2937">counts per check</text>
+    <text x="1070" y="172" text-anchor="middle" fill="#1f2937">+ EDA and pitch queries</text>
   </g>
   <line x1="220" y1="149" x2="258" y2="149" stroke="#4b5563" stroke-width="2" marker-end="url(#arr)"/>
   <line x1="460" y1="149" x2="498" y2="149" stroke="#4b5563" stroke-width="2" marker-end="url(#arr)"/>
   <line x1="700" y1="149" x2="738" y2="149" stroke="#4b5563" stroke-width="2" marker-end="url(#arr)"/>
   <line x1="940" y1="149" x2="978" y2="149" stroke="#4b5563" stroke-width="2" marker-end="url(#arr)"/>
 
-  <!-- Fila 2: núcleo -->
-  <text x="40" y="228" font-size="14" font-weight="bold" fill="#9a3412">NÚCLEO DE DECISIÓN Y ACCIÓN (backend en App Runner)</text>
+  <!-- Row 2: core -->
+  <text x="40" y="228" font-size="14" font-weight="bold" fill="#9a3412">DECISION AND ACTION CORE (backend on App Runner)</text>
   <g font-size="12">
     <rect x="40" y="238" width="220" height="80" rx="8" fill="#fff7ed" stroke="#d97706" stroke-width="2"/>
-    <text x="150" y="262" text-anchor="middle" font-weight="bold" fill="#9a3412">Orquestador</text>
-    <text x="150" y="280" text-anchor="middle" fill="#1f2937">máquina de estados</text>
-    <text x="150" y="296" text-anchor="middle" fill="#1f2937">LLM en Bedrock entiende/redacta</text>
+    <text x="150" y="262" text-anchor="middle" font-weight="bold" fill="#9a3412">Orchestrator</text>
+    <text x="150" y="280" text-anchor="middle" fill="#1f2937">state machine</text>
+    <text x="150" y="296" text-anchor="middle" fill="#1f2937">LLM on Bedrock understands/drafts</text>
 
     <rect x="290" y="238" width="220" height="80" rx="8" fill="#fff7ed" stroke="#d97706" stroke-width="2"/>
-    <text x="400" y="262" text-anchor="middle" font-weight="bold" fill="#9a3412">Clasificador ES/PT</text>
-    <text x="400" y="280" text-anchor="middle" fill="#1f2937">reglas → LR → [Jev]</text>
-    <text x="400" y="296" text-anchor="middle" fill="#1f2937">confianza &lt; τ → preguntar</text>
+    <text x="400" y="262" text-anchor="middle" font-weight="bold" fill="#9a3412">ES/PT classifier</text>
+    <text x="400" y="280" text-anchor="middle" fill="#1f2937">rules → LR → [Jev]</text>
+    <text x="400" y="296" text-anchor="middle" fill="#1f2937">confidence &lt; τ → ask</text>
 
     <rect x="540" y="238" width="220" height="80" rx="8" fill="#fff7ed" stroke="#d97706" stroke-width="2"/>
-    <text x="650" y="262" text-anchor="middle" font-weight="bold" fill="#9a3412">Motor de políticas</text>
-    <text x="650" y="280" text-anchor="middle" fill="#1f2937">policies.yaml · zonas · monto</text>
-    <text x="650" y="296" text-anchor="middle" fill="#1f2937">reloj por país · deny por defecto</text>
+    <text x="650" y="262" text-anchor="middle" font-weight="bold" fill="#9a3412">Policy engine</text>
+    <text x="650" y="280" text-anchor="middle" fill="#1f2937">policies.yaml · zones · amount</text>
+    <text x="650" y="296" text-anchor="middle" fill="#1f2937">clock per country · deny by default</text>
 
     <rect x="790" y="238" width="180" height="80" rx="8" fill="#eff6ff" stroke="#2563eb" stroke-width="2"/>
-    <text x="880" y="262" text-anchor="middle" font-weight="bold" fill="#1e3a8a">Tools tipadas</text>
-    <text x="880" y="280" text-anchor="middle" fill="#1f2937">permisos por sesión</text>
-    <text x="880" y="296" text-anchor="middle" fill="#1f2937">post-condición · idempotencia</text>
+    <text x="880" y="262" text-anchor="middle" font-weight="bold" fill="#1e3a8a">Typed tools</text>
+    <text x="880" y="280" text-anchor="middle" fill="#1f2937">per-session permissions</text>
+    <text x="880" y="296" text-anchor="middle" fill="#1f2937">post-condition · idempotency</text>
 
     <rect x="1000" y="238" width="160" height="80" rx="8" fill="#eff6ff" stroke="#2563eb" stroke-width="2"/>
-    <text x="1080" y="262" text-anchor="middle" font-weight="bold" fill="#1e3a8a">Identidad mock</text>
-    <text x="1080" y="280" text-anchor="middle" fill="#1f2937">sesión + OTP</text>
+    <text x="1080" y="262" text-anchor="middle" font-weight="bold" fill="#1e3a8a">Mock identity</text>
+    <text x="1080" y="280" text-anchor="middle" fill="#1f2937">session + OTP</text>
     <text x="1080" y="296" text-anchor="middle" fill="#1f2937">TTL 15 min</text>
   </g>
   <line x1="600" y1="184" x2="600" y2="236" stroke="#4b5563" stroke-width="2" marker-end="url(#arr)"/>
-  <text x="612" y="212" font-size="11" fill="#6b7280">DuckDB lee el snapshot</text>
+  <text x="612" y="212" font-size="11" fill="#6b7280">DuckDB reads the snapshot</text>
 
-  <!-- Fila 3: estado y canales -->
-  <text x="40" y="362" font-size="14" font-weight="bold" fill="#1e3a8a">ESTADO, CANALES Y EVIDENCIA</text>
+  <!-- Row 3: state and channels -->
+  <text x="40" y="362" font-size="14" font-weight="bold" fill="#1e3a8a">STATE, CHANNELS AND EVIDENCE</text>
   <g font-size="12">
     <rect x="40" y="372" width="260" height="80" rx="8" fill="#eff6ff" stroke="#2563eb" stroke-width="2"/>
-    <text x="170" y="396" text-anchor="middle" font-weight="bold" fill="#1e3a8a">DynamoDB · estado y auditoría</text>
-    <text x="170" y="414" text-anchor="middle" fill="#1f2937">sesiones · casos · acciones</text>
-    <text x="170" y="430" text-anchor="middle" fill="#1f2937">verificaciones · cada fila = nodo</text>
+    <text x="170" y="396" text-anchor="middle" font-weight="bold" fill="#1e3a8a">DynamoDB · state and audit</text>
+    <text x="170" y="414" text-anchor="middle" fill="#1f2937">sessions · cases · actions</text>
+    <text x="170" y="430" text-anchor="middle" fill="#1f2937">verifications · each row = node</text>
 
     <rect x="330" y="372" width="260" height="80" rx="8" fill="#eff6ff" stroke="#2563eb" stroke-width="2"/>
-    <text x="460" y="396" text-anchor="middle" font-weight="bold" fill="#1e3a8a">Chat del cliente (Amplify)</text>
+    <text x="460" y="396" text-anchor="middle" font-weight="bold" fill="#1e3a8a">Customer chat (Amplify)</text>
     <text x="460" y="414" text-anchor="middle" fill="#1f2937">ES/PT · dark · responsive</text>
-    <text x="460" y="430" text-anchor="middle" fill="#1f2937">panel de traza</text>
+    <text x="460" y="430" text-anchor="middle" fill="#1f2937">trace panel</text>
 
     <rect x="620" y="372" width="260" height="80" rx="8" fill="#eff6ff" stroke="#2563eb" stroke-width="2"/>
-    <text x="750" y="396" text-anchor="middle" font-weight="bold" fill="#1e3a8a">Consola del analista (Amplify)</text>
-    <text x="750" y="414" text-anchor="middle" fill="#1f2937">bandeja · tarjeta de handoff</text>
-    <text x="750" y="430" text-anchor="middle" fill="#1f2937">grafo · botones</text>
+    <text x="750" y="396" text-anchor="middle" font-weight="bold" fill="#1e3a8a">Analyst console (Amplify)</text>
+    <text x="750" y="414" text-anchor="middle" fill="#1f2937">inbox · handoff card</text>
+    <text x="750" y="430" text-anchor="middle" fill="#1f2937">graph · buttons</text>
 
     <rect x="910" y="372" width="250" height="80" rx="8" fill="#fff7ed" stroke="#d97706" stroke-width="2"/>
-    <text x="1035" y="396" text-anchor="middle" font-weight="bold" fill="#9a3412">Trazas OTel → CloudWatch</text>
+    <text x="1035" y="396" text-anchor="middle" font-weight="bold" fill="#9a3412">OTel traces → CloudWatch</text>
     <text x="1035" y="414" text-anchor="middle" fill="#1f2937">invoke · classify · policy</text>
     <text x="1035" y="430" text-anchor="middle" fill="#1f2937">execute_tool · verify · sla</text>
   </g>
   <line x1="600" y1="318" x2="600" y2="370" stroke="#4b5563" stroke-width="2" marker-end="url(#arr)"/>
 
-  <!-- Fila 4: evaluación -->
-  <text x="40" y="496" font-size="14" font-weight="bold" fill="#166534">EVALUACIÓN Y ENTREGA</text>
+  <!-- Row 4: evaluation -->
+  <text x="40" y="496" font-size="14" font-weight="bold" fill="#166534">EVALUATION AND DELIVERY</text>
   <g font-size="12">
     <rect x="40" y="506" width="260" height="80" rx="8" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
-    <text x="170" y="530" text-anchor="middle" font-weight="bold" fill="#166534">Set held-out ES/PT</text>
-    <text x="170" y="548" text-anchor="middle" fill="#1f2937">200–300 casos + ataques</text>
-    <text x="170" y="564" text-anchor="middle" fill="#1f2937">doble etiquetado en muestra</text>
+    <text x="170" y="530" text-anchor="middle" font-weight="bold" fill="#166534">ES/PT held-out set</text>
+    <text x="170" y="548" text-anchor="middle" fill="#1f2937">200–300 cases + attacks</text>
+    <text x="170" y="564" text-anchor="middle" fill="#1f2937">double labeling on a sample</text>
 
     <rect x="330" y="506" width="260" height="80" rx="8" fill="#fff7ed" stroke="#d97706" stroke-width="2"/>
     <text x="460" y="530" text-anchor="middle" font-weight="bold" fill="#9a3412">Harness</text>
-    <text x="460" y="548" text-anchor="middle" fill="#1f2937">estado final · pass^4</text>
-    <text x="460" y="564" text-anchor="middle" fill="#1f2937">latencia · costo · por idioma</text>
+    <text x="460" y="548" text-anchor="middle" fill="#1f2937">final state · pass^4</text>
+    <text x="460" y="564" text-anchor="middle" fill="#1f2937">latency · cost · per language</text>
 
     <rect x="620" y="506" width="260" height="80" rx="8" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
-    <text x="750" y="530" text-anchor="middle" font-weight="bold" fill="#166534">Tabla de resultados + negocio</text>
-    <text x="750" y="548" text-anchor="middle" fill="#1f2937">medido / simulado / proyectado</text>
-    <text x="750" y="564" text-anchor="middle" fill="#1f2937">plazos por país con fuente</text>
+    <text x="750" y="530" text-anchor="middle" font-weight="bold" fill="#166534">Results table + business</text>
+    <text x="750" y="548" text-anchor="middle" fill="#1f2937">measured / simulated / projected</text>
+    <text x="750" y="564" text-anchor="middle" fill="#1f2937">deadlines per country with source</text>
 
     <rect x="910" y="506" width="250" height="80" rx="8" fill="#eff6ff" stroke="#2563eb" stroke-width="2"/>
-    <text x="1035" y="530" text-anchor="middle" font-weight="bold" fill="#1e3a8a">Deploy y paquete</text>
+    <text x="1035" y="530" text-anchor="middle" font-weight="bold" fill="#1e3a8a">Deploy and package</text>
     <text x="1035" y="548" text-anchor="middle" fill="#1f2937">Amplify + App Runner auto</text>
     <text x="1035" y="564" text-anchor="middle" fill="#1f2937">README · video · slides</text>
   </g>
   <line x1="170" y1="452" x2="170" y2="504" stroke="#4b5563" stroke-width="2" marker-end="url(#arr)"/>
   <line x1="1035" y1="452" x2="1035" y2="504" stroke="#4b5563" stroke-width="2" marker-end="url(#arr)"/>
 
-  <text x="600" y="640" text-anchor="middle" font-size="12" fill="#6b7280">Hito integrador: miércoles 30, el caso EV-0001 recorre las cuatro filas de punta a punta con verificación y plazo MX.</text>
-  <text x="600" y="662" text-anchor="middle" font-size="12" fill="#6b7280">Contratos entre bloques: tools.py · policies.yaml · handoff.schema.json · eval_case.schema.json (starter kit).</text>
+  <text x="600" y="640" text-anchor="middle" font-size="12" fill="#6b7280">Integration milestone: Wednesday 30, case EV-0001 goes through all four rows end to end with verification and the MX deadline.</text>
+  <text x="600" y="662" text-anchor="middle" font-size="12" fill="#6b7280">Contracts between blocks: tools.py · policies.yaml · handoff.schema.json · eval_case.schema.json (starter kit).</text>
 </svg>

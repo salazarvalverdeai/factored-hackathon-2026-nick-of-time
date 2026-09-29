@@ -1,7 +1,7 @@
--- Respalda: data_quality.md §B5 (rangos imposibles y reglas de negocio dentro de cada tabla).
--- Produce: outputs/tables/01_range_checks.csv (vía eda/quality.py).
--- Ventana del dataset (diccionario): 2023-06-17 00:00 → 2026-06-17 23:59:59. Carga a S3: 2026-08-31.
--- Cada fila: tabla, id del chequeo, regla, violaciones y denominador (filas donde la regla es evaluable).
+-- Supports: data_quality.md §B5 (impossible ranges and business rules within each table).
+-- Produces: outputs/tables/01_range_checks.csv (via eda/quality.py).
+-- Dataset window (data dictionary): 2023-06-17 00:00 → 2026-06-17 23:59:59. S3 upload: 2026-08-31.
+-- Each row: table, check id, rule, violations and denominator (rows where the rule can be evaluated).
 SELECT 'call_center_interactions' AS tbl, 'R01' AS check_id, 'interaction_date fuera de la ventana' AS rule,
        count(*) FILTER (WHERE interaction_date < TIMESTAMP '2023-06-17' OR interaction_date >= TIMESTAMP '2026-06-18') AS n_violations,
        count(interaction_date) AS n_checked FROM call_center_interactions

@@ -1,8 +1,8 @@
--- Respalda: findings.md §4, sección (2) y (3) de los expedientes (base de interacciones con workflow y outcomes).
--- Produce: tabla temporal que eda/outcomes.py agrega en 04_workflow_scorecard.csv, 04_scorecard_by_*.csv,
--- 04_recontact.csv, 04_workflow_demand.csv y 04_discrimination_tests.csv.
--- Plantilla: {case_int} = reglas de interactions; {case_trs} = reglas de transcripts (03_workflow_mapping.csv).
--- days_to_next = días hasta el siguiente contacto del mismo cliente (cualquier motivo): base del re-contacto.
+-- Supports: findings.md §4, sections (2) and (3) of the dossiers (interaction base with workflow and outcomes).
+-- Produces: a temporary table that eda/outcomes.py aggregates into 04_workflow_scorecard.csv, 04_scorecard_by_*.csv,
+-- 04_recontact.csv, 04_workflow_demand.csv and 04_discrimination_tests.csv.
+-- Template: {case_int} = interactions rules; {case_trs} = transcripts rules (03_workflow_mapping.csv).
+-- days_to_next = days until the same customer's next contact (any reason): basis for re-contact.
 WITH t AS (SELECT interaction_id, {case_trs} AS rule_trs FROM call_transcripts),
      nxt AS (
         SELECT interaction_id,
@@ -24,4 +24,4 @@ LEFT JOIN nxt USING (interaction_id)
 LEFT JOIN customers c USING (customer_id)
 LEFT JOIN service_agents a USING (agent_id)
 LEFT JOIN satisfaction_surveys s USING (interaction_id)
-ORDER BY i.interaction_id  -- orden estable: el bootstrap y los submuestreos dependen del orden
+ORDER BY i.interaction_id  -- stable order: the bootstrap and the subsamples depend on the order

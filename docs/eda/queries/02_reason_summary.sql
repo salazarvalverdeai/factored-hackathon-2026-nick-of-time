@@ -1,6 +1,6 @@
--- Respalda: findings.md §2 ("top contact_reason": solo hay 6 valores, idénticos a reason_category) y mezcla por canal.
--- Produce: outputs/tables/02_reason_summary.csv (vía eda/demand.py).
--- Meses completos: 2023-07 a 2026-05.
+-- Supports: findings.md §2 ("top contact_reason": there are only 6 values, identical to reason_category) and mix by channel.
+-- Produces: outputs/tables/02_reason_summary.csv (via eda/demand.py).
+-- Full months: 2023-07 to 2026-05.
 WITH i AS (
     SELECT reason_category, channel, strftime(interaction_date, '%Y-%m') AS ym
     FROM call_center_interactions

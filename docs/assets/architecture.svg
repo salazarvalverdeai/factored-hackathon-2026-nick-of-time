@@ -5,70 +5,70 @@
     </marker>
   </defs>
   <rect width="1200" height="700" fill="#ffffff"/>
-  <text x="600" y="34" text-anchor="middle" font-size="22" font-weight="bold" fill="#111827">Arquitectura: el LLM entiende, las reglas deciden, las tools actúan, la verificación confirma</text>
+  <text x="600" y="34" text-anchor="middle" font-size="22" font-weight="bold" fill="#111827">Architecture: the LLM understands, rules decide, tools act, verification confirms</text>
 
-  <!-- Canales -->
+  <!-- Channels -->
   <rect x="60" y="60" width="330" height="60" rx="8" fill="#eff6ff" stroke="#2563eb" stroke-width="2"/>
-  <text x="225" y="85" text-anchor="middle" font-size="15" font-weight="bold" fill="#1e3a8a">Cliente · chat ES / PT</text>
+  <text x="225" y="85" text-anchor="middle" font-size="15" font-weight="bold" fill="#1e3a8a">Customer · chat ES / PT</text>
   <text x="225" y="106" text-anchor="middle" font-size="12" fill="#1f2937">"No reconozco un cargo de 1,250 MXN"</text>
 
   <rect x="810" y="60" width="330" height="60" rx="8" fill="#eff6ff" stroke="#2563eb" stroke-width="2"/>
-  <text x="975" y="85" text-anchor="middle" font-size="15" font-weight="bold" fill="#1e3a8a">Vista del agente humano · copiloto</text>
-  <text x="975" y="106" text-anchor="middle" font-size="12" fill="#1f2937">tarjeta de handoff · aprobar / pedir datos · grafo de evidencia</text>
+  <text x="975" y="85" text-anchor="middle" font-size="15" font-weight="bold" fill="#1e3a8a">Human agent view · copilot</text>
+  <text x="975" y="106" text-anchor="middle" font-size="12" fill="#1f2937">handoff card · approve / request info · evidence graph</text>
 
-  <!-- Orquestador -->
+  <!-- Orchestrator -->
   <rect x="60" y="160" width="1080" height="100" rx="8" fill="#f9fafb" stroke="#6b7280" stroke-width="2"/>
-  <text x="75" y="182" font-size="14" font-weight="bold" fill="#111827">Orquestador (máquina de estados: Entender → Identidad → Recuperar → Decidir → Actuar → Verificar → Escalar)</text>
+  <text x="75" y="182" font-size="14" font-weight="bold" fill="#111827">Orchestrator (state machine: Understand → Identity → Retrieve → Decide → Act → Verify → Escalate)</text>
   <rect x="80" y="196" width="300" height="50" rx="6" fill="#ffffff" stroke="#9ca3af"/>
-  <text x="230" y="216" text-anchor="middle" font-size="13" font-weight="bold" fill="#1f2937">LLM: entiende y redacta</text>
-  <text x="230" y="234" text-anchor="middle" font-size="11" fill="#4b5563">idioma · clarificación · texto al cliente</text>
+  <text x="230" y="216" text-anchor="middle" font-size="13" font-weight="bold" fill="#1f2937">LLM: understands and drafts</text>
+  <text x="230" y="234" text-anchor="middle" font-size="11" fill="#4b5563">language · clarification · customer-facing text</text>
   <rect x="400" y="196" width="400" height="50" rx="6" fill="#ffffff" stroke="#9ca3af"/>
-  <text x="600" y="216" text-anchor="middle" font-size="13" font-weight="bold" fill="#1f2937">Clasificador de intención (componente aprendido)</text>
-  <text x="600" y="234" text-anchor="middle" font-size="11" fill="#4b5563">reglas · embeddings + LR · [Jev] — confianza &lt; τ → abstenerse</text>
+  <text x="600" y="216" text-anchor="middle" font-size="13" font-weight="bold" fill="#1f2937">Intent classifier (learned component)</text>
+  <text x="600" y="234" text-anchor="middle" font-size="11" fill="#4b5563">rules · embeddings + LR · [Jev] — confidence &lt; τ → abstain</text>
   <rect x="820" y="196" width="300" height="50" rx="6" fill="#ffffff" stroke="#9ca3af"/>
-  <text x="970" y="216" text-anchor="middle" font-size="13" font-weight="bold" fill="#1f2937">Extracción estructurada</text>
-  <text x="970" y="234" text-anchor="middle" font-size="11" fill="#4b5563">monto · fecha · comercio (schema estricto)</text>
+  <text x="970" y="216" text-anchor="middle" font-size="13" font-weight="bold" fill="#1f2937">Structured extraction</text>
+  <text x="970" y="234" text-anchor="middle" font-size="11" fill="#4b5563">amount · date · merchant (strict schema)</text>
 
-  <!-- Motor de políticas -->
+  <!-- Policy engine -->
   <rect x="60" y="300" width="560" height="110" rx="8" fill="#fff7ed" stroke="#d97706" stroke-width="2"/>
-  <text x="75" y="324" font-size="14" font-weight="bold" fill="#9a3412">Motor de políticas (fuera del modelo)</text>
-  <text x="75" y="346" font-size="12" fill="#1f2937">• reglas en YAML versionado · denegación por defecto</text>
-  <text x="75" y="364" font-size="12" fill="#1f2937">• 3 zonas por fraud_score (≥50 · 30–50 · &lt;30 o nulo) + umbral de monto</text>
-  <text x="75" y="382" font-size="12" fill="#1f2937">• reloj regulatorio por país (CONDUSEF · BCRA · SFC · BACEN)</text>
-  <text x="75" y="400" font-size="12" fill="#1f2937">• el dinero (abono / crédito provisional) nunca lo decide el LLM</text>
+  <text x="75" y="324" font-size="14" font-weight="bold" fill="#9a3412">Policy engine (outside the model)</text>
+  <text x="75" y="346" font-size="12" fill="#1f2937">• rules in versioned YAML · deny by default</text>
+  <text x="75" y="364" font-size="12" fill="#1f2937">• 3 zones by fraud_score (≥50 · 30–50 · &lt;30 or null) + amount threshold</text>
+  <text x="75" y="382" font-size="12" fill="#1f2937">• regulatory clock per country (CONDUSEF · BCRA · SFC · BACEN)</text>
+  <text x="75" y="400" font-size="12" fill="#1f2937">• money (credit / provisional credit) is never decided by the LLM</text>
 
   <rect x="660" y="300" width="480" height="48" rx="8" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
-  <text x="675" y="320" font-size="13" font-weight="bold" fill="#166534">Identidad mock</text>
-  <text x="675" y="338" font-size="11" fill="#1f2937">sesión de prueba + OTP simulado · vencimiento · sin sesión no hay datos</text>
+  <text x="675" y="320" font-size="13" font-weight="bold" fill="#166534">Mock identity</text>
+  <text x="675" y="338" font-size="11" fill="#1f2937">test session + simulated OTP · expiry · no session, no data</text>
 
   <rect x="660" y="362" width="480" height="48" rx="8" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
-  <text x="675" y="382" font-size="13" font-weight="bold" fill="#166534">Trazas OpenTelemetry + log de auditoría</text>
-  <text x="675" y="400" font-size="11" fill="#1f2937">cada tool call, regla aplicada, DENY y verificación con ID y timestamp</text>
+  <text x="675" y="382" font-size="13" font-weight="bold" fill="#166534">OpenTelemetry traces + audit log</text>
+  <text x="675" y="400" font-size="11" fill="#1f2937">every tool call, applied rule, DENY and verification with ID and timestamp</text>
 
   <!-- Tools -->
   <rect x="60" y="450" width="1080" height="80" rx="8" fill="#f9fafb" stroke="#6b7280" stroke-width="2"/>
-  <text x="75" y="472" font-size="14" font-weight="bold" fill="#111827">Tools tipadas (Pydantic) · permisos por cliente de la sesión aplicados dentro de la tool</text>
+  <text x="75" y="472" font-size="14" font-weight="bold" fill="#111827">Typed tools (Pydantic) · permissions for the session's customer enforced inside the tool</text>
   <rect x="80" y="484" width="240" height="34" rx="17" fill="#ffffff" stroke="#9ca3af"/>
   <text x="200" y="506" text-anchor="middle" font-size="12" fill="#1f2937">search_transaction()</text>
   <rect x="340" y="484" width="240" height="34" rx="17" fill="#ffffff" stroke="#9ca3af"/>
-  <text x="460" y="506" text-anchor="middle" font-size="12" fill="#1f2937">block_card() + post-condición</text>
+  <text x="460" y="506" text-anchor="middle" font-size="12" fill="#1f2937">block_card() + post-condition</text>
   <rect x="600" y="484" width="240" height="34" rx="17" fill="#ffffff" stroke="#9ca3af"/>
-  <text x="720" y="506" text-anchor="middle" font-size="12" fill="#1f2937">open_case() (idempotente)</text>
+  <text x="720" y="506" text-anchor="middle" font-size="12" fill="#1f2937">open_case() (idempotent)</text>
   <rect x="860" y="484" width="260" height="34" rx="17" fill="#ffffff" stroke="#9ca3af"/>
   <text x="990" y="506" text-anchor="middle" font-size="12" fill="#1f2937">get_product_status() / get_case_status()</text>
 
-  <!-- Datos -->
+  <!-- Data -->
   <rect x="60" y="570" width="640" height="90" rx="8" fill="#f5f3ff" stroke="#7c3aed" stroke-width="2"/>
-  <text x="75" y="592" font-size="14" font-weight="bold" fill="#4c1d95">Datos: pipeline con contratos → snapshot (DuckDB / Postgres)</text>
-  <text x="75" y="612" font-size="12" fill="#1f2937">dedupe · validación de schema · FK a productos de otro cliente · fechas futuras</text>
-  <text x="75" y="630" font-size="12" fill="#1f2937">México/Mexico · linaje y versión del snapshot · fixture de llegadas tardías</text>
-  <text x="75" y="648" font-size="12" fill="#1f2937">tablas: customers · products · transactions · complaints · surveys</text>
+  <text x="75" y="592" font-size="14" font-weight="bold" fill="#4c1d95">Data: pipeline with contracts → snapshot (DuckDB / Postgres)</text>
+  <text x="75" y="612" font-size="12" fill="#1f2937">dedupe · schema validation · FK to another customer's products · future dates</text>
+  <text x="75" y="630" font-size="12" fill="#1f2937">México/Mexico · snapshot lineage and version · late-arrivals fixture</text>
+  <text x="75" y="648" font-size="12" fill="#1f2937">tables: customers · products · transactions · complaints · surveys</text>
 
   <rect x="740" y="570" width="400" height="90" rx="8" fill="#fef2f2" stroke="#dc2626" stroke-width="2"/>
-  <text x="755" y="592" font-size="14" font-weight="bold" fill="#991b1b">Harness de evaluación (held-out)</text>
-  <text x="755" y="612" font-size="12" fill="#1f2937">casos ES/PT generados por el equipo · ataques (inyección,</text>
-  <text x="755" y="630" font-size="12" fill="#1f2937">sesión vencida, tool caída, dato faltante) · estado final</text>
-  <text x="755" y="648" font-size="12" fill="#1f2937">pass^k · latencia p50/p95 · costo por caso · n por celda</text>
+  <text x="755" y="592" font-size="14" font-weight="bold" fill="#991b1b">Evaluation harness (held-out)</text>
+  <text x="755" y="612" font-size="12" fill="#1f2937">team-generated ES/PT cases · attacks (injection,</text>
+  <text x="755" y="630" font-size="12" fill="#1f2937">expired session, tool down, missing data) · final state</text>
+  <text x="755" y="648" font-size="12" fill="#1f2937">pass^k · p50/p95 latency · cost per case · n per cell</text>
 
   <!-- Arrows -->
   <line x1="225" y1="120" x2="225" y2="158" stroke="#4b5563" stroke-width="2" marker-end="url(#arr)"/>
@@ -79,5 +79,5 @@
   <line x1="900" y1="260" x2="900" y2="298" stroke="#4b5563" stroke-width="2" marker-end="url(#arr)"/>
   <line x1="940" y1="530" x2="940" y2="568" stroke="#4b5563" stroke-width="2" marker-end="url(#arr)"/>
 
-  <text x="600" y="686" text-anchor="middle" font-size="12" fill="#6b7280">Regla del reto que esto cumple: "permisos y políticas se aplican fuera del texto generado por el modelo" · "reportar solo acciones cuyo resultado se verificó"</text>
+  <text x="600" y="686" text-anchor="middle" font-size="12" fill="#6b7280">Challenge rule this meets: "permissions and policies are enforced outside the model-generated text" · "report only actions whose result was verified"</text>
 </svg>

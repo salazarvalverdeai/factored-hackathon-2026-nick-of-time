@@ -1,6 +1,6 @@
--- Respalda: workflow_mapping.md §5 (¿la plantilla del transcript se relaciona con los productos del cliente?).
--- Produce: outputs/tables/03_template_vs_ownership.csv (vía eda/workflows.py).
--- Si el texto reflejara la intención real, los clientes con plantilla "saldo de tarjeta" tendrían más tarjetas.
+-- Supports: workflow_mapping.md §5 (is the transcript template related to the customer's products?).
+-- Produces: outputs/tables/03_template_vs_ownership.csv (via eda/workflows.py).
+-- If the text reflected the real intent, customers with the "card balance" template would own more cards.
 WITH own AS (
     SELECT customer_id, bool_or(product_type = 'Tarjeta Crédito') AS has_credit_card,
            bool_or(product_type = 'Cuenta Ahorro') AS has_savings

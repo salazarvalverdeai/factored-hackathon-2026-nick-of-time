@@ -1,6 +1,6 @@
--- Respalda: findings.md §5 y sección (4) de los expedientes (¿alcanza el texto para un clasificador?).
--- Produce: outputs/tables/05_transcripts_by_workflow.csv (vía eda/labels.py).
--- {case_int} y {case_trs} = reglas de 03_workflow_mapping.csv.
+-- Supports: findings.md §5 and section (4) of the dossiers (is the text enough for a classifier?).
+-- Produces: outputs/tables/05_transcripts_by_workflow.csv (via eda/labels.py).
+-- {case_int} and {case_trs} = rules from 03_workflow_mapping.csv.
 WITH i AS (SELECT interaction_id, {case_int} AS rule_int FROM call_center_interactions),
      t AS (SELECT *, {case_trs} AS rule_trs FROM call_transcripts)
 SELECT 'por plantilla (TRS)' AS grouping, t.rule_trs AS rule_id, count(*) AS n_transcripts,
