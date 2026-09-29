@@ -1,6 +1,6 @@
--- Respalda: findings.md §0 / mapeo_workflows.md (valores de columnas multivalor: detected_intents, main_topics,
--- detected_keywords, languages). Separa por coma, recorta espacios; pct_rows = % de filas que contienen el valor.
--- Produce: outputs/tables/00_multivalue_values.csv (vía eda/inventory.py, que rellena {table} y {column}).
+-- Supports: findings.md §0 / workflow_mapping.md (values of multi-value columns: detected_intents, main_topics,
+-- detected_keywords, languages). Splits on commas, trims spaces; pct_rows = % of rows that contain the value.
+-- Produces: outputs/tables/00_multivalue_values.csv (via eda/inventory.py, which fills in {table} and {column}).
 WITH numbered AS (
     SELECT row_number() OVER () AS rid, "{column}" AS raw_value
     FROM {table}

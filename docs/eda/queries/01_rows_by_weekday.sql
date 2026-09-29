@@ -1,6 +1,6 @@
--- Respalda: calidad_datos.md §B7 y la hipótesis de la fase 0 (fines de semana a la mitad => conteos = 6/7 del
--- diccionario). Produce: outputs/tables/01_rows_by_weekday.csv (vía eda/quality.py).
--- Día = partition_date (el archivo diario). ratio_vs_weekday = filas por día / promedio de filas por día lun-vie.
+-- Supports: data_quality.md §B7 and the phase 0 hypothesis (weekends at half volume => counts = 6/7 of the
+-- data dictionary). Produces: outputs/tables/01_rows_by_weekday.csv (via eda/quality.py).
+-- Day = partition_date (the daily file). ratio_vs_weekday = rows per day / mean rows per day Mon-Fri.
 WITH d AS (
     SELECT 'call_center_interactions' AS tbl, partition_date, count(*) AS n FROM call_center_interactions GROUP BY ALL
     UNION ALL SELECT 'call_transcripts', partition_date, count(*) FROM call_transcripts GROUP BY ALL

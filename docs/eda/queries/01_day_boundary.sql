@@ -1,6 +1,6 @@
--- Respalda: calidad_datos.md §B4 (el "día" de cada archivo no empieza a medianoche).
--- Produce: outputs/tables/01_day_boundary.csv (vía eda/quality.py).
--- hours_from_partition = horas entre la medianoche de partition_date y la fecha-hora del evento.
+-- Supports: data_quality.md §B4 (each file's "day" does not start at midnight).
+-- Produces: outputs/tables/01_day_boundary.csv (via eda/quality.py).
+-- hours_from_partition = hours between midnight of partition_date and the event's date-time.
 WITH e AS (
     SELECT 'call_center_interactions' AS tbl, date_diff('minute', partition_date::TIMESTAMP, interaction_date) / 60.0 AS h FROM call_center_interactions
     UNION ALL SELECT 'complaints', date_diff('minute', partition_date::TIMESTAMP, creation_date) / 60.0 FROM complaints

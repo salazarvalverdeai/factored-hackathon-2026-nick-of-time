@@ -1,4 +1,4 @@
-"""Fixtures de pytest. Todos los tests corren sin red: cualquier conexión de socket desde Python falla."""
+"""pytest fixtures. All tests run without network: any socket connection from Python fails."""
 from __future__ import annotations
 
 import socket
@@ -13,14 +13,14 @@ from data.pipeline import contracts
 @pytest.fixture(autouse=True)
 def no_network(monkeypatch):
     def guard(*args, **kwargs):
-        raise RuntimeError("los tests no deben usar la red")
+        raise RuntimeError("tests must not use the network")
     monkeypatch.setattr(socket.socket, "connect", guard)
     monkeypatch.setattr(socket, "create_connection", guard)
 
 
 def contract_frame(table: str, rows: list[dict], lineage: bool = False) -> pl.DataFrame:
-    """DataFrame con todas las columnas del contrato, tipadas; las que no vienen en `rows` quedan nulas.
-    Con lineage=True agrega las columnas que silver deja para gold (_loaded_at, _source_key, …)."""
+    """DataFrame with all the contract columns, typed; those not given in `rows` are null.
+    With lineage=True it adds the columns silver leaves for gold (_loaded_at, _source_key, …)."""
     schema = {c: col.dtype.type for c, col in contracts.SCHEMAS[table].columns.items()}
     df = pl.DataFrame([{c: r.get(c) for c in schema} for r in rows], schema=schema)
     if lineage:

@@ -1,6 +1,6 @@
--- Respalda: calidad_datos.md §B5 (amount_usd coherente con el tipo de cambio del día).
--- Produce: outputs/tables/01_fx_consistency.csv (vía eda/quality.py).
--- Desvío = |amount_usd / amount - exchange_rate| / exchange_rate, con la tasa currency->USD del mismo día.
+-- Supports: data_quality.md §B5 (amount_usd consistent with that day's exchange rate).
+-- Produces: outputs/tables/01_fx_consistency.csv (via eda/quality.py).
+-- Deviation = |amount_usd / amount - exchange_rate| / exchange_rate, using the same-day currency->USD rate.
 WITH fx AS (
     SELECT date, source_currency, exchange_rate
     FROM daily_exchange_rates WHERE target_currency = 'USD'

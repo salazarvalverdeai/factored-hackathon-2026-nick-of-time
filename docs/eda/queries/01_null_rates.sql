@@ -1,7 +1,7 @@
--- Respalda: calidad_datos.md §B2 (nulos por columna) y §B6 (deriva mensual de nulos).
--- Produce: outputs/tables/01_null_rates.csv y 01_null_drift.csv (vía eda/quality.py).
--- Plantilla: eda/quality.py rellena {table}, {group_expr} ('all' o el mes de partition_date) y {null_counts}
--- (una expresión `count(*) - count("col") AS "col"` por columna).
+-- Supports: data_quality.md §B2 (nulls per column) and §B6 (monthly null drift).
+-- Produces: outputs/tables/01_null_rates.csv and 01_null_drift.csv (via eda/quality.py).
+-- Template: eda/quality.py fills in {table}, {group_expr} ('all' or the partition_date month) and {null_counts}
+-- (one `count(*) - count("col") AS "col"` expression per column).
 SELECT {group_expr} AS grp,
        count(*)     AS n_rows,
        {null_counts}

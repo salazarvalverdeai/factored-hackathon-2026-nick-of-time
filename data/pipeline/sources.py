@@ -1,13 +1,13 @@
-"""Fuentes de archivos crudos: S3 (con credenciales de .env), espejo local o fixture.
+"""Raw file sources: S3 (dataset AWS profile, see .env.example), local mirror or fixture.
 
-Todas devuelven la misma lista de `SourceFile`: clave relativa (`<tabla>/year=…/<tabla>_YYYYMMDD.csv`, igual que en
-S3), ruta local, tamaño, md5, fecha de carga y header. La fecha de carga es el LastModified de S3 (modo s3), el mtime
-del archivo (modo local; `aws s3 sync` lo iguala al LastModified) o la fecha de entrega declarada en el fixture.
+All of them return the same list of `SourceFile`: relative key (`<table>/year=…/<table>_YYYYMMDD.csv`, same as in
+S3), local path, size, md5, load date and header. The load date is the S3 LastModified (s3 mode), the file's mtime
+(local mode; `aws s3 sync` sets it to LastModified) or the delivery date declared in the fixture.
 
-Modo s3: lista el bucket con boto3 y descarga al espejo local (`data/<tabla>/…`, el mismo que usa el EDA) solo los
-objetos nuevos o distintos (tamaño o md5 ≠ ETag). Nunca borra archivos locales. En el bucket las dimensiones son
-archivos planos (`data/customers.csv`); en el espejo, como en `scripts/s3_sync.sh`, van a `data/customers/customers.csv`,
-y esa es la clave canónica en los tres modos (`origin` guarda la URI de S3).
+s3 mode: lists the bucket with boto3 and downloads to the local mirror (`data/<table>/…`, the same one the EDA uses)
+only new or different objects (size or md5 ≠ ETag). It never deletes local files. In the bucket the dimensions are
+flat files (`data/customers.csv`); in the mirror, as in `scripts/s3_sync.sh`, they go to `data/customers/customers.csv`,
+and that is the canonical key in all three modes (`origin` keeps the S3 URI).
 """
 from __future__ import annotations
 
@@ -29,15 +29,15 @@ log = logging.getLogger("pipeline.sources")
 @dataclass
 class SourceFile:
     table: str
-    key: str                 # ruta relativa a la raíz de la fuente, estilo S3
+    key: str                 # path relative to the source root, S3 style
     local_path: str
     size: int
     md5: str
-    loaded_at: str           # ISO 8601 con zona
+    loaded_at: str           # ISO 8601 with time zone
     header: list[str]
-    delivery: str            # "s3", "local" o el nombre de la entrega del fixture
+    delivery: str            # "s3", "local" or the name of the fixture delivery
     etag: str | None = None
-    origin: str | None = None  # URI de S3 del objeto (modo s3)
+    origin: str | None = None  # S3 URI of the object (s3 mode)
 
     def as_dict(self) -> dict:
         return asdict(self)
@@ -52,13 +52,13 @@ def md5_of(path: Path) -> str:
 
 
 def read_header(path: Path) -> list[str]:
-    """Primera línea del CSV, sin BOM ni fin de línea."""
+    """First line of the CSV, without BOM or line ending."""
     with path.open("r", encoding="utf-8-sig", newline="") as f:
         return next(csv.reader(io.StringIO(f.readline())))
 
 
 def table_files(root: Path, table: str) -> list[Path]:
-    """CSV de una tabla bajo root: particionados (<tabla>/year=…/…csv) o plano (<tabla>/<tabla>.csv)."""
+    """CSVs of a table under root: partitioned (<table>/year=…/…csv) or flat (<table>/<table>.csv)."""
     base = root / table
     return sorted(base.rglob("*.csv")) if base.is_dir() else []
 
@@ -70,7 +70,7 @@ def _local_file(root: Path, path: Path, table: str, delivery: str, loaded_at: da
 
 
 def list_local(root: Path, tables: tuple[str, ...]) -> tuple[list[SourceFile], int]:
-    """Devuelve (archivos en alcance, archivos omitidos por config.in_scope)."""
+    """Returns (files in scope, files skipped by config.in_scope)."""
     out, skipped = [], 0
     for t in tables:
         for p in table_files(root, t):
@@ -83,8 +83,8 @@ def list_local(root: Path, tables: tuple[str, ...]) -> tuple[list[SourceFile], i
 
 
 def list_fixture(fixture_dir: Path, tables: tuple[str, ...], upto: int) -> tuple[list[SourceFile], int]:
-    """Superpone las entregas 1..upto del fixture: una clave repetida en una entrega posterior reemplaza a la anterior
-    (como una re-entrega que sobrescribe el objeto en S3)."""
+    """Overlays fixture deliveries 1..upto: a key repeated in a later delivery replaces the earlier one
+    (like a re-delivery that overwrites the object in S3)."""
     spec = json.loads((fixture_dir / "fixture.json").read_text())
     by_key: dict[str, SourceFile] = {}
     skipped: set[str] = set()
@@ -103,30 +103,29 @@ def list_fixture(fixture_dir: Path, tables: tuple[str, ...], upto: int) -> tuple
 
 def _s3_client(env: dict[str, str]):
     import boto3
-    return boto3.client("s3", region_name=env["AWS_DEFAULT_REGION"] or None,
-                        aws_access_key_id=env["AWS_ACCESS_KEY_ID"] or None,
-                        aws_secret_access_key=env["AWS_SECRET_ACCESS_KEY"] or None)
+    session = boto3.Session(profile_name=env["DATASET_AWS_PROFILE"] or None, region_name=env["AWS_REGION"] or None)
+    return session.client("s3")
 
 
 def _needs_download(local: Path, size: int, etag: str) -> bool:
     if not local.exists() or local.stat().st_size != size:
         return True
-    if "-" in etag:              # ETag multipart: no es el md5 del contenido; basta con el tamaño
+    if "-" in etag:              # multipart ETag: not the md5 of the content; the size is enough
         return False
     return md5_of(local) != etag
 
 
 def list_s3(tables: tuple[str, ...], mirror: Path, workers: int = 16) -> tuple[list[SourceFile], int]:
-    """Lista el bucket, sincroniza al espejo local lo que falte o cambió (solo archivos en alcance, config.in_scope)
-    y devuelve (inventario, objetos omitidos por alcance)."""
+    """Lists the bucket, syncs to the local mirror whatever is missing or changed (only files in scope, config.in_scope)
+    and returns (inventory, objects skipped by scope)."""
     env = load_env()
-    if not (env["AWS_ACCESS_KEY_ID"] and env["S3_BUCKET"]):
-        raise RuntimeError("Faltan credenciales o bucket en .env (ver .env.example)")
+    if not env["DATASET_S3_BUCKET"]:
+        raise RuntimeError("Missing DATASET_S3_BUCKET in .env (see .env.example)")
     s3 = _s3_client(env)
-    bucket, prefix = env["S3_BUCKET"], env["S3_PREFIX"] or "data/"
+    bucket, prefix = env["DATASET_S3_BUCKET"], env["DATASET_S3_PREFIX"] or "data/"
     objects, skipped = [], 0
     for t in tables:
-        for sub in (f"{prefix}{t}/", f"{prefix}{t}.csv"):   # particionada o plana
+        for sub in (f"{prefix}{t}/", f"{prefix}{t}.csv"):   # partitioned or flat
             for page in s3.get_paginator("list_objects_v2").paginate(Bucket=bucket, Prefix=sub):
                 for o in page.get("Contents", []):
                     if o["Key"].endswith(".csv") and (o["Key"].startswith(f"{prefix}{t}/") or o["Key"] == sub):
@@ -134,7 +133,7 @@ def list_s3(tables: tuple[str, ...], mirror: Path, workers: int = 16) -> tuple[l
                             objects.append((t, o))
                         else:
                             skipped += 1
-    log.info("S3: %d objetos en alcance en %d tablas (%d omitidos fuera de la ventana)", len(objects), len(tables),
+    log.info("S3: %d objects in scope in %d tables (%d skipped outside the window)", len(objects), len(tables),
              skipped)
 
     def fetch(item) -> tuple[SourceFile, bool]:
@@ -155,5 +154,5 @@ def list_s3(tables: tuple[str, ...], mirror: Path, workers: int = 16) -> tuple[l
     with ThreadPoolExecutor(max_workers=workers) as pool:
         results = list(pool.map(fetch, objects))
     n_new = sum(d for _, d in results)
-    log.info("S3: %d descargados (nuevos o distintos), %d ya estaban en el espejo local", n_new, len(results) - n_new)
+    log.info("S3: %d downloaded (new or different), %d already in the local mirror", n_new, len(results) - n_new)
     return sorted((f for f, _ in results), key=lambda f: f.key), skipped

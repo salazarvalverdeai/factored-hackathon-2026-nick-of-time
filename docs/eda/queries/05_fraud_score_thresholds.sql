@@ -1,6 +1,6 @@
--- Respalda: findings.md §5 y expediente W3 (fraud_score como regla determinista de triage de fraude/disputa).
--- Produce: outputs/tables/05_fraud_score_thresholds.csv (vía eda/labels.py). Todas las transacciones (4.4M).
--- Por umbral: transacciones marcadas, fraudes capturados (recall), precisión y marcadas por mes.
+-- Supports: findings.md §5 and the W3 dossier (fraud_score as a deterministic fraud/dispute triage rule).
+-- Produces: outputs/tables/05_fraud_score_thresholds.csv (via eda/labels.py). All transactions (4.4M).
+-- Per threshold: flagged transactions, frauds caught (recall), precision and flagged per month.
 WITH t AS (SELECT fraud_score, is_fraud FROM transactions WHERE fraud_score IS NOT NULL),
      tot AS (SELECT count(*) FILTER (WHERE is_fraud) AS n_fraud, count(*) AS n FROM t),
      thr AS (SELECT unnest([30, 50, 60, 70, 80, 90, 95]) AS threshold)

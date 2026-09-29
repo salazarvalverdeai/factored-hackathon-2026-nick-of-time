@@ -1,37 +1,37 @@
-# Fixture `late_arrival` (datos sintéticos de prueba)
+# `late_arrival` fixture (synthetic test data)
 
-> **FIXTURE: ninguna fila sale del dataset LATAM Bank.** Los IDs llevan el prefijo `FX-`, los nombres dicen
-> `FIXTURE` y el pipeline marca la fuente como `fixture` en `manifest.json`. Se genera con
-> `python -m data.fixtures.late_arrival.make_fixture` (determinista) y los CSV se versionan tal cual.
+> **FIXTURE: no row comes from the LATAM Bank dataset.** IDs carry the prefix `FX-`, names say
+> `FIXTURE` and the pipeline marks the source as `fixture` in `manifest.json`. It is generated with
+> `python -m data.fixtures.late_arrival.make_fixture` (deterministic) and the CSVs are versioned as is.
 
-## Para qué existe
-El diccionario del dataset anuncia llegadas tardías y evolución de schema, pero no están en los datos: el rezago
-`process_date − fecha del evento` es 0 o −1 y hay una sola firma de header por tabla (`docs/eda/calidad_datos.md`
-§B4, §B6). Este fixture tiene la misma forma que el bucket (particiones `year=/month=/day=`, BOM, CRLF) y sirve para
-demostrar cómo el pipeline maneja una segunda entrega.
+## Why it exists
+The dataset dictionary announces late arrivals and schema evolution, but they are not in the data: the lag
+`process_date − event date` is 0 or −1 and there is a single header signature per table (`docs/eda/data_quality.md`
+§B4, §B6). This fixture has the same shape as the bucket (`year=/month=/day=` partitions, BOM, CRLF) and serves to
+demonstrate how the pipeline handles a second delivery.
 
-## Entregas
-Cada entrega es una carpeta con claves estilo S3; `fixture.json` declara su fecha de entrega (la "fecha de carga" que
-usa el check de fechas futuras). La entrega 2 se superpone a la 1: una clave repetida reemplaza al archivo anterior, como
-una re-entrega que sobrescribe el objeto en S3.
+## Deliveries
+Each delivery is a folder with S3-style keys; `fixture.json` declares its delivery date (the "load date" used by
+the future-dates check). Delivery 2 is overlaid on delivery 1: a repeated key replaces the earlier file, like
+a re-delivery that overwrites the object in S3.
 
-| Entrega | Archivo | Qué prueba |
+| Delivery | File | What it tests |
 |---|---|---|
-| `delivery_1` | `customers/customers.csv` | FX-CLI-004 con `last_updated` en 2027 (fecha futura) |
-| `delivery_1` | `products/products.csv` | FX-PRD-002 abre después de FX-TRX-0002; FX-PRD-006 con `last_updated` futuro |
-| `delivery_1` | `transactions/…/day=15/…` | `Mexico` (FX-TRX-0003), antes de la apertura (0002), `customer_id` que no es el dueño del producto (0005: gold lo resuelve al dueño), evento de 2025-05-31 fuera de la ventana de 12 meses (0015: queda en silver, no en gold) |
-| `delivery_1` | `transactions/…/day=16/…` | duplicado exacto de FX-TRX-0008, `Mexico` (0007), producto inexistente (0009) |
-| `delivery_1` | `complaints/…/day=16/…` | producto de otro cliente (FX-CMP-002), producto inexistente (003), sin `category` (004) |
-| `delivery_2` | `customers/customers.csv` | re-entrega del snapshot: FX-CLI-002 cambia de segmento, alta de FX-CLI-006 |
-| `delivery_2` | `transactions/…/day=16/…` | re-entrega de la partición: sin el duplicado y con FX-TRX-0010 que faltaba |
-| `delivery_2` | `transactions/…/day=20/…` | **llegadas tardías** (eventos del 12, 13 y 14 con `process_date` del 20; corrección de 0008 del 16) y **cambio de schema**: `transaction_country` llega como `txn_country` y aparece `merchant_mcc` |
+| `delivery_1` | `customers/customers.csv` | FX-CLI-004 with `last_updated` in 2027 (future date) |
+| `delivery_1` | `products/products.csv` | FX-PRD-002 opens after FX-TRX-0002; FX-PRD-006 with a future `last_updated` |
+| `delivery_1` | `transactions/…/day=15/…` | `Mexico` (FX-TRX-0003), before product opening (0002), `customer_id` that is not the product owner (0005: gold resolves it to the owner), event from 2025-05-31 outside the 12-month window (0015: stays in silver, not in gold) |
+| `delivery_1` | `transactions/…/day=16/…` | exact duplicate of FX-TRX-0008, `Mexico` (0007), nonexistent product (0009) |
+| `delivery_1` | `complaints/…/day=16/…` | another customer's product (FX-CMP-002), nonexistent product (003), no `category` (004) |
+| `delivery_2` | `customers/customers.csv` | snapshot re-delivery: FX-CLI-002 changes segment, new customer FX-CLI-006 |
+| `delivery_2` | `transactions/…/day=16/…` | partition re-delivery: without the duplicate and with the missing FX-TRX-0010 |
+| `delivery_2` | `transactions/…/day=20/…` | **late arrivals** (events from the 12th, 13th and 14th with a `process_date` of the 20th; correction of 0008 from the 16th) and **schema change**: `transaction_country` arrives as `txn_country` and `merchant_mcc` appears |
 
-Las fechas caen en mayo de 2026, dentro de la ventana de `contracts/gold_contract.md`. Los conteos que debe producir
-el pipeline en cada entrega (incluidas las tablas derivadas y `gold_eval/`) están en `fixture.json` → `expected`. Los verifican
-`tests/test_fixture_late_arrival.py` y la sección 7 de `data/quality_report.md`.
+Dates fall in May 2026, inside the window of `contracts/gold_contract.md`. The counts the pipeline must produce
+for each delivery (including the derived tables and `gold_eval/`) are in `fixture.json` → `expected`. They are
+verified by `tests/test_fixture_late_arrival.py` and section 7 of `data/quality_report.md`.
 
-## Cómo se corre
+## How to run it
 ```bash
-python -m data.pipeline fixture   # delivery_1 y luego delivery_1 + delivery_2 en data/_fixture_run/ (gitignored)
-python -m data.pipeline report    # la sección 7 del reporte muestra qué cambió entre las dos
+python -m data.pipeline fixture   # delivery_1 and then delivery_1 + delivery_2 in data/_fixture_run/ (gitignored)
+python -m data.pipeline report    # section 7 of the report shows what changed between the two
 ```

@@ -1,0 +1,3 @@
+group_name,n_complaints,n_with_resolution,resolution_days_p50,resolution_days_p95,pct_resolved_closed
+W3 (CMP-01..03),24431,5622,16.0,29.0,24.162
+Whole bank,67095,15363,16.0,29.0,24.027

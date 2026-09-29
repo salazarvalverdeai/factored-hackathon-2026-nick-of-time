@@ -1,5 +1,5 @@
--- Respalda: findings.md §2 ("a quién afecta": contactos por cliente según segmento y país, sobre toda la ventana).
--- Produce: outputs/tables/02_contact_rate.csv (vía eda/demand.py). segment/country = foto única de customers.
+-- Supports: findings.md §2 ("who is affected": contacts per customer by segment and country, over the whole window).
+-- Produces: outputs/tables/02_contact_rate.csv (via eda/demand.py). segment/country = single snapshot of customers.
 WITH k AS (SELECT customer_id, count(*) AS n_int FROM call_center_interactions GROUP BY 1)
 SELECT 'segment' AS dimension, c.segment AS value, count(*) AS n_customers,
        sum(coalesce(k.n_int, 0)) AS n_interactions,

@@ -1,15 +1,15 @@
-"""Contratos de schema (pandera sobre polars) de las tablas silver.
+"""Schema contracts (pandera on polars) for the silver tables.
 
-Cada contrato fija columnas, tipos, nulabilidad, unicidad de la PK y dominios. Los dominios salen de los valores
-observados en el EDA (`outputs/tables/00_enum_values.csv`, `01_range_checks.csv`); donde el diccionario documenta un
-valor que no aparece (CURP, MXN) se admite igual. Las columnas nullable=False son las obligatorias de
+Each contract sets columns, types, nullability, PK uniqueness and domains. The domains come from the values
+observed in the EDA (`outputs/tables/00_enum_values.csv`, `01_range_checks.csv`); where the dictionary documents a
+value that does not appear (CURP, MXN) it is accepted anyway. The nullable=False columns are the required ones from
 `outputs/tables/01_null_rates.csv` (required = True).
 
-Además del schema, el contrato declara:
-- PRIMARY_KEY: clave para dedup/upsert (gana la versión con process_date más reciente, luego la carga más reciente).
-- EVENT_DATE: fecha del evento en las tablas de hechos (rezago = process_date − fecha del evento).
-- ALIASES: renombres de columnas aceptados (evolución de schema declarada por el productor): alias → canónico.
-- NORMALIZE: etiquetas que se corrigen en silver (valor crudo → valor canónico), contadas antes de corregir.
+Besides the schema, the contract declares:
+- PRIMARY_KEY: key for dedup/upsert (the version with the latest process_date wins, then the latest load).
+- EVENT_DATE: event date in the fact tables (lag = process_date − event date).
+- ALIASES: accepted column renames (schema evolution declared by the producer): alias → canonical.
+- NORMALIZE: labels corrected in silver (raw value → canonical value), counted before correcting.
 """
 from __future__ import annotations
 
@@ -149,7 +149,7 @@ SCHEMAS: dict[str, pa.DataFrameSchema] = {
 PRIMARY_KEY = {"customers": "customer_id", "products": "product_id", "transactions": "transaction_id",
                "complaints": "complaint_id"}
 EVENT_DATE = {"transactions": "transaction_date", "complaints": "creation_date"}
-# Evolución de schema declarada: el productor anunció que `transaction_country` puede llegar como `txn_country`.
+# Declared schema evolution: the producer announced that `transaction_country` may arrive as `txn_country`.
 ALIASES: dict[str, dict[str, str]] = {"transactions": {"txn_country": "transaction_country"}}
 NORMALIZE: dict[str, dict[str, dict[str, str]]] = {
     "customers": {"country": {"Mexico": "México"}},
@@ -169,9 +169,9 @@ def required_columns(table: str) -> list[str]:
 
 
 def duckdb_type(table: str, column: str) -> str:
-    """Tipo DuckDB al que se castea la columna en silver (derivado del dtype del contrato)."""
+    """DuckDB type the column is cast to in silver (derived from the contract dtype)."""
     dtype = SCHEMAS[table].columns[column].dtype.type
     for pl_type, db_type in _DUCKDB_TYPES.items():
         if dtype == pl_type:
             return db_type
-    raise TypeError(f"{table}.{column}: dtype {dtype} sin tipo DuckDB")
+    raise TypeError(f"{table}.{column}: dtype {dtype} has no DuckDB type")

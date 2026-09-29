@@ -1,9 +1,9 @@
-# Queries que respaldan cada cifra
+# Queries behind each figure
 
-Convención: `NN_tema_descripcion.sql`, donde NN es la fase (00–06). Cada `.sql` empieza con un comentario que dice
-qué cifra de `findings.md` respalda y qué tabla de `outputs/tables/` produce. Se ejecutan con `scripts/db.py`:
+Convention: `NN_topic_description.sql`, where NN is the phase (00–06). Each `.sql` starts with a comment that says
+which `findings.md` figure it supports and which `outputs/tables/` table it produces. They are run with `scripts/db.py`:
 
     python -c "from scripts.db import get_con; print(get_con().sql(open('docs/eda/queries/02_top_contact_reasons.sql').read()))"
 
-`03_workflow_mapping.csv` (fase 3) es la tabla de reglas valor → workflow, versionada aquí porque es una decisión
-de análisis, no un dato.
+`03_workflow_mapping.csv` (phase 3) is the value → workflow rule table, versioned here because it is an analysis
+decision, not data.

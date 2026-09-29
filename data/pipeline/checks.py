@@ -1,14 +1,14 @@
-"""Checks de calidad con conteos: una fila por check con violaciones, denominador y %.
+"""Quality checks with counts: one row per check with violations, denominator and %.
 
-Dos orígenes:
-- Flags de gold (gold.FLAGS): FK huérfanas, FK a productos de otro cliente, fechas futuras, transacciones antes de la
-  apertura del producto y llegadas tardías. n = filas con el flag en true; denominador = filas donde el check aplica.
-- Pasos de bronze/silver: duplicados exactos, versiones de PK, nulos en obligatorias, cast fallidos, cuarentena del
-  contrato, etiquetas normalizadas (México/Mexico) y archivos con cambio de schema.
+Two sources:
+- Gold flags (gold.FLAGS): orphan FKs, FKs to another customer's products, future dates, transactions before the
+  product opening and late arrivals. n = rows with the flag true; denominator = rows where the check applies.
+- Bronze/silver steps: exact duplicates, PK versions, nulls in required columns, failed casts, contract
+  quarantine, normalized labels (México/Mexico) and files with a schema change.
 
-Cuando existe, se adjunta la cifra del EDA para el mismo check (outputs/tables/01_*.csv), para ver que el pipeline
-reproduce lo medido en calidad_datos.md. No se compara transactions: el EDA cubre los 3 años y gold solo la ventana de
-12 meses (contracts/gold_contract.md, R1). En este repo no están las tablas del EDA, así que la columna queda vacía.
+When it exists, the EDA figure for the same check is attached (outputs/tables/01_*.csv), to show that the pipeline
+reproduces what was measured in data_quality.md. transactions is not compared: the EDA covers the 3 years and gold only
+the 12-month window (contracts/gold_contract.md, R1). The EDA tables are not in this repo, so the column stays empty.
 """
 from __future__ import annotations
 
@@ -22,41 +22,41 @@ from data.pipeline.config import EDA_TABLES_DIR, TX_WINDOW, Layout
 
 log = logging.getLogger("pipeline.checks")
 
-# (id, tabla, flag, check, descripción, acción, referencia EDA)
+# (id, table, flag, check, description, action, EDA reference)
 FLAG_CHECKS = [
-    ("FK-01", "products", "qc_customer_orphan", "FK huérfana", "customer_id sin fila en customers",
-     "flag en gold", ("fk", "products", "customer_id")),
-    ("FK-02", "transactions", "qc_customer_orphan", "FK huérfana",
-     "customer_id resuelto (dueño del producto) sin fila en customers", "flag en gold", None),
-    ("FK-03", "transactions", "qc_product_orphan", "FK huérfana", "product_id sin fila en products",
-     "flag en gold", ("fk", "transactions", "product_id")),
-    ("FK-04", "complaints", "qc_customer_orphan", "FK huérfana", "customer_id sin fila en customers",
-     "flag en gold", ("fk", "complaints", "customer_id")),
-    ("FK-05", "complaints", "qc_affected_product_orphan", "FK huérfana",
-     "affected_product_id sin fila en products", "flag en gold", ("fk", "complaints", "affected_product_id")),
-    ("OWN-01", "transactions", "qc_product_other_customer", "FK a producto de otro cliente",
-     "el customer_id del archivo no es el dueño del producto", "gold usa el dueño (R2); flag para auditoría",
+    ("FK-01", "products", "qc_customer_orphan", "orphan FK", "customer_id with no row in customers",
+     "flag in gold", ("fk", "products", "customer_id")),
+    ("FK-02", "transactions", "qc_customer_orphan", "orphan FK",
+     "resolved customer_id (product owner) with no row in customers", "flag in gold", None),
+    ("FK-03", "transactions", "qc_product_orphan", "orphan FK", "product_id with no row in products",
+     "flag in gold", ("fk", "transactions", "product_id")),
+    ("FK-04", "complaints", "qc_customer_orphan", "orphan FK", "customer_id with no row in customers",
+     "flag in gold", ("fk", "complaints", "customer_id")),
+    ("FK-05", "complaints", "qc_affected_product_orphan", "orphan FK",
+     "affected_product_id with no row in products", "flag in gold", ("fk", "complaints", "affected_product_id")),
+    ("OWN-01", "transactions", "qc_product_other_customer", "FK to another customer's product",
+     "the file's customer_id is not the product owner", "gold uses the owner (R2); flag for audit",
      ("consistency", "transactions", "C12")),
-    ("OWN-02", "complaints", "qc_affected_product_other_customer", "FK a producto de otro cliente",
-     "affected_product_id pertenece a otro cliente", "flag en gold; la capa de servicio no lo muestra",
+    ("OWN-02", "complaints", "qc_affected_product_other_customer", "FK to another customer's product",
+     "affected_product_id belongs to another customer", "flag in gold; the serving layer does not show it",
      ("consistency", "complaints", "C15")),
-    ("FUT-01", "customers", "qc_future_last_updated", "fecha futura",
-     "last_updated posterior al día de carga del archivo", "flag en gold", ("range", "customers", "R52")),
-    ("FUT-02", "products", "qc_future_last_updated", "fecha futura",
-     "last_updated posterior al día de carga del archivo", "flag en gold", ("range", "products", "R61")),
-    ("FUT-03", "transactions", "qc_future_date", "fecha futura",
-     "transaction_date posterior al día de carga del archivo", "flag en gold", None),
-    ("FUT-04", "complaints", "qc_future_date", "fecha futura",
-     "creation_date posterior al día de carga del archivo", "flag en gold", None),
-    ("ORD-01", "transactions", "qc_before_product_open", "transacción antes de la apertura",
-     "transaction_date anterior a products.opening_date", "flag en gold", ("consistency", "transactions", "C13")),
-    ("LATE-01", "transactions", "qc_late_arrival", "llegada tardía", "process_date − transaction_date > 0 días",
-     "flag en gold; alerta de frescura", None),
-    ("LATE-02", "complaints", "qc_late_arrival", "llegada tardía", "process_date − creation_date > 0 días",
-     "flag en gold; alerta de frescura", None),
+    ("FUT-01", "customers", "qc_future_last_updated", "future date",
+     "last_updated after the file's load day", "flag in gold", ("range", "customers", "R52")),
+    ("FUT-02", "products", "qc_future_last_updated", "future date",
+     "last_updated after the file's load day", "flag in gold", ("range", "products", "R61")),
+    ("FUT-03", "transactions", "qc_future_date", "future date",
+     "transaction_date after the file's load day", "flag in gold", None),
+    ("FUT-04", "complaints", "qc_future_date", "future date",
+     "creation_date after the file's load day", "flag in gold", None),
+    ("ORD-01", "transactions", "qc_before_product_open", "transaction before opening",
+     "transaction_date before products.opening_date", "flag in gold", ("consistency", "transactions", "C13")),
+    ("LATE-01", "transactions", "qc_late_arrival", "late arrival", "process_date − transaction_date > 0 days",
+     "flag in gold; freshness alert", None),
+    ("LATE-02", "complaints", "qc_late_arrival", "late arrival", "process_date − creation_date > 0 days",
+     "flag in gold; freshness alert", None),
 ]
 LABEL_EDA: dict = {}
-WINDOWED = {"transactions"}  # sin comparación con el EDA: distinta cobertura temporal
+WINDOWED = {"transactions"}  # no comparison with the EDA: different time coverage
 
 
 def _read(name: str) -> list[dict]:
@@ -68,7 +68,7 @@ def _read(name: str) -> list[dict]:
 
 
 def eda_reference(ref: tuple | None) -> dict | None:
-    """Cifra del EDA para el mismo check: {n, denominator, source} o None."""
+    """EDA figure for the same check: {n, denominator, source} or None."""
     if ref is None:
         return None
     kind, table, key = ref
@@ -98,30 +98,30 @@ def run(con: duckdb.DuckDBPyConnection, layout: Layout, tables: tuple[str, ...],
     out = []
     for t in tables:
         s = silver[t]
-        out.append(_row("DUP-01", t, "duplicado exacto", "filas idénticas en todas las columnas del contrato",
-                        s["exact_duplicates"], s["rows_bronze"], "se conserva una", ("dup", t, None)))
-        out.append(_row("DUP-02", t, "versiones de PK", "misma PK con contenido distinto (upsert)",
-                        s["superseded_versions"], s["rows_bronze"], "gana process_date / carga más reciente"))
-        out.append(_row("NUL-01", t, "nulo en obligatoria", "filas con alguna columna obligatoria nula",
-                        s["required_null_rows"], s["rows_after_dedup"], "cuarentena (contrato)"))
-        out.append(_row("CAST-01", t, "cast fallido", "valores no nulos que no castean al tipo del contrato",
-                        sum(s["cast_failures"].values()), s["rows_bronze"], "queda nulo; cuarentena si es obligatoria"))
-        out.append(_row("CON-01", t, "viola el contrato", "filas que fallan algún check pandera",
+        out.append(_row("DUP-01", t, "exact duplicate", "rows identical in all contract columns",
+                        s["exact_duplicates"], s["rows_bronze"], "one is kept", ("dup", t, None)))
+        out.append(_row("DUP-02", t, "PK versions", "same PK with different content (upsert)",
+                        s["superseded_versions"], s["rows_bronze"], "latest process_date / load wins"))
+        out.append(_row("NUL-01", t, "null in required column", "rows with a null in some required column",
+                        s["required_null_rows"], s["rows_after_dedup"], "quarantine (contract)"))
+        out.append(_row("CAST-01", t, "failed cast", "non-null values that do not cast to the contract type",
+                        sum(s["cast_failures"].values()), s["rows_bronze"], "left null; quarantine if required"))
+        out.append(_row("CON-01", t, "violates the contract", "rows that fail some pandera check",
                         s["quarantined"], s["rows_after_dedup"], "silver/_quarantine/"))
         for col, norm in s["normalized"].items():
             pairs = ", ".join(f"{a} → {b}" for a, b in norm["mapping"].items())
-            out.append(_row("LBL-01", t, "etiqueta inconsistente", f"{col}: {pairs}", norm["n"], norm["denominator"],
-                            "se normaliza en silver", LABEL_EDA.get((t, col))))
+            out.append(_row("LBL-01", t, "inconsistent label", f"{col}: {pairs}", norm["n"], norm["denominator"],
+                            "normalized in silver", LABEL_EDA.get((t, col))))
         files = [r for r in registry if r["table"] == t]
-        out.append(_row("SCH-01", t, "cambio de schema", "archivos cuyo header difiere del contrato",
-                        sum(r["schema_drift"] for r in files), len(files), "alias declarado o columna solo en bronze"))
+        out.append(_row("SCH-01", t, "schema change", "files whose header differs from the contract",
+                        sum(r["schema_drift"] for r in files), len(files), "declared alias or column only in bronze"))
     if "transactions" in tables:
         n, den = con.sql(f"""SELECT count(*) FILTER (WHERE NOT (transaction_date >= TIMESTAMP '{TX_WINDOW[0]}'
                                                          AND transaction_date < TIMESTAMP '{TX_WINDOW[1]}')), count(*)
                              FROM read_parquet('{layout.silver / 'transactions.parquet'}')""").fetchone()
-        out.append(_row("WIN-01", "transactions", "fuera de la ventana",
-                        f"transaction_date fuera de [{TX_WINDOW[0]}, {TX_WINDOW[1]}) en lo leído",
-                        n, den, "queda en silver, no pasa a gold (R1)"))
+        out.append(_row("WIN-01", "transactions", "outside the window",
+                        f"transaction_date outside [{TX_WINDOW[0]}, {TX_WINDOW[1]}) in what was read",
+                        n, den, "stays in silver, does not go to gold (R1)"))
     for cid, t, flag, check, desc, action, eda in FLAG_CHECKS:
         if t not in tables:
             continue
@@ -131,5 +131,5 @@ def run(con: duckdb.DuckDBPyConnection, layout: Layout, tables: tuple[str, ...],
     for r in out:
         if not with_eda or r["table"] in WINDOWED:
             r["eda"] = None
-    log.info("checks: %d, con violaciones: %d", len(out), sum(r["n"] > 0 for r in out))
+    log.info("checks: %d, with violations: %d", len(out), sum(r["n"] > 0 for r in out))
     return out

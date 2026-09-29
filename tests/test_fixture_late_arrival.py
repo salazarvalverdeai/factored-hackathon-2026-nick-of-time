@@ -1,5 +1,5 @@
-"""El pipeline completo sobre el fixture late_arrival reproduce los conteos de fixture.json → expected y cumple
-contracts/gold_contract.md (ventana, customer_id resuelto por join, is_fraud solo en gold_eval, tablas derivadas)."""
+"""The full pipeline over the late_arrival fixture reproduces the counts in fixture.json → expected and complies with
+contracts/gold_contract.md (window, customer_id resolved by join, is_fraud only in gold_eval, derived tables)."""
 from __future__ import annotations
 
 import duckdb
@@ -34,8 +34,8 @@ def test_gold_contract_on_fixture(tmp_path):
     tx = con.sql(f"SELECT transaction_id, customer_id, _customer_id_source "
                  f"FROM read_parquet('{layout.gold / 'transactions.parquet'}')").pl()
     by_id = {r["transaction_id"]: r for r in tx.iter_rows(named=True)}
-    assert by_id["FX-TRX-0005"]["customer_id"] == "FX-CLI-001"                                    # R2: dueño
+    assert by_id["FX-TRX-0005"]["customer_id"] == "FX-CLI-001"                                    # R2: owner
     assert by_id["FX-TRX-0005"]["_customer_id_source"] == "FX-CLI-005"
-    assert by_id["FX-TRX-0009"]["customer_id"] is None                                            # producto huérfano
-    assert "FX-TRX-0015" not in by_id                                                             # R1: fuera de ventana
+    assert by_id["FX-TRX-0009"]["customer_id"] is None                                            # orphan product
+    assert "FX-TRX-0015" not in by_id                                                             # R1: out of window
     assert sorted(labels["transaction_id"]) == sorted(by_id)                                      # 1:1

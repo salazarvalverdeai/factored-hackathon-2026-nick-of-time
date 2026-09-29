@@ -1,6 +1,6 @@
--- Respalda: calidad_datos.md §B2 (¿los nulos de campos que usan las fases 4-6 son estructurales o aleatorios?).
--- Produce: outputs/tables/01_null_patterns.csv (vía eda/quality.py).
--- wait_time_seconds y duration_seconds alimentan el proxy de costo; credit_score e income alimentan W4.
+-- Supports: data_quality.md §B2 (are the nulls in fields used by phases 4-6 structural or random?).
+-- Produces: outputs/tables/01_null_patterns.csv (via eda/quality.py).
+-- wait_time_seconds and duration_seconds feed the cost proxy; credit_score and income feed W4.
 SELECT 'call_center_interactions' AS tbl, 'wait_time_seconds' AS col, 'channel' AS dimension, channel AS value,
        count(*) AS n, round(100.0 * avg((wait_time_seconds IS NULL)::INT), 2) AS pct_null
 FROM call_center_interactions GROUP BY channel

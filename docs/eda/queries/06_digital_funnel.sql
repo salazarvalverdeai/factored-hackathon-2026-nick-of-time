@@ -1,8 +1,8 @@
--- Respalda: expediente W2 §(7) y findings.md §9 (exploración opcional: ¿la gente llama porque la app falló?).
--- Produce: outputs/tables/06_digital_funnel.csv (vía eda/funnel.py).
--- Para cada contacto: ¿el mismo cliente tuvo eventos Error / Login en las 24 h previas? Control: la misma franja de
--- 24 h pero 7 días antes (actividad normal del cliente). Solo eventos con customer_id (76% del total).
--- {case_int} = reglas de interactions.
+-- Supports: W2 dossier §(7) and findings.md §9 (optional exploration: do people call because the app failed?).
+-- Produces: outputs/tables/06_digital_funnel.csv (via eda/funnel.py).
+-- For each contact: did the same customer have Error / Login events in the previous 24 h? Control: the same
+-- 24 h window but 7 days earlier (the customer's normal activity). Only events with customer_id (76% of the total).
+-- {case_int} = interactions rules.
 WITH e AS (
     SELECT customer_id, event_date, event_type = 'Error' AS is_error, event_type = 'Login' AS is_login
     FROM digital_events WHERE customer_id IS NOT NULL AND event_type IN ('Error', 'Login')
@@ -27,6 +27,6 @@ SELECT i.reason_category, i.rule_int, count(*) AS n,
        count(*) FILTER (WHERE coalesce(pre.login, FALSE)) AS n_login_24h_before,
        count(*) FILTER (WHERE coalesce(ctl.login, FALSE)) AS n_login_control
 FROM i LEFT JOIN pre USING (interaction_id) LEFT JOIN ctl USING (interaction_id)
-WHERE i.interaction_date >= TIMESTAMP '2023-06-25'   -- deja 8 días de historia para la ventana de control
+WHERE i.interaction_date >= TIMESTAMP '2023-06-25'   -- leaves 8 days of history for the control window
 GROUP BY ALL
 ORDER BY n DESC

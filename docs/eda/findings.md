@@ -1,292 +1,292 @@
-# Hallazgos del EDA — índice
+# EDA findings — index
 
-> Índice del EDA del dataset sintético LATAM Bank (Factored AI & Data Hackathon 2026) para el pitch de Freddy.
-> Cada cifra lleva etiqueta (`[medido]` = sale del dataset con la query indicada; `[supuesto]`; `[proyectado]`) y su
-> archivo en `docs/eda/queries/` u `outputs/tables/`. Última actualización: 26 sep 2026 (fases 0–7).
-> Regenerar todo: ver `README.md` (`python -m eda.<modulo>` en orden y `python -m eda.report`).
+> Index of the EDA of the synthetic LATAM Bank dataset (Factored AI & Data Hackathon 2026) for Freddy's pitch.
+> Every figure carries a label (`[measured]` = comes from the dataset with the indicated query; `[assumption]`; `[projected]`) and its
+> file in `docs/eda/queries/` or `outputs/tables/`. Last updated: Sep 26, 2026 (phases 0–7).
+> Regenerate everything: see `README.md` (`python -m eda.<module>` in order and `python -m eda.report`).
 
-## Documentos
-| Documento | Contenido |
+## Documents
+| Document | Content |
 |---|---|
-| `docs/eda/resumen_ejecutivo.md` | Una página: qué tiene y qué no el dataset, dónde hay señal, ranking, ideas, preguntas |
-| `docs/eda/workflows/W1_cuentas_pagos.md` … `W4_credito.md` | Expedientes con la misma estructura de 8 secciones |
-| `docs/eda/calidad_datos.md` | Inventario, calidad por tabla y evidencia de data engineering para el pitch (§C) |
-| `docs/eda/mapeo_workflows.md` | Reglas de mapeo v1 con confianza, cobertura por fuente, confiabilidad motivo vs texto |
-| Este archivo | Resumen por workflow, comparación con la misma vara, ranking, ideas, vacíos, decisiones; anexo por fase |
+| `docs/eda/executive_summary.md` | One page: what the dataset has and does not have, where there is signal, ranking, ideas, questions |
+| `docs/eda/workflows/W1_accounts_payments.md` … `W4_credit.md` | Dossiers with the same 8-section structure |
+| `docs/eda/data_quality.md` | Inventory, quality per table and data engineering evidence for the pitch (§C) |
+| `docs/eda/workflow_mapping.md` | v1 mapping rules with confidence, coverage per source, reason vs text reliability |
+| This file | Summary per workflow, same-yardstick comparison, ranking, ideas, gaps, decisions; annex per phase |
 
-## A. Lo que cambia el pitch
-1. **No hay motivo granular ni intents ni texto real**: `contact_reason` = `reason_category` (6 valores),
-   `detected_intents` tiene un solo valor, los transcripts son 2 plantillas de consulta de saldo independientes del
-   motivo (kappa 0.0003) y de los productos del cliente. Un clasificador de intención sobre este texto no es defendible
-   (`calidad_datos.md` §A5, `mapeo_workflows.md` §5).
-2. **Solo W1 tiene una regla de contacto de confianza media** (`Transaccional`, 35.0% de los contactos); W3 y W4 entran
-   con confianza baja (`Queja` 17.1%, `Comercial` 8.0%) y **W2 no tiene contactos propios** (§3).
-3. **Los outcomes de contacto sí discriminan, pero solo por motivo**: FCR 91.5% (W1) vs 43.6% (W3), duración 3.4 vs
-   7.2 min, NPS −69.9 vs −85.3. Nada depende de canal, país, segmento, acento ni agente (V ≤ 0.008). **SLA, escalamiento,
-   re-contacto y resolución de complaints son planos** (§4).
-4. **Señal aprendible en dos lugares**: FCR/seguimiento (AUC 0.763 / 0.676, 100% explicada por el motivo) y fraude vía
-   el `fraud_score` existente (≥ 50 → precisión 100%, recall 48.8%). **Escalado, SLA, declinación, reverso, tarjeta
-   bloqueada y mora son ruido** (AUC ≈ 0.50) (§5).
-5. **El ahorro por contacto es marginal o negativo con costos laborales LATAM** (USD 10–20/h vs IA USD 0.50–1.84): el
-   business case depende del supuesto de costo, no de los datos (§6).
-6. **Los problemas de calidad anunciados no están** (0 duplicados, 0 llegadas tardías, sin evolución de schema); **los
-   reales son otros** (FK a productos de otro cliente 100%, fechas futuras, orden temporal violado): son la evidencia de
-   data engineering (`calidad_datos.md` §C).
+## A. What changes for the pitch
+1. **There is no granular reason, no intents and no real text**: `contact_reason` = `reason_category` (6 values),
+   `detected_intents` has a single value, the transcripts are 2 balance-inquiry templates independent of the
+   reason (kappa 0.0003) and of the customer's products. An intent classifier over this text is not defensible
+   (`data_quality.md` §A5, `workflow_mapping.md` §5).
+2. **Only W1 has a medium-confidence contact rule** (`Transaccional`, 35.0% of contacts); W3 and W4 come in
+   with low confidence (`Queja` 17.1%, `Comercial` 8.0%) and **W2 has no contacts of its own** (§3).
+3. **Contact outcomes do discriminate, but only by reason**: FCR 91.5% (W1) vs 43.6% (W3), duration 3.4 vs
+   7.2 min, NPS −69.9 vs −85.3. Nothing depends on channel, country, segment, accent or agent (V ≤ 0.008). **SLA, escalation,
+   re-contact and complaint resolution are flat** (§4).
+4. **Learnable signal in two places**: FCR/follow-up (AUC 0.763 / 0.676, 100% explained by the reason) and fraud via
+   the existing `fraud_score` (≥ 50 → precision 100%, recall 48.8%). **Escalation, SLA, decline, reversal, blocked
+   card and delinquency are noise** (AUC ≈ 0.50) (§5).
+5. **Savings per contact are marginal or negative with LATAM labor costs** (USD 10–20/h vs AI USD 0.50–1.84): the
+   business case depends on the cost assumption, not on the data (§6).
+6. **The announced quality problems are not there** (0 duplicates, 0 late arrivals, no schema evolution); **the
+   real ones are different** (FKs to another customer's products 100%, future dates, violated temporal order): they are the
+   data engineering evidence (`data_quality.md` §C).
 
-## B. Resumen por workflow
-### W1 — Cuentas y pagos → `workflows/W1_cuentas_pagos.md`
-- **Volumen**: 6,661 contactos/mes (`Transaccional`, confianza media; 35.0%); 3,365 pagos rechazados y 1,348
-  pendientes por mes desde cuentas `[medido]` (`04_workflow_scorecard.csv`, `04_trigger_events_summary.csv`).
-- **Outcomes**: FCR 91.5% [91.4, 91.6], AHT 3.7 min, 0.0% sentimiento negativo, NPS −69.9: el workflow más "fácil".
-  Cota automatizable 69.3% `[supuesto sobre medido]` (`06_cost_by_workflow.csv`).
-- **Señal**: no resuelto AUC 0.763 solo por el motivo (baseline = regla por motivo). **Señales deterministas ricas**:
-  saldos, movimientos consistentes con el dueño del producto (100%), estado de pagos, tipo de cambio coherente (1–2%).
-- **Riesgo**: poco dolor y ahorro por contacto negativo en el escenario base LATAM (−51k USD/año); puede verse como
-  "chatbot de saldo".
+## B. Summary per workflow
+### W1 — Accounts and payments → `workflows/W1_accounts_payments.md`
+- **Volume**: 6,661 contacts/month (`Transaccional`, medium confidence; 35.0%); 3,365 rejected and 1,348
+  pending payments per month from accounts `[measured]` (`04_workflow_scorecard.csv`, `04_trigger_events_summary.csv`).
+- **Outcomes**: FCR 91.5% [91.4, 91.6], AHT 3.7 min, 0.0% negative sentiment, NPS −69.9: the "easiest" workflow.
+  Automatable bound 69.3% `[assumption over measured]` (`06_cost_by_workflow.csv`).
+- **Signal**: not resolved AUC 0.763 from the reason alone (baseline = rule by reason). **Rich deterministic signals**:
+  balances, movements consistent with the product owner (100%), payment status, consistent exchange rate (1–2%).
+- **Risk**: little pain and negative savings per contact in the LATAM base scenario (−51k USD/year); it may look like a
+  "balance chatbot".
 
-### W2 — Tarjetas → `workflows/W2_tarjetas.md`
-- **Volumen**: sin contactos atribuibles; 2,383/mes solo vía plantilla de transcript (no confiable). Eventos: 2,156
-  declinaciones de tarjeta/mes y 7,044 tarjetas bloqueadas al corte `[medido]` (`04_trigger_events_summary.csv`,
+### W2 — Cards → `workflows/W2_cards.md`
+- **Volume**: no attributable contacts; 2,383/month only via transcript template (unreliable). Events: 2,156
+  card declines/month and 7,044 blocked cards at cutoff `[measured]` (`04_trigger_events_summary.csv`,
   `04_products_by_status.csv`).
-- **Señal**: ninguna (declinada AUC 0.503, bloqueada 0.505). **Señales deterministas**: `response_code` ISO 8583
-  (05, 14, 51, 54) explica cada declinación; `product_status` el bloqueo.
-- **Riesgo**: el dataset no muestra demanda de contacto para W2; el componente aprendido tendría que salir de datos
-  generados por el equipo. Sin embudo "error de app → llamada" (0.154% vs 0.149% de control).
+- **Signal**: none (declined AUC 0.503, blocked 0.505). **Deterministic signals**: `response_code` ISO 8583
+  (05, 14, 51, 54) explains each decline; `product_status` explains the block.
+- **Risk**: the dataset shows no contact demand for W2; the learned component would have to come from data
+  generated by the team. No "app error → call" funnel (0.154% vs 0.149% control).
 
-### W3 — Disputas → `workflows/W3_disputas.md`
-- **Volumen**: 679 complaints/mes de cargos no reconocidos y cobros indebidos (36.4% de complaints, confianza
-  alta/media); 3,241 contactos `Queja`/mes (confianza baja); 120 fraudes y 1,241 reversos por mes `[medido]`.
-- **Outcomes**: el peor en contacto: FCR 43.6%, 63.0% requiere seguimiento, 7.2 min, CSAT top 6.4%, NPS −85.3. SLA
-  20.0% igual que el resto (no informativo).
-- **Señal**: **`fraud_score` ≥ 50 → 100% de precisión, 48.8% de recall (45/mes); ≥ 30 → 79.6% / 69.3%**
-  (`05_fraud_score_thresholds.csv`). Features + score AUC 0.79 vs score solo 0.75 (sin mejora significativa).
-- **Riesgo**: complaints no se vincula a la interacción ni a un producto del propio cliente (`affected_product_id` de
-  otro cliente en el 100%); 20.6% de los fraudes sin score.
+### W3 — Disputes → `workflows/W3_disputes.md`
+- **Volume**: 679 complaints/month of unrecognized charges and wrongful charges (36.4% of complaints, high/medium
+  confidence); 3,241 `Queja` contacts/month (low confidence); 120 frauds and 1,241 reversals per month `[measured]`.
+- **Outcomes**: the worst on contact: FCR 43.6%, 63.0% require follow-up, 7.2 min, CSAT top 6.4%, NPS −85.3. SLA
+  20.0%, same as the rest (not informative).
+- **Signal**: **`fraud_score` ≥ 50 → 100% precision, 48.8% recall (45/month); ≥ 30 → 79.6% / 69.3%**
+  (`05_fraud_score_thresholds.csv`). Features + score AUC 0.79 vs score alone 0.75 (no significant improvement).
+- **Risk**: complaints is not linked to the interaction or to a product of the customer's own (`affected_product_id` of
+  another customer in 100%); 20.6% of frauds without a score.
 
-### W4 — Crédito → `workflows/W4_credito.md`
-- **Volumen**: 1,524 contactos `Comercial`/mes (confianza baja); sin complaints ni texto; 31,870 préstamos en cartera
-  `[medido]`.
-- **Outcomes**: FCR 65.2%, AHT 9.0 min (el más largo).
-- **Señal**: **ninguna**: la mora no se predice (AUC 0.497). La elegibilidad solo puede ser una política de reglas
-  sintética; `credit_score` 15.0% y `income` 20.0% nulos obligan a manejar faltantes.
-- **Riesgo**: foto única al corte (leakage si se usa el estado actual), sin solicitudes ni decisiones de crédito,
-  requisitos del reto más estrictos (el LLM no puede aprobar).
+### W4 — Credit → `workflows/W4_credit.md`
+- **Volume**: 1,524 `Comercial` contacts/month (low confidence); no complaints or text; 31,870 loans in the portfolio
+  `[measured]`.
+- **Outcomes**: FCR 65.2%, AHT 9.0 min (the longest).
+- **Signal**: **none**: delinquency cannot be predicted (AUC 0.497). Eligibility can only be a synthetic rules
+  policy; `credit_score` 15.0% and `income` 20.0% null force handling of missing values.
+- **Risk**: single snapshot at cutoff (leakage if the current status is used), no credit applications or decisions,
+  stricter challenge requirements (the LLM cannot approve).
 
-## C. Comparación con la misma vara y ranking
-El scorecard completo, con n, denominador e IC95 por celda, está en §4 (anexo) y en `04_workflow_scorecard.csv`.
-Como "el problema en números" solo discrimina por motivo y dos workflows no tienen población de contacto confiable,
-la comparación usa el **criterio alternativo acordado: riqueza de labels, viabilidad en 10 días y señales
-deterministas** (más la confianza del mapeo y el dolor medido como desempate).
+## C. Same-yardstick comparison and ranking
+The full scorecard, with n, denominator and CI95 per cell, is in §4 (annex) and in `04_workflow_scorecard.csv`.
+Since "the problem in numbers" only discriminates by reason and two workflows have no reliable contact population,
+the comparison uses the **agreed alternative criterion: label richness, feasibility in 10 days and deterministic
+signals** (plus mapping confidence and measured pain as tie-breakers).
 
-| Criterio | W1 cuentas/pagos | W2 tarjetas | W3 disputas | W4 crédito |
+| Criterion | W1 accounts/payments | W2 cards | W3 disputes | W4 credit |
 |---|---|---|---|---|
-| Label con señal (fase 5) | media: FCR vía motivo (trivial) | baja: ninguno | **alta: fraude vía `fraud_score`** | baja: ninguno |
-| Señales deterministas para tools y verificación | **alta**: saldos, movimientos, pagos, FX | **alta**: `response_code`, bloqueo | **alta**: `fraud_score`, reversos, casos | media: score/ingreso con nulos |
-| Viabilidad en 10 días | **alta** | media-alta | media | baja-media (política + compliance) |
-| Confianza del mapeo de contactos | **media (35.0%)** | ninguna | baja (contactos) / alta-media (casos) | baja |
-| Dolor medido (FCR, AHT, NPS) | bajo | n/d | **alto** | medio |
-| Evaluación "saber cuándo no actuar" | media | media | **alta**: 3 zonas medibles | media (faltantes) |
-| **Ranking** | **2°** | **3°** | **1°** | **4°** |
+| Label with signal (phase 5) | medium: FCR via reason (trivial) | low: none | **high: fraud via `fraud_score`** | low: none |
+| Deterministic signals for tools and verification | **high**: balances, movements, payments, FX | **high**: `response_code`, block | **high**: `fraud_score`, reversals, cases | medium: score/income with nulls |
+| Feasibility in 10 days | **high** | medium-high | medium | low-medium (policy + compliance) |
+| Contact mapping confidence | **medium (35.0%)** | none | low (contacts) / high-medium (cases) | low |
+| Measured pain (FCR, AHT, NPS) | low | n/a | **high** | medium |
+| "Knowing when not to act" evaluation | medium | medium | **high**: 3 measurable zones | medium (missing values) |
+| **Ranking** | **2nd** | **3rd** | **1st** | **4th** |
 
-W3 queda primero porque es el único workflow con una señal medible que define cuándo actuar y cuándo escalar
-(`fraud_score`) y con el peor dolor de contacto, aunque su mapeo de contactos sea de confianza baja. W1 es el más
-viable y el mejor mapeado, pero sin dolor ni componente aprendido propio. W2 tiene buenas señales deterministas y cero
-demanda medible. W4 no tiene señal y concentra los requisitos más duros del reto.
+W3 comes first because it is the only workflow with a measurable signal that defines when to act and when to escalate
+(`fraud_score`) and with the worst contact pain, even though its contact mapping is low-confidence. W1 is the most
+feasible and the best mapped, but has no pain and no learned component of its own. W2 has good deterministic signals and zero
+measurable demand. W4 has no signal and concentrates the challenge's hardest requirements.
 
-## 8. Para el pitch: ideas candidatas
-**Idea 1 (recomendada) — W3: intake de disputas con triage verificable en 3 zonas.**
-El agente recibe la disputa (ES/PT), identifica la transacción entre las del propio cliente (verificando pertenencia),
-y decide con una regla fuera del modelo: `fraud_score` ≥ 50 → acción automática verificada (bloqueo + caso);
-30–50 → confirma con el cliente y deriva; < 30 o sin score → handoff estructurado con hechos verificados.
-- Números: **679 casos/mes** de cargos no reconocidos y cobros indebidos (`04_workflow_scorecard.csv`); **`fraud_score`
-  ≥ 50: precisión 100%, recall 48.8%** (`05_fraud_score_thresholds.csv`); contactos `Queja` con **FCR 43.6% vs 76.6%** del
-  banco (confianza baja).
-- Label + baseline: `is_fraud` held-out; baseline = umbral fijo de `fraud_score`; componente a evaluar = calibración del
-  triage y del handoff (el modelo features + score no mejora de forma significativa: decirlo).
-- Riesgo principal: complaints desvinculados de interacciones y productos; convertirlo en demo de aislamiento por
-  cliente (100% de `affected_product_id` es de otro cliente).
+## 8. For the pitch: candidate ideas
+**Idea 1 (recommended) — W3: dispute intake with verifiable 3-zone triage.**
+The agent receives the dispute (ES/PT), identifies the transaction among the customer's own (verifying ownership),
+and decides with a rule outside the model: `fraud_score` ≥ 50 → verified automatic action (block + case);
+30–50 → confirms with the customer and routes it; < 30 or no score → structured handoff with verified facts.
+- Numbers: **679 cases/month** of unrecognized charges and wrongful charges (`04_workflow_scorecard.csv`); **`fraud_score`
+  ≥ 50: precision 100%, recall 48.8%** (`05_fraud_score_thresholds.csv`); `Queja` contacts with **FCR 43.6% vs 76.6%** for the
+  bank (low confidence).
+- Label + baseline: held-out `is_fraud`; baseline = fixed `fraud_score` threshold; component to evaluate = calibration of the
+  triage and the handoff (the features + score model does not improve significantly: say so).
+- Main risk: complaints unlinked from interactions and products; turn it into a per-customer isolation
+  demo (100% of `affected_product_id` belongs to another customer).
 
-**Idea 2 — W1: consultas de cuenta y pagos con respuestas verificadas contra el ledger.**
-- Números: **6,661 contactos/mes (35.0%)**, única regla de confianza media; **FCR 91.5%, AHT 3.7 min, cota automatizable
-  69.3%**; 4,713 pagos rechazados o pendientes por mes (`04_trigger_events_summary.csv`).
-- Label + baseline: no resuelto (AUC 0.763, todo del motivo) → baseline por regla; evaluación del agente contra ground
-  truth determinista (saldo, movimientos, estado del pago) sobre casos held-out + set ES/PT generado.
-- Riesgo principal: poco dolor y ahorro negativo en el escenario base LATAM; difícil diferenciarse de un chatbot.
+**Idea 2 — W1: account and payment inquiries with answers verified against the ledger.**
+- Numbers: **6,661 contacts/month (35.0%)**, the only medium-confidence rule; **FCR 91.5%, AHT 3.7 min, automatable bound
+  69.3%**; 4,713 rejected or pending payments per month (`04_trigger_events_summary.csv`).
+- Label + baseline: not resolved (AUC 0.763, all from the reason) → rule baseline; agent evaluated against deterministic ground
+  truth (balance, movements, payment status) on held-out cases + a generated ES/PT set.
+- Main risk: little pain and negative savings in the LATAM base scenario; hard to stand out from a chatbot.
 
-**Idea 3 — W2: diagnóstico determinista de declinaciones y bloqueos de tarjeta.**
-- Números: **2,156 declinaciones de tarjeta/mes** con `response_code` ISO (05, 14, 51, 54); **7,044 tarjetas bloqueadas**.
-- Label + baseline: en el dataset no hay label aprendible (AUC ≈ 0.50); componente aprendido = clasificador de intención
-  sobre set ES/PT generado por el equipo vs baseline de reglas.
-- Riesgo principal: sin demanda de contacto medible para W2 en el dataset.
+**Idea 3 — W2: deterministic diagnosis of card declines and blocks.**
+- Numbers: **2,156 card declines/month** with ISO `response_code` (05, 14, 51, 54); **7,044 blocked cards**.
+- Label + baseline: there is no learnable label in the dataset (AUC ≈ 0.50); learned component = intent classifier
+  on an ES/PT set generated by the team vs a rules baseline.
+- Main risk: no measurable contact demand for W2 in the dataset.
 
-Transversal a las tres: `was_escalated` es ruido (AUC 0.501), así que **la política de handoff tiene que ser de reglas**,
-fuera del modelo, que es justo lo que pide el reto.
+Across all three: `was_escalated` is noise (AUC 0.501), so **the handoff policy has to be rule-based**,
+outside the model, which is exactly what the challenge asks for.
 
-## 7. Vacíos
-- **Dimensiones como foto única** (customers, products): sin historia, el estado es el del corte. No hay forma de saber
-  `product_status`, `credit_score`, `days_past_due` o `segment` al momento de un contacto. Riesgo de leakage para W2 y
-  W4 (fase 5). (`00_row_counts.csv`: 1 archivo por dimensión)
-- **Sin motivo de contacto granular**: `contact_reason` = `reason_category` (6 valores). (`00_enum_values.csv`)
-- **Sin intents ni texto real de cliente**: `detected_intents` tiene un valor; transcripts con 42 textos de cliente
-  distintos; complaints con 5 descripciones. (`00_multivalue_values.csv`, `01_business_key_checks.csv`)
-- **Sin vínculo complaint → interacción ni complaint → producto del cliente**. (`01_fk_orphans.csv`, C15)
-- **Sin producto confiable por interacción**: `mentioned_products` 99.35% huérfano. (`01_fk_orphans.csv`)
-- **Sin llegadas tardías ni evolución de schema** para demostrar frescura: hará falta un fixture etiquetado.
+## 7. Gaps
+- **Dimensions as a single snapshot** (customers, products): no history, the status is the one at cutoff. There is no way to know
+  `product_status`, `credit_score`, `days_past_due` or `segment` at the time of a contact. Leakage risk for W2 and
+  W4 (phase 5). (`00_row_counts.csv`: 1 file per dimension)
+- **No granular contact reason**: `contact_reason` = `reason_category` (6 values). (`00_enum_values.csv`)
+- **No intents and no real customer text**: `detected_intents` has one value; transcripts with 42 distinct customer
+  texts; complaints with 5 descriptions. (`00_multivalue_values.csv`, `01_business_key_checks.csv`)
+- **No complaint → interaction link and no complaint → customer's product link**. (`01_fk_orphans.csv`, C15)
+- **No reliable product per interaction**: `mentioned_products` 99.35% orphan. (`01_fk_orphans.csv`)
+- **No late arrivals and no schema evolution** to demonstrate freshness: a labeled fixture will be needed.
   (`01_late_arrivals.csv`)
-- **Sin SLA informativo**: `sla_breached` no depende del tiempo de resolución. (`01_complaints_sla_consistency.csv`)
-- **Encuestas sin escala completa**: CSAT/CES 1–4, NPS 2–7. (`01_survey_scale_usage.csv`)
-- **Sin MXN** en products/transactions (México opera 100% en USD). (`01_currency_by_country.csv`)
-- **W2 sin contactos propios y W2/W4 sin complaints asignables** (`03_coverage_summary.csv`).
-- **Escalamiento no aprendible** (AUC 0.501) y **mora no predecible** (AUC 0.497): no hay "cuándo escalar" ni "riesgo de
-  crédito" que aprender del dataset (`05_learnable_signal.csv`).
-- **Navegación digital independiente de los contactos**: sin embudo error → llamada (`06_digital_funnel.csv`).
-- **Sin costos del banco**: el business case depende de benchmarks externos (`06_business_case_inputs.csv`).
+- **No informative SLA**: `sla_breached` does not depend on resolution time. (`01_complaints_sla_consistency.csv`)
+- **Surveys without the full scale**: CSAT/CES 1–4, NPS 2–7. (`01_survey_scale_usage.csv`)
+- **No MXN** in products/transactions (Mexico operates 100% in USD). (`01_currency_by_country.csv`)
+- **W2 without contacts of its own and W2/W4 without assignable complaints** (`03_coverage_summary.csv`).
+- **Escalation not learnable** (AUC 0.501) and **delinquency not predictable** (AUC 0.497): there is no "when to escalate" or "credit
+  risk" to learn from the dataset (`05_learnable_signal.csv`).
+- **Digital navigation independent of contacts**: no error → call funnel (`06_digital_funnel.csv`).
+- **No bank costs**: the business case depends on external benchmarks (`06_business_case_inputs.csv`).
 
-## 9. Exploraciones posibles
-| Exploración | Workflow | Esfuerzo |
+## 9. Possible explorations
+| Exploration | Workflow | Effort |
 |---|---|---|
-| Vincular complaints W3 con reversos/fraudes del mismo cliente en ±30 días | W3 | medio día |
-| Curva precisión/recall de `fraud_score` por país, canal y producto (fairness del triage) | W3 | 2–3 horas |
-| Política de triage en 3 zonas con costo de falsos positivos/negativos | W3 | 1 día |
-| Reconstrucción de saldo histórico desde `transactions` vs `current_balance` | W1 | medio día |
-| Catálogo `response_code` × tipo de tarjeta × canal para el agente | W2 | 2 horas |
-| Política sintética de pre-elegibilidad y casos de borde por datos faltantes | W4 | medio día |
-| Set de evaluación ES/PT generado por el equipo (intenciones + respuestas esperadas desde el dataset) | todos | 1 día |
-| Fixture etiquetado de llegadas tardías y cambio de schema para demostrar frescura | todos | medio día |
-| Embudo errores/logins → llamada (**hecho**: sin efecto, `06_digital_funnel.csv`) | W2 | — |
+| Link W3 complaints with reversals/frauds of the same customer within ±30 days | W3 | half a day |
+| Precision/recall curve of `fraud_score` by country, channel and product (triage fairness) | W3 | 2–3 hours |
+| 3-zone triage policy with the cost of false positives/negatives | W3 | 1 day |
+| Reconstruction of historical balance from `transactions` vs `current_balance` | W1 | half a day |
+| `response_code` × card type × channel catalog for the agent | W2 | 2 hours |
+| Synthetic pre-eligibility policy and edge cases due to missing data | W4 | half a day |
+| ES/PT evaluation set generated by the team (intents + expected answers from the dataset) | all | 1 day |
+| Labeled fixture of late arrivals and schema change to demonstrate freshness | all | half a day |
+| Errors/logins → call funnel (**done**: no effect, `06_digital_funnel.csv`) | W2 | — |
 
-## 10. Preguntas para Slack
-1. ¿`contact_reason` idéntico a `reason_category` y `detected_intents` con un solo valor son intencionales, o habrá
-   una versión del dataset con motivo e intents granulares?
-2. ¿`complaints.origin_interaction_id` 100% nulo y `affected_product_id` apuntando a productos de otros clientes son
-   intencionales (test de aislamiento) o un defecto del generador?
-3. ¿Cuál es la definición de `sla_breached`? No depende de `resolution_days` ni del estado.
-4. ¿Las escalas de encuesta son CSAT 1–5, NPS 0–10, CES 1–7? En los datos solo aparecen 1–4 y 2–7.
-5. ¿Los placeholders `{monto}`, `{moneda}` en `agent_text` son intencionales?
-6. El diccionario anuncia ~2% duplicados, llegadas tardías y evolución de schema; no los encontramos. ¿Está pensado
-   que cada equipo los simule, o el dataset publicado no es la versión final?
-7. ¿`fraud_score` puede tratarse como un dato del banco disponible en tiempo real (input de la solución) o es una
-   variable de evaluación?
-8. ¿`reason_category` se captura al inicio del contacto (IVR/menú) o lo registra el agente al cierre? Define si la
-   señal de FCR es usable o es leakage.
-9. ¿Los archivos diarios con corte a las 06:00/08:00 reflejan una zona horaria o un día operativo intencional?
-10. ¿Hay un costo por contacto o por minuto de referencia que Factored espere en el business case?
+## 10. Questions for Slack
+1. Are `contact_reason` being identical to `reason_category` and `detected_intents` having a single value intentional,
+   or will there be a version of the dataset with granular reasons and intents?
+2. Are `complaints.origin_interaction_id` being 100% null and `affected_product_id` pointing to other customers' products
+   intentional (isolation test) or a generator defect?
+3. What is the definition of `sla_breached`? It depends neither on `resolution_days` nor on the status.
+4. Are the survey scales CSAT 1–5, NPS 0–10, CES 1–7? Only 1–4 and 2–7 appear in the data.
+5. Are the `{monto}`, `{moneda}` placeholders in `agent_text` intentional?
+6. The dictionary announces ~2% duplicates, late arrivals and schema evolution; we did not find them. Is each team
+   meant to simulate them, or is the published dataset not the final version?
+7. Can `fraud_score` be treated as bank data available in real time (an input to the solution), or is it an
+   evaluation variable?
+8. Is `reason_category` captured at the start of the contact (IVR/menu) or recorded by the agent at closing? It determines
+   whether the FCR signal is usable or is leakage.
+9. Do the daily files with a cutoff at 06:00/08:00 reflect a time zone or an intentional operating day?
+10. Is there a reference cost per contact or per minute that Factored expects in the business case?
 
-## Decisiones tomadas
-Decisiones de análisis tomadas en modo autónomo (fases 2–7), con su motivo. Freddy las revisa al final.
+## Decisions made
+Analysis decisions made in autonomous mode (phases 2–7), with their rationale. Freddy reviews them at the end.
 
-| Fase | Decisión | Motivo |
+| Phase | Decision | Rationale |
 |---|---|---|
-| 2 | Sin figuras en esta pasada; las series quedan en CSV | Breadth sobre depth; los documentos del Project son markdown |
-| 2 | Estacionalidad y tendencia se prueban contra un modelo nulo (volumen ∝ días hábiles equivalentes) | Distinguir patrón real de ruido en vez de mirar la serie |
-| 2 | `scikit-learn` agregado a `requirements.txt` | Baselines y modelos simples de la fase 5 |
-| 3 | Mapeo por fuente (6 fuentes), cada una con su denominador; poblaciones por workflow pueden solaparse | No hay un campo que asigne workflow a todas las filas; mezclar fuentes ocultaría que W2 y W4 no tienen contactos propios |
-| 3 | `Queja` → W3 y `Comercial` → W4 con confianza baja; `Producto` → AMBIGUO | Única forma de dar población de contacto a W3 y W4; se reporta cobertura estricta y amplia |
-| 3 | Plantilla de saldo de tarjeta → W2 (media) y de cuenta → W1 (alta) | Única señal de W2 a nivel de contacto; se marca como no confiable (independiente de todo) |
-| 3 | El acuerdo motivo vs `detected_intents` se reemplaza por motivo vs plantilla del transcript | `detected_intents` tiene un solo valor |
-| 3 | `mapeo_workflows.md` se genera con `python -m eda.report` desde los CSV | Evitar cifras desincronizadas |
-| 4 | "Discrimina" = IC95 separados **y** diferencia ≥ 2 pp (proporciones) o ≥ 10% relativo (resto) | Con n > 50k los IC son tan angostos que cualquier ruido del generador los separa |
-| 4 | Además de IC, chi-cuadrado / Kruskal-Wallis con V de Cramér / ε² contra 8 agrupaciones | Mostrar de qué depende (y de qué no) cada outcome |
-| 4 | Re-contacto = siguiente contacto del mismo cliente por cualquier motivo, con ventana completa de seguimiento | No hay forma de saber si el re-contacto es por el mismo tema |
-| 4 | NPS reportado como −% detractores | No hay respuestas 8–10 (fase 1) |
-| 4 | La conclusión esperada ("no discriminan") no se confirmó para contactos: se reporta tal cual | Regla del plan: demostrar, no asumir |
-| 5 | Preprocesamiento con Polars/numpy (one-hot de niveles con ≥ 50 filas, imputación por mediana de train + indicador) | No hay pandas en el entorno; evita leakage de estadísticas de test |
-| 5 | Veredicto: ruido si el IC95 del AUC incluye 0.5 o F1 ≤ F1 de "todo positivo"; señal débil si AUC < 0.60 | Operacionaliza "no supera al baseline" |
-| 5 | Transacciones: muestra determinista de ~1.2M por `hash(transaction_id) % 1000 < 271` para modelar; umbrales de `fraud_score` sobre las 4.4M | Tiempo de cómputo; el reservoir de DuckDB no era repetible con varios hilos |
-| 5 | `fraud_score` se evalúa como "score existente" y no como feature propia; se agregó un modelo features + score | Es la salida de otro modelo; hay que ver si algo le suma |
-| 5 | Modelo "solo motivo" para los labels de contacto | Mostrar que toda la señal viene de `reason_category` |
-| 6 | Costo por minuto = tarifa por hora / 60, sin ajuste por ocupación | Evitar un supuesto sin fuente; es cota inferior del costo humano |
-| 6 | Escenarios conservador/base/optimista + referencia global (Gartner USD 13.50 por contacto) | Mostrar que el resultado depende del supuesto de costo |
-| 6 | "Automatizable" = resuelto + no escalado + sin seguimiento + sin complaint del cliente en 30 días | Plan de la fase 6; se etiqueta como supuesto aunque las tasas sean medidas |
-| 6 | Búsqueda web solo de benchmarks públicos de costo (ningún dato del dataset sale del repo) | Los supuestos requieren fuente |
-| 6 | Embudo de digital_events (opcional, W2) hecho con ventana de control de 7 días antes | Distinguir causa de actividad normal; tomó < 1 hora |
-| 7 | Expedientes generados con `python -m eda.report` desde `outputs/tables/` | Cifras sincronizadas con las queries |
-| 7 | `findings.md` como índice; el detalle por fase queda como anexo con la numeración §0–§6 original | Mantener válidas las referencias desde queries y documentos |
-| 7 | Ranking por criterio alternativo: W3 > W1 > W2 > W4 | Señal medible + dolor (W3) vs viabilidad y mapeo (W1); ver §C |
-| 7 | `ORDER BY` por clave única en las bases de fases 4–5 y orden estable de niveles categóricos | Dos corridas completas dan CSV y documentos idénticos byte a byte |
+| 2 | No figures in this pass; the series stay in CSV | Breadth over depth; the Project documents are markdown |
+| 2 | Seasonality and trend are tested against a null model (volume ∝ equivalent business days) | Tell a real pattern from noise instead of eyeballing the series |
+| 2 | `scikit-learn` added to `requirements.txt` | Baselines and simple models for phase 5 |
+| 3 | Mapping per source (6 sources), each with its own denominator; populations per workflow may overlap | No field assigns a workflow to all rows; mixing sources would hide that W2 and W4 have no contacts of their own |
+| 3 | `Queja` → W3 and `Comercial` → W4 with low confidence; `Producto` → AMBIGUOUS | The only way to give W3 and W4 a contact population; strict and broad coverage are reported |
+| 3 | Card balance template → W2 (medium) and account balance template → W1 (high) | The only W2 signal at contact level; flagged as unreliable (independent of everything) |
+| 3 | The reason vs `detected_intents` agreement is replaced by reason vs transcript template | `detected_intents` has a single value |
+| 3 | `workflow_mapping.md` is generated with `python -m eda.report` from the CSVs | Avoid out-of-sync figures |
+| 4 | "Discriminates" = separated CI95 **and** a difference ≥ 2 pp (proportions) or ≥ 10% relative (the rest) | With n > 50k the CIs are so narrow that any generator noise separates them |
+| 4 | Besides CIs, chi-square / Kruskal-Wallis with Cramér's V / ε² against 8 groupings | Show what each outcome depends on (and what it does not) |
+| 4 | Re-contact = next contact by the same customer for any reason, with a full follow-up window | There is no way to know whether the re-contact is about the same issue |
+| 4 | NPS reported as −% detractors | There are no 8–10 responses (phase 1) |
+| 4 | The expected conclusion ("do not discriminate") was not confirmed for contacts: reported as is | Plan rule: demonstrate, do not assume |
+| 5 | Preprocessing with Polars/numpy (one-hot of levels with ≥ 50 rows, imputation by train median + indicator) | No pandas in the environment; avoids leakage of test statistics |
+| 5 | Verdict: noise if the AUC CI95 includes 0.5 or F1 ≤ F1 of "all positive"; weak signal if AUC < 0.60 | Operationalizes "does not beat the baseline" |
+| 5 | Transactions: deterministic sample of ~1.2M by `hash(transaction_id) % 1000 < 271` for modeling; `fraud_score` thresholds over the 4.4M | Compute time; DuckDB's reservoir sampling was not repeatable with multiple threads |
+| 5 | `fraud_score` is evaluated as an "existing score" and not as a feature of our own; a features + score model was added | It is the output of another model; we need to see whether anything adds to it |
+| 5 | "Reason only" model for the contact labels | Show that all the signal comes from `reason_category` |
+| 6 | Cost per minute = hourly rate / 60, with no occupancy adjustment | Avoid an unsourced assumption; it is a lower bound of the human cost |
+| 6 | Conservative/base/optimistic scenarios + global reference (Gartner USD 13.50 per contact) | Show that the result depends on the cost assumption |
+| 6 | "Automatable" = resolved + not escalated + no follow-up + no complaint from the customer within 30 days | Phase 6 plan; labeled as an assumption even though the rates are measured |
+| 6 | Web search only for public cost benchmarks (no dataset data leaves the repo) | Assumptions require a source |
+| 6 | digital_events funnel (optional, W2) done with a control window of the 7 days before | Distinguish cause from normal activity; took < 1 hour |
+| 7 | Dossiers generated with `python -m eda.report` from `outputs/tables/` | Figures in sync with the queries |
+| 7 | `findings.md` as the index; the per-phase detail stays as an annex with the original §0–§6 numbering | Keep references from queries and documents valid |
+| 7 | Ranking by alternative criterion: W3 > W1 > W2 > W4 | Measurable signal + pain (W3) vs feasibility and mapping (W1); see §C |
+| 7 | `ORDER BY` on a unique key in the phase 4–5 bases and a stable order of categorical levels | Two full runs give byte-identical CSVs and documents |
 
 ---
-# Anexo — detalle por fase
+# Annex — detail per phase
 
-## 0. Estado del dataset (inventario)
-Generado con `python scripts/s3_inventory.py` y `python -m eda.inventory`. Sincronizadas 12 de 13 tablas;
-`campaign_sends` diferida (fuera de alcance).
+## 0. Dataset status (inventory)
+Generated with `python scripts/s3_inventory.py` and `python -m eda.inventory`. 12 of 13 tables synced;
+`campaign_sends` deferred (out of scope).
 
-- **Formato y particiones** `[medido]`: 100% CSV (UTF-8 con BOM), 7,671 objetos, 5.35 GB. Hechos en
-  `data/<tabla>/year=YYYY/month=MM/day=DD/<tabla>_YYYYMMDD.csv`, 1 archivo/día, 1,097 días (2023-06-17 → 2026-06-17)
-  sin huecos, salvo `campaign_sends` (arranca 2023-07-01). Dimensiones: un CSV plano cada una. Todo subido el
-  2026-08-31 en ~15 min. `process_date` no está en la ruta pero sí como columna. (`00_inventory_files.csv`,
+- **Format and partitions** `[measured]`: 100% CSV (UTF-8 with BOM), 7,671 objects, 5.35 GB. Facts in
+  `data/<table>/year=YYYY/month=MM/day=DD/<table>_YYYYMMDD.csv`, 1 file/day, 1,097 days (2023-06-17 → 2026-06-17)
+  with no gaps, except `campaign_sends` (starts 2023-07-01). Dimensions: one flat CSV each. Everything uploaded on
+  2026-08-31 in ~15 min. `process_date` is not in the path but is present as a column. (`00_inventory_files.csv`,
   `queries/00_s3_partition_coverage.sql`)
-- **Conteos vs diccionario** `[medido]` (`00_row_counts.csv`, `queries/00_row_counts.sql`):
-  dimensiones exactas (150k, 400k, 350, 1,200, 200). Hechos **por debajo**: interactions 686,296 (0.858),
+- **Counts vs dictionary** `[measured]` (`00_row_counts.csv`, `queries/00_row_counts.sql`):
+  dimensions exact (150k, 400k, 350, 1,200, 200). Facts **below**: interactions 686,296 (0.858),
   transcripts 171,321 (0.857), surveys 212,759 (0.851), complaints 67,095 (0.839), transactions 4,425,008 (0.885).
-  **Por encima**: digital_events 15,620,994 (1.56) y daily_exchange_rates 13,164 (4.39).
-  Hipótesis `[supuesto]`: 6/7 = 0.857 coincide con fines de semana a la mitad de volumen (ver
-  `00_s3_partition_coverage.sql` bloque 3); se verifica en la fase 1 con filas por día de la semana.
-- **Duplicados de PK: 0 en las 12 tablas** `[medido]` (`00_row_counts.csv`). El ~2% anunciado no está en la PK;
-  se busca como duplicado de contenido en la fase 1.
-- **Cambios de schema: ninguno a nivel de header** `[medido]`: 1 firma de columnas por tabla en los 1,097 archivos
-  (`00_schema_by_partition.csv`). La "evolución de schema" anunciada, si existe, está en los valores (fase 1).
-- **Enums que difieren del diccionario** `[medido]` (`00_enum_vs_dictionary.csv`, `queries/00_enum_values.sql`):
-  `product_type` y `reason_category` vienen **en español** (8 tipos de producto, incl. `Seguro` no documentado; 6
-  categorías, incl. `Retención`); `document_type` sin `CURP`; `currency` de products/transactions **sin MXN**
-  (México opera en USD) aunque complaints sí trae MXN; interactions tiene canal `Web` extra (0.5%).
-- **Campos que no sirven como se esperaba** `[medido]` (`00_enum_values.csv`, `00_multivalue_values.csv`):
-  - `contact_reason` es **idéntico** a `reason_category` (6 valores). No hay motivo granular.
-  - `detected_intents` tiene **un solo valor** (`consulta_general`, 95.1%; resto nulo). `detected_keywords`: 3
-    palabras genéricas. `main_topics`: las mismas 6 categorías.
-  - `complaints.origin_interaction_id` **100% nulo**: no existe la cadena interaction → complaint.
-  - `complaints.description`: 5 plantillas ("Queja relacionada con {category}"). `resolution`: 5 plantillas.
-  - `call_transcripts.customer_text`: 42 valores distintos; 2 plantillas de consulta de saldo = 60%. `agent_text`
-    trae placeholders sin rellenar (`{monto} {moneda}`).
-  - `nps_category` sin `Promoter` (solo Detractor 21.2% y Passive 7.2%, resto nulo).
-- **Distribuciones uniformes** `[medido]`: `complaints.category` 5 × ~20%, `gender` F/M/O 3 × ~33%,
-  `transcription_model` 4 × ~25%. Señal de generador sintético uniforme (relevante para la decisión 2 del plan).
-- **Útil para el reto** `[medido]`: 129 agentes (10.75%) hablan portugués (`service_agents.languages`);
-  `response_code` con códigos ISO 8583 reales (00, 05, 14, 51, 54) para W2; `digital_events` tiene `Login`, `Error`
-  y `event_category=Authentication` para el embudo previo a llamada.
+  **Above**: digital_events 15,620,994 (1.56) and daily_exchange_rates 13,164 (4.39).
+  Hypothesis `[assumption]`: 6/7 = 0.857 matches weekends at half volume (see
+  `00_s3_partition_coverage.sql` block 3); verified in phase 1 with rows per day of the week.
+- **PK duplicates: 0 in the 12 tables** `[measured]` (`00_row_counts.csv`). The announced ~2% is not in the PK;
+  it is looked for as content duplicates in phase 1.
+- **Schema changes: none at header level** `[measured]`: 1 column signature per table across the 1,097 files
+  (`00_schema_by_partition.csv`). The announced "schema evolution", if it exists, is in the values (phase 1).
+- **Enums that differ from the dictionary** `[measured]` (`00_enum_vs_dictionary.csv`, `queries/00_enum_values.sql`):
+  `product_type` and `reason_category` come **in Spanish** (8 product types, incl. an undocumented `Seguro`; 6
+  categories, incl. `Retención`); `document_type` without `CURP`; `currency` in products/transactions **without MXN**
+  (Mexico operates in USD) although complaints does have MXN; interactions has an extra `Web` channel (0.5%).
+- **Fields that do not work as expected** `[measured]` (`00_enum_values.csv`, `00_multivalue_values.csv`):
+  - `contact_reason` is **identical** to `reason_category` (6 values). There is no granular reason.
+  - `detected_intents` has **a single value** (`consulta_general`, 95.1%; the rest null). `detected_keywords`: 3
+    generic words. `main_topics`: the same 6 categories.
+  - `complaints.origin_interaction_id` **100% null**: the interaction → complaint chain does not exist.
+  - `complaints.description`: 5 templates ("Queja relacionada con {category}"). `resolution`: 5 templates.
+  - `call_transcripts.customer_text`: 42 distinct values; 2 balance-inquiry templates = 60%. `agent_text`
+    has unfilled placeholders (`{monto} {moneda}`).
+  - `nps_category` without `Promoter` (only Detractor 21.2% and Passive 7.2%, the rest null).
+- **Uniform distributions** `[measured]`: `complaints.category` 5 × ~20%, `gender` F/M/O 3 × ~33%,
+  `transcription_model` 4 × ~25%. Sign of a uniform synthetic generator (relevant to decision 2 of the plan).
+- **Useful for the challenge** `[measured]`: 129 agents (10.75%) speak Portuguese (`service_agents.languages`);
+  `response_code` with real ISO 8583 codes (00, 05, 14, 51, 54) for W2; `digital_events` has `Login`, `Error`
+  and `event_category=Authentication` for the pre-call funnel.
 
-## 1. Calidad de datos
-Detalle completo, con denominadores y consecuencias, en `docs/eda/calidad_datos.md` §B. Módulo `python -m eda.quality`.
-Todas las cifras `[medido]` salvo que se indique.
+## 1. Data quality
+Full detail, with denominators and consequences, in `docs/eda/data_quality.md` §B. Module `python -m eda.quality`.
+All figures `[measured]` unless stated otherwise.
 
-| Tabla | Duplicados | Nulos relevantes | Huérfanos / pertenencia FK | Rezago p50/p95 (días) | Query |
+| Table | Duplicates | Relevant nulls | Orphans / FK ownership | Lag p50/p95 (days) | Query |
 |---|---|---|---|---|---|
-| customers | 0 | `credit_score` 15.0%, `income` 20.0% (aleatorios) | `registration_branch_id` 99.997% huérfano | — | `01_duplicates`, `01_null_rates`, `01_fk_orphans` |
-| products | 0 | `credit_limit` 5.1% en Tarjeta Crédito | 0 huérfanos; 49.9% abierto antes del registro del cliente | — | `01_fk_orphans`, `01_consistency_checks` (C17) |
-| call_center_interactions | 0 | `wait_time_seconds` solo existe en Inbound Call (estructural) | `mentioned_products` 99.35% huérfano; el resto, de otro cliente | 0 / 0 | `01_null_patterns`, `01_fk_orphans_mentioned_products`, `01_late_arrivals` |
-| call_transcripts | 0 | ~5–14% en campos opcionales | 0; consistencia perfecta con interactions (C01–C07) | 0 / 0 | `01_consistency_checks` |
-| satisfaction_surveys | 0 | preguntas 1–3 43–81% (estructural) | 0; consistencia perfecta (C08–C11) | −1 / 0 | `01_consistency_checks`, `01_late_arrivals` |
-| complaints | 0 | resolución 77% (casos abiertos) | `origin_interaction_id` 100% nulo; `affected_product_id` 100% de otro cliente | 0 / 0 | `01_fk_orphans`, `01_consistency_checks` (C15) |
-| transactions | 0 | `amount_usd` 100% nulo en USD, 5.0% en COP/ARS | 0; siempre del dueño del producto; 18.7% antes de la apertura | 0 / 0 | `01_range_checks` (R43, R44), `01_consistency_checks` (C12, C13) |
-| digital_events | 0 | `customer_id` 24.0% (aleatorio) | `product_id` 99.999% de otro cliente | 0 / 0 | `01_null_patterns`, `01_consistency_checks` (C20) |
+| customers | 0 | `credit_score` 15.0%, `income` 20.0% (random) | `registration_branch_id` 99.997% orphan | — | `01_duplicates`, `01_null_rates`, `01_fk_orphans` |
+| products | 0 | `credit_limit` 5.1% in Tarjeta Crédito | 0 orphans; 49.9% opened before the customer's registration | — | `01_fk_orphans`, `01_consistency_checks` (C17) |
+| call_center_interactions | 0 | `wait_time_seconds` only exists in Inbound Call (structural) | `mentioned_products` 99.35% orphan; the rest, of another customer | 0 / 0 | `01_null_patterns`, `01_fk_orphans_mentioned_products`, `01_late_arrivals` |
+| call_transcripts | 0 | ~5–14% in optional fields | 0; perfect consistency with interactions (C01–C07) | 0 / 0 | `01_consistency_checks` |
+| satisfaction_surveys | 0 | questions 1–3 43–81% (structural) | 0; perfect consistency (C08–C11) | −1 / 0 | `01_consistency_checks`, `01_late_arrivals` |
+| complaints | 0 | resolution 77% (open cases) | `origin_interaction_id` 100% null; `affected_product_id` 100% of another customer | 0 / 0 | `01_fk_orphans`, `01_consistency_checks` (C15) |
+| transactions | 0 | `amount_usd` 100% null in USD, 5.0% in COP/ARS | 0; always the product owner's; 18.7% before the opening | 0 / 0 | `01_range_checks` (R43, R44), `01_consistency_checks` (C12, C13) |
+| digital_events | 0 | `customer_id` 24.0% (random) | `product_id` 99.999% of another customer | 0 / 0 | `01_null_patterns`, `01_consistency_checks` (C20) |
 
-Lo que sorprendió:
-- **Los problemas que anuncia el diccionario casi no están**: 0 duplicados (tampoco con claves de negocio laxas), 0
-  llegadas tardías (el rezago es 0 o −1 día por un corte de día a las 06:00/08:00), sin evolución de schema. Sí están
-  los ~5% de nulos aleatorios. (`01_quality_summary.csv`, `01_business_key_checks.csv`, `01_day_boundary.csv`)
-- **Los problemas reales son otros**: FK que apuntan a productos de otro cliente (100% en complaints), fechas futuras
-  imposibles (~4% de customers y products con `last_updated` posterior a la carga), 18.7% de transacciones antes de la
-  apertura del producto, etiquetas `México`/`Mexico`, coordenadas inválidas en 47.7% de las sucursales.
-- **`sla_breached` ≈ 20% en todos los cortes** (días de resolución, estado, prioridad, tipo): no mide desempeño.
+What was surprising:
+- **The problems the dictionary announces are almost absent**: 0 duplicates (not even with loose business keys), 0
+  late arrivals (the lag is 0 or −1 day because of a day cutoff at 06:00/08:00), no schema evolution. The ~5% random
+  nulls are there. (`01_quality_summary.csv`, `01_business_key_checks.csv`, `01_day_boundary.csv`)
+- **The real problems are different**: FKs pointing to another customer's products (100% in complaints), impossible
+  future dates (~4% of customers and products with `last_updated` after the load), 18.7% of transactions before the
+  product's opening, `México`/`Mexico` labels, invalid coordinates in 47.7% of branches.
+- **`sla_breached` ≈ 20% in every slice** (resolution days, status, priority, type): it does not measure performance.
   (`01_complaints_sla_consistency.csv`)
-- **Encuestas truncadas**: CSAT y CES 1–4 con distribución idéntica, NPS 2–7 (sin promotores; NPS global −74.5).
-  Solo sirven comparaciones relativas. (`01_survey_scale_usage.csv`)
-- **Fines de semana a la mitad** en las tablas de atención (0.50): explica el 0.858 de la fase 0.
+- **Truncated surveys**: CSAT and CES 1–4 with identical distributions, NPS 2–7 (no promoters; global NPS −74.5).
+  Only relative comparisons are useful. (`01_survey_scale_usage.csv`)
+- **Weekends at half volume** in the service tables (0.50): explains the 0.858 from phase 0.
   (`01_rows_by_weekday.csv`)
-- **Cobertura de transcripts (25.0%) y encuestas (31.0%) plana** por motivo, canal y tipo de interacción.
+- **Flat transcript (25.0%) and survey (31.0%) coverage** by reason, channel and interaction type.
   (`01_coverage.csv`)
-- 54.4% de los clientes comparte email con otro: no sirve como identidad. (`01_business_key_checks.csv`)
+- 54.4% of customers share an email with another customer: it does not work as identity. (`01_business_key_checks.csv`)
 
-## 2. Demanda
-Módulo `python -m eda.demand`; queries `docs/eda/queries/02_*.sql`. Meses completos: jul 2023 – may 2026 (35).
-Todas las cifras `[medido]`.
+## 2. Demand
+Module `python -m eda.demand`; queries `docs/eda/queries/02_*.sql`. Full months: Jul 2023 – May 2026 (35).
+All figures `[measured]`.
 
-- **Volumen mensual**: 19,033 interacciones/mes (666,141 en 35 meses completos), 1,864 complaints/mes, 122,779
-  transacciones/mes (`02_seasonality_tests.csv`).
-- **Motivos** (`contact_reason` = `reason_category`, solo 6 valores; `02_reason_summary.csv`):
+- **Monthly volume**: 19,033 interactions/month (666,141 in 35 full months), 1,864 complaints/month, 122,779
+  transactions/month (`02_seasonality_tests.csv`).
+- **Reasons** (`contact_reason` = `reason_category`, only 6 values; `02_reason_summary.csv`):
 
-  | Motivo | % | Por mes | CV mensual |
+  | Reason | % | Per month | Monthly CV |
   |---|---:|---:|---:|
   | Transaccional | 35.0 | 6,661 | 0.039 |
   | Producto | 22.0 | 4,184 | 0.034 |
@@ -295,182 +295,182 @@ Todas las cifras `[medido]`.
   | Comercial | 8.0 | 1,524 | 0.040 |
   | Retención | 3.0 | 569 | 0.060 |
 
-- **Canal** (`02_monthly_volume.csv`): Phone 16,175/mes (85.0%), Email 764, App 731, WhatsApp 636, Web Chat 633,
-  Web 95. **Tipo**: Inbound Call 13,332/mes, Outbound 2,842, Chat 1,905, Email 764, Video 189. **País**: México 9,517,
-  Colombia 5,734, Argentina 3,781. **Segmento**: Basic 11,398, Plus 4,773, Premium 1,915, Student 947.
-- **Demanda plana en todas las dimensiones**:
-  - Sin tendencia: +0.31%/año, IC95 [−0.65, +1.27] (`02_seasonality_tests.csv`).
-  - Sin estacionalidad material: índice mes del año entre 0.975 y 1.028. El mes a mes tiene más varianza que Poisson
-    (D = 10.3) pero de magnitud ±3% (`02_seasonality_tests.csv`, modelo nulo en `eda/demand.py`).
-  - Fines de semana a la mitad (0.50, fase 1). **Perfil horario uniforme en 24 h**: 4.12–4.24% por hora, sin pico
+- **Channel** (`02_monthly_volume.csv`): Phone 16,175/month (85.0%), Email 764, App 731, WhatsApp 636, Web Chat 633,
+  Web 95. **Type**: Inbound Call 13,332/month, Outbound 2,842, Chat 1,905, Email 764, Video 189. **Country**: México 9,517,
+  Colombia 5,734, Argentina 3,781. **Segment**: Basic 11,398, Plus 4,773, Premium 1,915, Student 947.
+- **Flat demand across all dimensions**:
+  - No trend: +0.31%/year, CI95 [−0.65, +1.27] (`02_seasonality_tests.csv`).
+  - No material seasonality: month-of-year index between 0.975 and 1.028. Month-to-month has more variance than Poisson
+    (D = 10.3) but with a magnitude of ±3% (`02_seasonality_tests.csv`, null model in `eda/demand.py`).
+  - Weekends at half volume (0.50, phase 1). **Uniform hourly profile over 24 h**: 4.12–4.24% per hour, no peak
     (`02_hourly_profile.csv`).
-  - Mezcla de motivos constante en el tiempo: V de Cramér = 0.007, p = 0.76 (`02_reason_share_stability.csv`).
-  - **Misma intensidad de contacto por segmento y país**: 4.54–4.59 interacciones por cliente en la ventana; 99.0% de
-    los clientes contactó al menos una vez (`02_contact_rate.csv`).
-- **Complaints** (`02_complaints_monthly.csv`, `02_complaints_crosstab.csv`): Complaint 1,124/mes (60.3%), Claim 461
-  (24.7%), Request 188 (10.1%), Suggestion 91 (4.9%). Recepción: Call Center 50.3%, Email 19.9%, Web 14.7%, App 10.0%,
-  Branch 4.0%, **Regulator 20/mes (1.1%)**. `subcategory` es 1:1 con `category` (+10% nulo); **`case_type` es
-  independiente de `category`** (la misma mezcla ~54/22/9/4% en las 5 categorías). Serie mensual compatible con ruido
-  de Poisson (D = 1.3), sin tendencia.
-- **Eventos transaccionales que pueden originar contactos** (`02_transactions_monthly.csv`): 6,139 declinadas/mes
-  (5.0%), 1,242 reversadas/mes (1.0%), 2,450 pendientes/mes, 120 fraudes/mes (0.098%). Las declinaciones se reparten
-  entre todos los tipos de producto, incluidos préstamos y seguros (texto de generador, no de negocio).
-- **Lectura para el pitch**: el volumen es el único número de demanda defendible, y es plano. No hay pico horario,
-  estacional ni segmento más demandante que justifique un workflow sobre otro.
+  - Reason mix constant over time: Cramér's V = 0.007, p = 0.76 (`02_reason_share_stability.csv`).
+  - **Same contact intensity by segment and country**: 4.54–4.59 interactions per customer in the window; 99.0% of
+    customers made contact at least once (`02_contact_rate.csv`).
+- **Complaints** (`02_complaints_monthly.csv`, `02_complaints_crosstab.csv`): Complaint 1,124/month (60.3%), Claim 461
+  (24.7%), Request 188 (10.1%), Suggestion 91 (4.9%). Reception: Call Center 50.3%, Email 19.9%, Web 14.7%, App 10.0%,
+  Branch 4.0%, **Regulator 20/month (1.1%)**. `subcategory` is 1:1 with `category` (+10% null); **`case_type` is
+  independent of `category`** (the same ~54/22/9/4% mix in the 5 categories). Monthly series compatible with Poisson
+  noise (D = 1.3), no trend.
+- **Transactional events that can trigger contacts** (`02_transactions_monthly.csv`): 6,139 declined/month
+  (5.0%), 1,242 reversed/month (1.0%), 2,450 pending/month, 120 frauds/month (0.098%). Declines are spread
+  across all product types, including loans and insurance (generator output, not business logic).
+- **Reading for the pitch**: volume is the only defensible demand number, and it is flat. There is no hourly or
+  seasonal peak, nor a more demanding segment, that would justify one workflow over another.
 
-## 3. Mapeo a workflows
-Detalle, tabla de reglas y justificación en `docs/eda/mapeo_workflows.md`. Reglas en
-`docs/eda/queries/03_workflow_mapping.csv` (versión **v1**, 35 reglas con confianza alta/media/baja). Módulo
-`python -m eda.workflows`. Cifras `[medido]` (`03_coverage_summary.csv`).
+## 3. Mapping to workflows
+Detail, rule table and rationale in `docs/eda/workflow_mapping.md`. Rules in
+`docs/eda/queries/03_workflow_mapping.csv` (version **v1**, 35 rules with high/medium/low confidence). Module
+`python -m eda.workflows`. Figures `[measured]` (`03_coverage_summary.csv`).
 
-| Workflow | % contactos (interactions) | % complaints | % transcripts | Eventos disparadores (transactions/products) | Comentario |
+| Workflow | % contacts (interactions) | % complaints | % transcripts | Trigger events (transactions/products) | Comment |
 |---|---|---|---|---|---|
-| W1_cuentas_pagos | 35.0 (media) | 2.0 (baja) | 49.9 | 121,242 pagos rechazados + 48,599 pendientes desde cuenta | Único con regla de contacto de confianza media |
-| W2_tarjetas | 0.0 | 0.0 | 50.1 | 77,641 declinaciones de tarjeta; 7,044 tarjetas bloqueadas | Sin regla de contacto; solo texto (no confiable) y eventos |
-| W3_disputas | 17.1 (baja) | 36.4 (alta/media) | 0.0 | 4,316 fraudes + 44,714 reversos | El único con casos (complaints) asignables |
-| W4_credito | 8.0 (baja) | 0.0 | 0.0 | 31,870 préstamos en cartera | Sin casos ni texto |
-| OTRO / AMBIGUO | 18.0 / 22.0 | 61.5 / 0.0 | 0.0 / 0.0 | — | `Técnico` (15.0%) es un quinto workflow de facto |
+| W1_accounts_payments | 35.0 (medium) | 2.0 (low) | 49.9 | 121,242 rejected + 48,599 pending payments from accounts | The only one with a medium-confidence contact rule |
+| W2_cards | 0.0 | 0.0 | 50.1 | 77,641 card declines; 7,044 blocked cards | No contact rule; only text (unreliable) and events |
+| W3_disputes | 17.1 (low) | 36.4 (high/medium) | 0.0 | 4,316 frauds + 44,714 reversals | The only one with assignable cases (complaints) |
+| W4_credit | 8.0 (low) | 0.0 | 0.0 | 31,870 loans in the portfolio | No cases or text |
+| OTHER / AMBIGUOUS | 18.0 / 22.0 | 61.5 / 0.0 | 0.0 / 0.0 | — | `Técnico` (15.0%) is a de facto fifth workflow |
 
-- **Cobertura estricta de contactos: 35.0%** (alta + media); amplia 60.0% con las reglas de confianza baja.
-- **Motivo vs texto: kappa = 0.0003**; la plantilla del transcript es independiente del motivo (V = 0.008, p = 0.07)
-  y de los productos del cliente (48.8–48.9% tiene tarjeta de crédito con cualquier plantilla, igual que el total)
-  (`03_reason_vs_text_agreement.csv`, `03_template_vs_ownership.csv`). Ninguno de los dos es un label de intención.
-- **Sin sesgo de `has_transcript` por workflow** (24.9–25.2%, p = 0.84; `03_transcript_bias_by_workflow.csv`).
-- Catálogo de plantillas: 42 textos de cliente, 42 de agente, 5 descripciones y 5 resoluciones de complaints, 13
-  comentarios de encuesta (`03_template_catalog.csv`). Las resoluciones se reparten igual en todas las categorías.
+- **Strict contact coverage: 35.0%** (high + medium); broad 60.0% with the low-confidence rules.
+- **Reason vs text: kappa = 0.0003**; the transcript template is independent of the reason (V = 0.008, p = 0.07)
+  and of the customer's products (48.8–48.9% have a credit card with any template, same as the total)
+  (`03_reason_vs_text_agreement.csv`, `03_template_vs_ownership.csv`). Neither is an intent label.
+- **No `has_transcript` bias per workflow** (24.9–25.2%, p = 0.84; `03_transcript_bias_by_workflow.csv`).
+- Template catalog: 42 customer texts, 42 agent texts, 5 complaint descriptions and 5 complaint resolutions, 13
+  survey comments (`03_template_catalog.csv`). Resolutions are spread equally across all categories.
 
-## 4. Scorecard por workflow (tabla central)
-Módulo `python -m eda.outcomes`; queries `04_interactions_base.sql`, `04_complaints_base.sql`. Todas las cifras
-`[medido]`. Valor [IC95] (n = denominador). IC Wilson para proporciones, bootstrap (500, semilla 42) para medianas,
-p95 y medias. **Sin índice compuesto; cada fila tiene su propio denominador.** Poblaciones (fase 3): W1 = contactos
-`Transaccional`, W2 = contactos con transcript de saldo de tarjeta (texto no confiable), W3 = contactos `Queja`,
-W4 = contactos `Comercial`; en complaints W1 = CMP-04, W3 = CMP-01..03. W3 y W4 en contactos son de confianza baja.
-"¿Discrimina?" = IC de W1–W4 que no se solapan **y** diferencia práctica (≥ 2 pp o ≥ 10% relativo;
+## 4. Scorecard per workflow (central table)
+Module `python -m eda.outcomes`; queries `04_interactions_base.sql`, `04_complaints_base.sql`. All figures
+`[measured]`. Value [CI95] (n = denominator). Wilson CI for proportions, bootstrap (500, seed 42) for medians,
+p95 and means. **No composite index; each row has its own denominator.** Populations (phase 3): W1 = `Transaccional`
+contacts, W2 = contacts with a card-balance transcript (unreliable text), W3 = `Queja` contacts,
+W4 = `Comercial` contacts; in complaints W1 = CMP-04, W3 = CMP-01..03. W3 and W4 on contacts are low-confidence.
+"Discriminates?" = W1–W4 CIs that do not overlap **and** a practical difference (≥ 2 pp or ≥ 10% relative;
 `04_ci_overlap.csv`).
 
-| Métrica | W1 cuentas/pagos | W2 tarjetas | W3 disputas | W4 crédito | ¿Discrimina? |
+| Metric | W1 accounts/payments | W2 cards | W3 disputes | W4 credit | Discriminates? |
 |---|---|---|---|---|---|
-| Volumen mensual de contactos | 6,661 [6,576–6,746] (n=35) | 2,383 [2,351–2,415] (n=35) | 3,241 [3,201–3,282] (n=35) | 1,524 [1,503–1,544] (n=35) | sí |
-| FCR (%) | 91.5 [91.4–91.6] (n=240,056) | 76.6 [76.3–76.8] (n=85,910) | 43.6 [43.3–43.9] (n=117,021) | 65.2 [64.8–65.6] (n=54,879) | sí |
-| % escalado | 9.9 [9.8–10.1] (n=240,056) | 9.9 [9.7–10.1] (n=85,910) | 10.0 [9.9–10.2] (n=117,021) | 9.8 [9.6–10.1] (n=54,879) | no |
-| % requiere seguimiento | 22.1 [22.0–22.3] (n=240,056) | 34.9 [34.6–35.2] (n=85,910) | 63.0 [62.7–63.2] (n=117,021) | 44.5 [44.1–45.0] (n=54,879) | sí |
-| % sentimiento negativo (derivado) | 0.0 [-0.0–0.0] (n=240,056) | 19.5 [19.3–19.8] (n=85,910) | 34.9 [34.6–35.2] (n=117,021) | 34.9 [34.5–35.3] (n=54,879) | sí |
-| Duración p50 (min) | 3.42 [3.38–3.42] (n=206,465) | 4.85 [4.80–4.88] (n=73,812) | 7.18 [7.15–7.23] (n=100,727) | 9.00 [8.98–9.08] (n=47,082) | sí |
-| Duración p95 (min) | 6.80 [6.65–6.92] (n=206,465) | 10.27 [10.20–10.45] (n=73,812) | 11.05 [11.02–11.15] (n=100,727) | 13.47 [13.42–13.58] (n=47,082) | sí |
-| Espera p50 (min, solo Inbound) | 1.98 [1.97–2.00] (n=168,074) | 1.98 [1.97–2.00] (n=60,211) | 2.00 [1.98–2.02] (n=82,261) | 2.00 [1.97–2.00] (n=38,338) | no |
-| Espera p95 (min, solo Inbound) | 3.62 [3.58–3.63] (n=168,074) | 3.63 [3.60–3.66] (n=60,211) | 3.65 [3.63–3.68] (n=82,261) | 3.63 [3.62–3.68] (n=38,338) | no |
-| CSAT top = 4 (%) | 13.5 [13.2–13.8] (n=44,837) | 11.3 [10.9–11.8] (n=16,173) | 6.4 [6.0–6.7] (n=21,843) | 9.7 [9.2–10.3] (n=10,243) | sí |
-| CSAT media (1–4) | 2.91 [2.90–2.92] (n=44,837) | 2.77 [2.76–2.78] (n=16,173) | 2.43 [2.43–2.45] (n=21,843) | 2.66 [2.65–2.67] (n=10,243) | sí |
-| NPS (sin promotores) | -69.9 [-70.5–-69.3] (n=22,341) | -73.9 [-74.8–-72.9] (n=7,860) | -85.3 [-86.0–-84.6] (n=10,821) | -78.4 [-79.5–-77.2] (n=5,144) | sí |
-| CES media (1–4) | 2.91 [2.90–2.93] (n=7,354) | 2.75 [2.72–2.78] (n=2,729) | 2.44 [2.41–2.46] (n=3,693) | 2.67 [2.63–2.70] (n=1,760) | sí |
-| Re-contacto 7 días (%) | 2.88 [2.81–2.95] (n=238,253) | 2.81 [2.70–2.92] (n=85,222) | 2.88 [2.79–2.98] (n=116,055) | 2.89 [2.75–3.03] (n=54,464) | no |
-| Re-contacto 30 días (%) | 11.86 [11.73–11.99] (n=233,193) | 11.70 [11.49–11.92] (n=83,441) | 11.64 [11.45–11.82] (n=113,616) | 11.71 [11.44–11.99] (n=53,325) | no |
-| Volumen mensual de complaints | 37.7 [35.4–39.9] (n=35) | n/d (n=0) | 678.9 [669.6–688.2] (n=35) | n/d (n=0) | sí |
-| % SLA incumplido (complaints) | 20.4 [18.4–22.6] (n=1,367) | n/d (n=0) | 20.0 [19.5–20.5] (n=24,431) | n/d (n=0) | no |
-| Días de resolución p50 | 15 [13–15] (n=342) | n/d (n=0) | 16 [15–16] (n=5,622) | n/d (n=0) | no |
-| Días de resolución p95 | 28 [28–29] (n=342) | n/d (n=0) | 29 [29–29] (n=5,622) | n/d (n=0) | no |
-| % resueltos/cerrados | 25.7 [23.4–28.1] (n=1,367) | n/d (n=0) | 24.2 [23.6–24.7] (n=24,431) | n/d (n=0) | no |
+| Monthly contact volume | 6,661 [6,576–6,746] (n=35) | 2,383 [2,351–2,415] (n=35) | 3,241 [3,201–3,282] (n=35) | 1,524 [1,503–1,544] (n=35) | yes |
+| FCR (%) | 91.5 [91.4–91.6] (n=240,056) | 76.6 [76.3–76.8] (n=85,910) | 43.6 [43.3–43.9] (n=117,021) | 65.2 [64.8–65.6] (n=54,879) | yes |
+| % escalated | 9.9 [9.8–10.1] (n=240,056) | 9.9 [9.7–10.1] (n=85,910) | 10.0 [9.9–10.2] (n=117,021) | 9.8 [9.6–10.1] (n=54,879) | no |
+| % requiring follow-up | 22.1 [22.0–22.3] (n=240,056) | 34.9 [34.6–35.2] (n=85,910) | 63.0 [62.7–63.2] (n=117,021) | 44.5 [44.1–45.0] (n=54,879) | yes |
+| % negative sentiment (derived) | 0.0 [-0.0–0.0] (n=240,056) | 19.5 [19.3–19.8] (n=85,910) | 34.9 [34.6–35.2] (n=117,021) | 34.9 [34.5–35.3] (n=54,879) | yes |
+| Duration p50 (min) | 3.42 [3.38–3.42] (n=206,465) | 4.85 [4.80–4.88] (n=73,812) | 7.18 [7.15–7.23] (n=100,727) | 9.00 [8.98–9.08] (n=47,082) | yes |
+| Duration p95 (min) | 6.80 [6.65–6.92] (n=206,465) | 10.27 [10.20–10.45] (n=73,812) | 11.05 [11.02–11.15] (n=100,727) | 13.47 [13.42–13.58] (n=47,082) | yes |
+| Wait p50 (min, Inbound only) | 1.98 [1.97–2.00] (n=168,074) | 1.98 [1.97–2.00] (n=60,211) | 2.00 [1.98–2.02] (n=82,261) | 2.00 [1.97–2.00] (n=38,338) | no |
+| Wait p95 (min, Inbound only) | 3.62 [3.58–3.63] (n=168,074) | 3.63 [3.60–3.66] (n=60,211) | 3.65 [3.63–3.68] (n=82,261) | 3.63 [3.62–3.68] (n=38,338) | no |
+| CSAT top = 4 (%) | 13.5 [13.2–13.8] (n=44,837) | 11.3 [10.9–11.8] (n=16,173) | 6.4 [6.0–6.7] (n=21,843) | 9.7 [9.2–10.3] (n=10,243) | yes |
+| CSAT mean (1–4) | 2.91 [2.90–2.92] (n=44,837) | 2.77 [2.76–2.78] (n=16,173) | 2.43 [2.43–2.45] (n=21,843) | 2.66 [2.65–2.67] (n=10,243) | yes |
+| NPS (no promoters) | -69.9 [-70.5–-69.3] (n=22,341) | -73.9 [-74.8–-72.9] (n=7,860) | -85.3 [-86.0–-84.6] (n=10,821) | -78.4 [-79.5–-77.2] (n=5,144) | yes |
+| CES mean (1–4) | 2.91 [2.90–2.93] (n=7,354) | 2.75 [2.72–2.78] (n=2,729) | 2.44 [2.41–2.46] (n=3,693) | 2.67 [2.63–2.70] (n=1,760) | yes |
+| Re-contact 7 days (%) | 2.88 [2.81–2.95] (n=238,253) | 2.81 [2.70–2.92] (n=85,222) | 2.88 [2.79–2.98] (n=116,055) | 2.89 [2.75–3.03] (n=54,464) | no |
+| Re-contact 30 days (%) | 11.86 [11.73–11.99] (n=233,193) | 11.70 [11.49–11.92] (n=83,441) | 11.64 [11.45–11.82] (n=113,616) | 11.71 [11.44–11.99] (n=53,325) | no |
+| Monthly complaint volume | 37.7 [35.4–39.9] (n=35) | n/a (n=0) | 678.9 [669.6–688.2] (n=35) | n/a (n=0) | yes |
+| % SLA breached (complaints) | 20.4 [18.4–22.6] (n=1,367) | n/a (n=0) | 20.0 [19.5–20.5] (n=24,431) | n/a (n=0) | no |
+| Resolution days p50 | 15 [13–15] (n=342) | n/a (n=0) | 16 [15–16] (n=5,622) | n/a (n=0) | no |
+| Resolution days p95 | 28 [28–29] (n=342) | n/a (n=0) | 29 [29–29] (n=5,622) | n/a (n=0) | no |
+| % resolved/closed | 25.7 [23.4–28.1] (n=1,367) | n/a (n=0) | 24.2 [23.6–24.7] (n=24,431) | n/a (n=0) | no |
 
-**Conclusión de la fase 4 (cambia la esperada):**
-- **Los outcomes de contacto SÍ discriminan, pero solo por motivo** (`reason_category`): FCR V de Cramér = 0.43,
-  seguimiento 0.32, sentimiento negativo 0.39, duración ε² = 0.48, NPS detractor 0.14, CSAT top 0.08
-  (`04_discrimination_tests.csv`). W3 (`Queja`) es el peor en todo: FCR 43.6%, 63.0% requiere seguimiento,
-  7.2 min, CSAT top 6.4%, NPS −85.3. W1 (`Transaccional`) es el mejor: FCR 91.5%, 3.4 min, 0.0% sentimiento negativo.
-- **No discriminan por nada más**: canal, tipo de interacción, país, segmento, acento del cliente, experiencia o tipo
-  de agente tienen V ≤ 0.008 en todos los outcomes. Dentro de cada workflow, FCR, escalamiento y CSAT varían ≤ 0.8 pp
-  entre países y ≤ 2.3 pp entre segmentos (`04_scorecard_by_country.csv`, `04_scorecard_by_segment.csv`): sin
-  disparidades que investigar (y sin señal de fairness que demostrar).
-- **Escalamiento (~10%), espera, re-contacto (2.9% a 7 días, 11.8% a 30 días) y todas las métricas de complaints (SLA
-  ~20%, resolución p50 15–16 días, 24% resueltos) son planos** en todos los cortes. `sla_breached` y los tiempos de
-  resolución no sirven para priorizar.
-- Lectura: el generador asignó los outcomes de contacto como función del motivo más ruido. "El problema en números"
-  sí distingue a W3 (dolor) de W1 (volumen resoluble), pero solo en la medida en que el motivo `Queja` represente
-  disputas (confianza baja) y la señal viene de una sola variable.
-- **W2 no tiene población de contacto propia**: su columna es una mezcla aleatoria de motivos (texto independiente) y
-  por eso queda en el promedio general. Sus números reales son eventos: 2,156 declinaciones de tarjeta/mes y 7,044
-  tarjetas bloqueadas al corte (`04_trigger_events_summary.csv`, `04_products_by_status.csv`).
+**Phase 4 conclusion (changes the expected one):**
+- **Contact outcomes DO discriminate, but only by reason** (`reason_category`): FCR Cramér's V = 0.43,
+  follow-up 0.32, negative sentiment 0.39, duration ε² = 0.48, NPS detractor 0.14, CSAT top 0.08
+  (`04_discrimination_tests.csv`). W3 (`Queja`) is the worst on everything: FCR 43.6%, 63.0% require follow-up,
+  7.2 min, CSAT top 6.4%, NPS −85.3. W1 (`Transaccional`) is the best: FCR 91.5%, 3.4 min, 0.0% negative sentiment.
+- **They discriminate by nothing else**: channel, interaction type, country, segment, customer accent, agent experience
+  or agent type have V ≤ 0.008 in all outcomes. Within each workflow, FCR, escalation and CSAT vary ≤ 0.8 pp
+  across countries and ≤ 2.3 pp across segments (`04_scorecard_by_country.csv`, `04_scorecard_by_segment.csv`): no
+  disparities to investigate (and no fairness signal to demonstrate).
+- **Escalation (~10%), wait, re-contact (2.9% at 7 days, 11.8% at 30 days) and all complaint metrics (SLA
+  ~20%, resolution p50 15–16 days, 24% resolved) are flat** across all slices. `sla_breached` and the resolution
+  times are no use for prioritization.
+- Reading: the generator assigned contact outcomes as a function of the reason plus noise. "The problem in numbers"
+  does set W3 (pain) apart from W1 (resolvable volume), but only insofar as the `Queja` reason represents
+  disputes (low confidence), and the signal comes from a single variable.
+- **W2 has no contact population of its own**: its column is a random mix of reasons (independent text) and
+  that is why it sits at the overall average. Its real numbers are events: 2,156 card declines/month and 7,044
+  blocked cards at cutoff (`04_trigger_events_summary.csv`, `04_products_by_status.csv`).
 
-## 5. Labels, leakage, baseline y señal aprendible (fase central)
-Módulo `python -m eda.labels`; datasets `05_ds_*.sql`. Todas las cifras `[medido]`. Split temporal (test = período
-más reciente: desde 2025-07-01; products por apertura desde 2024-01-01). Baseline = clase mayoritaria (AUC 0.5).
-Modelos: regresión logística y árbol de profundidad 4, features disponibles antes del evento (`05_leakage_fields.csv`).
-AUC con IC95 Hanley-McNeil; AP = average precision (baseline = prevalencia). Fuente: `05_learnable_signal.csv`.
+## 5. Labels, leakage, baseline and learnable signal (central phase)
+Module `python -m eda.labels`; datasets `05_ds_*.sql`. All figures `[measured]`. Temporal split (test = most recent
+period: from 2025-07-01; products by opening date from 2024-01-01). Baseline = majority class (AUC 0.5).
+Models: logistic regression and a depth-4 tree, features available before the event (`05_leakage_fields.csv`).
+AUC with Hanley-McNeil CI95; AP = average precision (baseline = prevalence). Source: `05_learnable_signal.csv`.
 
-| Label | Workflow | Prevalencia test | Mejor modelo | AUC [IC95] | AP (vs prevalencia) | Veredicto |
+| Label | Workflow | Test prevalence | Best model | AUC [CI95] | AP (vs prevalence) | Verdict |
 |---|---|---:|---|---|---|---|
-| Contacto NO resuelto (1 − FCR) | transversal / W1 vs W3 | 23.4% | LR solo motivo | **0.763 [0.760, 0.766]** | 0.46 (0.23) | **señal (100% del motivo)** |
-| Requiere seguimiento | transversal | 34.8% | LR solo motivo | **0.676 [0.674, 0.679]** | 0.51 (0.35) | **señal (100% del motivo)** |
-| Escalado | transversal (handoff) | 10.0% | LR | 0.501 [0.497, 0.505] | 0.10 (0.10) | ruido |
-| SLA incumplido | W3 | 19.9% | LR | 0.500 [0.491, 0.510] | 0.20 (0.20) | ruido |
-| Fraude — features estructuradas | W3 | 0.09% | árbol | 0.508 [0.477, 0.539] | 0.001 (0.001) | ruido |
-| Fraude — `fraud_score` existente | W3 | 0.09% | score | **0.752 [0.722, 0.782]** | **0.52 (0.0009)** | **señal (score dado)** |
-| Fraude — features + `fraud_score` | W3 | 0.09% | LR | 0.792 [0.763, 0.820] | 0.50 (0.0009) | señal, sin mejora significativa sobre el score |
-| Transacción declinada | W2 / W1 | 5.0% | LR + score | 0.503 [0.499, 0.507] | 0.05 (0.05) | ruido |
-| Transacción reversada | W3 | 1.0% | score | 0.503 [0.494, 0.513] | 0.01 (0.01) | ruido |
-| Tarjeta bloqueada | W2 | 5.0% | árbol | 0.505 [0.493, 0.518] | 0.05 (0.05) | ruido |
-| Crédito en mora (`days_past_due` > 0) | W4 | 15.0% | árbol | 0.497 [0.489, 0.505] | 0.15 (0.15) | ruido |
+| Contact NOT resolved (1 − FCR) | cross-cutting / W1 vs W3 | 23.4% | LR reason only | **0.763 [0.760, 0.766]** | 0.46 (0.23) | **signal (100% from the reason)** |
+| Requires follow-up | cross-cutting | 34.8% | LR reason only | **0.676 [0.674, 0.679]** | 0.51 (0.35) | **signal (100% from the reason)** |
+| Escalated | cross-cutting (handoff) | 10.0% | LR | 0.501 [0.497, 0.505] | 0.10 (0.10) | noise |
+| SLA breached | W3 | 19.9% | LR | 0.500 [0.491, 0.510] | 0.20 (0.20) | noise |
+| Fraud — structured features | W3 | 0.09% | tree | 0.508 [0.477, 0.539] | 0.001 (0.001) | noise |
+| Fraud — existing `fraud_score` | W3 | 0.09% | score | **0.752 [0.722, 0.782]** | **0.52 (0.0009)** | **signal (given score)** |
+| Fraud — features + `fraud_score` | W3 | 0.09% | LR | 0.792 [0.763, 0.820] | 0.50 (0.0009) | signal, no significant improvement over the score |
+| Declined transaction | W2 / W1 | 5.0% | LR + score | 0.503 [0.499, 0.507] | 0.05 (0.05) | noise |
+| Reversed transaction | W3 | 1.0% | score | 0.503 [0.494, 0.513] | 0.01 (0.01) | noise |
+| Blocked card | W2 | 5.0% | tree | 0.505 [0.493, 0.518] | 0.05 (0.05) | noise |
+| Delinquent credit (`days_past_due` > 0) | W4 | 15.0% | tree | 0.497 [0.489, 0.505] | 0.15 (0.15) | noise |
 
-- **Hay señal aprendible en dos lugares, y ninguna es un componente aprendido "propio"**:
-  1. FCR y seguimiento dependen **solo del motivo**: el modelo con `reason_category` como única feature iguala al
-     completo, y las 4 features más pesadas de ambos modelos son niveles de `reason_category`
-     (`05_feature_importance.csv`). El "modelo" es una tabla de 6 filas.
-  2. Fraude: **`fraud_score` es casi determinista**. Con umbral ≥ 50 marca 1,670 transacciones (45/mes) con
-     **100% de precisión** y 48.8% de recall; con ≥ 30, 79.6% de precisión y 69.3% de recall. Las transacciones
-     legítimas tienen p95 = 28.5 y ninguna llega a 80; el 20.6% de los fraudes no tiene score
+- **There is learnable signal in two places, and neither is a learned component "of our own"**:
+  1. FCR and follow-up depend **only on the reason**: the model with `reason_category` as its only feature matches the
+     full one, and the 4 heaviest features of both models are levels of `reason_category`
+     (`05_feature_importance.csv`). The "model" is a 6-row table.
+  2. Fraud: **`fraud_score` is almost deterministic**. With a threshold ≥ 50 it flags 1,670 transactions (45/month) with
+     **100% precision** and 48.8% recall; with ≥ 30, 79.6% precision and 69.3% recall. Legitimate
+     transactions have p95 = 28.5 and none reaches 80; 20.6% of frauds have no score
      (`05_fraud_score_thresholds.csv`, `05_fraud_score_profile.csv`).
-- **Todo lo demás es ruido**: no se puede aprender cuándo escalar, qué caso incumplirá el SLA, qué transacción se
-  declinará o reversará, qué tarjeta se bloqueará ni qué crédito caerá en mora con las features disponibles. Para W4
-  esto significa que **no hay estimación de riesgo que demostrar**: la elegibilidad tiene que ser una política de reglas
-  sintética (lo que el reto ya exige separar).
-- **Texto**: 21 plantillas de cliente por workflow (W1/W2), 11–15 palabras, la misma distribución en todos los motivos
-  (`05_transcripts_by_workflow.csv`). Un clasificador de intención sobre este texto no es defendible.
-- **Splits** (`05_split_feasibility.csv`): 464,791 contactos en train y 221,505 en test; el 95.5% de los contactos de
-  test son de clientes que ya aparecen en train y el 94.9% de los clientes contacta en más de un mes. Para aislar
-  clientes (lo pide el reto), usar split temporal **más** agrupación por `customer_id`.
-- **Leakage** (`05_leakage_fields.csv`): 16 campos marcados. Los críticos: duración, sentimiento, acento y transcript
-  (se conocen al cerrar el contacto); campos de resolución de complaints; `response_code` para declinaciones; y la
-  **foto única de customers/products** (estado al corte) para W2 (`product_status`) y W4 (`credit_score`,
-  `days_past_due`). `reason_category` se asume conocido al inicio del contacto `[supuesto]`; si lo registra el agente
-  al cierre, la señal de FCR también sería leakage.
-- **Labels descartados sin entrenar**: `detected_intents` (1 valor), intención desde texto (plantilla independiente),
-  encuestas (posteriores, escala truncada), `detected_sentiment` (regla del generador por motivo)
+- **Everything else is noise**: with the available features it is not possible to learn when to escalate, which case
+  will breach the SLA, which transaction will be declined or reversed, which card will be blocked or which credit will become delinquent. For W4
+  this means that **there is no risk estimate to demonstrate**: eligibility has to be a synthetic rules
+  policy (which the challenge already requires to be kept separate).
+- **Text**: 21 customer templates per workflow (W1/W2), 11–15 words, the same distribution across all reasons
+  (`05_transcripts_by_workflow.csv`). An intent classifier over this text is not defensible.
+- **Splits** (`05_split_feasibility.csv`): 464,791 contacts in train and 221,505 in test; 95.5% of the test contacts
+  come from customers who already appear in train, and 94.9% of customers make contact in more than one month. To isolate
+  customers (the challenge requires it), use a temporal split **plus** grouping by `customer_id`.
+- **Leakage** (`05_leakage_fields.csv`): 16 fields flagged. The critical ones: duration, sentiment, accent and transcript
+  (known when the contact closes); complaint resolution fields; `response_code` for declines; and the
+  **single snapshot of customers/products** (status at cutoff) for W2 (`product_status`) and W4 (`credit_score`,
+  `days_past_due`). `reason_category` is assumed to be known at the start of the contact `[assumption]`; if the agent
+  records it at closing, the FCR signal would also be leakage.
+- **Labels discarded without training**: `detected_intents` (1 value), intent from text (independent template),
+  surveys (after the fact, truncated scale), `detected_sentiment` (generator rule by reason)
   (`05_labels_inventory.csv`).
 
-| Workflow | Labels con señal | Baseline sugerido | Componente aprendido posible | Split |
+| Workflow | Labels with signal | Suggested baseline | Possible learned component | Split |
 |---|---|---|---|---|
-| W1 | no resuelto / seguimiento (vía motivo) | regla por `reason_category` | ninguno que supere a la regla; evaluar el agente contra ground truth determinista (saldos, movimientos) | temporal + cliente |
-| W2 | ninguno (declinada, bloqueada = ruido) | reglas por `response_code` y `product_status` | ninguno en el dataset; clasificador de intención sobre set ES/PT generado por el equipo | temporal + cliente |
-| W3 | fraude vía `fraud_score` | umbral de `fraud_score` (≥ 50: precisión 100%) | calibración del umbral de triage (automatizar / confirmar / escalar) contra `is_fraud` held-out | temporal + cliente |
-| W4 | ninguno (mora = ruido) | política de reglas sintética | ninguno: no hay riesgo predecible; solo política + manejo de datos faltantes | por apertura |
+| W1 | not resolved / follow-up (via reason) | rule by `reason_category` | none that beats the rule; evaluate the agent against deterministic ground truth (balances, movements) | temporal + customer |
+| W2 | none (declined, blocked = noise) | rules by `response_code` and `product_status` | none in the dataset; intent classifier on an ES/PT set generated by the team | temporal + customer |
+| W3 | fraud via `fraud_score` | `fraud_score` threshold (≥ 50: precision 100%) | calibration of the triage threshold (automate / confirm / escalate) against held-out `is_fraud` | temporal + customer |
+| W4 | none (delinquency = noise) | synthetic rules policy | none: no predictable risk; only policy + missing-data handling | by opening date |
 
-## 6. Costo y business case (insumos)
-Módulo `python -m eda.cost`; tablas `06_cost_by_workflow.csv` y `06_business_case_inputs.csv` (cada insumo con
-etiqueta y fuente). Fórmula común: **ahorro = contactos/mes × % automatizable (cota) × (costo humano − costo IA)**.
-Meses completos (35). Poblaciones de la fase 3 (W2 sale de texto no confiable; W3 y W4 de reglas de confianza baja).
+## 6. Cost and business case (inputs)
+Module `python -m eda.cost`; tables `06_cost_by_workflow.csv` and `06_business_case_inputs.csv` (each input with
+label and source). Common formula: **savings = contacts/month × % automatable (bound) × (human cost − AI cost)**.
+Full months (35). Populations from phase 3 (W2 comes from unreliable text; W3 and W4 from low-confidence rules).
 
-| Insumo | W1 | W2 | W3 | W4 | Etiqueta | Fuente |
+| Input | W1 | W2 | W3 | W4 | Label | Source |
 |---|---|---|---|---|---|---|
-| Contactos por mes | 6,661 | 2,383 | 3,241 | 1,524 | medido | `06_cost_base.sql` |
-| AHT medio (min) | 3.68 | 5.37 | 7.24 | 9.00 | medido | `06_cost_base.sql` |
-| Minutos de atención por mes | 24,515 | 12,789 | 23,477 | 13,711 | medido | `06_cost_base.sql` |
-| % automatizable seguro (cota superior) | 69.3 | 57.8 | 32.8 | 49.4 | supuesto (definición sobre tasas medidas) | `06_cost_base.sql` |
-| Costo por minuto de agente (USD, base) | 0.250 | 0.250 | 0.250 | 0.250 | supuesto | SkyCom 2026: USD 10–20/h LATAM |
-| Costo por contacto humano (USD, base) | 0.92 | 1.34 | 1.81 | 2.25 | proyectado | AHT × costo/min |
-| Costo por contacto con IA (USD, base) | 1.84 | 1.84 | 1.84 | 1.84 | supuesto | Gartner vía Kustomer 2026 |
-| Ahorro anual — conservador (USD) | -67,941 | -15,637 | -8,079 | -3,070 | proyectado | agente USD 10/h, IA USD 1.84 |
-| Ahorro anual — base (USD) | -50,952 | -8,239 | -373 | 3,697 | proyectado | agente USD 15/h, IA USD 1.84 |
-| Ahorro anual — optimista (USD) | 40,260 | 21,322 | 24,440 | 22,556 | proyectado | agente USD 20/h, IA USD 0.50 |
-| Ahorro anual — referencia global (USD) | 645,853 | 192,851 | 148,855 | 105,217 | proyectado | USD 13.50 por contacto asistido (Gartner, global) vs IA USD 1.84 |
+| Contacts per month | 6,661 | 2,383 | 3,241 | 1,524 | measured | `06_cost_base.sql` |
+| Mean AHT (min) | 3.68 | 5.37 | 7.24 | 9.00 | measured | `06_cost_base.sql` |
+| Handling minutes per month | 24,515 | 12,789 | 23,477 | 13,711 | measured | `06_cost_base.sql` |
+| % safely automatable (upper bound) | 69.3 | 57.8 | 32.8 | 49.4 | assumption (definition over measured rates) | `06_cost_base.sql` |
+| Cost per agent minute (USD, base) | 0.250 | 0.250 | 0.250 | 0.250 | assumption | SkyCom 2026: USD 10–20/h LATAM |
+| Cost per human contact (USD, base) | 0.92 | 1.34 | 1.81 | 2.25 | projected | AHT × cost/min |
+| Cost per AI contact (USD, base) | 1.84 | 1.84 | 1.84 | 1.84 | assumption | Gartner via Kustomer 2026 |
+| Annual savings — conservative (USD) | -67,941 | -15,637 | -8,079 | -3,070 | projected | agent USD 10/h, AI USD 1.84 |
+| Annual savings — base (USD) | -50,952 | -8,239 | -373 | 3,697 | projected | agent USD 15/h, AI USD 1.84 |
+| Annual savings — optimistic (USD) | 40,260 | 21,322 | 24,440 | 22,556 | projected | agent USD 20/h, AI USD 0.50 |
+| Annual savings — global reference (USD) | 645,853 | 192,851 | 148,855 | 105,217 | projected | USD 13.50 per assisted contact (Gartner, global) vs AI USD 1.84 |
 
-- **Medido**: volumen y tiempo de atención (AHT W1 3.7 min, W2 5.4, W3 7.2, W4 9.0; `06_cost_by_workflow.csv`). El
-  "dolor" medible (FCR, seguimiento, duración) sí difiere entre workflows por motivo (fase 4), pero SLA, escalado y
-  re-contacto no. **Supuesto**: qué fracción es automatizable y los costos unitarios.
-- **Con costos laborales LATAM el ahorro es marginal o negativo** (−68k a +40k USD/año en W1): un contacto humano de
-  3.7 min cuesta USD 0.61–1.23, del mismo orden que un contacto con IA (USD 0.50–1.84). El ahorro solo es grande con el
-  costo asistido global de Gartner (USD 13.50 por contacto: +646k USD/año en W1), que no es LATAM ni está verificado en
-  fuente primaria. **El business case depende del supuesto de costo, no de los datos**, y la escala del banco sintético
-  es chica (19,033 contactos/mes, 150k clientes). El argumento de negocio más sólido no es ahorro por contacto sino
-  capacidad 24/7, consistencia y control de riesgo (fraude, cumplimiento).
-- Espera (solo Inbound Call): 2.0 min de media, igual en todos los workflows; 9,299 minutos/mes de espera del cliente
-  en W1 (`06_cost_by_workflow.csv`).
-- Complaint del mismo cliente en los 30 días siguientes a un contacto: 1.2% en todos los workflows (plano).
+- **Measured**: volume and handling time (AHT W1 3.7 min, W2 5.4, W3 7.2, W4 9.0; `06_cost_by_workflow.csv`). The measurable
+  "pain" (FCR, follow-up, duration) does differ between workflows by reason (phase 4), but SLA, escalation and
+  re-contact do not. **Assumption**: which fraction is automatable, and the unit costs.
+- **With LATAM labor costs the savings are marginal or negative** (−68k to +40k USD/year in W1): a human contact of
+  3.7 min costs USD 0.61–1.23, the same order as an AI contact (USD 0.50–1.84). Savings are only large with
+  Gartner's global assisted cost (USD 13.50 per contact: +646k USD/year in W1), which is not LATAM and is not verified in a
+  primary source. **The business case depends on the cost assumption, not on the data**, and the synthetic bank's scale
+  is small (19,033 contacts/month, 150k customers). The strongest business argument is not savings per contact but
+  24/7 capacity, consistency and risk control (fraud, compliance).
+- Wait (Inbound Call only): 2.0 min on average, the same in all workflows; 9,299 minutes/month of customer wait
+  in W1 (`06_cost_by_workflow.csv`).
+- Complaint from the same customer within the 30 days after a contact: 1.2% in all workflows (flat).

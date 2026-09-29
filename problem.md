@@ -1,61 +1,61 @@
-# problem.md — W3 · Intake de disputas con reloj regulatorio (Regulatory-clock dispute intake)
+# problem.md — W3 · Regulatory-clock dispute intake
 
-**Decidido el:** [fecha de la votación] · **No se reabre:** workflow, zonas y umbrales, formato de handoff, formato
-de casos de eval, nombre del equipo.
-**Etiquetas:** `[dato]` calculado sobre el dataset (query en `queries/`) · `[externo]` fuente con link ·
-`[supuesto]` · `[simulado]` medido en nuestro harness · `[proyectado]`.
+**Decided on:** [date of the vote] · **Not reopened:** workflow, zones and thresholds, handoff format, eval case
+format, team name.
+**Labels:** `[data]` computed on the dataset (query in `queries/`) · `[external]` source with link ·
+`[assumption]` · `[simulated]` measured in our harness · `[projected]`.
 
-## 1. Problema
-Un cliente ve un cargo que no reconoce o un cobro indebido y reclama. Es el **36.4% de los reclamos** `[dato]`
-(679/mes en promedio sobre 1,864), el motivo con peor FCR (**43.6% vs 76.6%** `[dato]`), 63% con seguimiento,
-duración mediana 7.2 vs 4.9 min, NPS −85.3, resolución p50 16 días `[dato]`, y el único con plazo legal por país
-(MX: abono ≤ día hábil 2 en débito y dictamen ≤ 45 días; AR: 10 días hábiles; CO: 15 días; BR: 10 días hábiles)
-`[externo]` ver `policies.yaml`.
+## 1. Problem
+A customer sees a charge they do not recognize or a wrongful charge and files a complaint. It is **36.4% of complaints** `[data]`
+(679/month on average out of 1,864), the reason with the worst FCR (**43.6% vs 76.6%** `[data]`), 63% with follow-up,
+median duration 7.2 vs 4.9 min, NPS −85.3, resolution p50 16 days `[data]`, and the only one with a legal deadline per country
+(MX: provisional credit ≤ business day 2 on debit and ruling ≤ 45 days; AR: 10 business days; CO: 15 days; BR: 10 business days)
+`[external]` see `policies.yaml`.
 
-## 2. Alcance
-**Entra:** intake ES/PT · identidad mock (sesión + OTP con vencimiento) · identificación de la transacción del
-propio cliente · ticket automático en las 3 zonas · triage por `fraud_score` (≥ 50 acción verificada; 30–49
-confirmar; < 30 o nulo humano) · bloqueo con post-condición · reloj regulatorio · tarjeta de handoff · vista del
-agente (copiloto que propone, humano decide) · trazas + log de auditoría · harness held-out ES/PT con ataques ·
-deploy público · README reproducible.
-**No entra (a propósito):** investigación del caso, contracargo con la red, abono automático, voz, WhatsApp real,
-multi-agente, Graph RAG, fine-tuning.
+## 2. Scope
+**In:** ES/PT intake · mock identity (session + OTP with expiry) · identification of the customer's own
+transaction · automatic ticket in all 3 zones · triage by `fraud_score` (≥ 50 verified action; 30–49
+confirm; < 30 or null human) · block with post-condition · regulatory clock · handoff card · agent
+view (copilot proposes, human decides) · traces + audit log · ES/PT held-out harness with attacks ·
+public deploy · reproducible README.
+**Out (on purpose):** case investigation, chargeback with the network, automatic credit, voice, real WhatsApp,
+multi-agent, Graph RAG, fine-tuning.
 
-## 2b. Despliegue y scoring (decidido lun 28)
-- **Grafo en LangGraph Platform** (opción A) con tools como servidor MCP en la EC2; la opción B (todo en EC2)
-  queda documentada como migración directa (mismo grafo, adaptador de tools distinto) y no se ejecuta por tiempo.
-  Condición: confirmar en Slack que el texto sintético puede salir de AWS y declararlo en el README.
-- **`fraud_score` como tool con proveedor intercambiable** (`dataset` al inicio; `reglas`, `modelo` o `llm` por
-  configuración). La fuente y versión del score quedan en la auditoría y en la tarjeta de handoff.
+## 2b. Deployment and scoring (decided Mon 28)
+- **Graph on LangGraph Platform** (option A) with the tools as an MCP server on the EC2; option B (everything on EC2)
+  stays documented as a direct migration (same graph, different tool adapter) and is not executed for lack of time.
+  Condition: confirm on Slack that the synthetic text may leave AWS and declare it in the README.
+- **`fraud_score` as a tool with a swappable provider** (`dataset` at the start; `rules`, `model` or `llm` by
+  configuration). The score's source and version are recorded in the audit log and on the handoff card.
 
-## 3. Solución en una frase
-El LLM entiende, las reglas (YAML) deciden, las tools tipadas actúan, la verificación confirma, las trazas
-registran, el humano recibe evidencia.
+## 3. Solution in one sentence
+The LLM understands, the rules (YAML) decide, the typed tools act, verification confirms, the traces
+record, the human receives evidence.
 
-## 4. Componente aprendido vs baseline
-Clasificador de intención y slots ES/PT: reglas por palabras clave → embeddings + regresión logística → Jev
-(tercer brazo, solo si pasa la prueba ES/PT del miércoles 30). Mismo held-out, split por plantilla. Secundario:
-calibración de zonas contra `is_fraud`. Escalamiento por reglas (AUC 0.501 `[dato]`).
+## 4. Learned component vs baseline
+ES/PT intent and slot classifier: keyword rules → embeddings + logistic regression → Jev
+(third arm, only if it passes the ES/PT test on Wednesday 30). Same held-out, split by template. Secondary:
+calibration of zones against `is_fraud`. Escalation by rules (AUC 0.501 `[data]`).
 
-## 5. Cómo se mide
-Estado final (no texto): ¿bloqueó?, ¿abrió caso?, ¿escaló cuando debía?, ¿negó cuando debía? Métricas del reto:
-safe automated resolution, unsafe outcomes con denominador, escalation quality (perdidos e innecesarios),
-p50/p95, costo por caso intentado y por resolución, por idioma y segmento, pass^4. Ver `eval/eval_case.schema.json`.
+## 5. How it is measured
+Final state (not text): did it block?, did it open a case?, did it escalate when it should?, did it deny when it should? Challenge metrics:
+safe automated resolution, unsafe outcomes with denominator, escalation quality (missed and unnecessary),
+p50/p95, cost per attempted case and per resolution, by language and segment, pass^4. See `eval/eval_case.schema.json`.
 
-## 6. Riesgos aceptados
-Texto real 0 (set del equipo, etiquetado) · PT 0% en datos · precisión 100% con score ≥ 50 es del generador
-`[supuesto]` · 20.6% de fraudes sin score → humano · FK de complaints rota → disputa desde `transactions` ·
-Jev 12 días de vida → fallback LR · ¿datos sintéticos a APIs externas? (preguntar en Slack antes del martes).
+## 6. Accepted risks
+Real text 0 (team set, labeled) · PT 0% in the data · 100% precision with score ≥ 50 comes from the generator
+`[assumption]` · 20.6% of frauds without a score → human · complaints FK broken → dispute from `transactions` ·
+Jev 12 days old → LR fallback · synthetic data to external APIs? (ask on Slack before Tuesday).
 
-## 7. Reparto
-| Persona | Dueño de |
+## 7. Ownership
+| Person | Owner of |
 |---|---|
-| Freddy (AI/ML, líder, integrador) | `policies.yaml`, contratos, motor de reglas, clasificador vs baselines, Jev, harness |
-| Full stack | orquestador, tools sobre el snapshot, identidad mock, UI cliente + agente, trazas, grafo, deploy |
-| Datos 1 (engineering) | pipeline con contratos, snapshot DuckDB, checks, fixture de llegadas tardías, `make setup` |
-| Datos 2 (analytics) | queries del pitch, plazos con fuente, business case, set ES/PT (redacción y etiquetado), reporte |
+| Freddy (AI/ML, lead, integrator) | `policies.yaml`, contracts, rules engine, classifier vs baselines, Jev, harness |
+| Full stack | orchestrator, tools over the snapshot, mock identity, customer + agent UI, traces, graph, deploy |
+| Data 1 (engineering) | pipeline with contracts, DuckDB snapshot, checks, late-arrivals fixture, `make setup` |
+| Data 2 (analytics) | pitch queries, deadlines with source, business case, ES/PT set (writing and labeling), report |
 
-## 8. Calendario
-Lun 28 contratos y repo · Mar 29 esqueleto · Mié 30 caso normal end-to-end + prueba Jev · Jue 1 clasificador,
-set ES/PT, UI cliente · Vie 2 vista agente, trazas, grafo · Sáb 3 eval completo y deploy · Dom 4 video, slides,
-README, secretos · Lun 5 entrega a primera hora.
+## 8. Calendar
+Mon 28 contracts and repo · Tue 29 skeleton · Wed 30 normal case end-to-end + Jev test · Thu 1 classifier,
+ES/PT set, customer UI · Fri 2 agent view, traces, graph · Sat 3 full eval and deploy · Sun 4 video, slides,
+README, secrets · Mon 5 submission first thing in the morning.

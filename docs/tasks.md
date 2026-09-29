@@ -1,41 +1,42 @@
-# Tablero (mover a issues de GitHub el lunes)
+# Board (move to GitHub issues on Monday)
 
-## Lun 28 · contratos y repo (todos, 2 h)
-- [ ] Repo público `factored-hackathon-2026-<equipo>` con `.gitignore` (`.env`, `data/`) desde el commit 1
-- [ ] Revisar `problem.md`, `contracts/policies.yaml`, `contracts/tools.py`, `contracts/handoff.schema.json`, `eval/eval_case.schema.json` (30 min, todos)
-- [ ] Preguntar en Slack #technical-help: ¿datos sintéticos a APIs externas? ¿fraud_score disponible en tiempo real? ¿hora límite del 5-oct?
-- [ ] Datos 1: descarga del dataset con credenciales en `.env`; snapshot de customers/products/transactions/complaints/surveys
-- [ ] Datos 2: congelar en `queries/` las queries del pitch (36.4%, FCR, AHT, NPS, 16 días, 120 fraudes, zonas del score)
+## Mon 28 · contracts and repo (everyone, 2 h)
+- [ ] Public repo `factored-hackathon-2026-nick-of-time` with `.gitignore` (`.env`, `data/`) from commit 1
+- [ ] Review `problem.md`, `contracts/policies.yaml`, `contracts/tools.py`, `contracts/handoff.schema.json`, `eval/eval_case.schema.json` (30 min, everyone)
+- [ ] Ask on Slack #technical-help: synthetic data to external APIs? fraud_score available in real time? cutoff time on Oct 5?
+- [ ] Data 1: download the dataset with credentials in `.env`; snapshot of customers/products/transactions/complaints/surveys
+- [ ] Data 2: freeze the pitch queries in `queries/` (36.4%, FCR, AHT, NPS, 16 days, 120 frauds, score zones)
 
-## Mar 29 · esqueleto
-- [ ] Datos 1: DuckDB + checks (dedupe, schema, FK cruzada, fechas futuras, México/Mexico) + `make setup`
-- [ ] Full stack: FastAPI + tools según `contracts/tools.py` con filtro por sesión + identidad mock (OTP, TTL 15 min)
-- [ ] Freddy: evaluador de `policies.yaml` (zonas, amount gate, reloj por país con días hábiles) + logger de trazas (OTel o JSONL con spans)
-- [ ] Datos 2: primeros 60 casos ES del set (normal/ambiguo/humano) con respuesta esperada
+## Tue 29 · skeleton
+- [ ] Data 1: DuckDB + checks (dedupe, schema, cross FK, future dates, México/Mexico) + `make setup`
+- [ ] Full stack: FastAPI + tools per `contracts/tools.py` with session filter + mock identity (OTP, TTL 15 min)
+- [ ] Freddy: `policies.yaml` evaluator (zones, amount gate, per-country clock with business days) + trace logger (OTel or JSONL with spans)
+- [ ] Data 2: first 60 ES cases of the set (normal/ambiguous/human) with expected response
+- [ ] Data 2 (Diego): **Q-AMT**, amounts and current resolution by country to calibrate `amount_gate` in `contracts/policies.yaml`. Four queries, each with its output: `queries/q_amt_fraud_by_country.csv`, `queries/q_amt_claimed_by_country.csv`, `queries/q_amt_resolution_by_country.csv`, `queries/q_amt_channel.csv`. Threshold proposal = p90 per country in local currency. Also confirm the provisional MXN (18.0) and BRL (5.5) rates: MX transactions are 100% USD and the dataset has no BR; `complaints.currency` does not follow the country (`docs/eda/data_quality.md`)
 
-## Mié 30 · caso normal end-to-end + Jev
-- [ ] Full stack + Freddy: EV-0001 corre de punta a punta con verificación (Blocked + caso + plazo MX)
-- [ ] Freddy: prueba Jev en 40 frases ES/PT vs reglas; si no supera a reglas en PT o falla el acceso → descartado hoy
-- [ ] Datos 2: 60 casos PT + 40 de ataque (injection, sesión, tool caída, dato faltante)
-- [ ] Datos 1: fixture de llegadas tardías etiquetado; linaje del snapshot
+## Wed 30 · normal case end-to-end + Jev
+- [ ] Full stack + Freddy: EV-0001 runs end to end with verification (Blocked + case + MX deadline)
+- [ ] Freddy: Jev test on 40 ES/PT sentences vs rules; if it does not beat rules on PT or access fails → dropped today
+- [ ] Data 2: 60 PT cases + 40 attack cases (injection, session, tool down, missing data)
+- [ ] Data 1: labeled late-arrivals fixture; snapshot lineage
 
-## Jue 1 · clasificador + UI cliente
-- [ ] Freddy: reglas → embeddings + LR (calibrado) → [Jev]; split por plantilla; τ en validación
-- [ ] Full stack: UI de chat ES/PT con panel de traza
-- [ ] Datos 2: segunda persona etiqueta una muestra de 40 casos (acuerdo)
-- [ ] Todos: los 3 casos obligatorios corren
+## Thu 1 · classifier + customer UI
+- [ ] Freddy: rules → embeddings + LR (calibrated) → [Jev]; split by template; τ on validation
+- [ ] Full stack: ES/PT chat UI with trace panel
+- [ ] Data 2: a second person labels a sample of 40 cases (agreement)
+- [ ] Everyone: the 3 mandatory cases run
 
-## Vie 2 · vista del agente + explicabilidad
-- [ ] Full stack: tarjeta de handoff según schema + botones (aprobar abono / pedir datos) + grafo de evidencia desde el log
-- [ ] Freddy: harness completo (estado final, pass^4, latencia, costo en tokens) + casos de "no"
-- [ ] Datos 1: casos missing_data y late_arrival en el harness
+## Fri 2 · agent view + explainability
+- [ ] Full stack: handoff card per schema + buttons (approve credit / request info) + evidence graph from the log
+- [ ] Freddy: full harness (final state, pass^4, latency, token cost) + "no" cases
+- [ ] Data 1: missing_data and late_arrival cases in the harness
 
-## Sáb 3 · eval y deploy
-- [ ] Freddy: correr eval completo, análisis de errores, tabla por escenario × idioma × segmento con n
-- [ ] Full stack: deploy público, reintentos y fallback, grabar demo
-- [ ] Datos 2: tabla de resultados + separación medido/simulado/proyectado en slides
+## Sat 3 · eval and deploy
+- [ ] Freddy: run the full eval, error analysis, table by scenario × language × segment with n
+- [ ] Full stack: public deploy, retries and fallback, record the demo
+- [ ] Data 2: results table + measured/simulated/projected separation in the slides
 
-## Dom 4 · entrega
-- [ ] Video 3 min (guion en `guion_slides_w3.md`), 4–6 slides, README con setup en un comando
-- [ ] Datos 1: revisar historial de git por secretos (`git log -p | grep -i AKIA`)
-- [ ] Lun 5 a primera hora: enviar repo + deploy + slides + video a hackathon.admin@factored.ai
+## Sun 4 · submission
+- [ ] 3 min video (script in `guion_slides_w3.md`), 4–6 slides, README with one-command setup
+- [ ] Data 1: check the git history for secrets (`git log -p | grep -i AKIA`)
+- [ ] Mon 5 first thing in the morning: send repo + deploy + slides + video to hackathon.admin@factored.ai

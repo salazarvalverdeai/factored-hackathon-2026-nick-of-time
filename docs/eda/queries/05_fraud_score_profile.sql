@@ -1,5 +1,5 @@
--- Respalda: findings.md §5 (distribución de fraud_score según is_fraud).
--- Produce: outputs/tables/05_fraud_score_profile.csv (vía eda/labels.py).
+-- Supports: findings.md §5 (fraud_score distribution by is_fraud).
+-- Produces: outputs/tables/05_fraud_score_profile.csv (via eda/labels.py).
 SELECT is_fraud, count(*) AS n, count(fraud_score) AS n_with_score,
        round(quantile_cont(fraud_score, 0.25), 2) AS p25, round(quantile_cont(fraud_score, 0.5), 2) AS p50,
        round(quantile_cont(fraud_score, 0.75), 2) AS p75, round(quantile_cont(fraud_score, 0.95), 2) AS p95,

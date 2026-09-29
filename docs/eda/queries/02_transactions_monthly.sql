@@ -1,5 +1,5 @@
--- Respalda: expedientes W1–W3 §(2) (volumen de eventos transaccionales que pueden originar contactos:
--- pagos/transferencias, declinaciones, reversos, fraude). Produce: outputs/tables/02_transactions_monthly.csv.
+-- Supports: dossiers W1–W3 §(2) (volume of transactional events that can trigger contacts:
+-- payments/transfers, declines, reversals, fraud). Produces: outputs/tables/02_transactions_monthly.csv.
 WITH x AS (
     SELECT strftime(x.transaction_date, '%Y-%m') AS ym, x.transaction_type, x.transaction_status, x.is_fraud,
            p.product_type

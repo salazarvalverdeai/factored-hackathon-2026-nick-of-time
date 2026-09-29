@@ -1,39 +1,39 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "Tarjeta de handoff — lo que recibe el humano (nunca el transcript crudo)",
+  "title": "Handoff card — what the human receives (never the raw transcript)",
   "type": "object",
   "required": [
     "case_id",
-    "idioma",
-    "zona",
-    "solicitud",
-    "hechos_verificados",
-    "acciones",
-    "evidencia",
-    "preguntas_abiertas",
-    "plazo",
+    "language",
+    "zone",
+    "request",
+    "verified_facts",
+    "actions",
+    "evidence",
+    "open_questions",
+    "deadline",
     "trace_id"
   ],
   "properties": {
     "case_id": {
       "type": "string"
     },
-    "idioma": {
+    "language": {
       "enum": [
         "es",
         "pt"
       ]
     },
-    "zona": {
+    "zone": {
       "enum": [
-        "alta",
-        "media",
-        "humano"
+        "high",
+        "medium",
+        "human"
       ]
     },
-    "motivo_handoff": {
+    "handoff_reason": {
       "enum": [
-        "zone_humano",
+        "zone_human",
         "amount_over_case_gate",
         "identity_unverified",
         "clarification_exhausted",
@@ -41,38 +41,38 @@
         "language_low_confidence"
       ]
     },
-    "solicitud": {
+    "request": {
       "type": "string",
-      "description": "en una frase, redactada por el sistema: tipo, monto, fecha, comercio"
+      "description": "one sentence written by the system: type, amount, date, merchant"
     },
-    "hechos_verificados": {
+    "verified_facts": {
       "type": "array",
       "items": {
         "type": "object",
         "required": [
-          "hecho",
-          "fuente_id"
+          "fact",
+          "source_id"
         ],
         "properties": {
-          "hecho": {
+          "fact": {
             "type": "string"
           },
-          "fuente_id": {
+          "source_id": {
             "type": "string",
             "description": "transaction_id, product_id, session_id, rule_id"
           }
         }
       }
     },
-    "acciones": {
+    "actions": {
       "type": "array",
       "items": {
         "type": "object",
         "required": [
           "tool",
           "action_id",
-          "resultado",
-          "verificado"
+          "result",
+          "verified"
         ],
         "properties": {
           "tool": {
@@ -81,10 +81,10 @@
           "action_id": {
             "type": "string"
           },
-          "resultado": {
+          "result": {
             "type": "string"
           },
-          "verificado": {
+          "verified": {
             "type": "boolean"
           },
           "verification_id": {
@@ -93,63 +93,88 @@
         }
       }
     },
-    "evidencia": {
+    "evidence": {
       "type": "array",
       "items": {
         "type": "string"
       },
       "description": "IDs: T-, P-, A-, V-, R-, K-"
     },
-    "preguntas_abiertas": {
+    "open_questions": {
       "type": "array",
       "items": {
         "type": "string"
       }
     },
-    "propuesta_copiloto": {
+    "copilot_proposal": {
       "type": "object",
       "properties": {
-        "accion": {
+        "action": {
           "enum": [
-            "aprobar_abono",
-            "bloquear",
-            "pedir_datos",
-            "cerrar_sin_accion"
+            "approve_credit",
+            "approve_block",
+            "request_customer_info",
+            "close_without_action"
           ]
         },
-        "justificacion": {
+        "rationale": {
           "type": "string"
         },
-        "requiere_humano": {
+        "requires_human": {
           "const": true
         }
       }
     },
-    "plazo": {
+    "deadline": {
       "type": "object",
       "required": [
-        "pais",
-        "fuente"
+        "country",
+        "deadline_source"
       ],
       "properties": {
-        "pais": {
+        "country": {
           "type": "string"
         },
-        "producto": {
+        "product": {
           "type": "string"
         },
-        "fecha_abono": {
+        "credit_deadline": {
           "type": "string",
           "format": "date"
         },
-        "fecha_dictamen": {
+        "ruling_deadline": {
           "type": "string",
           "format": "date"
         },
-        "fuente": {
+        "deadline_source": {
           "type": "string"
         }
       }
+    },
+    "auth_evidence": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "description": "Optional. Proxy for two-factor authentication evidence (MX debit exemption, policies.yaml regulatory_clock.MX.debit). The dataset has no chip/PIN/3DS, so it is derived from transactions.channel; null when the transaction has no channel.",
+      "required": [
+        "proxy",
+        "channel",
+        "source_id"
+      ],
+      "properties": {
+        "proxy": {
+          "const": "channel"
+        },
+        "channel": {
+          "type": "string"
+        },
+        "source_id": {
+          "type": "string",
+          "description": "transaction_id the channel was read from"
+        }
+      },
+      "additionalProperties": false
     },
     "trace_id": {
       "type": "string"
@@ -163,27 +188,27 @@
     "intent_confidence": {
       "type": "number"
     },
-    "estado_cola": {
+    "queue_status": {
       "enum": [
-        "nuevo",
-        "verificacion",
-        "revision",
-        "resuelto",
-        "cerrado"
+        "new",
+        "verification",
+        "review",
+        "resolved",
+        "closed"
       ]
     },
-    "notificaciones_enviadas": {
+    "notifications_sent": {
       "type": "array",
       "items": {
         "type": "object",
         "properties": {
-          "evento": {
+          "event": {
             "type": "string"
           },
-          "proveedor": {
+          "provider": {
             "type": "string"
           },
-          "entregado": {
+          "delivered": {
             "type": "boolean"
           },
           "ts": {
@@ -192,7 +217,7 @@
         }
       }
     },
-    "guardrails_disparados": {
+    "guardrails_triggered": {
       "type": "array",
       "items": {
         "type": "string"

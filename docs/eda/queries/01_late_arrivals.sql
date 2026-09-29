@@ -1,8 +1,8 @@
--- Respalda: calidad_datos.md §B4 y findings.md §1 (rezago de llegada).
--- Produce: outputs/tables/01_late_arrivals.csv (vía eda/quality.py).
--- Plantilla: eda/quality.py rellena {source}: una subconsulta con columnas event_ts (fecha del evento),
--- process_date y partition_date. Para call_transcripts, event_ts es interaction_date de la interacción asociada.
--- lag_days = process_date - fecha del evento (días calendario). > 0 = llegó tarde; < 0 = procesado antes del evento.
+-- Supports: data_quality.md §B4 and findings.md §1 (arrival lag).
+-- Produces: outputs/tables/01_late_arrivals.csv (via eda/quality.py).
+-- Template: eda/quality.py fills in {source}: a subquery with columns event_ts (event date),
+-- process_date and partition_date. For call_transcripts, event_ts is the interaction_date of the linked interaction.
+-- lag_days = process_date - event date (calendar days). > 0 = arrived late; < 0 = processed before the event.
 WITH l AS (
     SELECT date_diff('day', event_ts::DATE, process_date)  AS lag_days,
            date_diff('day', process_date, partition_date)  AS partition_minus_process
