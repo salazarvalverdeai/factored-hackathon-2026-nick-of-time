@@ -50,6 +50,6 @@ Viernes debe existir: set completo con doble etiquetado; tablero `/analytics`; t
 `queries/pitch/` · `docs/business.md` · `docs/views/` (spec de chat y consola) · `eval/cases.jsonl`, `eval/README.md` · `apps/web/app/analytics/` (o el embed de Power BI) · `docs/eda/README.md` (índice número → archivo).
 
 ## Cambios del lunes en la tarde
-- Dos conjuntos: (A) set del clasificador, 300–400 frases ES/PT con intención y slots, 70/15/15 por autor o plantilla; (B) held-out del agente, ~180 casos solo con clientes `heldout` (ES 110 / PT 70; normal 45, ambiguo 30, humano 30, injection 25, unauthorized 15, session_expired 10, tool_failure 15, missing_data 5, late_arrival 5; MX, CO, AR, BR × 4 segmentos). Los ~60 casos de desarrollo usan clientes `dev`.
+- Dos conjuntos: (A) set del clasificador, 300–400 frases ES/PT con intención y slots, 70/15/15 por autor o plantilla; (B) held-out del agente, ~180 casos solo con clientes `heldout` (ES 110 / PT 70; normal 45, ambiguous 30, human 30, injection 25, unauthorized_access 15, session_expired 10, tool_failure 15, missing_data 5, late_arrival 5; MX, CO, AR, BR × 4 segmentos). Los ~60 casos de desarrollo usan clientes `dev`.
 - El resultado esperado se deriva del registro real; el mensaje es lo único team-generated. Cada caso lleva `set`, `guardrail_ids` y `queue_status` esperados.
 - La especificación de la consola incluye la cola de cinco estados, el interruptor de modo supervisado y el panel de notificaciones del cliente.
