@@ -151,6 +151,31 @@
         }
       }
     },
+    "auth_evidence": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "description": "Optional. Proxy for two-factor authentication evidence (MX debit exemption, policies.yaml regulatory_clock.MX.debit). The dataset has no chip/PIN/3DS, so it is derived from transactions.channel; null when the transaction has no channel.",
+      "required": [
+        "proxy",
+        "channel",
+        "source_id"
+      ],
+      "properties": {
+        "proxy": {
+          "const": "channel"
+        },
+        "channel": {
+          "type": "string"
+        },
+        "source_id": {
+          "type": "string",
+          "description": "transaction_id the channel was read from"
+        }
+      },
+      "additionalProperties": false
+    },
     "trace_id": {
       "type": "string"
     },

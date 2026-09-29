@@ -26,9 +26,16 @@ zones:                                   # on the score returned by scoring.prov
   medium: {score_min: 30, score_max: 49,  note: "precision at >=30: 79.6%"}
   human:  {score_min: 0,  score_max: 29,  include_null: true, note: "20.6% of frauds have no score"}
 
-amount_gate:                             # on transactions.amount_usd. [assumption] calibrate with the snapshot
-  max_auto_block_usd: 1000               # above this, even in the high zone, it goes to confirmation
-  max_auto_case_usd: 5000                # above this, even in the high zone, it goes to a human
+amount_gate:                             # [assumption] pending Q-AMT calibration
+  # Only picks the approval mode (auto / manual_check / human_required); it never changes regulatory_clock.
+  # The stricter of approval.per_action and the amount tier wins (auto < manual_check < human_required).
+  amount: transactions.amount            # local currency; USD transactions (MX is 100% USD in the dataset) are converted first
+  tiers: {up_to_low: auto, up_to_high: manual_check, above_high: human_required}
+  by_country:                            # provisional values: low ≈ 1,000 USD, high ≈ 5,000 USD
+    MX: {currency: MXN, low: 18000, high: 90000}          # 18.0 MXN/USD [assumption]: the dataset has no MXN; confirm with Diego (Q-AMT)
+    CO: {currency: COP, low: 4000000, high: 20000000}     # 4,000 COP/USD, the dataset's fixed implied rate
+    AR: {currency: ARS, low: 350000, high: 1750000}       # 350 ARS/USD, the dataset's fixed implied rate
+    BR: {currency: BRL, low: 5500, high: 27500}           # 5.5 BRL/USD [assumption]: the dataset has no BR; confirm with Diego (Q-AMT)
 
 approval:                                # approval mode per action: auto | human_required | manual_check
   supervised_mode: false                 # global switch in the console; true forces human_required everywhere; every change is audited
@@ -59,12 +66,42 @@ handoff:
   payload_schema: contracts/handoff.schema.json
   never_include_raw_transcript: true
 
-regulatory_clock:                        # [external] business days per the country's calendar
-  MX: {product: debit, credit_business_days: 2, condition: "transactions from the previous 48 h", ruling_days: 45,
-       source: "https://www.gob.mx/condusef/articulos/cargos-no-reconocidos?idiom=es"}
-  AR: {resolution_business_days: 10, source: "https://www.bcra.gob.ar/archivos/Pdfs/texord/t-pusf.pdf"}
-  CO: {response_days: 15, source: "https://www.superfinanciera.gov.co/preguntas-frecuentes/3/3-derechos-de-peticion-ante-entidades-vigiladas/"}
-  BR: {ombudsman_business_days: 10, extension_once: true, source: "Resolução CMN 4.860 (2020)", note: "Portuguese demo only; the dataset has no BR"}
+regulatory_clock:                        # [external] business days per the country's banking calendar; amount_gate never changes these
+  MX:
+    debit:
+      # Source: Banxico Circular 3/2012, art. 19 Bis 3 (reviewed Mon Sep 28). See also CONDUSEF:
+      # https://www.gob.mx/condusef/articulos/cargos-no-reconocidos?idiom=es
+      # Provisional credit by business day 2 with no amount cap. The only exemption is a ruling within that term
+      # proving two-factor authentication; without a ruling, the credit becomes final.
+      source: "Banxico Circular 3/2012, art. 19 Bis 3"
+      provisional_credit_business_days: 2
+      amount_cap: none
+      exemption: two_factor_authentication_ruling   # evidence proxy: handoff auth_evidence, derived from transactions.channel
+      without_ruling: credit_becomes_final
+    credit:
+      # Source: LTOSF art. 23 (clarifications on credit products). The customer has 90 days to claim; ruling within
+      # 45 days (180 if the charge was abroad); while pending, no payment of the claimed amount and no credit bureau
+      # reporting. CONDUSEF maximum amounts for art. 23: pending.
+      source: "LTOSF art. 23"
+      customer_claim_days: 90
+      ruling_days: 45
+      ruling_days_abroad: 180
+      while_pending: {no_payment_of_claimed_amount: true, no_credit_bureau_reporting: true}
+  AR:
+    # Source: BCRA — resolve and reimburse within 10 business days. https://www.bcra.gob.ar/archivos/Pdfs/texord/t-pusf.pdf
+    source: "BCRA"
+    resolve_and_reimburse_business_days: 10
+  CO:
+    # Source: SFC — answer within 15 days [not re-verified].
+    # https://www.superfinanciera.gov.co/preguntas-frecuentes/3/3-derechos-de-peticion-ante-entidades-vigiladas/
+    source: "SFC"
+    response_days: 15
+  BR:
+    # Source: Resolução CMN 4.860 (2020), ombudsman (ouvidoria) within 10 business days [not re-verified].
+    # Portuguese demo only; the dataset has no BR.
+    source: "Resolução CMN 4.860 (2020)"
+    ombudsman_business_days: 10
+    extension_once: true
 
 reliability:
   tool_retries: 2
@@ -86,6 +123,12 @@ case_queue:                              # analyst queue; a case's status is its
     closed:       []
   sla_hours: {verification: 4, review: 24}        # [assumption] for the demo; shown in the console
   ambiguous_queue: {state: review, tag: ambiguous, owner_required: true}
+  deadline_sla:                                   # provisional_credit is always human_required, so a person must act before the MX debit deadline
+    mx_debit:
+      applies_to: {country: MX, product: debit}
+      deadline: regulatory_clock.MX.debit.provisional_credit_business_days
+      raise_priority_on_business_day: 1
+      alert_before_business_day: 2
 
 notifications:                           # what the customer receives in each status; every send is an event in case_events
   provider: log                          # log (customer panel "Mis notificaciones" in /chat, demo) | telegram (provisional if time allows) | email (mock)
