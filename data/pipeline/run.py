@@ -39,7 +39,7 @@ def run(source: str, layout: Layout, tables: tuple[str, ...] = TABLES, delivery:
     if source == "s3":
         files, skipped = sources.list_s3(tables, mirror=DATA_DIR)
         env = load_env()
-        location = f"s3://{env['S3_BUCKET']}/{env['S3_PREFIX'] or 'data/'}"
+        location = f"s3://{env['DATASET_S3_BUCKET']}/{env['DATASET_S3_PREFIX'] or 'data/'}"
     elif source == "local":
         (files, skipped), location = sources.list_local(DATA_DIR, tables), str(DATA_DIR.relative_to(DATA_DIR.parent))
     elif source == "fixture":

@@ -1,4 +1,4 @@
-"""Raw file sources: S3 (with credentials from .env), local mirror or fixture.
+"""Raw file sources: S3 (dataset AWS profile, see .env.example), local mirror or fixture.
 
 All of them return the same list of `SourceFile`: relative key (`<table>/year=…/<table>_YYYYMMDD.csv`, same as in
 S3), local path, size, md5, load date and header. The load date is the S3 LastModified (s3 mode), the file's mtime
@@ -103,9 +103,8 @@ def list_fixture(fixture_dir: Path, tables: tuple[str, ...], upto: int) -> tuple
 
 def _s3_client(env: dict[str, str]):
     import boto3
-    return boto3.client("s3", region_name=env["AWS_DEFAULT_REGION"] or None,
-                        aws_access_key_id=env["AWS_ACCESS_KEY_ID"] or None,
-                        aws_secret_access_key=env["AWS_SECRET_ACCESS_KEY"] or None)
+    session = boto3.Session(profile_name=env["DATASET_AWS_PROFILE"] or None, region_name=env["AWS_REGION"] or None)
+    return session.client("s3")
 
 
 def _needs_download(local: Path, size: int, etag: str) -> bool:
@@ -120,10 +119,10 @@ def list_s3(tables: tuple[str, ...], mirror: Path, workers: int = 16) -> tuple[l
     """Lists the bucket, syncs to the local mirror whatever is missing or changed (only files in scope, config.in_scope)
     and returns (inventory, objects skipped by scope)."""
     env = load_env()
-    if not (env["AWS_ACCESS_KEY_ID"] and env["S3_BUCKET"]):
-        raise RuntimeError("Missing credentials or bucket in .env (see .env.example)")
+    if not env["DATASET_S3_BUCKET"]:
+        raise RuntimeError("Missing DATASET_S3_BUCKET in .env (see .env.example)")
     s3 = _s3_client(env)
-    bucket, prefix = env["S3_BUCKET"], env["S3_PREFIX"] or "data/"
+    bucket, prefix = env["DATASET_S3_BUCKET"], env["DATASET_S3_PREFIX"] or "data/"
     objects, skipped = [], 0
     for t in tables:
         for sub in (f"{prefix}{t}/", f"{prefix}{t}.csv"):   # partitioned or flat

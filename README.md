@@ -70,9 +70,12 @@ The team's build guide starts at [`docs/README.md`](docs/README.md). Documents, 
 
 ## How to reproduce
 ```bash
-cp .env.example .env       # fill in the S3 credentials (Factored data dictionary, p. 2)
+aws configure --profile factored-dataset   # dataset keys (Factored data dictionary, p. 2); read-only
+cp .env.example .env       # no secrets: profile names, region and buckets
 make setup                 # venv + dependencies + pipeline from S3 + fixture + data/quality_report.md
 make test                  # pytest, offline
+make hooks                 # gitleaks pre-commit hook: blocks commits that contain secrets
 ```
-`make setup SOURCE=local` runs on a local mirror already downloaded to `data/<table>/` (offline). The credentials
-live only in `.env`, which is not committed to git.
+`make setup SOURCE=local` runs on a local mirror already downloaded to `data/<table>/` (offline). Credentials live
+only in `~/.aws/credentials` profiles (`factored-dataset` for the dataset, `nickoftime` for the team account); `.env`
+holds no secrets and is not committed to git either. An older `.env` with `AWS_ACCESS_KEY_ID`/`S3_BUCKET` still works.

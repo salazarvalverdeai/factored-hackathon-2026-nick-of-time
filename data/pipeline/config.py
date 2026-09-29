@@ -35,11 +35,16 @@ def setup_logging() -> None:
 
 
 def load_env() -> dict[str, str]:
-    """Variables from .env (S3 credentials included). They are never logged."""
+    """Settings from .env. No credentials here: boto3 reads them from the DATASET_AWS_PROFILE profile
+    (~/.aws/credentials) or, with an older .env, from AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY in the environment.
+    S3_BUCKET, S3_PREFIX and AWS_DEFAULT_REGION are the pre-rename names and still work."""
     load_dotenv(ROOT / ".env")
-    return {k: os.environ.get(k, "") for k in
-            ("AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "AWS_DEFAULT_REGION", "S3_BUCKET", "S3_PREFIX",
-             "LOCAL_DATA_DIR")}
+    get = os.environ.get
+    return {"DATASET_AWS_PROFILE": get("DATASET_AWS_PROFILE", ""),
+            "AWS_REGION": get("AWS_REGION") or get("AWS_DEFAULT_REGION", ""),
+            "DATASET_S3_BUCKET": get("DATASET_S3_BUCKET") or get("S3_BUCKET", ""),
+            "DATASET_S3_PREFIX": get("DATASET_S3_PREFIX") or get("S3_PREFIX", ""),
+            "LOCAL_DATA_DIR": get("LOCAL_DATA_DIR", "")}
 
 
 @dataclass(frozen=True)
