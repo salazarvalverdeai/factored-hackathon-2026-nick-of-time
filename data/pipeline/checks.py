@@ -7,7 +7,7 @@ Dos orígenes:
   contrato, etiquetas normalizadas (México/Mexico) y archivos con cambio de schema.
 
 Cuando existe, se adjunta la cifra del EDA para el mismo check (outputs/tables/01_*.csv), para ver que el pipeline
-reproduce lo medido en calidad_datos.md. No se compara transactions: el EDA cubre los 3 años y gold solo la ventana de
+reproduce lo medido en data_quality.md. No se compara transactions: el EDA cubre los 3 años y gold solo la ventana de
 12 meses (contracts/gold_contract.md, R1). En este repo no están las tablas del EDA, así que la columna queda vacía.
 """
 from __future__ import annotations

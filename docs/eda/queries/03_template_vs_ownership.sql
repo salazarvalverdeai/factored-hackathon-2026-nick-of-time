@@ -1,4 +1,4 @@
--- Respalda: mapeo_workflows.md §5 (¿la plantilla del transcript se relaciona con los productos del cliente?).
+-- Respalda: workflow_mapping.md §5 (¿la plantilla del transcript se relaciona con los productos del cliente?).
 -- Produce: outputs/tables/03_template_vs_ownership.csv (vía eda/workflows.py).
 -- Si el texto reflejara la intención real, los clientes con plantilla "saldo de tarjeta" tendrían más tarjetas.
 WITH own AS (

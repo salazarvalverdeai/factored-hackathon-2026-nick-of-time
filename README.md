@@ -1,6 +1,6 @@
-# factored-hackathon-2026-contrareloj
+# factored-hackathon-2026-nick-of-time
 
-Factored AI & Data Hackathon 2026, equipo Contrarreloj. Dataset sintético LATAM Bank (MX, CO, AR; jun 2023 – jun 2026).
+Factored AI & Data Hackathon 2026, equipo Nick of Time. Dataset sintético LATAM Bank (MX, CO, AR; jun 2023 – jun 2026).
 
 ## Qué hay
 | Carpeta | Contenido |
@@ -19,21 +19,21 @@ La guía de construcción del equipo empieza en [`docs/README.md`](docs/README.m
 
 - [`docs/README.md`](docs/README.md) — índice del equipo y guía de construcción.\
   Qué construimos, conceptos, arquitectura, quién aporta qué, guardrails por capa, datos de prueba, calendario y reglas.
-- [`docs/equipo/01_freddy.md`](docs/equipo/01_freddy.md) — Freddy: agente, políticas, MCP, ML, integración.\
+- [`docs/team/01_freddy.md`](docs/team/01_freddy.md) — Freddy: agente, políticas, MCP, ML, integración.\
   Qué recibe y entrega, tools por actor, modo de aprobación configurable y tareas.
-- [`docs/equipo/02_gianmarco.md`](docs/equipo/02_gianmarco.md) — GianMarco: deploy, chat, consola, páginas.\
+- [`docs/team/02_gianmarco.md`](docs/team/02_gianmarco.md) — GianMarco: deploy, chat, consola, páginas.\
   EC2 con auto-deploy, `/chat`, consola del analista con sus tools por API y tareas.
-- [`docs/equipo/03_david.md`](docs/equipo/03_david.md) — David: pipeline, calidad, presentación del repo.\
+- [`docs/team/03_david.md`](docs/team/03_david.md) — David: pipeline, calidad, presentación del repo.\
   Reglas del gold, manifest, fixtures, `make setup` y tareas.
-- [`docs/equipo/04_diego.md`](docs/equipo/04_diego.md) — Diego: analytics, negocio, set de evaluación.\
+- [`docs/team/04_diego.md`](docs/team/04_diego.md) — Diego: analytics, negocio, set de evaluación.\
   Los números explicados, qué es un buen caso de evaluación y tareas.
-- [`docs/anexos.md`](docs/anexos.md) — anexos: stack, contratos, números, pendientes.\
+- [`docs/appendix.md`](docs/appendix.md) — anexos: stack, contratos, números, pendientes.\
   Decisiones de stack cerradas el lunes 28, contratos en `contracts/` y `eval/`, números del pitch verificados.
 - [`docs/stack.md`](docs/stack.md) — stack cerrado y setup del full stack.\
   Decisiones y por qué, páginas de la app, estructura del repo, auto-deploy y criterios de aceptación.
-- [`docs/conceptos.md`](docs/conceptos.md) — guía de conceptos de la idea W3.\
+- [`docs/concepts.md`](docs/concepts.md) — guía de conceptos de la idea W3.\
   One-pager, glosario, AS IS / TO BE, plazos legales, evaluación, business case y riesgos.
-- [`docs/diferenciales.md`](docs/diferenciales.md) — diferenciales frente a otros equipos (para el README final y el video).\
+- [`docs/differentiators.md`](docs/differentiators.md) — diferenciales frente a otros equipos (para el README final y el video).\
   Cada diferencial atado a un criterio del reto y a la prueba que se muestra; dónde podríamos perder.
 - [`problem.md`](problem.md) — definición del problema W3: intake de disputas con reloj regulatorio.\
   Alcance, despliegue, componente aprendido vs baseline, cómo se mide, riesgos, reparto y calendario.
@@ -41,7 +41,7 @@ La guía de construcción del equipo empieza en [`docs/README.md`](docs/README.m
   Se mueve a issues de GitHub.
 - [`contracts/gold_contract.md`](contracts/gold_contract.md) — contrato de gold vigente (pipeline).\
   Lo aplica `data/pipeline/gold.py`; reglas G1–G5 verificadas en cada corrida y en `tests/`.
-- [`contracts/gold_contract.propuesta.md`](contracts/gold_contract.propuesta.md) — propuesta de Freddy: qué lee el agente del gold y qué no.\
+- [`contracts/gold_contract.proposal.md`](contracts/gold_contract.proposal.md) — propuesta de Freddy: qué lee el agente del gold y qué no.\
   Pendiente de conciliar con `gold_contract.md` (David).
 - [`contracts/policies.yaml`](contracts/policies.yaml) — motor de políticas fuera del modelo (`default: deny`).\
   Identidad, zonas, modo de aprobación, cola del analista, notificaciones, guardrails con ID y splits; el LLM no lo lee.
@@ -51,21 +51,21 @@ La guía de construcción del equipo empieza en [`docs/README.md`](docs/README.m
   Lo que recibe el humano: solicitud, hechos verificados, acciones, evidencia, preguntas abiertas y plazo.
 - [`eval/eval_case.schema.json`](eval/eval_case.schema.json) — JSON Schema de un caso de evaluación held-out.\
   El harness compara estado final, no texto; IDs `EV-NNNN`, tipo de caso (incluye ataques y `tope`) y conjunto.
-- [`eval/ejemplos.jsonl`](eval/ejemplos.jsonl) — casos de ejemplo que cumplen el esquema.\
+- [`eval/examples.jsonl`](eval/examples.jsonl) — casos de ejemplo que cumplen el esquema.\
   Referencia para armar el set ES/PT (`EV-0001` es el caso normal end-to-end).
-- [`docs/assets/arquitectura.svg`](docs/assets/arquitectura.svg) — diagrama de arquitectura.\
+- [`docs/assets/architecture.svg`](docs/assets/architecture.svg) — diagrama de arquitectura.\
   El LLM entiende, las reglas deciden, las tools actúan, la verificación confirma.
-- [`docs/assets/arquitectura_despliegue_A_B.svg`](docs/assets/arquitectura_despliegue_A_B.svg) — despliegue opción A vs B.\
+- [`docs/assets/deployment_options_A_B.svg`](docs/assets/deployment_options_A_B.svg) — despliegue opción A vs B.\
   Mismo grafo y tools; cambia dónde corre el grafo y cómo llama a las tools.
-- [`docs/assets/arquitectura_v2_ciclo_reto.svg`](docs/assets/arquitectura_v2_ciclo_reto.svg) — arquitectura v2 mapeada al ciclo del reto.\
+- [`docs/assets/architecture_v2_challenge_cycle.svg`](docs/assets/architecture_v2_challenge_cycle.svg) — arquitectura v2 mapeada al ciclo del reto.\
   Understand → Decide → Act → Verify → Escalate, con los requisitos mínimos de cada etapa. Se usa en `docs/README.md`.
-- [`docs/assets/flujo_3_zonas.svg`](docs/assets/flujo_3_zonas.svg) — flujo de un caso por las tres zonas.\
+- [`docs/assets/three_zone_flow.svg`](docs/assets/three_zone_flow.svg) — flujo de un caso por las tres zonas.\
   Entender, identidad, recuperar, decidir por reglas, y los casos en que el sistema dice "no".
-- [`docs/assets/flujo_analista.svg`](docs/assets/flujo_analista.svg) — flujo del analista y cola del caso.\
+- [`docs/assets/analyst_flow.svg`](docs/assets/analyst_flow.svg) — flujo del analista y cola del caso.\
   El sistema actúa rápido, la persona verifica y cierra, el cliente se entera en cada estado.
-- [`docs/assets/grafo_evidencia.svg`](docs/assets/grafo_evidencia.svg) — grafo de evidencia para el revisor.\
+- [`docs/assets/evidence_graph.svg`](docs/assets/evidence_graph.svg) — grafo de evidencia para el revisor.\
   Cada nodo es una fila del log de ejecución (cliente, producto, transacción, score).
-- [`docs/assets/pipeline_y_duenos.svg`](docs/assets/pipeline_y_duenos.svg) — pasos de un caso y qué aporta cada persona.\
+- [`docs/assets/pipeline_and_owners.svg`](docs/assets/pipeline_and_owners.svg) — pasos de un caso y qué aporta cada persona.\
   Se usa en `docs/README.md`.
 
 ## Cómo se reproduce

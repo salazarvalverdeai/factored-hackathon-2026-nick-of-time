@@ -1,4 +1,4 @@
-# Contra Reloj — guía de construcción (detalle para el equipo)
+# Nick of Time — guía de construcción (detalle para el equipo)
 
 28 de septiembre de 2026 · Freddy
 
@@ -13,7 +13,7 @@ No es un chat: es una plataforma de atención de disputas con cuatro piezas sobr
 | Consola del analista | Bandeja de casos escalados con tarjeta de handoff, grafo de evidencia, traza y botones (aprobar abono, pedir datos, cerrar) | Analista de disputas | Caso "requiere humano"; escalation quality |
 | Evidencia y evaluación | Log de auditoría, trazas, harness held-out, pipeline con contratos | Jurado y nosotros | Puntos 4, 5 y 6 |
 
-Siete páginas en la web: `/` portada, `/chat` cliente, `/consola` analista, `/datos` pipeline y calidad, `/evaluacion` tabla de resultados, `/analytics` tablero, `/agente` grafo real y políticas. Las dos primeras van al video; las otras las abre el jurado después.
+Siete páginas en la web: `/` portada, `/chat` cliente, `/console` analista, `/data` pipeline y calidad, `/evaluation` tabla de resultados, `/analytics` tablero, `/agent` grafo real y políticas. Las dos primeras van al video; las otras las abre el jurado después.
 
 Fuera a propósito: investigación del caso, contracargo con la red, abono automático, voz, WhatsApp real, multi-agente, Graph RAG, fine-tuning. Resolvemos el contacto, no el reclamo: el reclamo lo resuelve el banco dentro del plazo que nosotros calculamos y mostramos.
 
@@ -46,9 +46,9 @@ Dos términos nuevos desde hoy: **modo de aprobación** es el ajuste por acción
 
 ## Arquitectura
 
-![Arquitectura v2 mapeada al ciclo del reto](assets/arquitectura_v2_ciclo_reto.svg)
+![Arquitectura v2 mapeada al ciclo del reto](assets/architecture_v2_challenge_cycle.svg)
 
-Opciones de despliegue A y B: `assets/arquitectura_despliegue_A_B.svg`. Flujo del analista: `assets/flujo_analista.svg`.
+Opciones de despliegue A y B: `assets/deployment_options_A_B.svg`. Flujo del analista: `assets/analyst_flow.svg`.
 
 El grafo y las tools se escriben una vez; A y B difieren solo en dónde corre el grafo y en cómo llama a las tools (MCP por red o import directo). GianMarco construye la EC2 primero porque es la base de ambas; Freddy levanta A encima cuando Platform tenga URL y Slack apruebe.
 
@@ -56,7 +56,7 @@ El grafo y las tools se escriben una vez; A y B difieren solo en dónde corre el
 
 Cada tarea tiene un "hecho cuando" observable. La franja de cada persona dice qué debe existir el viernes 2. Tacha aquí mismo lo que vayas cerrando.
 
-![Flujo de un caso y qué aporta cada uno](assets/pipeline_y_duenos.svg)
+![Flujo de un caso y qué aporta cada uno](assets/pipeline_and_owners.svg)
 
 Arriba, los seis pasos que recorre un caso; abajo, la pieza que cada uno aporta por detrás para que ese paso exista. El paso 4 es el único donde decide una regla, nunca el modelo.
 
@@ -64,10 +64,10 @@ Arriba, los seis pasos que recorre un caso; abajo, la pieza que cada uno aporta 
 | --- | --- | --- | --- |
 | Freddy | Grafo en Platform, `policies.yaml` con modo de aprobación, servidor MCP con las tools del cliente, clasificador ES/PT, harness | Entender, decidir, actuar, verificar, escalar; la evaluación | Freddy |
 | GianMarco | EC2 con auto-deploy, `/chat`, consola con las tools del analista por API, `case_events` y auditoría, páginas | Canal del cliente, consola del analista, registro de cada acción | GianMarco |
-| David | Gold v1 y v2 con contratos, manifest, fixtures de demo y de llegadas tardías, `/datos` | Recuperar (lo que leen las tools) y la evidencia de data engineering | David |
+| David | Gold v1 y v2 con contratos, manifest, fixtures de demo y de llegadas tardías, `/data` | Recuperar (lo que leen las tools) y la evidencia de data engineering | David |
 | Diego | Queries del pitch, negocio y plazos, especificación de vistas, set de evaluación ES/PT, tablero | El problema en números, los casos que prueban el sistema, la tabla de resultados | Diego |
 
-Repo: `factored-hackathon-2026-contrareloj`. Detalle por persona en `docs/equipo/`; stack, contratos, números y pendientes en `docs/anexos.md`; diferenciales en `docs/diferenciales.md`; contratos en `contracts/`; esquemas en `eval/`.
+Repo: `factored-hackathon-2026-nick-of-time`. Detalle por persona en `docs/team/`; stack, contratos, números y pendientes en `docs/appendix.md`; diferenciales en `docs/differentiators.md`; contratos en `contracts/`; esquemas en `eval/`.
 
 ## Guardrails, por capa
 
@@ -78,7 +78,7 @@ Ninguno vive solo en el prompt: cada uno tiene un lugar en código, un ID que ci
 | G-IN-01 | Entrada | Prompt injection directa e indirecta: texto del cliente y salidas de tools como datos delimitados; clasificador de injection → zona humano | injection |
 | G-IN-02 | Entrada | Datos inventados por el cliente: monto, fecha y comercio solo sirven para buscar; score, producto y país salen del gold | injection |
 | G-IN-03 | Entrada | Idioma y ambigüedad: ES/PT con umbral; baja confianza → pregunta, luego humano | ambiguo |
-| G-IN-04 | Entrada | PII y fuera de alcance: PAN/CVV/contraseña se rechazan; temas fuera de disputas → abstención | fuera_de_alcance |
+| G-IN-04 | Entrada | PII y fuera de alcance: PAN/CVV/contraseña se rechazan; temas fuera de disputas → abstención | out_of_scope |
 | G-SES-01 / 02 | Sesión | OTP con TTL; `customer_id` solo desde la sesión; acceso a otro cliente → DENY | session_expired, unauthorized_access |
 | G-TOOL-01 / 02 | Tools | Allowlist y esquemas estrictos; escrituras con modo de aprobación, idempotencia y post-condición; abono nunca auto | unauthorized_access, tool_failure |
 | G-POL-01 | Política | Deny por defecto; toda denegación es una fila en `policy_denials` | todos |
@@ -88,7 +88,7 @@ Ninguno vive solo en el prompt: cada uno tiene un lugar en código, un ID que ci
 
 ## Datos de prueba: qué sale del dataset y qué ponemos nosotros
 
-El dataset da la verdad del estado (clientes, productos, transacciones, scores, país) y las etiquetas de fraude; no da conversaciones ni resultados de disputas atados a una transacción. La partición se hace una sola vez en gold: `split` por cliente (`hash(customer_id) mod 10`: 0–6 entrenamiento, 7 desarrollo, 8–9 held-out) y `periodo` por tiempo (ajuste jun-2025 a feb-2026, medición mar–may-2026).
+El dataset da la verdad del estado (clientes, productos, transacciones, scores, país) y las etiquetas de fraude; no da conversaciones ni resultados de disputas atados a una transacción. La partición se hace una sola vez en gold: `split` por cliente (`hash(customer_id) mod 10`: 0–6 entrenamiento, 7 desarrollo, 8–9 held-out) y `period` por tiempo (ajuste jun-2025 a feb-2026, medición mar–may-2026).
 
 | Conjunto | De dónde sale | Para qué | Split y sello |
 | --- | --- | --- | --- |
@@ -131,7 +131,7 @@ Cinco reglas y una definición de "funcional".
 4. El jueves se congela el alcance. Lo de "si sobra tiempo" se toca el sábado.
 5. Secretos: `.env` en `.gitignore` desde el primer commit; David revisa el historial el domingo.
 
-Funcional el viernes significa: caso normal en español con bloqueo verificado, caso abierto y plazo MX visible; caso ambiguo en portugués que pregunta con opciones y no actúa; caso humano con tarjeta de handoff en la consola, copiloto que propone y humano que aprueba con registro en auditoría; el sistema dice no (inyección → DENY con `policy_id`, sesión vencida → reautenticar, tool caída → escala con acción no confirmada); modo supervisado activable desde la consola; traza visible por paso; `/datos` y `/analytics` con contenido real; deploy público que se levanta con `docker compose up`. Lista de recortes en orden: voz con ElevenLabs → grafo de evidencia → Jev → `/analytics` embebido → opción A si Platform falla. Los tres casos con verificación y handoff no se recortan nunca. Los datos son públicos y las claves del dataset también: no hay restricción para usar servicios externos, y se declara en el README.
+Funcional el viernes significa: caso normal en español con bloqueo verificado, caso abierto y plazo MX visible; caso ambiguo en portugués que pregunta con opciones y no actúa; caso humano con tarjeta de handoff en la consola, copiloto que propone y humano que aprueba con registro en auditoría; el sistema dice no (inyección → DENY con `policy_id`, sesión vencida → reautenticar, tool caída → escala con acción no confirmada); modo supervisado activable desde la consola; traza visible por paso; `/data` y `/analytics` con contenido real; deploy público que se levanta con `docker compose up`. Lista de recortes en orden: voz con ElevenLabs → grafo de evidencia → Jev → `/analytics` embebido → opción A si Platform falla. Los tres casos con verificación y handoff no se recortan nunca. Los datos son públicos y las claves del dataset también: no hay restricción para usar servicios externos, y se declara en el README.
 
 | Dependencia | Si falla | Plan B | Dueño |
 | --- | --- | --- | --- |

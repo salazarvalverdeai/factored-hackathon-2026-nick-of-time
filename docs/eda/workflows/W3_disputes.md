@@ -3,8 +3,8 @@
 > Documento autocontenido para el Project de claude.ai (EDA del dataset sintético LATAM Bank, Factored AI & Data
 > Hackathon 2026). Generado con `python -m eda.report` desde `outputs/tables/`. Cada cifra lleva etiqueta
 > (`[medido]` = sale del dataset con la query indicada; `[supuesto]`; `[proyectado]`) y su archivo de query en
-> `docs/eda/queries/`. Contexto general: `calidad_datos.md`, `mapeo_workflows.md`, `findings.md`,
-> `resumen_ejecutivo.md`.
+> `docs/eda/queries/`. Contexto general: `data_quality.md`, `workflow_mapping.md`, `findings.md`,
+> `executive_summary.md`.
 
 ## 1. Definición y reglas de mapeo
 Recepción de reclamos por cargos no reconocidos, cobros indebidos y fraude: identificar la transacción, verificar, decidir si se automatiza (bloqueo, crédito provisional, caso) o se escala. Tiene la mejor fuente de casos (complaints de 'Cargo no reconocido' y 'Cobro indebido', confianza alta/media) y la única señal casi determinista del dataset (`fraud_score`). A nivel de contacto se aproxima con el motivo `Queja` (confianza baja).
@@ -33,7 +33,7 @@ Cobertura del workflow y % AMBIGUO/OTRO por fuente (`03_coverage_summary.csv`) `
 | digital_events | 0.0 | 5.0 | 55.3 |
 
 Confiabilidad: la plantilla de transcript es independiente del motivo (kappa 0.0003) y de los productos del cliente;
-la cobertura de transcripts no tiene sesgo por workflow (p = 0.84). Detalle en `mapeo_workflows.md` §5.
+la cobertura de transcripts no tiene sesgo por workflow (p = 0.84). Detalle en `workflow_mapping.md` §5.
 
 ## 2. Demanda
 Población de contacto: contactos Queja (INT-02, confianza baja).

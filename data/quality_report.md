@@ -42,7 +42,7 @@ Contrato: `contracts/gold_contract.md` (v1). La solución lee solo `data/gold/`;
 
 ## 3. Checks con conteos
 
-Violaciones = filas (o archivos, en SCH-01) que fallan el check; denominador = filas donde el check aplica. La última columna es la cifra del EDA para el mismo check (`outputs/tables/01_*.csv`, documentada en `docs/eda/calidad_datos.md` §B–C).
+Violaciones = filas (o archivos, en SCH-01) que fallan el check; denominador = filas donde el check aplica. La última columna es la cifra del EDA para el mismo check (`outputs/tables/01_*.csv`, documentada en `docs/eda/data_quality.md` §B–C).
 
 | ID | Tabla | Check | Descripción | Violaciones | Denominador | % | Acción | EDA (violaciones / denominador) |
 |---|---|---|---|---:|---:|---:|---|---|
@@ -88,7 +88,7 @@ Violaciones = filas (o archivos, en SCH-01) que fallan el check; denominador = f
 | LATE-01 | `transactions` | llegada tardía | process_date − transaction_date > 0 días | 0 | 1,477,723 | 0% | flag en gold; alerta de frescura | — |
 | LATE-02 | `complaints` | llegada tardía | process_date − creation_date > 0 días | 0 | 67,095 | 0% | flag en gold; alerta de frescura | — |
 
-Sin comparación con el EDA en este repo: `outputs/tables/` quedó en el repo del EDA, donde el mismo pipeline sobre el dataset completo reproduce las cifras de `calidad_datos.md`. Aquí `transactions` cubre solo la ventana de 12 meses, así que sus conteos no son comparables con el EDA.
+Sin comparación con el EDA en este repo: `outputs/tables/` quedó en el repo del EDA, donde el mismo pipeline sobre el dataset completo reproduce las cifras de `data_quality.md`. Aquí `transactions` cubre solo la ventana de 12 meses, así que sus conteos no son comparables con el EDA.
 
 ## 4. Contratos de schema de silver (pandera)
 
@@ -104,7 +104,7 @@ Contratos en `data/pipeline/contracts.py` (versión v1): columnas, tipos, obliga
 
 ## 5. Llegadas tardías y rezago
 
-Rezago = `process_date − fecha del evento` en días. Positivo = llegada tardía (flag `qc_late_arrival`). Un rezago de −1 no es un error: el día operativo del archivo corta a las 06:00 u 08:00 (`calidad_datos.md` §B4).
+Rezago = `process_date − fecha del evento` en días. Positivo = llegada tardía (flag `qc_late_arrival`). Un rezago de −1 no es un error: el día operativo del archivo corta a las 06:00 u 08:00 (`data_quality.md` §B4).
 
 | Tabla | Filas | Tardías (> 0 d) | Rezago máx. | Distribución del rezago | Partición ≠ process_date |
 |---|---:|---:|---:|---|---:|
@@ -117,7 +117,7 @@ Primera corrida en este directorio: no hay versión anterior con qué comparar.
 
 ## 7. Fixture `late_arrival`: llegadas tardías, cambio de schema y contrato de gold
 
-> **FIXTURE, datos sintéticos de prueba (no salen del dataset).** El dataset real no tiene llegadas tardías ni evolución de schema (`calidad_datos.md` §B4, §B6), así que la frescura se demuestra con dos entregas etiquetadas en `data/fixtures/late_arrival/` (IDs `FX-`). El pipeline las procesa con el mismo código que la corrida real, en `data/_fixture_run/`.
+> **FIXTURE, datos sintéticos de prueba (no salen del dataset).** El dataset real no tiene llegadas tardías ni evolución de schema (`data_quality.md` §B4, §B6), así que la frescura se demuestra con dos entregas etiquetadas en `data/fixtures/late_arrival/` (IDs `FX-`). El pipeline las procesa con el mismo código que la corrida real, en `data/_fixture_run/`.
 
 - **delivery_1** (entregada 2026-05-17T23:00:00-05:00, gold v1, contrato 5/5 reglas): Carga inicial con problemas de calidad conocidos: 1 duplicado exacto, 2 etiquetas Mexico, 1 transacción antes de la apertura, 1 transacción con customer_id que no es el dueño del producto (gold lo resuelve al dueño), FK huérfanas (1 transacción, 1 complaint), 1 complaint con producto de otro cliente, fechas futuras (1 customer, 1 product), 1 complaint sin category y 1 evento de 2025-05-31 fuera de la ventana.
 - **delivery_2** (entregada 2026-05-21T09:00:00-05:00, gold v2, contrato 5/5 reglas): Llegadas tardías y cambio de schema: re-entrega del snapshot de customers (1 update, 1 insert), re-entrega de la partición del 16 (sin el duplicado, +1 fila) y partición nueva del 20 con schema v2 (txn_country renombrada, merchant_mcc nueva), 3 eventos del 12–14 de mayo y la corrección de FX-TRX-0008 (Pending → Approved).
@@ -172,7 +172,7 @@ Versión v1 → v2; cambiaron: customers, transactions, transaction_labels, tran
 
 ## 8. Nulos por columna (silver)
 
-Solo columnas con nulos. Obligatorias en negrita (deben ser 0). Nulos esperables y aleatorios según `calidad_datos.md` §B2.
+Solo columnas con nulos. Obligatorias en negrita (deben ser 0). Nulos esperables y aleatorios según `data_quality.md` §B2.
 
 - `customers` (150,000 filas): `email` 1.989%, `mobile_phone` 3.138%, `landline_phone` 50.035%, `address` 4.913%, `postal_code` 10.029%, `detected_accent` 29.878%, `credit_score` 14.995%, `estimated_monthly_income` 20.022%, `occupation` 10.026%, `marital_status` 7.97%, `education_level` 11.968%
 - `products` (400,000 filas): `credit_limit` 68.671%, `interest_rate` 10.017%, `expiration_date` 66.71%, `days_past_due` 68.662%, `last_transaction_date` 23.569%

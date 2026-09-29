@@ -1,4 +1,4 @@
--- Respalda: calidad_datos.md §B8 (cobertura de transcripts y encuestas sobre interacciones) y la decisión 3 del
+-- Respalda: data_quality.md §B8 (cobertura de transcripts y encuestas sobre interacciones) y la decisión 3 del
 -- plan (sesgo de has_transcript; aquí por reason_category/canal/tipo; por workflow se mide en la fase 3).
 -- Produce: outputs/tables/01_coverage.csv (vía eda/quality.py).
 WITH t AS (SELECT interaction_id, count(*) AS n_tr FROM call_transcripts GROUP BY 1),

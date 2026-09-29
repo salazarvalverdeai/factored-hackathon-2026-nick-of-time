@@ -50,11 +50,11 @@
     <!-- acciones -->
     <rect x="420" y="290" width="190" height="56" rx="8" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
     <text x="515" y="312" text-anchor="middle" font-weight="bold" fill="#166534">Acción A-3301</text>
-    <text x="515" y="332" text-anchor="middle" fill="#1f2937">bloquear_tarjeta(P-991)</text>
+    <text x="515" y="332" text-anchor="middle" fill="#1f2937">block_card(P-991)</text>
 
     <rect x="650" y="290" width="110" height="56" rx="8" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
     <text x="705" y="312" text-anchor="middle" font-weight="bold" fill="#166534">Acción A-3302</text>
-    <text x="705" y="332" text-anchor="middle" fill="#1f2937">abrir_caso(T-77120)</text>
+    <text x="705" y="332" text-anchor="middle" fill="#1f2937">open_case(T-77120)</text>
 
     <line x1="680" y1="236" x2="540" y2="288" stroke="#4b5563" stroke-width="2" marker-end="url(#arr)"/>
     <line x1="705" y1="236" x2="705" y2="288" stroke="#4b5563" stroke-width="2" marker-end="url(#arr)"/>
@@ -87,11 +87,11 @@
     <g font-family="Menlo, monospace" font-size="10.5" fill="#1f2937">
       <text x="55" y="336">12:04:01 invoke_agent  sess=S-2291  lang=es</text>
       <text x="55" y="354">12:04:01 classify      intent=no_reconocido p=0.91</text>
-      <text x="55" y="372">12:04:02 execute_tool  buscar_transaccion → T-77120</text>
+      <text x="55" y="372">12:04:02 execute_tool  search_transaction → T-77120</text>
       <text x="55" y="390">12:04:02 policy        R-07 zona=alta  ALLOW</text>
-      <text x="55" y="408">12:04:03 execute_tool  bloquear_tarjeta(P-991) → ok</text>
-      <text x="55" y="426">12:04:03 verify        estado_producto → Blocked ✓</text>
-      <text x="55" y="444">12:04:03 execute_tool  abrir_caso → K-4471</text>
+      <text x="55" y="408">12:04:03 execute_tool  block_card(P-991) → ok</text>
+      <text x="55" y="426">12:04:03 verify        get_product_status → Blocked ✓</text>
+      <text x="55" y="444">12:04:03 execute_tool  open_case → K-4471</text>
       <text x="55" y="462">12:04:04 sla           MX·debito  d2=26-sep d45=…</text>
       <text x="55" y="480">12:04:04 respond       solo hechos verificados</text>
       <text x="55" y="498">------ latencia e2e 2.9 s · costo 0.006 USD</text>

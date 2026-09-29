@@ -15,7 +15,7 @@
   (`05_fraud_score_thresholds.csv`).
 - **Problemas de calidad reales** que sirven de evidencia de data engineering: FK a productos de otro cliente (100% en
   complaints), fechas futuras (~4%), transacciones antes de la apertura del producto (18.7%), día operativo corrido,
-  `México`/`Mexico` (`calidad_datos.md` §C).
+  `México`/`Mexico` (`data_quality.md` §C).
 
 ## Qué no tiene
 - **Motivo granular, intents o texto real**: 6 motivos; `detected_intents` = 1 valor; transcripts = 2 plantillas de

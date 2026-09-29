@@ -3,8 +3,8 @@
 > Documento autocontenido para el Project de claude.ai (EDA del dataset sintético LATAM Bank, Factored AI & Data
 > Hackathon 2026). Generado con `python -m eda.report` desde `outputs/tables/`. Cada cifra lleva etiqueta
 > (`[medido]` = sale del dataset con la query indicada; `[supuesto]`; `[proyectado]`) y su archivo de query en
-> `docs/eda/queries/`. Contexto general: `calidad_datos.md`, `mapeo_workflows.md`, `findings.md`,
-> `resumen_ejecutivo.md`.
+> `docs/eda/queries/`. Contexto general: `data_quality.md`, `workflow_mapping.md`, `findings.md`,
+> `executive_summary.md`.
 
 ## 1. Definición y reglas de mapeo
 Información de productos de crédito y pre-elegibilidad (tarjeta de crédito, préstamo personal, hipotecario) con una política de reglas explícita; el reto prohíbe que el LLM invente reglas o apruebe crédito. A nivel de contacto se aproxima con el motivo `Comercial` (confianza baja); no tiene complaints ni texto propios.
@@ -31,7 +31,7 @@ Cobertura del workflow y % AMBIGUO/OTRO por fuente (`03_coverage_summary.csv`) `
 | digital_events | 7.7 | 5.0 | 55.3 |
 
 Confiabilidad: la plantilla de transcript es independiente del motivo (kappa 0.0003) y de los productos del cliente;
-la cobertura de transcripts no tiene sesgo por workflow (p = 0.84). Detalle en `mapeo_workflows.md` §5.
+la cobertura de transcripts no tiene sesgo por workflow (p = 0.84). Detalle en `workflow_mapping.md` §5.
 
 ## 2. Demanda
 Población de contacto: contactos Comercial (INT-03, confianza baja).
@@ -96,11 +96,11 @@ diferencia ≥ 2 pp o ≥ 10% relativo (`04_ci_overlap.csv`).
 | CES media (1–4) | 2.67 | [2.63, 2.70] | 1,760 | encuestas CES de interacciones con reason_category = Comercial (INT-03) (escala observada 1–4) | 2.77 | sí | medido |
 | Re-contacto 7 días (%) | 2.9 | [2.75, 3.03] | 54,464 | interacciones con reason_category = Comercial (INT-03) con 7 días de seguimiento completos (antes de 2026-06-10) | 2.88 | no | medido |
 | Re-contacto 30 días (%) | 11.7 | [11.44, 11.99] | 53,325 | interacciones con reason_category = Comercial (INT-03) con 30 días de seguimiento completos (antes de 2026-05-18) | 11.79 | no | medido |
-| Volumen mensual de complaints | n/d | — | 0 | sin complaints asignables a este workflow (mapeo_workflows.md §3) | 1,863.90 | sí | vacío |
-| % SLA incumplido | n/d | — | 0 | sin complaints asignables a este workflow (mapeo_workflows.md §3) | 20.11 | no | vacío |
-| Días de resolución p50 | n/d | — | 0 | sin complaints asignables a este workflow (mapeo_workflows.md §3) | 16.00 | no | vacío |
-| Días de resolución p95 | n/d | — | 0 | sin complaints asignables a este workflow (mapeo_workflows.md §3) | 29.00 | no | vacío |
-| % resueltos/cerrados | n/d | — | 0 | sin complaints asignables a este workflow (mapeo_workflows.md §3) | 24.03 | no | vacío |
+| Volumen mensual de complaints | n/d | — | 0 | sin complaints asignables a este workflow (workflow_mapping.md §3) | 1,863.90 | sí | vacío |
+| % SLA incumplido | n/d | — | 0 | sin complaints asignables a este workflow (workflow_mapping.md §3) | 20.11 | no | vacío |
+| Días de resolución p50 | n/d | — | 0 | sin complaints asignables a este workflow (workflow_mapping.md §3) | 16.00 | no | vacío |
+| Días de resolución p95 | n/d | — | 0 | sin complaints asignables a este workflow (workflow_mapping.md §3) | 29.00 | no | vacío |
+| % resueltos/cerrados | n/d | — | 0 | sin complaints asignables a este workflow (workflow_mapping.md §3) | 24.03 | no | vacío |
 
 Lectura transversal (`04_discrimination_tests.csv`) `[medido]`: los outcomes de contacto dependen **solo del motivo**
 (FCR V de Cramér 0.43, duración ε² 0.48); canal, país, segmento, acento y agente no los mueven (V ≤ 0.008).

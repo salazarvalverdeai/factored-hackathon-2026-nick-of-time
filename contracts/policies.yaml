@@ -1,119 +1,119 @@
-# policies.yaml — motor de políticas fuera del modelo. Versionar cada cambio (git). El LLM nunca lee ni edita esto.
+# policies.yaml — policy engine outside the model. Version every change (git). The LLM never reads or edits this file.
 version: 1
-default: deny            # nada se ejecuta si ninguna regla lo permite
+default: deny            # nothing runs unless a rule allows it
 
 identity:
   session_ttl_minutes: 15
-  require_otp_for: [bloquear_tarjeta, abrir_caso, ver_transacciones]
-  document_alone_authenticates: false     # regla del reto: un DNI o customer_id solo no prueba identidad
+  require_otp_for: [block_card, open_case, search_transaction]
+  document_alone_authenticates: false     # challenge rule: an ID number or customer_id alone does not prove identity
 
 scope:
-  only_own_products: true                 # la tool filtra por customer_id de la sesión; no es un prompt
-  cross_customer_request: deny_and_log    # "muéstrame la cuenta de otro cliente" → DENY con policy_id
+  only_own_products: true                 # the tool filters by the session's customer_id; it is not a prompt
+  cross_customer_request: deny_and_log    # "show me another customer's account" → DENY with policy_id
 
-scoring:                                 # de dónde sale el fraud_score que leen las zonas
-  provider: dataset                      # dataset | reglas | modelo | llm
+scoring:                                 # where the fraud_score read by the zones comes from
+  provider: dataset                      # dataset | rules | model | llm
   providers:
-    dataset: {note: "lee transactions.fraud_score del gold para transacciones preseteadas; arranque del demo", version: "gold-v1"}
-    reglas:  {note: "heurística: monto vs p95 del cliente, canal, hora, país distinto; sin entrenamiento", version: "rules-v0"}
-    modelo:  {note: "plan B: GBM/LR sobre features de transactions contra is_fraud, held-out temporal; solo si Slack dice que el score no existe en tiempo real", version: "model-v0"}
-    llm:     {note: "solo para ilustrar en el demo; NUNCA decide bloqueo (zona forzada a humano si es la fuente)", version: "llm-v0"}
-  record_source_in_audit: true           # la fuente y versión van a la auditoría y a la tarjeta de handoff
-  null_score_zone: humano
+    dataset: {note: "reads transactions.fraud_score from gold for preset transactions; demo default", version: "gold-v1"}
+    rules:   {note: "heuristic: amount vs the customer's p95, channel, hour, different country; no training", version: "rules-v0"}
+    model:   {note: "plan B: GBM/LR on transactions features against is_fraud, temporal held-out; only if Slack says the score is not available in real time", version: "model-v0"}
+    llm:     {note: "demo illustration only; NEVER decides a block (zone forced to human when it is the source)", version: "llm-v0"}
+  record_source_in_audit: true           # source and version go to the audit log and the handoff card
+  null_score_zone: human
 
-zones:                                   # sobre el score que devuelve scoring.provider (0–100). Umbrales: EDA 26-sep [dato]
-  alta:   {score_min: 50, score_max: 100, note: "precisión 100%, recall 48.8% sobre fraudes con score (38.7% del total); propiedad del generador sintético"}
-  media:  {score_min: 30, score_max: 49,  note: "precisión con >=30: 79.6%"}
-  humano: {score_min: 0,  score_max: 29,  include_null: true, note: "20.6% de los fraudes no tiene score"}
+zones:                                   # on the score returned by scoring.provider (0–100). Thresholds: EDA Sep 26 [data]
+  high:   {score_min: 50, score_max: 100, note: "precision 100%, recall 48.8% on frauds with a score (38.7% of all); property of the synthetic generator"}
+  medium: {score_min: 30, score_max: 49,  note: "precision at >=30: 79.6%"}
+  human:  {score_min: 0,  score_max: 29,  include_null: true, note: "20.6% of frauds have no score"}
 
-amount_gate:                             # sobre transactions.amount_usd. [supuesto] calibrar con el snapshot
-  max_auto_block_usd: 1000               # por encima, aunque la zona sea alta, va a confirmar
-  max_auto_case_usd: 5000                # por encima, aunque la zona sea alta, va a humano
+amount_gate:                             # on transactions.amount_usd. [assumption] calibrate with the snapshot
+  max_auto_block_usd: 1000               # above this, even in the high zone, it goes to confirmation
+  max_auto_case_usd: 5000                # above this, even in the high zone, it goes to a human
 
-approval:                                # modo de aprobación por acción: auto | human_required | manual_check
-  supervised_mode: false                 # interruptor global desde la consola; true fuerza human_required en todo; cada cambio se audita
+approval:                                # approval mode per action: auto | human_required | manual_check
+  supervised_mode: false                 # global switch in the console; true forces human_required everywhere; every change is audited
   per_action:
-    abrir_caso:        {alta: auto, media: auto, humano: auto}                 # registrar no es una decisión de dinero
-    bloquear_tarjeta:  {alta: manual_check, media: human_required, humano: human_required}   # alta: ejecuta y verifica ya; el caso queda en 'verificacion' hasta que un analista lo cierre
-    abono_provisional: {alta: human_required, media: human_required, humano: human_required}   # nunca auto
-    desbloquear_tarjeta: {alta: human_required, media: human_required, humano: human_required}
-  manual_check_leaves_case_in: verificacion  # con manual_check la acción se ejecuta y el caso queda en verificación hasta el visto bueno humano
-  close: human_only                        # ningún caso se cierra sin una persona, tampoco los automáticos
+    open_case:          {high: auto, medium: auto, human: auto}                                 # logging a case is not a money decision
+    block_card:         {high: manual_check, medium: human_required, human: human_required}     # high: runs and verifies now; the case stays in 'verification' until an analyst closes it
+    provisional_credit: {high: human_required, medium: human_required, human: human_required}   # never auto
+    unblock_card:       {high: human_required, medium: human_required, human: human_required}
+  manual_check_leaves_case_in: verification  # with manual_check the action runs and the case stays in verification until a human signs off
+  close: human_only                        # no case is closed without a person, automatic ones included
 
 actions:
-  ticket:           {zones: [alta, media, humano], verify: estado_caso}         # siempre; el modo lo da approval.per_action.abrir_caso
-  bloquear_tarjeta: {zones: [alta, media], verify: estado_producto, expect: Blocked, media_requires: customer_confirmation}
-  abono_provisional: {zones: [], decided_by: human, note: "obligación por país; nunca el modelo"}
+  ticket:             {zones: [high, medium, human], verify: get_case_status}         # always; the mode comes from approval.per_action.open_case
+  block_card:         {zones: [high, medium], verify: get_product_status, expect: Blocked, medium_requires: customer_confirmation}
+  provisional_credit: {zones: [], decided_by: human, note: "country obligation; never the model"}
 
-actors:                                  # dos juegos de tools que nunca se cruzan; cada llamada se audita con su actor
-  cliente:   {via: mcp, tools: [buscar_transaccion, obtener_score, calcular_plazo, bloquear_tarjeta, abrir_caso, estado_producto, estado_caso]}
-  analista:  {via: api, tools: [listar_casos, ver_caso, aprobar_abono, aprobar_bloqueo, desbloquear_tarjeta, pedir_datos_cliente, marcar_ambiguo, cerrar_caso, reabrir_caso, modo_supervisado], executed_by: human_only, copilot: proposes_only}
+actors:                                  # two tool sets that never cross; every call is audited with its actor
+  customer: {via: mcp, tools: [search_transaction, get_fraud_score, compute_deadline, block_card, open_case, get_product_status, get_case_status]}
+  analyst:  {via: api, tools: [list_cases, get_case, approve_credit, approve_block, unblock_card, request_customer_info, mark_ambiguous, close_case, reopen_case, supervised_mode], executed_by: human_only, copilot: proposes_only}
 
 clarify:
-  intent_confidence_min: 0.80            # bajo esto, preguntar; τ se fija en validación
-  max_candidate_transactions: 3          # más candidatas → pedir monto/fecha; si persiste → humano
+  intent_confidence_min: 0.80            # below this, ask; τ is set on validation
+  max_candidate_transactions: 3          # more candidates → ask for amount/date; if it persists → human
   max_clarification_turns: 2
 
 handoff:
-  triggers: [zone_humano, amount_over_case_gate, identity_unverified, clarification_exhausted, tool_failure, language_low_confidence]
+  triggers: [zone_human, amount_over_case_gate, identity_unverified, clarification_exhausted, tool_failure, language_low_confidence]
   payload_schema: contracts/handoff.schema.json
   never_include_raw_transcript: true
 
-regulatory_clock:                        # [externo] días hábiles según calendario del país
-  MX: {producto: debito, abono_dias_habiles: 2, condicion: "operaciones de las 48 h previas", dictamen_dias: 45,
-       fuente: "https://www.gob.mx/condusef/articulos/cargos-no-reconocidos?idiom=es"}
-  AR: {resolucion_dias_habiles: 10, fuente: "https://www.bcra.gob.ar/archivos/Pdfs/texord/t-pusf.pdf"}
-  CO: {respuesta_dias: 15, fuente: "https://www.superfinanciera.gov.co/preguntas-frecuentes/3/3-derechos-de-peticion-ante-entidades-vigiladas/"}
-  BR: {ouvidoria_dias_habiles: 10, prorroga_una_vez: true, fuente: "Resolução CMN 4.860 (2020)", note: "solo para el demo en portugués; el dataset no tiene BR"}
+regulatory_clock:                        # [external] business days per the country's calendar
+  MX: {product: debit, credit_business_days: 2, condition: "transactions from the previous 48 h", ruling_days: 45,
+       source: "https://www.gob.mx/condusef/articulos/cargos-no-reconocidos?idiom=es"}
+  AR: {resolution_business_days: 10, source: "https://www.bcra.gob.ar/archivos/Pdfs/texord/t-pusf.pdf"}
+  CO: {response_days: 15, source: "https://www.superfinanciera.gov.co/preguntas-frecuentes/3/3-derechos-de-peticion-ante-entidades-vigiladas/"}
+  BR: {ombudsman_business_days: 10, extension_once: true, source: "Resolução CMN 4.860 (2020)", note: "Portuguese demo only; the dataset has no BR"}
 
 reliability:
   tool_retries: 2
   tool_timeout_ms: 800
-  on_failure: escalate_with_unconfirmed_action   # nunca reportar una acción no verificada
+  on_failure: escalate_with_unconfirmed_action   # never report an unverified action
   idempotency_key: "{session_id}:{transaction_id}:{action}"
 
 security:
-  prompt_injection: {strategy: "instrucciones y datos separados; tools con allowlist; texto del cliente nunca cambia permisos"}
+  prompt_injection: {strategy: "instructions and data kept apart; tools on an allowlist; customer text never changes permissions"}
   external_llm_data: {send_synthetic_only: true, confirm_in_slack: true}
 
-case_queue:                              # cola del analista; el estado del caso es su último evento en case_events
-  states: [nuevo, verificacion, revision, resuelto, cerrado]
+case_queue:                              # analyst queue; a case's status is its last event in case_events
+  states: [new, verification, review, resolved, closed]
   transitions:
-    nuevo:        [verificacion, revision]          # verificacion = acción automática ya ejecutada; revision = handoff sin acción
-    verificacion: [resuelto, revision]
-    revision:     [resuelto, revision]              # pedir_datos_cliente mantiene revision
-    resuelto:     [cerrado, revision]               # reabrir vuelve a revision
-    cerrado:      []
-  sla_hours: {verificacion: 4, revision: 24}       # [supuesto] para el demo; se muestra en la consola
-  ambiguo_queue: {state: revision, tag: ambiguo, owner_required: true}
+    new:          [verification, review]          # verification = automatic action already executed; review = handoff without action
+    verification: [resolved, review]
+    review:       [resolved, review]              # request_customer_info keeps the case in review
+    resolved:     [closed, review]                # reopen goes back to review
+    closed:       []
+  sla_hours: {verification: 4, review: 24}        # [assumption] for the demo; shown in the console
+  ambiguous_queue: {state: review, tag: ambiguous, owner_required: true}
 
-notifications:                           # lo que el cliente recibe en cada estado; cada envío es un evento en case_events
-  provider: log                          # log (panel "Mis notificaciones" en /chat, demo) | telegram (provisional si alcanza) | email (mock)
-  events:
-    caso_abierto:       {template: "Abrimos tu caso {case_id}. Plazo legal: {plazo}.", channels: [log, telegram]}
-    tarjeta_bloqueada:  {template: "Tu tarjeta {product_last4} quedó bloqueada (verificado). Caso {case_id}.", channels: [log, telegram]}
-    en_revision:        {template: "Un analista está revisando tu caso {case_id}.", channels: [log]}
-    resuelto:           {template: "Tu caso {case_id} fue resuelto: {resultado}.", channels: [log, telegram, email]}
-  never_send: [transcript, score, policy_ids]      # el cliente no recibe internals
+notifications:                           # what the customer receives in each status; every send is an event in case_events
+  provider: log                          # log (customer panel "Mis notificaciones" in /chat, demo) | telegram (provisional if time allows) | email (mock)
+  events:                                # templates are customer-facing, so they stay in Spanish/Portuguese
+    case_opened:  {template: "Abrimos tu caso {case_id}. Plazo legal: {deadline}.", channels: [log, telegram]}
+    card_blocked: {template: "Tu tarjeta {product_last4} quedó bloqueada (verificado). Caso {case_id}.", channels: [log, telegram]}
+    in_review:    {template: "Un analista está revisando tu caso {case_id}.", channels: [log]}
+    resolved:     {template: "Tu caso {case_id} fue resuelto: {outcome}.", channels: [log, telegram, email]}
+  never_send: [transcript, score, policy_ids]      # the customer never receives internals
 
-guardrails:                              # cada uno vive en código; cada DENY cita su id; cada uno tiene un caso en eval/
-  - {id: G-IN-01, layer: entrada, name: prompt injection directa e indirecta, impl: "texto del cliente y salidas de tools como datos delimitados; clasificador de injection (reglas + LR) → zona humano", test: injection}
-  - {id: G-IN-02, layer: entrada, name: datos inventados por el cliente, impl: "monto/fecha/comercio solo para buscar; score, producto y país salen del gold", test: injection}
-  - {id: G-IN-03, layer: entrada, name: idioma y ambigüedad, impl: "detección ES/PT con umbral; baja confianza → pregunta, luego humano", test: ambiguo}
-  - {id: G-IN-04, layer: entrada, name: PII y fuera de alcance, impl: "regex PAN/CVV/contraseña → rechazar y pedir no enviarlo; tema fuera de disputas → abstención", test: fuera_de_alcance}
-  - {id: G-SES-01, layer: sesion, name: identidad y alcance, impl: "OTP mock TTL 15 min; customer_id solo desde sesión; vencida → sin datos", test: session_expired}
-  - {id: G-SES-02, layer: sesion, name: acceso a otro cliente, impl: "la tool filtra por sesión; DENY con policy_id", test: unauthorized_access}
-  - {id: G-TOOL-01, layer: tools, name: allowlist y esquemas estrictos, impl: "el agente solo ve tools del cliente; Pydantic rechaza argumentos inesperados; rate limit por sesión", test: unauthorized_access}
-  - {id: G-TOOL-02, layer: tools, name: escrituras controladas, impl: "modo de aprobación por acción; idempotency key; post-condición obligatoria; abono nunca auto", test: tool_failure}
-  - {id: G-POL-01, layer: politica, name: deny por defecto y registro, impl: "policies.yaml versionado; toda denegación es fila en policy_denials", test: todos}
-  - {id: G-OUT-01, layer: salida, name: grounding, impl: "todo número, fecha, ID o estado en la respuesta existe en un resultado de tool o en la política; si no, se descarta y se registra", test: missing_data}
-  - {id: G-OUT-02, layer: salida, name: solo lo verificado, impl: "'bloqueada' solo con estado_producto == Blocked; 'caso #' solo con estado_caso == Abierto", test: tool_failure}
-  - {id: G-OUT-03, layer: salida, name: fuga de datos ajenos y secretos, impl: "filtro de salida rechaza IDs/montos que no son de la sesión; nunca YAML ni claves", test: unauthorized_access}
-  - {id: G-OUT-04, layer: salida, name: tono y abstención, impl: "sin promesas de dinero ni plazos que la política no dio; abstención explícita", test: missing_data}
-  - {id: G-OPS-01, layer: operacion, name: presupuesto y reintentos, impl: "tope de tokens por conversación y por día chequeado antes de llamar; reintentos 2; timeout 800 ms", test: tope}
-  - {id: G-OPS-02, layer: operacion, name: auditoría inmutable, impl: "cada evento con actor, trace_id y hash de la entrada; nada se borra", test: inspeccion}
+guardrails:                              # each lives in code; every DENY cites its id; each has a case in eval/
+  - {id: G-IN-01, layer: input, name: "direct and indirect prompt injection", impl: "customer text and tool outputs as delimited data; injection classifier (rules + LR) → human zone", test: injection}
+  - {id: G-IN-02, layer: input, name: "customer-invented data", impl: "amount/date/merchant only for searching; score, product and country come from gold", test: injection}
+  - {id: G-IN-03, layer: input, name: "language and ambiguity", impl: "ES/PT detection with a threshold; low confidence → ask, then human", test: ambiguous}
+  - {id: G-IN-04, layer: input, name: "PII and out of scope", impl: "PAN/CVV/password regex → reject and ask not to send it; topic outside disputes → abstain", test: out_of_scope}
+  - {id: G-SES-01, layer: session, name: "identity and scope", impl: "mock OTP TTL 15 min; customer_id only from the session; expired → no data", test: session_expired}
+  - {id: G-SES-02, layer: session, name: "access to another customer", impl: "the tool filters by session; DENY with policy_id", test: unauthorized_access}
+  - {id: G-TOOL-01, layer: tools, name: "allowlist and strict schemas", impl: "the agent only sees customer tools; Pydantic rejects unexpected arguments; rate limit per session", test: unauthorized_access}
+  - {id: G-TOOL-02, layer: tools, name: "controlled writes", impl: "approval mode per action; idempotency key; mandatory post-condition; credit never auto", test: tool_failure}
+  - {id: G-POL-01, layer: policy, name: "default deny and logging", impl: "versioned policies.yaml; every denial is a row in policy_denials", test: all}
+  - {id: G-OUT-01, layer: output, name: "grounding", impl: "every number, date, ID or status in the answer exists in a tool result or in the policy; otherwise it is dropped and logged", test: missing_data}
+  - {id: G-OUT-02, layer: output, name: "verified only", impl: "'blocked' only when get_product_status == Blocked; 'case #' only when get_case_status == Open", test: tool_failure}
+  - {id: G-OUT-03, layer: output, name: "leaks of other customers' data and secrets", impl: "output filter rejects IDs/amounts that are not from the session; never YAML or keys", test: unauthorized_access}
+  - {id: G-OUT-04, layer: output, name: "tone and abstention", impl: "no promises of money or deadlines the policy did not give; explicit abstention", test: missing_data}
+  - {id: G-OPS-01, layer: operations, name: "budget and retries", impl: "token cap per conversation and per day, checked before calling; 2 retries; 800 ms timeout", test: cap}
+  - {id: G-OPS-02, layer: operations, name: "immutable audit", impl: "every event with actor, trace_id and input hash; nothing is deleted", test: inspection}
 
-data_splits:                             # ver contracts/gold_contract.md; el harness lee gold_eval solo para puntuar
+data_splits:                             # see contracts/gold_contract.md; the harness reads gold_eval only to score
   by_customer: {rule: "hash(customer_id) mod 10", train: [0,1,2,3,4,5,6], dev: [7], heldout: [8,9]}
   by_period:   {fit: "2025-06-01..2026-02-28", measure: "2026-03-01..2026-05-31"}
-  heldout_seal: {day: "2026-10-01", how: "sha256 de los IDs de clientes y transacciones incluidos, en eval/heldout.sha256"}
+  heldout_seal: {day: "2026-10-01", how: "sha256 of the included customer and transaction IDs, in eval/heldout.sha256"}

@@ -1,4 +1,4 @@
--- Respalda: findings.md §0 / mapeo_workflows.md (valores de columnas multivalor: detected_intents, main_topics,
+-- Respalda: findings.md §0 / workflow_mapping.md (valores de columnas multivalor: detected_intents, main_topics,
 -- detected_keywords, languages). Separa por coma, recorta espacios; pct_rows = % de filas que contienen el valor.
 -- Produce: outputs/tables/00_multivalue_values.csv (vía eda/inventory.py, que rellena {table} y {column}).
 WITH numbered AS (

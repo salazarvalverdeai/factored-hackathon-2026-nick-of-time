@@ -1,4 +1,4 @@
--- Respalda: calidad_datos.md §B1 y findings.md §1 (duplicados por tabla).
+-- Respalda: data_quality.md §B1 y findings.md §1 (duplicados por tabla).
 -- Produce: columnas dup_* de outputs/tables/01_quality_summary.csv (vía eda/quality.py).
 -- Plantilla: eda/quality.py rellena {table} y las listas de columnas:
 --   {all_cols}        todas las columnas del archivo (sin filename ni partition_date)

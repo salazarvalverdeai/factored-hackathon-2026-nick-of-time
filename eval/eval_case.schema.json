@@ -1,52 +1,52 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "Caso de evaluación held-out (team-generated). El harness compara ESTADO FINAL, no texto.",
+  "title": "Held-out evaluation case (team-generated). The harness compares FINAL STATE, not text.",
   "type": "object",
   "required": [
     "id",
-    "idioma",
-    "tipo",
-    "origen",
-    "estado_inicial",
-    "mensajes",
-    "esperado",
-    "conjunto"
+    "language",
+    "type",
+    "origin",
+    "initial_state",
+    "messages",
+    "expected",
+    "set"
   ],
   "properties": {
     "id": {
       "type": "string",
       "pattern": "^EV-[0-9]{4}$"
     },
-    "idioma": {
+    "language": {
       "enum": [
         "es",
         "pt",
-        "mixto"
+        "mixed"
       ]
     },
-    "tipo": {
+    "type": {
       "enum": [
         "normal",
-        "ambiguo",
-        "humano",
+        "ambiguous",
+        "human",
         "injection",
         "session_expired",
         "unauthorized_access",
         "tool_failure",
         "missing_data",
         "late_arrival",
-        "fuera_de_alcance",
-        "tope"
+        "out_of_scope",
+        "cap"
       ]
     },
-    "origen": {
+    "origin": {
       "enum": [
         "team-generated",
-        "externo-traducido"
+        "external-translated"
       ],
-      "description": "nunca dataset: no hay texto real"
+      "description": "never the dataset: it has no real text"
     },
-    "segmento": {
+    "segment": {
       "enum": [
         "Premium",
         "Plus",
@@ -54,7 +54,7 @@
         "Student"
       ]
     },
-    "pais": {
+    "country": {
       "enum": [
         "MX",
         "CO",
@@ -62,7 +62,7 @@
         "BR"
       ]
     },
-    "estado_inicial": {
+    "initial_state": {
       "type": "object",
       "required": [
         "customer_id",
@@ -79,48 +79,49 @@
             "none"
           ]
         },
-        "transacciones": {
+        "fixtures": {
           "type": "array",
           "items": {
             "type": "object"
           },
-          "description": "fixtures con transaction_id, monto, fecha, fraud_score"
+          "description": "transaction fixtures with transaction_id, amount, transaction_date, fraud_score"
         },
         "tool_faults": {
           "type": "array",
           "items": {
             "enum": [
-              "bloquear_tarjeta",
-              "abrir_caso",
-              "buscar_transaccion"
+              "block_card",
+              "open_case",
+              "search_transaction"
             ]
           }
         }
       }
     },
-    "mensajes": {
+    "messages": {
       "type": "array",
       "minItems": 1,
       "items": {
         "type": "object",
         "required": [
-          "rol",
-          "texto"
+          "role",
+          "text"
         ],
         "properties": {
-          "rol": {
+          "role": {
             "enum": [
-              "cliente",
-              "sistema"
+              "customer",
+              "system"
             ]
           },
-          "texto": {
-            "type": "string"
+          "text": {
+            "type": "string",
+            "description": "customer-facing: stays in Spanish/Portuguese"
           }
         }
       }
     },
-    "esperado": {
+    "expected": {
       "type": "object",
       "required": [
         "decision"
@@ -128,49 +129,49 @@
       "properties": {
         "decision": {
           "enum": [
-            "bloquear_y_caso",
-            "confirmar",
-            "preguntar",
+            "block_and_open_case",
+            "confirm",
+            "ask",
             "handoff",
             "deny",
-            "reautenticar",
-            "escalar_accion_no_confirmada"
+            "reauthenticate",
+            "escalate_unconfirmed_action"
           ]
         },
-        "zona": {
+        "zone": {
           "enum": [
-            "alta",
-            "media",
-            "humano",
+            "high",
+            "medium",
+            "human",
             null
           ]
         },
-        "intencion": {
+        "intent": {
           "enum": [
-            "cargo_no_reconocido",
-            "cobro_indebido",
-            "consulta",
-            "fuera_de_alcance"
+            "unrecognized_charge",
+            "wrongful_charge",
+            "inquiry",
+            "out_of_scope"
           ]
         },
-        "estado_final": {
+        "final_state": {
           "type": "object",
           "properties": {
             "product_status": {
               "type": "string"
             },
-            "caso_abierto": {
+            "case_open": {
               "type": "boolean"
             },
-            "handoff_emitido": {
+            "handoff_emitted": {
               "type": "boolean"
             },
-            "datos_ajenos_expuestos": {
+            "other_customer_data_exposed": {
               "const": false
             }
           }
         },
-        "plazo_pais": {
+        "deadline_country": {
           "type": "string"
         },
         "guardrail_ids": {
@@ -179,46 +180,46 @@
             "type": "string",
             "pattern": "^G-[A-Z]+-[0-9]{2}$"
           },
-          "description": "guardrails que deben disparar (policies.yaml)"
+          "description": "guardrails that must fire (policies.yaml)"
         },
-        "estado_cola": {
+        "queue_status": {
           "enum": [
-            "nuevo",
-            "verificacion",
-            "revision",
-            "resuelto",
-            "cerrado"
+            "new",
+            "verification",
+            "review",
+            "resolved",
+            "closed"
           ]
         },
-        "notificaciones": {
+        "notifications": {
           "type": "array",
           "items": {
             "enum": [
-              "caso_abierto",
-              "tarjeta_bloqueada",
-              "en_revision",
-              "resuelto"
+              "case_opened",
+              "card_blocked",
+              "in_review",
+              "resolved"
             ]
           }
         }
       }
     },
-    "notas": {
+    "notes": {
       "type": "string"
     },
-    "etiquetador": {
+    "labeler": {
       "type": "string"
     },
-    "revisado_por": {
+    "reviewed_by": {
       "type": "string",
-      "description": "segunda persona en una muestra: mide acuerdo"
+      "description": "second person on a sample: measures agreement"
     },
-    "conjunto": {
+    "set": {
       "enum": [
         "dev",
         "heldout"
       ],
-      "description": "dev usa clientes de la particion 7; heldout solo 8-9 y se sella el jueves"
+      "description": "dev uses customers from partition 7; heldout only 8-9 and is sealed on Thursday"
     }
   }
 }

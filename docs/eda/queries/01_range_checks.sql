@@ -1,4 +1,4 @@
--- Respalda: calidad_datos.md §B5 (rangos imposibles y reglas de negocio dentro de cada tabla).
+-- Respalda: data_quality.md §B5 (rangos imposibles y reglas de negocio dentro de cada tabla).
 -- Produce: outputs/tables/01_range_checks.csv (vía eda/quality.py).
 -- Ventana del dataset (diccionario): 2023-06-17 00:00 → 2026-06-17 23:59:59. Carga a S3: 2026-08-31.
 -- Cada fila: tabla, id del chequeo, regla, violaciones y denominador (filas donde la regla es evaluable).

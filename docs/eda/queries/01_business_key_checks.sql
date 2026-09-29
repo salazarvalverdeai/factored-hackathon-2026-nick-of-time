@@ -1,4 +1,4 @@
--- Respalda: calidad_datos.md §B1 (duplicados con claves de negocio laxas, emails compartidos) y §A5/§B8 (textos de
+-- Respalda: data_quality.md §B1 (duplicados con claves de negocio laxas, emails compartidos) y §A5/§B8 (textos de
 -- plantilla). Produce: outputs/tables/01_business_key_checks.csv (vía eda/quality.py).
 -- n_extra = filas - valores distintos de la clave (filas "sobrantes" si la clave fuera única).
 SELECT 'call_center_interactions' AS tbl, '(customer_id, interaction_date)' AS key_def,

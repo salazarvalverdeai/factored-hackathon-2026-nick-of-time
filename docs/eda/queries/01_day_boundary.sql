@@ -1,4 +1,4 @@
--- Respalda: calidad_datos.md §B4 (el "día" de cada archivo no empieza a medianoche).
+-- Respalda: data_quality.md §B4 (el "día" de cada archivo no empieza a medianoche).
 -- Produce: outputs/tables/01_day_boundary.csv (vía eda/quality.py).
 -- hours_from_partition = horas entre la medianoche de partition_date y la fecha-hora del evento.
 WITH e AS (

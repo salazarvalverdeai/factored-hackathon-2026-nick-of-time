@@ -1,4 +1,4 @@
--- Respalda: calidad_datos.md §B5 (moneda de productos y transacciones según el país del cliente; el diccionario
+-- Respalda: data_quality.md §B5 (moneda de productos y transacciones según el país del cliente; el diccionario
 -- anuncia MXN, COP, ARS, USD y en products/transactions no aparece MXN).
 -- Produce: outputs/tables/01_currency_by_country.csv (vía eda/quality.py).
 SELECT 'products' AS tbl, c.country, p.currency, count(*) AS n,

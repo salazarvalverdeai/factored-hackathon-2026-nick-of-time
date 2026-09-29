@@ -22,7 +22,7 @@ Los 4 workflows (nombres cortos que se usan en todo el repo):
 6. **Sync:** dimensiones + núcleo + `transactions` completo. `digital_events` completo en segundo plano y **solo
    para el embudo de errores y logins previos a una llamada**. `campaign_sends` diferida.
 7. **Documentos incrementales:** cada fase escribe su parte en el documento que le corresponde
-   (`calidad_datos.md` en la fase 1, `mapeo_workflows.md` en la 3, secciones de los expedientes en la 2 y la 4–6);
+   (`data_quality.md` en la fase 1, `workflow_mapping.md` en la 3, secciones de los expedientes en la 2 y la 4–6);
    la fase 7 consolida. Un commit por fase.
 
 ## Decisiones acordadas con Freddy (26 sep, tras las fases 0 y 1)
@@ -35,9 +35,9 @@ Los 4 workflows (nombres cortos que se usan en todo el repo):
     - Fase 4 sigue; su conclusión esperada es "los outcomes no discriminan", y se **demuestra** con intervalos.
     - **Fase 5 pasa a ser la fase central**, con un chequeo de señal aprendible por label candidato.
     - Fase 6 mantiene la fórmula, pero explicita que **el volumen es lo único medido** y el dolor es supuesto.
-    - Los problemas reales de calidad van a `calidad_datos.md` como evidencia de data engineering para el pitch.
+    - Los problemas reales de calidad van a `data_quality.md` como evidencia de data engineering para el pitch.
 11. **Mapeo (fase 3) sin revisión conjunta**: reglas versionadas con confianza alta/media/baja; cobertura y % AMBIGUO
-    por fuente. Freddy lo revisa al final sobre `mapeo_workflows.md`.
+    por fuente. Freddy lo revisa al final sobre `workflow_mapping.md`.
 12. **Modo autónomo en fases 2–7**: sin checkpoints; un commit por fase; decisiones en `findings.md` como "Decisión
     tomada". Solo se para ante bloqueo técnico o hallazgo que invalide el plan.
 13. **Prioridad: breadth sobre depth.** Primero los 4 expedientes completos. De las exploraciones opcionales, solo el
@@ -71,7 +71,7 @@ Los 4 workflows (nombres cortos que se usan en todo el repo):
   decisión 3.
 
 **Entregables**: `01_quality_summary.csv` (una fila por tabla), `01_null_rates.csv`, `01_late_arrivals.csv`.
-Documento: `docs/eda/calidad_datos.md` (fase 1 + hallazgos del inventario de la fase 0).
+Documento: `docs/eda/data_quality.md` (fase 1 + hallazgos del inventario de la fase 0).
 Esto alimenta el bloque "Riesgos y vacíos" y la parte de data engineering del pitch.
 
 ## Fase 2 — Demanda (`eda/demand.py`)
@@ -102,7 +102,7 @@ Es la fase más delicada: **ningún campo dice "workflow"**. Se construye un map
 
 **Entregables**: `03_workflow_mapping.csv` (la tabla de reglas, versionada), `03_coverage_by_workflow.csv`,
 `03_transcript_bias_by_workflow.csv`, `03_reason_vs_intent_agreement.csv`.
-Documento: `docs/eda/mapeo_workflows.md` (reglas, justificación de cada asignación, acuerdo, OTRO/AMBIGUO) y la
+Documento: `docs/eda/workflow_mapping.md` (reglas, justificación de cada asignación, acuerdo, OTRO/AMBIGUO) y la
 sección (1) de cada expediente.
 
 ## Fase 4 — Outcomes por workflow (`eda/outcomes.py`)
@@ -197,8 +197,8 @@ Documento: sección (4) de cada expediente.
 Los documentos se suben a un Project de claude.ai para cruzarlos con investigación externa. Cada uno debe
 entenderse solo, con cada cifra etiquetada (`[medido]`/`[supuesto]`/`[proyectado]`) y con su archivo de query.
 
-1. **Expedientes por workflow** `docs/eda/workflows/W1_cuentas_pagos.md`, `W2_tarjetas.md`, `W3_disputas.md`,
-   `W4_credito.md`. Misma estructura en los cuatro:
+1. **Expedientes por workflow** `docs/eda/workflows/W1_accounts_payments.md`, `W2_cards.md`, `W3_disputes.md`,
+   `W4_credit.md`. Misma estructura en los cuatro:
    1. Definición del workflow y reglas de mapeo que lo alimentan, con cobertura y % ambiguo
    2. Demanda: volumen mensual, canales, países, segmentos, estacionalidad
    3. Outcomes: cada métrica con n, denominador, intervalo y query
@@ -208,15 +208,15 @@ entenderse solo, con cada cifra etiquetada (`[medido]`/`[supuesto]`/`[proyectado
    7. Exploraciones posibles con estimación de esfuerzo
    8. Catálogo de plantillas: todas las plantillas de texto distintas (transcripts y complaints) asignadas al
       workflow, con su frecuencia, sin identificadores (decisión 9)
-2. **`docs/eda/calidad_datos.md`**: todo lo de la fase 1 más los hallazgos del inventario (foto única de
+2. **`docs/eda/data_quality.md`**: todo lo de la fase 1 más los hallazgos del inventario (foto única de
    dimensiones, sin `process_date` en ruta, llegadas tardías simuladas dentro de los archivos, cobertura de
    transcripts).
-3. **`docs/eda/mapeo_workflows.md`**: tabla de reglas versionada, justificación de cada asignación, acuerdo motivo
+3. **`docs/eda/workflow_mapping.md`**: tabla de reglas versionada, justificación de cada asignación, acuerdo motivo
    vs intent, sesgo de `has_transcript` y lo que quedó en OTRO/AMBIGUO.
 4. **`docs/eda/findings.md` pasa a ser el índice**: resumen de 1 página por workflow que apunta a cada expediente,
    la comparación con la misma vara (scorecard con n, denominador e IC), "Vacíos", "Exploraciones posibles",
    "Decisiones tomadas" y las 1 a 3 ideas candidatas.
-5. **`docs/eda/resumen_ejecutivo.md`** (1 página, se abre en el Project junto con los expedientes): qué tiene y qué
+5. **`docs/eda/executive_summary.md`** (1 página, se abre en el Project junto con los expedientes): qué tiene y qué
    no tiene el dataset, en qué workflow hay señal aprendible y con qué label, ranking por el criterio alternativo
    (labels, viabilidad, señales deterministas), 1 a 3 ideas candidatas con los 2–3 números que las sostienen, y las
    preguntas para Slack.

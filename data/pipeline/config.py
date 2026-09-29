@@ -21,7 +21,7 @@ PIPELINE_VERSION = "0.1.0"
 # Tablas que necesita la idea W3 (pitch_brief.md, bloque 3). Orden = orden de construcción (dimensiones primero).
 TABLES = ("customers", "products", "transactions", "complaints")
 # Zona horaria con la que se lee la fecha de carga (LastModified de S3) para el check de fechas futuras. Es la
-# convención de calidad_datos.md (carga "2026-08-31 hora Lima").
+# convención de data_quality.md (carga "2026-08-31 hora Lima").
 LOAD_TZ = "America/Lima"
 # contracts/gold_contract.md R1: últimos 12 meses completos de transactions, [inicio, fin).
 TX_WINDOW = ("2025-06-01", "2026-06-01")

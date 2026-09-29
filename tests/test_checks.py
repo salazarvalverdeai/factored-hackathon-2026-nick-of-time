@@ -1,4 +1,4 @@
-"""Check de pertenencia (OWN-02, `calidad_datos.md` §C #1): `affected_product_id` de un producto de otro cliente."""
+"""Check de pertenencia (OWN-02, `data_quality.md` §C #1): `affected_product_id` de un producto de otro cliente."""
 from __future__ import annotations
 
 import duckdb

@@ -1,4 +1,4 @@
--- Respalda: findings.md §0 / calidad_datos.md (conteos por tabla vs diccionario, duplicados de PK).
+-- Respalda: findings.md §0 / data_quality.md (conteos por tabla vs diccionario, duplicados de PK).
 -- Produce: outputs/tables/00_row_counts.csv (vía eda/inventory.py, que rellena {table}, {pk}, {part_min}, {part_max}).
 -- Ejemplo concreto:  SELECT count(*), count(DISTINCT (interaction_id)), count(DISTINCT filename),
 --                    min(partition_date), max(partition_date) FROM call_center_interactions;

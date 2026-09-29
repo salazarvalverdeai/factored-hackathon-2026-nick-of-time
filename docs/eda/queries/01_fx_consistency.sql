@@ -1,4 +1,4 @@
--- Respalda: calidad_datos.md §B5 (amount_usd coherente con el tipo de cambio del día).
+-- Respalda: data_quality.md §B5 (amount_usd coherente con el tipo de cambio del día).
 -- Produce: outputs/tables/01_fx_consistency.csv (vía eda/quality.py).
 -- Desvío = |amount_usd / amount - exchange_rate| / exchange_rate, con la tasa currency->USD del mismo día.
 WITH fx AS (

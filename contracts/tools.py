@@ -1,5 +1,5 @@
-"""Contratos de las tools. Los permisos viven AQUÍ, no en el prompt.
-Toda tool recibe session_id y resuelve customer_id desde la sesión; nunca acepta customer_id del texto.
+"""Tool contracts. Permissions live HERE, not in the prompt.
+Every tool receives session_id and resolves customer_id from the session; it never accepts customer_id from the text.
 """
 from datetime import date
 from typing import Literal, Optional, Protocol
@@ -12,144 +12,144 @@ class ToolError(BaseModel):
     message: str
 
 
-# ---------- buscar_transaccion ----------
-class BuscarTransaccionIn(BaseModel):
+# ---------- search_transaction ----------
+class SearchTransactionIn(BaseModel):
     session_id: str
-    monto: Optional[float] = Field(None, description="monto en moneda local; tolerancia ±2%")
-    moneda: Optional[str] = None
-    fecha_aprox: Optional[date] = None
-    ventana_dias: int = 7
-    comercio: Optional[str] = None
+    amount: Optional[float] = Field(None, description="amount in local currency; ±2% tolerance")
+    currency: Optional[str] = None
+    approx_date: Optional[date] = None
+    window_days: int = 7
+    merchant: Optional[str] = None
 
 
-class Transaccion(BaseModel):
+class Transaction(BaseModel):
     transaction_id: str
     product_id: str
-    fecha: date
-    monto: float
-    moneda: str
+    transaction_date: date
+    amount: float
+    currency: str
     amount_usd: float
-    comercio: Optional[str]
-    estado: Literal["Approved", "Declined", "Pending", "Reversed"]
-    fraud_score: Optional[float]      # 0-100 o None (20.6% de los fraudes)
-    split: Literal["train", "dev", "heldout"]   # particion por cliente (gold_contract.md)
+    merchant: Optional[str]
+    transaction_status: Literal["Approved", "Declined", "Pending", "Reversed"]
+    fraud_score: Optional[float]      # 0-100 or None (20.6% of frauds)
+    split: Literal["train", "dev", "heldout"]   # customer partition (gold_contract.md)
 
 
-class BuscarTransaccionOut(BaseModel):
-    candidatas: list[Transaccion]     # solo del customer_id de la sesion (policy scope.only_own_products)
+class SearchTransactionOut(BaseModel):
+    candidates: list[Transaction]     # only from the session's customer_id (policy scope.only_own_products)
 
 
-# ---------- obtener_score (proveedor intercambiable) ----------
-class ObtenerScoreIn(BaseModel):
+# ---------- get_fraud_score (swappable provider) ----------
+class GetFraudScoreIn(BaseModel):
     session_id: str
     transaction_id: str
 
 
-class ObtenerScoreOut(BaseModel):
+class GetFraudScoreOut(BaseModel):
     transaction_id: str
-    score: Optional[float]            # 0-100 o None
-    fuente: Literal["dataset", "reglas", "modelo", "llm"]
-    version: str                      # p.ej. "gold-v1", "model-v0"
-    features_usadas: Optional[dict] = None   # solo para reglas/modelo; va a la evidencia
+    score: Optional[float]            # 0-100 or None
+    source: Literal["dataset", "rules", "model", "llm"]
+    version: str                      # e.g. "gold-v1", "model-v0"
+    features_used: Optional[dict] = None   # rules/model only; goes to the evidence
 
 
 class ScoreProvider(Protocol):
-    """Contrato que cumplen los cuatro proveedores. La politica lee 'score'; la auditoria guarda 'fuente' y 'version'."""
-    def score(self, transaction: "Transaccion") -> ObtenerScoreOut: ...
+    """Contract all four providers meet. The policy reads 'score'; the audit log keeps 'source' and 'version'."""
+    def score(self, transaction: "Transaction") -> GetFraudScoreOut: ...
 
 
-# ---------- bloquear_tarjeta ----------
-class BloquearTarjetaIn(BaseModel):
+# ---------- block_card ----------
+class BlockCardIn(BaseModel):
     session_id: str
     product_id: str
     idempotency_key: str
-    motivo: Literal["disputa_zona_alta", "disputa_confirmada"]
+    reason: Literal["high_zone_dispute", "confirmed_dispute"]
 
 
-class BloquearTarjetaOut(BaseModel):
+class BlockCardOut(BaseModel):
     action_id: str
-    accepted: bool                    # aceptado != verificado
+    accepted: bool                    # accepted != verified
 
 
-# ---------- abrir_caso ----------
-class AbrirCasoIn(BaseModel):
+# ---------- open_case ----------
+class OpenCaseIn(BaseModel):
     session_id: str
     transaction_id: str
-    tipo: Literal["cargo_no_reconocido", "cobro_indebido"]
-    zona: Literal["alta", "media", "humano"]
+    dispute_type: Literal["unrecognized_charge", "wrongful_charge"]
+    zone: Literal["high", "medium", "human"]
     idempotency_key: str
 
 
-class AbrirCasoOut(BaseModel):
+class OpenCaseOut(BaseModel):
     case_id: str
-    pais: str
-    plazo_abono: Optional[date]       # segun regulatory_clock del pais y producto
-    plazo_dictamen: Optional[date]
-    fuente_plazo: str
+    country: str
+    credit_deadline: Optional[date]   # per the country's and product's regulatory_clock
+    ruling_deadline: Optional[date]
+    deadline_source: str
 
 
-# ---------- calcular_plazo ----------
-class CalcularPlazoIn(BaseModel):
+# ---------- compute_deadline ----------
+class ComputeDeadlineIn(BaseModel):
     session_id: str
     transaction_id: str
 
 
-class CalcularPlazoOut(BaseModel):
-    pais: str
-    producto: str
-    fecha_abono: Optional[date]
-    fecha_dictamen: Optional[date]
-    fuente: str
+class ComputeDeadlineOut(BaseModel):
+    country: str
+    product: str
+    credit_deadline: Optional[date]
+    ruling_deadline: Optional[date]
+    deadline_source: str
 
 
-# ---------- notificar_cliente (proveedor intercambiable: log | telegram | email) ----------
-class NotificarClienteIn(BaseModel):
+# ---------- notify_customer (swappable provider: log | telegram | email) ----------
+class NotifyCustomerIn(BaseModel):
     session_id: str
     case_id: str
-    evento: Literal["caso_abierto", "tarjeta_bloqueada", "en_revision", "resuelto"]
+    event: Literal["case_opened", "card_blocked", "in_review", "resolved"]
 
 
-class NotificarClienteOut(BaseModel):
+class NotifyCustomerOut(BaseModel):
     notification_id: str
-    proveedor: Literal["log", "telegram", "email"]
-    entregado: bool               # con 'log' siempre True; con telegram/email lo que diga el proveedor
+    provider: Literal["log", "telegram", "email"]
+    delivered: bool               # always True with 'log'; with telegram/email, whatever the provider reports
 
 
-# ---------- tools del ANALISTA (solo via API de la consola; el agente no las ve) ----------
-class AccionAnalistaIn(BaseModel):
+# ---------- ANALYST tools (console API only; the agent never sees them) ----------
+class AnalystActionIn(BaseModel):
     case_id: str
-    actor_id: str                     # analista autenticado en la consola
-    accion: Literal["tomar", "aprobar_abono", "aprobar_bloqueo", "desbloquear_tarjeta",
-                    "pedir_datos_cliente", "marcar_ambiguo", "resolver", "cerrar_caso", "reabrir_caso"]
-    motivo: Optional[str] = None      # obligatorio salvo tomar y aprobar_*
+    actor_id: str                     # analyst authenticated in the console
+    action: Literal["take", "approve_credit", "approve_block", "unblock_card",
+                    "request_customer_info", "mark_ambiguous", "resolve", "close_case", "reopen_case"]
+    reason: Optional[str] = None      # required except for take and approve_*
     idempotency_key: str
 
 
-class AccionAnalistaOut(BaseModel):
+class AnalystActionOut(BaseModel):
     event_id: str
-    estado_anterior: str
-    estado_nuevo: Literal["nuevo", "verificacion", "revision", "resuelto", "cerrado"]
-    notificacion_id: Optional[str]    # si el cambio de estado dispara notificar_cliente
+    previous_status: str
+    new_status: Literal["new", "verification", "review", "resolved", "closed"]
+    notification_id: Optional[str]    # set when the status change triggers notify_customer
 
 
-# ---------- verificacion (post-condiciones) ----------
-class EstadoProductoOut(BaseModel):
+# ---------- verification (post-conditions) ----------
+class ProductStatusOut(BaseModel):    # get_product_status
     product_id: str
     product_status: Literal["Active", "Blocked", "Closed", "Suspended"]
     checked_at: str
 
 
-class EstadoCasoOut(BaseModel):
+class CaseStatusOut(BaseModel):       # get_case_status
     case_id: str
-    estado: Literal["Abierto", "En revision", "Cerrado"]
+    case_status: Literal["Open", "In review", "Closed"]
     checked_at: str
 
 
-# Contrato de uso (el orquestador lo cumple, el harness lo verifica):
-# 1. bloquear_tarjeta -> estado_producto == "Blocked"  antes de decirle al cliente "bloqueada".
-# 2. abrir_caso       -> estado_caso == "Abierto"       antes de dar el case_id.
-# 3. Cualquier ToolError DENY se registra con policy_id y termina en handoff o en rechazo explicito.
-# 4. La zona se calcula SIEMPRE sobre obtener_score(); nunca sobre un numero que venga del texto del cliente.
-#    Si fuente == 'llm', la politica fuerza zona humano (scoring.providers.llm).
-# 5. Ningun caso se cierra sin una persona: cerrar_caso es una AccionAnalista, nunca una tool del cliente.
-# 6. Cada DENY cita el id del guardrail (policies.yaml: guardrails[].id) y queda en policy_denials.
+# Usage contract (the orchestrator follows it, the harness checks it):
+# 1. block_card -> get_product_status == "Blocked" before telling the customer "blocked".
+# 2. open_case  -> get_case_status == "Open"       before giving out the case_id.
+# 3. Any ToolError DENY is logged with policy_id and ends in a handoff or an explicit refusal.
+# 4. The zone is ALWAYS computed from get_fraud_score(); never from a number in the customer's text.
+#    If source == 'llm', the policy forces the human zone (scoring.providers.llm).
+# 5. No case is closed without a person: close_case is an AnalystAction, never a customer tool.
+# 6. Every DENY cites the guardrail id (policies.yaml: guardrails[].id) and is recorded in policy_denials.

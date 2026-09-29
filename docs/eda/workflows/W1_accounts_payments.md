@@ -3,8 +3,8 @@
 > Documento autocontenido para el Project de claude.ai (EDA del dataset sintético LATAM Bank, Factored AI & Data
 > Hackathon 2026). Generado con `python -m eda.report` desde `outputs/tables/`. Cada cifra lleva etiqueta
 > (`[medido]` = sale del dataset con la query indicada; `[supuesto]`; `[proyectado]`) y su archivo de query en
-> `docs/eda/queries/`. Contexto general: `calidad_datos.md`, `mapeo_workflows.md`, `findings.md`,
-> `resumen_ejecutivo.md`.
+> `docs/eda/queries/`. Contexto general: `data_quality.md`, `workflow_mapping.md`, `findings.md`,
+> `executive_summary.md`.
 
 ## 1. Definición y reglas de mapeo
 Consultas sobre saldos, movimientos, pagos y transferencias de cuentas (ahorro y corriente), incluidos pagos rechazados o pendientes y conversión de moneda. Es el workflow con la regla de contacto más confiable del dataset (`Transaccional`, confianza media).
@@ -35,7 +35,7 @@ Cobertura del workflow y % AMBIGUO/OTRO por fuente (`03_coverage_summary.csv`) `
 | digital_events | 24.3 | 5.0 | 55.3 |
 
 Confiabilidad: la plantilla de transcript es independiente del motivo (kappa 0.0003) y de los productos del cliente;
-la cobertura de transcripts no tiene sesgo por workflow (p = 0.84). Detalle en `mapeo_workflows.md` §5.
+la cobertura de transcripts no tiene sesgo por workflow (p = 0.84). Detalle en `workflow_mapping.md` §5.
 
 ## 2. Demanda
 Población de contacto: contactos Transaccional (INT-01, confianza media).

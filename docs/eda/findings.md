@@ -8,17 +8,17 @@
 ## Documentos
 | Documento | Contenido |
 |---|---|
-| `docs/eda/resumen_ejecutivo.md` | Una página: qué tiene y qué no el dataset, dónde hay señal, ranking, ideas, preguntas |
-| `docs/eda/workflows/W1_cuentas_pagos.md` … `W4_credito.md` | Expedientes con la misma estructura de 8 secciones |
-| `docs/eda/calidad_datos.md` | Inventario, calidad por tabla y evidencia de data engineering para el pitch (§C) |
-| `docs/eda/mapeo_workflows.md` | Reglas de mapeo v1 con confianza, cobertura por fuente, confiabilidad motivo vs texto |
+| `docs/eda/executive_summary.md` | Una página: qué tiene y qué no el dataset, dónde hay señal, ranking, ideas, preguntas |
+| `docs/eda/workflows/W1_accounts_payments.md` … `W4_credit.md` | Expedientes con la misma estructura de 8 secciones |
+| `docs/eda/data_quality.md` | Inventario, calidad por tabla y evidencia de data engineering para el pitch (§C) |
+| `docs/eda/workflow_mapping.md` | Reglas de mapeo v1 con confianza, cobertura por fuente, confiabilidad motivo vs texto |
 | Este archivo | Resumen por workflow, comparación con la misma vara, ranking, ideas, vacíos, decisiones; anexo por fase |
 
 ## A. Lo que cambia el pitch
 1. **No hay motivo granular ni intents ni texto real**: `contact_reason` = `reason_category` (6 valores),
    `detected_intents` tiene un solo valor, los transcripts son 2 plantillas de consulta de saldo independientes del
    motivo (kappa 0.0003) y de los productos del cliente. Un clasificador de intención sobre este texto no es defendible
-   (`calidad_datos.md` §A5, `mapeo_workflows.md` §5).
+   (`data_quality.md` §A5, `workflow_mapping.md` §5).
 2. **Solo W1 tiene una regla de contacto de confianza media** (`Transaccional`, 35.0% de los contactos); W3 y W4 entran
    con confianza baja (`Queja` 17.1%, `Comercial` 8.0%) y **W2 no tiene contactos propios** (§3).
 3. **Los outcomes de contacto sí discriminan, pero solo por motivo**: FCR 91.5% (W1) vs 43.6% (W3), duración 3.4 vs
@@ -31,10 +31,10 @@
    business case depende del supuesto de costo, no de los datos (§6).
 6. **Los problemas de calidad anunciados no están** (0 duplicados, 0 llegadas tardías, sin evolución de schema); **los
    reales son otros** (FK a productos de otro cliente 100%, fechas futuras, orden temporal violado): son la evidencia de
-   data engineering (`calidad_datos.md` §C).
+   data engineering (`data_quality.md` §C).
 
 ## B. Resumen por workflow
-### W1 — Cuentas y pagos → `workflows/W1_cuentas_pagos.md`
+### W1 — Cuentas y pagos → `workflows/W1_accounts_payments.md`
 - **Volumen**: 6,661 contactos/mes (`Transaccional`, confianza media; 35.0%); 3,365 pagos rechazados y 1,348
   pendientes por mes desde cuentas `[medido]` (`04_workflow_scorecard.csv`, `04_trigger_events_summary.csv`).
 - **Outcomes**: FCR 91.5% [91.4, 91.6], AHT 3.7 min, 0.0% sentimiento negativo, NPS −69.9: el workflow más "fácil".
@@ -44,7 +44,7 @@
 - **Riesgo**: poco dolor y ahorro por contacto negativo en el escenario base LATAM (−51k USD/año); puede verse como
   "chatbot de saldo".
 
-### W2 — Tarjetas → `workflows/W2_tarjetas.md`
+### W2 — Tarjetas → `workflows/W2_cards.md`
 - **Volumen**: sin contactos atribuibles; 2,383/mes solo vía plantilla de transcript (no confiable). Eventos: 2,156
   declinaciones de tarjeta/mes y 7,044 tarjetas bloqueadas al corte `[medido]` (`04_trigger_events_summary.csv`,
   `04_products_by_status.csv`).
@@ -53,7 +53,7 @@
 - **Riesgo**: el dataset no muestra demanda de contacto para W2; el componente aprendido tendría que salir de datos
   generados por el equipo. Sin embudo "error de app → llamada" (0.154% vs 0.149% de control).
 
-### W3 — Disputas → `workflows/W3_disputas.md`
+### W3 — Disputas → `workflows/W3_disputes.md`
 - **Volumen**: 679 complaints/mes de cargos no reconocidos y cobros indebidos (36.4% de complaints, confianza
   alta/media); 3,241 contactos `Queja`/mes (confianza baja); 120 fraudes y 1,241 reversos por mes `[medido]`.
 - **Outcomes**: el peor en contacto: FCR 43.6%, 63.0% requiere seguimiento, 7.2 min, CSAT top 6.4%, NPS −85.3. SLA
@@ -63,7 +63,7 @@
 - **Riesgo**: complaints no se vincula a la interacción ni a un producto del propio cliente (`affected_product_id` de
   otro cliente en el 100%); 20.6% de los fraudes sin score.
 
-### W4 — Crédito → `workflows/W4_credito.md`
+### W4 — Crédito → `workflows/W4_credit.md`
 - **Volumen**: 1,524 contactos `Comercial`/mes (confianza baja); sin complaints ni texto; 31,870 préstamos en cartera
   `[medido]`.
 - **Outcomes**: FCR 65.2%, AHT 9.0 min (el más largo).
@@ -184,7 +184,7 @@ Decisiones de análisis tomadas en modo autónomo (fases 2–7), con su motivo. 
 | 3 | `Queja` → W3 y `Comercial` → W4 con confianza baja; `Producto` → AMBIGUO | Única forma de dar población de contacto a W3 y W4; se reporta cobertura estricta y amplia |
 | 3 | Plantilla de saldo de tarjeta → W2 (media) y de cuenta → W1 (alta) | Única señal de W2 a nivel de contacto; se marca como no confiable (independiente de todo) |
 | 3 | El acuerdo motivo vs `detected_intents` se reemplaza por motivo vs plantilla del transcript | `detected_intents` tiene un solo valor |
-| 3 | `mapeo_workflows.md` se genera con `python -m eda.report` desde los CSV | Evitar cifras desincronizadas |
+| 3 | `workflow_mapping.md` se genera con `python -m eda.report` desde los CSV | Evitar cifras desincronizadas |
 | 4 | "Discrimina" = IC95 separados **y** diferencia ≥ 2 pp (proporciones) o ≥ 10% relativo (resto) | Con n > 50k los IC son tan angostos que cualquier ruido del generador los separa |
 | 4 | Además de IC, chi-cuadrado / Kruskal-Wallis con V de Cramér / ε² contra 8 agrupaciones | Mostrar de qué depende (y de qué no) cada outcome |
 | 4 | Re-contacto = siguiente contacto del mismo cliente por cualquier motivo, con ventana completa de seguimiento | No hay forma de saber si el re-contacto es por el mismo tema |
@@ -247,7 +247,7 @@ Generado con `python scripts/s3_inventory.py` y `python -m eda.inventory`. Sincr
   y `event_category=Authentication` para el embudo previo a llamada.
 
 ## 1. Calidad de datos
-Detalle completo, con denominadores y consecuencias, en `docs/eda/calidad_datos.md` §B. Módulo `python -m eda.quality`.
+Detalle completo, con denominadores y consecuencias, en `docs/eda/data_quality.md` §B. Módulo `python -m eda.quality`.
 Todas las cifras `[medido]` salvo que se indique.
 
 | Tabla | Duplicados | Nulos relevantes | Huérfanos / pertenencia FK | Rezago p50/p95 (días) | Query |
@@ -319,7 +319,7 @@ Todas las cifras `[medido]`.
   estacional ni segmento más demandante que justifique un workflow sobre otro.
 
 ## 3. Mapeo a workflows
-Detalle, tabla de reglas y justificación en `docs/eda/mapeo_workflows.md`. Reglas en
+Detalle, tabla de reglas y justificación en `docs/eda/workflow_mapping.md`. Reglas en
 `docs/eda/queries/03_workflow_mapping.csv` (versión **v1**, 35 reglas con confianza alta/media/baja). Módulo
 `python -m eda.workflows`. Cifras `[medido]` (`03_coverage_summary.csv`).
 

@@ -1,4 +1,4 @@
--- Respalda: mapeo_workflows.md (acuerdo entre el motivo de la interacción y la plantilla del transcript;
+-- Respalda: workflow_mapping.md (acuerdo entre el motivo de la interacción y la plantilla del transcript;
 -- reemplaza el acuerdo motivo vs detected_intents, que tiene un solo valor).
 -- Produce: outputs/tables/03_reason_vs_text_agreement.csv (vía eda/workflows.py).
 -- {case_int} = reglas de interactions; {case_trs} = reglas de transcripts (cada una sobre su propia tabla).

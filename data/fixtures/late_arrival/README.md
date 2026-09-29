@@ -6,7 +6,7 @@
 
 ## Para qué existe
 El diccionario del dataset anuncia llegadas tardías y evolución de schema, pero no están en los datos: el rezago
-`process_date − fecha del evento` es 0 o −1 y hay una sola firma de header por tabla (`docs/eda/calidad_datos.md`
+`process_date − fecha del evento` es 0 o −1 y hay una sola firma de header por tabla (`docs/eda/data_quality.md`
 §B4, §B6). Este fixture tiene la misma forma que el bucket (particiones `year=/month=/day=`, BOM, CRLF) y sirve para
 demostrar cómo el pipeline maneja una segunda entrega.
 

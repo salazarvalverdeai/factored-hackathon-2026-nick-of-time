@@ -49,11 +49,11 @@
 
     <rect x="60" y="414" width="510" height="150" rx="8" fill="#ffffff" stroke="#2563eb"/>
     <text x="75" y="436" font-weight="bold" fill="#1e3a8a">EC2 (zona de datos) · docker compose · Caddy TLS</text>
-    <text x="75" y="456" fill="#1f2937">• Servidor MCP (FastMCP): buscar_transaccion · bloquear_tarjeta · abrir_caso · estado_*</text>
+    <text x="75" y="456" fill="#1f2937">• Servidor MCP (FastMCP): search_transaction · block_card · open_case · estado_*</text>
     <text x="75" y="472" fill="#1f2937">   permisos por customer_id de sesión DENTRO de cada tool · idempotencia · post-condición</text>
     <text x="75" y="490" fill="#1f2937">• Identidad mock (sesión + OTP, TTL 15 min)</text>
     <text x="75" y="506" fill="#1f2937">• DuckDB sobre gold Parquet (S3) · DynamoDB o SQLite para casos y auditoría</text>
-    <text x="75" y="522" fill="#1f2937">• FastAPI: consola del analista, /api/casos/{id}/accion, auditoría, páginas de datos</text>
+    <text x="75" y="522" fill="#1f2937">• FastAPI: consola del analista, /api/cases/{id}/action, auditoría, páginas de datos</text>
     <text x="75" y="540" fill="#1f2937">• Next.js (web) servido por Caddy</text>
     <text x="75" y="556" fill="#1f2937">• Nada de esto es alcanzable sin la sesión: la web y el MCP validan la misma sesión</text>
 

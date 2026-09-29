@@ -1,4 +1,4 @@
--- Respalda: calidad_datos.md §B4 y findings.md §1 (rezago de llegada).
+-- Respalda: data_quality.md §B4 y findings.md §1 (rezago de llegada).
 -- Produce: outputs/tables/01_late_arrivals.csv (vía eda/quality.py).
 -- Plantilla: eda/quality.py rellena {source}: una subconsulta con columnas event_ts (fecha del evento),
 -- process_date y partition_date. Para call_transcripts, event_ts es interaction_date de la interacción asociada.

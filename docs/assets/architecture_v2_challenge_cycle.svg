@@ -72,7 +72,7 @@
 
     <rect x="266" y="232" width="216" height="150" rx="8" fill="#ffffff" stroke="#d97706" stroke-width="1.5"/>
     <text x="374" y="252" text-anchor="middle" font-weight="bold" fill="#9a3412">Motor de políticas (YAML)</text>
-    <text x="278" y="272" fill="#1f2937">• obtener_score → zona alta/media/humano</text>
+    <text x="278" y="272" fill="#1f2937">• get_fraud_score → zona alta/media/humano</text>
     <text x="278" y="288" fill="#1f2937">• Umbral de monto · reloj por país</text>
     <text x="278" y="304" fill="#1f2937">• Modo de aprobación por acción:</text>
     <text x="278" y="320" fill="#1f2937">  auto · human_required · manual_check</text>
@@ -82,9 +82,9 @@
 
     <rect x="492" y="232" width="216" height="150" rx="8" fill="#ffffff" stroke="#16a34a" stroke-width="1.5"/>
     <text x="600" y="252" text-anchor="middle" font-weight="bold" fill="#166534">Tools del cliente (MCP en EC2)</text>
-    <text x="504" y="272" fill="#1f2937">• buscar_transaccion · obtener_score</text>
-    <text x="504" y="288" fill="#1f2937">• bloquear_tarjeta · abrir_caso</text>
-    <text x="504" y="304" fill="#1f2937">• calcular_plazo</text>
+    <text x="504" y="272" fill="#1f2937">• search_transaction · get_fraud_score</text>
+    <text x="504" y="288" fill="#1f2937">• block_card · open_case</text>
+    <text x="504" y="304" fill="#1f2937">• compute_deadline</text>
     <text x="504" y="320" fill="#1f2937">• Permisos por customer_id de sesión</text>
     <text x="504" y="336" fill="#1f2937">  dentro de la tool, no en el prompt</text>
     <text x="504" y="352" fill="#1f2937">• Idempotencia · reintentos acotados</text>
@@ -92,8 +92,8 @@
 
     <rect x="718" y="232" width="216" height="150" rx="8" fill="#ffffff" stroke="#7c3aed" stroke-width="2.5"/>
     <text x="826" y="252" text-anchor="middle" font-weight="bold" fill="#4c1d95">Verificación (post-condiciones)</text>
-    <text x="730" y="272" fill="#1f2937">• estado_producto == Blocked ✓</text>
-    <text x="730" y="288" fill="#1f2937">• estado_caso == Abierto ✓</text>
+    <text x="730" y="272" fill="#1f2937">• get_product_status == Blocked ✓</text>
+    <text x="730" y="288" fill="#1f2937">• get_case_status == Abierto ✓</text>
     <text x="730" y="304" fill="#1f2937">• "aceptado" ≠ "verificado"</text>
     <text x="730" y="320" fill="#1f2937">• Tool caída → escala con</text>
     <text x="730" y="336" fill="#1f2937">  "acción NO confirmada"</text>
@@ -107,7 +107,7 @@
     <text x="956" y="304" fill="#1f2937">  revisión → resuelto → cerrado</text>
     <text x="956" y="320" fill="#1f2937">• Tools del analista: aprobar, cerrar…</text>
     <text x="956" y="336" fill="#1f2937">• Cierre siempre humano</text>
-    <text x="956" y="352" fill="#1f2937">• notificar_cliente por estado</text>
+    <text x="956" y="352" fill="#1f2937">• notify_customer por estado</text>
     <text x="956" y="368" fill="#6b7280">Nodo: escalar · interrupt()</text>
   </g>
 
@@ -134,7 +134,7 @@
     <text x="338" y="546" fill="#1f2937">• bronze → silver (pandera) → gold + manifest</text>
     <text x="338" y="562" fill="#1f2937">• customer_profile · transactions_enriched</text>
     <text x="338" y="578" fill="#1f2937">• gold_eval (is_fraud, solo harness)</text>
-    <text x="338" y="594" fill="#1f2937">• gold_analytics (kpis_pitch) → /analytics · /datos</text>
+    <text x="338" y="594" fill="#1f2937">• gold_analytics (kpis_pitch) → /analytics · /data</text>
     <text x="338" y="610" fill="#6b7280">David · Diego</text>
 
     <rect x="612" y="506" width="270" height="118" rx="8" fill="#f0fdf4" stroke="#16a34a" stroke-width="1.5"/>
@@ -142,14 +142,14 @@
     <text x="624" y="546" fill="#1f2937">• Set ES/PT team-generated + ataques</text>
     <text x="624" y="562" fill="#1f2937">• Estado final, no texto · pass^4</text>
     <text x="624" y="578" fill="#1f2937">• Safe resolution · unsafe · escalation quality</text>
-    <text x="624" y="594" fill="#1f2937">• p50/p95 · costo por caso → /evaluacion</text>
+    <text x="624" y="594" fill="#1f2937">• p50/p95 · costo por caso → /evaluation</text>
     <text x="624" y="610" fill="#6b7280">Freddy · Diego</text>
 
     <rect x="898" y="506" width="262" height="118" rx="8" fill="#fff7ed" stroke="#d97706" stroke-width="1.5"/>
     <text x="1029" y="526" text-anchor="middle" font-weight="bold" fill="#9a3412">Canales y notificación</text>
     <text x="910" y="546" fill="#1f2937">• /chat (Next, agent-chat-ui) ES/PT</text>
-    <text x="910" y="562" fill="#1f2937">• /consola con modo supervisado</text>
-    <text x="910" y="578" fill="#1f2937">• notificar_cliente: log (demo) →</text>
+    <text x="910" y="562" fill="#1f2937">• /console con modo supervisado</text>
+    <text x="910" y="578" fill="#1f2937">• notify_customer: log (demo) →</text>
     <text x="910" y="594" fill="#1f2937">  telegram (provisional) → email</text>
     <text x="910" y="610" fill="#6b7280">GianMarco · [voz ElevenLabs opcional]</text>
   </g>

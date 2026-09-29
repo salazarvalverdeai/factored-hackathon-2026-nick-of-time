@@ -63,7 +63,7 @@ consistencia. Lo decimos así, sin inflar.
 | **fraud_score** | Puntaje de 0 a 100 que trae cada transacción indicando qué tan probable es que sea fraude. | Es la única señal del dataset que sirve para decidir cuándo actuar. |
 | **Triage** | Clasificar casos por urgencia o riesgo para decidir qué hacer con cada uno. | Nuestras tres zonas (alto, medio, bajo riesgo). |
 | **Handoff** | Pasarle el caso a un humano con un resumen ordenado: qué pidió, qué se verificó, qué se hizo, qué falta. | Uno de los 3 casos obligatorios del reto. No se vuelca el chat crudo. |
-| **Tool tipada** | Una función con entradas y salidas definidas (por ejemplo `buscar_transaccion(cliente_id, fecha, monto)`). El modelo la llama; la función decide qué puede devolver. | Así los permisos viven en código, no en el texto del modelo. |
+| **Tool tipada** | Una función con entradas y salidas definidas (por ejemplo `search_transaction(cliente_id, fecha, monto)`). El modelo la llama; la función decide qué puede devolver. | Así los permisos viven en código, no en el texto del modelo. |
 | **Post-condición** | Después de una acción, verificar que el resultado ocurrió (bloqueé la tarjeta → consulto y confirmo que está bloqueada). | El reto exige "reportar solo acciones cuyo resultado se verificó". |
 | **Baseline** | La solución simple contra la que se compara la nuestra. | Piden mostrar que el componente aprendido mejora algo. |
 | **Held-out** | Casos que el sistema nunca vio durante el desarrollo y que se usan solo para evaluarlo. | Si evalúas con lo mismo que usaste para construir, el resultado no vale. |
@@ -159,7 +159,7 @@ IDENTIDAD · sesión de prueba con OTP simulado y vencimiento
           · si no está verificada → no muestra nada, ofrece humano
         │
         ▼
-BUSCAR    · tool buscar_transaccion(cliente_de_la_sesion, monto, fecha)
+BUSCAR    · tool search_transaction(cliente_de_la_sesion, monto, fecha)
           · la tool solo puede ver productos de ese cliente (permiso en código)
           · si hay 0 o varias candidatas → pregunta o escala
         │
@@ -170,7 +170,7 @@ DECIDIR   · motor de reglas (no el modelo) lee el fraud_score y el país:
           └─ score < 30 / sin score / monto alto / duda → ZONA HUMANO
         │
         ▼
-ACTUAR    · tool bloquear_tarjeta(producto) · tool abrir_caso(transaccion, tipo, país)
+ACTUAR    · tool block_card(producto) · tool open_case(transaccion, tipo, país)
         │
         ▼
 VERIFICAR · vuelve a leer product_status = Blocked y el caso con su ID
@@ -206,7 +206,7 @@ REGISTRO  · cada paso queda en un log: qué tool se llamó, con qué, qué devo
 | Pieza | Qué es | Disciplina |
 |---|---|---|
 | Pipeline de datos | Carga el snapshot del dataset, dedupe, valida esquema, corrige `México`/`Mexico`, rechaza fechas futuras y FKs cruzadas, deja linaje | Data Engineering |
-| Tools tipadas + permisos | `buscar_transaccion`, `bloquear_tarjeta`, `abrir_caso`, `estado_producto`; cada una filtra por cliente de sesión | AI Engineering |
+| Tools tipadas + permisos | `search_transaction`, `block_card`, `open_case`, `get_product_status`; cada una filtra por cliente de sesión | AI Engineering |
 | Motor de reglas | Archivo YAML versionado: zonas de score, umbral de monto, plazo por país | AI Engineering + Analytics |
 | Clasificador de intención ES/PT | Componente aprendido: entrena con set generado por el equipo; se compara contra reglas por palabras clave y contra un LLM sin entrenar | Machine Learning |
 | Harness de evaluación | Casos held-out en ES y PT, incluidos ataques; mide resolución segura, resultados inseguros, handoffs, latencia, costo, pass^k | Machine Learning + Analytics |
@@ -317,4 +317,4 @@ Dos correcciones que salieron del research:
 - Quavo (plataforma de disputas): https://www.quavo.com/qfd/
 - Precio por resolución con IA (Fin): https://fin.ai/pricing
 - Gartner, benchmarks de costo: https://www.gartner.com/en/documents/5164231
-- Cifras internas: `resumen_ejecutivo.md`, `pitch_brief.md`, `findings.md` del EDA (26 sep 2026)
+- Cifras internas: `executive_summary.md`, `pitch_brief.md`, `findings.md` del EDA (26 sep 2026)

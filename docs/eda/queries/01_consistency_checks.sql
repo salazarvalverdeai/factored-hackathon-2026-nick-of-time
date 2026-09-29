@@ -1,4 +1,4 @@
--- Respalda: calidad_datos.md §B3 (consistencia entre tablas: pertenencia al cliente, cadena interaction→transcript→survey).
+-- Respalda: data_quality.md §B3 (consistencia entre tablas: pertenencia al cliente, cadena interaction→transcript→survey).
 -- Produce: outputs/tables/01_consistency_checks.csv (vía eda/quality.py).
 -- Relevante para el reto: "aislamiento de registros por cliente" y validez de joins para el scorecard.
 WITH tr AS (

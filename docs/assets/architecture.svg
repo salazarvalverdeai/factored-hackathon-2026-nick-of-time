@@ -49,13 +49,13 @@
   <rect x="60" y="450" width="1080" height="80" rx="8" fill="#f9fafb" stroke="#6b7280" stroke-width="2"/>
   <text x="75" y="472" font-size="14" font-weight="bold" fill="#111827">Tools tipadas (Pydantic) · permisos por cliente de la sesión aplicados dentro de la tool</text>
   <rect x="80" y="484" width="240" height="34" rx="17" fill="#ffffff" stroke="#9ca3af"/>
-  <text x="200" y="506" text-anchor="middle" font-size="12" fill="#1f2937">buscar_transaccion()</text>
+  <text x="200" y="506" text-anchor="middle" font-size="12" fill="#1f2937">search_transaction()</text>
   <rect x="340" y="484" width="240" height="34" rx="17" fill="#ffffff" stroke="#9ca3af"/>
-  <text x="460" y="506" text-anchor="middle" font-size="12" fill="#1f2937">bloquear_tarjeta() + post-condición</text>
+  <text x="460" y="506" text-anchor="middle" font-size="12" fill="#1f2937">block_card() + post-condición</text>
   <rect x="600" y="484" width="240" height="34" rx="17" fill="#ffffff" stroke="#9ca3af"/>
-  <text x="720" y="506" text-anchor="middle" font-size="12" fill="#1f2937">abrir_caso() (idempotente)</text>
+  <text x="720" y="506" text-anchor="middle" font-size="12" fill="#1f2937">open_case() (idempotente)</text>
   <rect x="860" y="484" width="260" height="34" rx="17" fill="#ffffff" stroke="#9ca3af"/>
-  <text x="990" y="506" text-anchor="middle" font-size="12" fill="#1f2937">estado_producto() / estado_caso()</text>
+  <text x="990" y="506" text-anchor="middle" font-size="12" fill="#1f2937">get_product_status() / get_case_status()</text>
 
   <!-- Datos -->
   <rect x="60" y="570" width="640" height="90" rx="8" fill="#f5f3ff" stroke="#7c3aed" stroke-width="2"/>

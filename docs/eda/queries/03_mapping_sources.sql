@@ -1,4 +1,4 @@
--- Respalda: mapeo_workflows.md (relaciones sobre las que se aplican las reglas de 03_workflow_mapping.csv).
+-- Respalda: workflow_mapping.md (relaciones sobre las que se aplican las reglas de 03_workflow_mapping.csv).
 -- eda/workflows.py lee este archivo y separa cada bloque por su marcador "-- source: <nombre>".
 -- Cada bloque es una subconsulta con las columnas que usan las condiciones de las reglas de esa fuente.
 -- source: interactions

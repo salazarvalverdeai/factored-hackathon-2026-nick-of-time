@@ -2,7 +2,7 @@
 
 Entrego lo que hace medible todo lo demás: el set de evaluación ES/PT, los números del problema y del negocio con su query, la especificación de las vistas y el tablero.
 
-Flujo (recibo → construyo → entrego): matriz del set y ataques (Freddy), `demo_index.csv` y `gold_analytics` (David), salida del harness (Freddy), plazos por país con fuente → queries del pitch congeladas con CSV, `docs/negocio.md`, spec de vistas chat y consola, set ES/PT de 200–300 casos con doble etiquetado, tablero `/analytics` → hola mundos y spec (GianMarco), `eval/casos.jsonl` (Freddy), tabla de resultados con n, slides de problema y negocio.
+Flujo (recibo → construyo → entrego): matriz del set y ataques (Freddy), `demo_index.csv` y `gold_analytics` (David), salida del harness (Freddy), plazos por país con fuente → queries del pitch congeladas con CSV, `docs/business.md`, spec de vistas chat y consola, set ES/PT de 200–300 casos con doble etiquetado, tablero `/analytics` → hola mundos y spec (GianMarco), `eval/cases.jsonl` (Freddy), tabla de resultados con n, slides de problema y negocio.
 
 ## Qué recibo y qué entrego
 
@@ -14,8 +14,8 @@ Flujo (recibo → construyo → entrego): matriz del set y ataques (Freddy), `de
 | Entrego a | Qué | Cuándo |
 | --- | --- | --- |
 | GianMarco | Hola mundos de DuckDB y DynamoDB; especificación de vistas chat y consola; CSV para `/analytics` | Lun 28, Mar 29, Jue 1 |
-| Freddy | `eval/casos.jsonl` (200–300 casos válidos contra el schema); acuerdo del doble etiquetado | Jue 1 |
-| Todos | `queries/` con CSV; `docs/negocio.md`; tabla de resultados; texto de slides 1, 2, 9 y 10 | Mar 29, Sáb 3 |
+| Freddy | `eval/cases.jsonl` (200–300 casos válidos contra el schema); acuerdo del doble etiquetado | Jue 1 |
+| Todos | `queries/` con CSV; `docs/business.md`; tabla de resultados; texto de slides 1, 2, 9 y 10 | Mar 29, Sáb 3 |
 
 ## Los números, explicados
 
@@ -39,7 +39,7 @@ Una transacción real del gold (de `demo_index.csv`) más un mensaje escrito por
 | Día | Tarea | Hecho cuando |
 | --- | --- | --- |
 | Lun 28 | Hola mundos de DuckDB (`count(*)` de un Parquet) y DynamoDB (escribir y leer una fila) con credenciales, entregados a GianMarco; queries del pitch congeladas con CSV | Los dos scripts corren desde el contenedor; cada cifra tiene archivo |
-| Mar 29 | `docs/negocio.md`: plazos por país con link, ahorro con supuestos, outcomes de tiempo y calidad; especificación de vistas chat y consola (campos, estados, botones) | GianMarco construye sin adivinar |
+| Mar 29 | `docs/business.md`: plazos por país con link, ahorro con supuestos, outcomes de tiempo y calidad; especificación de vistas chat y consola (campos, estados, botones) | GianMarco construye sin adivinar |
 | Mié 30 – Jue 1 | Set ES/PT de 200–300 casos desde `demo_index.csv` según la matriz de Freddy; casos de ataque con Freddy | Válidos contra el schema; cobertura por celda |
 | Jue 1 | Doble etiquetado de 40 casos por otra persona; acuerdo reportado | % y kappa en `eval/README.md` |
 | Vie 2 – Sáb 3 | `/analytics` (Power BI publicado y embebido, o Recharts sobre `queries/*.csv`); tabla de resultados con la salida del harness | Slide de resultados con números reales |
@@ -47,9 +47,9 @@ Una transacción real del gold (de `demo_index.csv`) más un mensaje escrito por
 Viernes debe existir: set completo con doble etiquetado; tablero `/analytics`; texto de negocio listo.
 
 ## Dónde encuentro lo mío
-`queries/pitch/` · `docs/negocio.md` · `docs/vistas/` (spec de chat y consola) · `eval/casos.jsonl`, `eval/README.md` · `apps/web/app/analytics/` (o el embed de Power BI) · `docs/eda/README.md` (índice número → archivo).
+`queries/pitch/` · `docs/business.md` · `docs/views/` (spec de chat y consola) · `eval/cases.jsonl`, `eval/README.md` · `apps/web/app/analytics/` (o el embed de Power BI) · `docs/eda/README.md` (índice número → archivo).
 
 ## Cambios del lunes en la tarde
 - Dos conjuntos: (A) set del clasificador, 300–400 frases ES/PT con intención y slots, 70/15/15 por autor o plantilla; (B) held-out del agente, ~180 casos solo con clientes `heldout` (ES 110 / PT 70; normal 45, ambiguo 30, humano 30, injection 25, unauthorized 15, session_expired 10, tool_failure 15, missing_data 5, late_arrival 5; MX, CO, AR, BR × 4 segmentos). Los ~60 casos de desarrollo usan clientes `dev`.
-- El resultado esperado se deriva del registro real; el mensaje es lo único team-generated. Cada caso lleva `conjunto`, `guardrail_ids` y `estado_cola` esperados.
+- El resultado esperado se deriva del registro real; el mensaje es lo único team-generated. Cada caso lleva `set`, `guardrail_ids` y `queue_status` esperados.
 - La especificación de la consola incluye la cola de cinco estados, el interruptor de modo supervisado y el panel de notificaciones del cliente.

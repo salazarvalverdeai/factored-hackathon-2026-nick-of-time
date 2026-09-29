@@ -3,8 +3,8 @@
 > Documento autocontenido para el Project de claude.ai (EDA del dataset sintético LATAM Bank, Factored AI & Data
 > Hackathon 2026). Generado con `python -m eda.report` desde `outputs/tables/`. Cada cifra lleva etiqueta
 > (`[medido]` = sale del dataset con la query indicada; `[supuesto]`; `[proyectado]`) y su archivo de query en
-> `docs/eda/queries/`. Contexto general: `calidad_datos.md`, `mapeo_workflows.md`, `findings.md`,
-> `resumen_ejecutivo.md`.
+> `docs/eda/queries/`. Contexto general: `data_quality.md`, `workflow_mapping.md`, `findings.md`,
+> `executive_summary.md`.
 
 ## 1. Definición y reglas de mapeo
 Consultas y problemas con tarjetas de crédito y débito: declinaciones, bloqueos, saldo y límite disponible. **No tiene regla a nivel de contacto**: su población de contacto sale de la plantilla de transcript 'saldo de mi tarjeta de crédito' (confianza media, texto independiente de todo). Sus señales reales son eventos: declinaciones con `response_code` y tarjetas bloqueadas.
@@ -33,7 +33,7 @@ Cobertura del workflow y % AMBIGUO/OTRO por fuente (`03_coverage_summary.csv`) `
 | digital_events | 7.7 | 5.0 | 55.3 |
 
 Confiabilidad: la plantilla de transcript es independiente del motivo (kappa 0.0003) y de los productos del cliente;
-la cobertura de transcripts no tiene sesgo por workflow (p = 0.84). Detalle en `mapeo_workflows.md` §5.
+la cobertura de transcripts no tiene sesgo por workflow (p = 0.84). Detalle en `workflow_mapping.md` §5.
 
 ## 2. Demanda
 Población de contacto: contactos con transcript de saldo de tarjeta (TRS-02; texto no confiable, solo 25% tiene transcript).
@@ -95,11 +95,11 @@ diferencia ≥ 2 pp o ≥ 10% relativo (`04_ci_overlap.csv`).
 | CES media (1–4) | 2.75 | [2.72, 2.78] | 2,729 | encuestas CES de interacciones con transcript de saldo de tarjeta (TRS-02) (escala observada 1–4) | 2.77 | sí | medido |
 | Re-contacto 7 días (%) | 2.8 | [2.70, 2.92] | 85,222 | interacciones con transcript de saldo de tarjeta (TRS-02) con 7 días de seguimiento completos (antes de 2026-06-10) | 2.88 | no | medido |
 | Re-contacto 30 días (%) | 11.7 | [11.49, 11.92] | 83,441 | interacciones con transcript de saldo de tarjeta (TRS-02) con 30 días de seguimiento completos (antes de 2026-05-18) | 11.79 | no | medido |
-| Volumen mensual de complaints | n/d | — | 0 | sin complaints asignables a este workflow (mapeo_workflows.md §3) | 1,863.90 | sí | vacío |
-| % SLA incumplido | n/d | — | 0 | sin complaints asignables a este workflow (mapeo_workflows.md §3) | 20.11 | no | vacío |
-| Días de resolución p50 | n/d | — | 0 | sin complaints asignables a este workflow (mapeo_workflows.md §3) | 16.00 | no | vacío |
-| Días de resolución p95 | n/d | — | 0 | sin complaints asignables a este workflow (mapeo_workflows.md §3) | 29.00 | no | vacío |
-| % resueltos/cerrados | n/d | — | 0 | sin complaints asignables a este workflow (mapeo_workflows.md §3) | 24.03 | no | vacío |
+| Volumen mensual de complaints | n/d | — | 0 | sin complaints asignables a este workflow (workflow_mapping.md §3) | 1,863.90 | sí | vacío |
+| % SLA incumplido | n/d | — | 0 | sin complaints asignables a este workflow (workflow_mapping.md §3) | 20.11 | no | vacío |
+| Días de resolución p50 | n/d | — | 0 | sin complaints asignables a este workflow (workflow_mapping.md §3) | 16.00 | no | vacío |
+| Días de resolución p95 | n/d | — | 0 | sin complaints asignables a este workflow (workflow_mapping.md §3) | 29.00 | no | vacío |
+| % resueltos/cerrados | n/d | — | 0 | sin complaints asignables a este workflow (workflow_mapping.md §3) | 24.03 | no | vacío |
 
 Lectura transversal (`04_discrimination_tests.csv`) `[medido]`: los outcomes de contacto dependen **solo del motivo**
 (FCR V de Cramér 0.43, duración ε² 0.48); canal, país, segmento, acento y agente no los mueven (V ≤ 0.008).

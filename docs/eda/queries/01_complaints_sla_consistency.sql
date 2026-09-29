@@ -1,4 +1,4 @@
--- Respalda: calidad_datos.md §B5 (¿sla_breached es coherente con la duración, el estado y la prioridad?).
+-- Respalda: data_quality.md §B5 (¿sla_breached es coherente con la duración, el estado y la prioridad?).
 -- Si % SLA incumplido no depende de resolution_days ni del estado, la métrica del scorecard es ruido del generador.
 -- Produce: outputs/tables/01_complaints_sla_consistency.csv (vía eda/quality.py).
 SELECT 'resolution_days' AS dimension,

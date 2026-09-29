@@ -79,12 +79,12 @@ def section_checks(r: dict) -> list[str]:
     eda_note = (f"**{same} de {len(with_eda)} checks con referencia en el EDA dan exactamente la misma cifra** "
                 "(numerador y denominador)." if with_eda else
                 "Sin comparación con el EDA en este repo: `outputs/tables/` quedó en el repo del EDA, donde el mismo "
-                "pipeline sobre el dataset completo reproduce las cifras de `calidad_datos.md`. Aquí `transactions` "
+                "pipeline sobre el dataset completo reproduce las cifras de `data_quality.md`. Aquí `transactions` "
                 "cubre solo la ventana de 12 meses, así que sus conteos no son comparables con el EDA.")
     return ["## 3. Checks con conteos", "",
             "Violaciones = filas (o archivos, en SCH-01) que fallan el check; denominador = filas donde el check "
             "aplica. La última columna es la cifra del EDA para el mismo check (`outputs/tables/01_*.csv`, "
-            "documentada en `docs/eda/calidad_datos.md` §B–C).", "",
+            "documentada en `docs/eda/data_quality.md` §B–C).", "",
             *table(["ID", "Tabla", "Check", "Descripción", "Violaciones", "Denominador", "%", "Acción",
                     "EDA (violaciones / denominador)"], rows, "---|---|---|---|---:|---:|---:|---|---"),
             eda_note, ""]
@@ -127,7 +127,7 @@ def section_lag(r: dict) -> list[str]:
     return ["## 5. Llegadas tardías y rezago", "",
             "Rezago = `process_date − fecha del evento` en días. Positivo = llegada tardía (flag `qc_late_arrival`). "
             "Un rezago de −1 no es un error: el día operativo del archivo corta a las 06:00 u 08:00 "
-            "(`calidad_datos.md` §B4).", "",
+            "(`data_quality.md` §B4).", "",
             *table(["Tabla", "Filas", "Tardías (> 0 d)", "Rezago máx.", "Distribución del rezago",
                     "Partición ≠ process_date"], rows, "---|---:|---:|---:|---|---:")]
 
@@ -161,7 +161,7 @@ def section_fixture(fx: dict | None) -> list[str]:
         return out + ["Sin resultados: correr `python -m data.pipeline fixture`.", ""]
     spec, runs = fx["spec"], fx["runs"]
     out += ["> **FIXTURE, datos sintéticos de prueba (no salen del dataset).** El dataset real no tiene llegadas "
-            "tardías ni evolución de schema (`calidad_datos.md` §B4, §B6), así que la frescura se demuestra con dos "
+            "tardías ni evolución de schema (`data_quality.md` §B4, §B6), así que la frescura se demuestra con dos "
             "entregas etiquetadas en `data/fixtures/late_arrival/` (IDs `FX-`). El pipeline las procesa con el "
             "mismo código que la corrida real, en `data/_fixture_run/`.", ""]
     for d, r in zip(spec["deliveries"], runs):
@@ -218,7 +218,7 @@ def section_fixture(fx: dict | None) -> list[str]:
 def section_nulls(r: dict) -> list[str]:
     out = ["## 8. Nulos por columna (silver)", "",
            "Solo columnas con nulos. Obligatorias en negrita (deben ser 0). Nulos esperables y aleatorios según "
-           "`calidad_datos.md` §B2.", ""]
+           "`data_quality.md` §B2.", ""]
     from data.pipeline import contracts
     for t in r["tables"]:
         nulls = r["silver"][t]["nulls"]

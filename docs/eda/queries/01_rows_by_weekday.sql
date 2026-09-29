@@ -1,4 +1,4 @@
--- Respalda: calidad_datos.md §B7 y la hipótesis de la fase 0 (fines de semana a la mitad => conteos = 6/7 del
+-- Respalda: data_quality.md §B7 y la hipótesis de la fase 0 (fines de semana a la mitad => conteos = 6/7 del
 -- diccionario). Produce: outputs/tables/01_rows_by_weekday.csv (vía eda/quality.py).
 -- Día = partition_date (el archivo diario). ratio_vs_weekday = filas por día / promedio de filas por día lun-vie.
 WITH d AS (

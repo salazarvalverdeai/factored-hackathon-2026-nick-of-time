@@ -8,7 +8,7 @@
 ## 1. Por qué hace falta un mapeo y qué lo limita
 Ningún campo del dataset dice "workflow". El reto propone 4 workflows de ejemplo (W1 cuentas/pagos, W2 tarjetas,
 W3 disputas, W4 crédito/elegibilidad) y el EDA debe compararlos con la misma vara. Lo que limita el mapeo
-(ver `calidad_datos.md`):
+(ver `data_quality.md`):
 - `contact_reason` es idéntico a `reason_category`: **solo 6 motivos** para todos los contactos.
 - `detected_intents` tiene **un solo valor** (`consulta_general`); `main_topics` copia `reason_category`.
 - El producto de una interacción no se puede saber: `mentioned_products` es 99.35% huérfano.

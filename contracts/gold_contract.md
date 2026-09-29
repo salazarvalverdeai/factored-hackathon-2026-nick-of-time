@@ -34,7 +34,7 @@
 Una fila por transacción de `gold.transactions`: sus columnas de contenido (sin linaje `_*`, sin `is_fraud`) más
 `product_type`, `product_status`, `product_opening_date` (de `products`) y `customer_country`, `customer_segment` (del
 `customer_id` resuelto). Limitación conocida: customers y products son una foto única al corte, así que un cambio de
-segmento reescribe las filas históricas de ese cliente (`calidad_datos.md` §A1, riesgo de leakage).
+segmento reescribe las filas históricas de ese cliente (`data_quality.md` §A1, riesgo de leakage).
 
 ### `customer_profile` (R4) **[propuesta de columnas]**
 Una fila por cliente de `gold.customers`:
@@ -47,7 +47,7 @@ ni agregados de él.
 ### `customers`, `products`, `complaints`
 Silver + flags `qc_*`, completas (sin ventana) **[propuesta]**. En `complaints`, `customer_id` es el del caso: no se
 resuelve por producto porque `affected_product_id` pertenece a otro cliente en el 100% de los casos
-(`calidad_datos.md` §B3).
+(`data_quality.md` §B3).
 
 ### `gold_eval/transaction_labels` (R3)
 `transaction_id`, `is_fraud` para exactamente las transacciones de `gold.transactions`.
