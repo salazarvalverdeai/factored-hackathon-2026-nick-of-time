@@ -1,0 +1,38 @@
+import { cn } from "@/lib/utils";
+import type { CaseStatus, Zone } from "@/lib/types";
+
+const BASE = "inline-flex h-5 w-fit shrink-0 items-center gap-1 rounded-4xl px-2 text-xs font-medium whitespace-nowrap";
+
+// Zone colors are a fixed convention for the whole product: high green, medium amber, human red.
+// The text label always accompanies the color, so the meaning never depends on color alone.
+const ZONE: Record<Zone, { label: string; className: string }> = {
+  high: { label: "High", className: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400" },
+  medium: { label: "Medium", className: "bg-amber-500/15 text-amber-700 dark:text-amber-400" },
+  human: { label: "Human", className: "bg-red-500/15 text-red-700 dark:text-red-400" },
+};
+
+export function ZoneBadge({ zone, className }: { zone: Zone; className?: string }) {
+  const z = ZONE[zone];
+  return (
+    <span data-slot="zone-badge" data-zone={zone} className={cn(BASE, z.className, className)}>
+      {z.label}
+    </span>
+  );
+}
+
+const STATUS: Record<CaseStatus, { label: string; className: string }> = {
+  new: { label: "New", className: "bg-sky-500/15 text-sky-700 dark:text-sky-400" },
+  verification: { label: "Verification", className: "bg-violet-500/15 text-violet-700 dark:text-violet-400" },
+  review: { label: "Review", className: "bg-amber-500/15 text-amber-700 dark:text-amber-400" },
+  resolved: { label: "Resolved", className: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400" },
+  closed: { label: "Closed", className: "bg-muted text-muted-foreground" },
+};
+
+export function StatusBadge({ status, className }: { status: CaseStatus; className?: string }) {
+  const s = STATUS[status];
+  return (
+    <span data-slot="status-badge" data-status={status} className={cn(BASE, s.className, className)}>
+      {s.label}
+    </span>
+  );
+}
