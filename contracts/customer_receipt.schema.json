@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "Customer receipt — the verified proof the customer keeps (spec 01 §6.7; ADRs 0013, 0016, 0019)",
-  "description": "Built by nick_of_time.receipt from tool results only. Never carries score, policy ids or transcript (policies.yaml notifications.never_send). Optional fields may be null or absent. Python mirror: nick_of_time.contracts.CustomerReceipt. The example is a fixture [simulated].",
+  "description": "Built by nick_of_time.receipt from tool results only. Never carries score, policy ids or transcript (policies.yaml notifications.never_send). Optional fields may be null or absent, except next_steps (an array, empty by default). Python mirror: nick_of_time.contracts.CustomerReceipt. The example is a fixture [simulated].",
   "type": "object",
   "required": ["receipt_id", "case_id", "language", "issued_at", "verified_facts", "actions", "deadline", "what_ai_did", "what_a_person_does"],
   "additionalProperties": false,
@@ -15,8 +15,8 @@
       "items": {
         "type": "object", "required": ["fact", "source_id"], "additionalProperties": false,
         "properties": {
-          "fact": {"type": "string"},
-          "source_id": {"type": "string", "description": "transaction or product id from gold, or a V-/K- id"}
+          "fact": {"type": "string", "minLength": 1},
+          "source_id": {"type": "string", "pattern": "^(TRX|PRD|K|V)-[A-Za-z0-9]+$", "description": "transaction or product id from gold, or a V-/K- id"}
         }
       }
     },
@@ -50,7 +50,11 @@
           "state": {"enum": ["in_progress", "requested", "verified", "not_confirmed"]},
           "verification_id": {"type": ["string", "null"], "pattern": "^V-[0-9A-F]{12}$"},
           "verified_at": {"type": ["string", "null"], "format": "date-time"}
-        }
+        },
+        "if": {"required": ["state"], "properties": {"state": {"const": "verified"}}},
+        "then": {"description": "accepted ≠ verified: a verified action carries its V- id and time",
+                 "required": ["verification_id", "verified_at"],
+                 "properties": {"verification_id": {"type": "string"}, "verified_at": {"type": "string"}}}
       }
     },
     "deadline": {
@@ -58,13 +62,15 @@
       "type": ["object", "null"],
       "required": ["country", "product", "deadline_source", "source_url", "verified_on"],
       "additionalProperties": false,
+      "anyOf": [{"required": ["credit_deadline"], "properties": {"credit_deadline": {"type": "string"}}},
+                {"required": ["ruling_deadline"], "properties": {"ruling_deadline": {"type": "string"}}}],
       "properties": {
         "country": {"type": "string"},
         "product": {"type": "string"},
         "credit_deadline": {"$ref": "#/$defs/date_or_null"},
         "ruling_deadline": {"$ref": "#/$defs/date_or_null"},
         "deadline_source": {"type": "string"},
-        "source_url": {"type": "string"},
+        "source_url": {"type": "string", "pattern": "^https://\\S+$"},
         "verified_on": {"type": "string", "format": "date"}
       }
     },
@@ -87,24 +93,24 @@
       "receipt_id": "RC-5F1C0A93D2E4",
       "case_id": "K-104233",
       "language": "es",
-      "issued_at": "2026-06-03T15:04:12Z",
+      "issued_at": "2026-06-01T15:04:12Z",
       "mode": "replay",
       "product_last4": "4417",
       "verified_facts": [
-        {"fact": "Cargo no reconocido: MXN 1,250.00 · 2026-05-28 · TIENDA X.", "source_id": "T-77120"},
+        {"fact": "Cargo no reconocido: USD 1,250.00 · 2026-05-31 · TIENDA X.", "source_id": "TRX-FIXTURE0000000000001"},
         {"fact": "Tarjeta de débito ····4417 bloqueada.", "source_id": "V-8B2D41C7E0A9"},
         {"fact": "Caso K-104233 abierto.", "source_id": "K-104233"}
       ],
-      "amount": {"original": {"amount": "1250.00", "currency": "MXN"}, "display": null},
+      "amount": {"original": {"amount": "1250.00", "currency": "USD"}, "display": null},
       "actions": [
-        {"label": "Tarjeta bloqueada", "action_id": "A-3E9F20B7C164", "state": "verified", "verification_id": "V-8B2D41C7E0A9", "verified_at": "2026-06-03T15:04:09Z"},
-        {"label": "Caso abierto", "action_id": "A-71C0D5E8A2F3", "state": "verified", "verification_id": "V-0C6A93F1B57D", "verified_at": "2026-06-03T15:04:11Z"}
+        {"label": "Tarjeta bloqueada", "action_id": "A-3E9F20B7C164", "state": "verified", "verification_id": "V-8B2D41C7E0A9", "verified_at": "2026-06-01T15:04:09Z"},
+        {"label": "Caso abierto", "action_id": "A-71C0D5E8A2F3", "state": "verified", "verification_id": "V-0C6A93F1B57D", "verified_at": "2026-06-01T15:04:11Z"}
       ],
       "deadline": {
-        "country": "MX", "product": "debit", "credit_deadline": "2026-06-05", "ruling_deadline": null,
-        "deadline_source": "Banxico Circular 3/2012, art. 19 Bis 3",
-        "source_url": "https://www.gob.mx/condusef/articulos/cargos-no-reconocidos?idiom=es",
-        "verified_on": "2026-09-28"
+        "country": "MX", "product": "debit", "credit_deadline": "2026-06-03", "ruling_deadline": null,
+        "deadline_source": "Banxico Circular 3/2012, as amended by Circular 14/2018",
+        "source_url": "https://www.gob.mx/condusef/prensa/cargos-no-reconocidos-en-tarjeta-de-debito-se-restituiran-en-dos-dias-habiles-bancarios?idiom=es",
+        "verified_on": "2026-10-04"
       },
       "what_ai_did": "El asistente automático identificó tu cargo, bloqueó tu tarjeta ····4417 y abrió el caso K-104233. Cada acción quedó verificada.",
       "what_a_person_does": "Una persona del banco revisa tu caso y toma la decisión final.",

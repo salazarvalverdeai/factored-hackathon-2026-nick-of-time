@@ -100,8 +100,59 @@
         "case_id": {
           "type": "string",
           "pattern": "^K-[0-9]{6}$",
-          "description": "returning customer (customer_returns): the case they already have"
+          "description": "returning customer (customer_returns): the case they already have; the seed maps it to a fresh id per run"
+        },
+        "case": {
+          "type": "object",
+          "description": "fixture of the existing case; deadlines come from the clock at opened_on",
+          "required": [
+            "transaction_id",
+            "dispute_type",
+            "zone",
+            "queue_status",
+            "opened_on"
+          ],
+          "properties": {
+            "transaction_id": {
+              "type": "string"
+            },
+            "dispute_type": {
+              "enum": [
+                "unrecognized_charge",
+                "wrongful_charge"
+              ]
+            },
+            "zone": {
+              "enum": [
+                "high",
+                "medium",
+                "human"
+              ]
+            },
+            "queue_status": {
+              "enum": [
+                "new",
+                "verification",
+                "review",
+                "resolved",
+                "closed"
+              ]
+            },
+            "opened_on": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          "additionalProperties": false
         }
+      },
+      "dependentRequired": {
+        "case_id": [
+          "case"
+        ],
+        "case": [
+          "case_id"
+        ]
       }
     },
     "messages": {
