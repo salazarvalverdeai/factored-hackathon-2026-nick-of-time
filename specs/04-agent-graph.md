@@ -139,7 +139,7 @@ greet ─► understand ─► identity ─► route ─┬─► retrieve ─�
 | `act` | `open_case` (dedupe, related case), then `block_card` when allowed; idempotency key `session:transaction:action:run` | MCP |
 | `verify` | Post-conditions; 2 retries, 800 ms timeout; failure → `not_confirmed` + escalation | `get_product_status` · `get_case` |
 | `status` | Re-reads cards, cases or notifications and answers with the reading time | `list_my_cards` · `get_case` · `list_my_cases` · `list_my_notifications` |
-| `connect` | Registers a call request on the active case (or a general one) and says when to expect it; without a verified session, the bank's general contact path with no data | `request_call` · `messages.yaml connect.*` |
+| `connect` | Registers a call request on the active case (or a general one) and says the call request is registered (the expected contact window is pending lead decision D-008); without a verified session, the bank's general contact path with no data | `request_call` · `messages.yaml connect.*` |
 | `clarify` | Options (≤ 3 candidates) or a request for amount/date; counts turns | templates; LLM wording in S1/S2 |
 | `refuse` | DENY or re-authenticate with no data and a way forward | templates |
 | `respond` | Receipt and handoff from verified facts; reply from templates (S1/S2 may reword, then the grounding check runs); suggestion chips from §4.5 | `nick_of_time.receipt` · `send_case_summary` · `request_call` · `request_reevaluation` · `add_case_info` · `messages.yaml suggest.*` |
@@ -223,8 +223,8 @@ messages.
 - [ ] T7 — progress stream; S1/S2 wiring (Bedrock, structured output); usage; graceful degradation to S0 · AC-14, AC-17
 - [ ] T8 — Platform deployment; `/agent` content · AC-07, AC-08
 - [x] T-MSG — `contracts/messages.yaml`: ES/PT templates for greet, plan, connect, suggestion chips, status labels,
-      receipt and notify (placeholders `{name}`, tool facts only). Supports AC-06, AC-10, AC-11, AC-15, AC-16, AC-19,
-      AC-21, AC-25, AC-26, AC-28, AC-29, AC-31, AC-32; behavior tested in T2–T6. T2–T7 extend the file (clarify,
+      receipt and notify (placeholders `{name}`, tool facts only). Supports AC-06, AC-10, AC-11, AC-15, AC-16, AC-18,
+      AC-19, AC-21, AC-25, AC-26, AC-28, AC-29, AC-31, AC-32; behavior tested in T2–T6. T2–T7 extend the file (clarify,
       refuse, progress AC-17, duplicate AC-23, re-evaluation AC-24, reversed charge); each extension is a contract
       change that needs the lead's approval.
 - [ ] Tests `tests/test_spec04_*.py` with the `fake` LLM and the fake MCP; EV-0001 end to end in historical mode
