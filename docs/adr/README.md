@@ -24,3 +24,4 @@ deleted: a new ADR supersedes them. How and when to write one: [`CONTRIBUTING.md
 | [0016](0016-guardrails-injection-detector-and-exact-grounding.md) | Guardrails: injection detector with rules + LR, exact-match output grounding | Accepted | 2026-09-29 |
 | [0017](0017-identity-mock-otp-customers-cognito-analysts.md) | Identity: mock session + OTP for customers, Cognito for analysts | Accepted | 2026-10-03 |
 | [0018](0018-data-and-model-lifecycle.md) | Data and model lifecycle: an operational medallion that feeds evaluation | Accepted | 2026-10-03 |
+| [0019](0019-official-sources-for-regulatory-figures.md) | Every regulatory or external figure cites an official public source and a verification date | Accepted | 2026-10-04 |
