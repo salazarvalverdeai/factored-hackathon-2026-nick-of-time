@@ -1,6 +1,6 @@
 # 0012. Frozen demo date
 
-- **Status:** Accepted
+- **Status:** Superseded by [0020](0020-two-time-modes-historical-and-live.md)
 - **Date:** 2026-10-03
 - **Deciders:** Freddy · **Owner:** @salazarvalverdeai
 - **Related:** specs 02, 03, 09
