@@ -188,7 +188,8 @@ shape of `data` is fixed in the producing spec.
 ### 6.4 Graph I/O (`apps/agent`, LangGraph Platform)
 - **Graph id:** `dispute_intake` in `langgraph.json`. **Input:** `{"messages": [{"role": "user", "content": str}],
   "language": "es"|"pt"|null, "action": {"type": "confirm|choose_option|verify_now|request_call|request_reevaluation|send_summary", "value": str}|null}`
-  — `action` carries a button press and skips the classifier. **Config** (injected by the api, never by the client):
+  — `action` carries a button or chip press and skips the classifier (`confirm` takes `yes|no`, `choose_option` takes a
+  transaction id or `none`). **Config** (injected by the api, never by the client):
   `configurable.session_id` (required), `configurable.session_state`, `configurable.mode`, `configurable.arm` and
   `configurable.case_id` (optional, for a returning customer).
 - **Output state** (`TurnResult`, also the last item of a streamed run):
@@ -206,7 +207,9 @@ shape of `data` is fixed in the producing spec.
   "plan": ["Bloquear tu tarjeta ····4417", "Abrir tu caso y calcular tu fecha límite", "Enviarte el comprobante"],
   "progress": [{"step": "block_card", "label": "Bloqueando tu tarjeta…", "state": "verified", "at": "ISO-8601"}],
   "actions": [{"tool": "block_card", "action_id": "A-…", "state": "in_progress | requested | verified | not_confirmed", "verification_id": "V-… | null", "read_at": "ISO-8601 | null"}],
-  "ctas": ["view_case", "request_call", "send_summary"],
+  "suggestions": [{"id": "view_case", "label": "Ver mi caso", "kind": "link", "href": "/case/K-…"},
+                  {"id": "send_summary", "label": "Enviarme el comprobante", "kind": "action", "action": {"type": "send_summary"}},
+                  {"id": "request_call", "label": "Que me llame una persona", "kind": "action", "action": {"type": "request_call"}}],
   "receipt": "customer_receipt | null",
   "handoff": "handoff.schema.json object | null",
   "guardrails_triggered": ["G-IN-01"],
@@ -220,7 +223,10 @@ shape of `data` is fixed in the producing spec.
 - `receipt` is present whenever a case was opened; `handoff` whenever the case goes to `review`. Both are built by
   `nick_of_time.receipt` from the same verified facts (ADR 0016).
 - `progress` items are also streamed as custom events while the run is in progress (spec 04 AC-17);
-  `answer_status` and `connect_person` come from spec 02 rules 3a–3b. The four action states are the only vocabulary for an action, in every surface.
+  `answer_status` and `connect_person` come from spec 02 rules 3a–3b.
+- `suggestions` holds 2 or 3 chips chosen by rules (spec 04 §4.5): `kind` is `text` (the web sends `label` as the next
+  message), `action` (the web sends `action` as the next input) or `link` (`href` is an internal route set by the
+  server). The web shows them only under the last reply. The four action states are the only vocabulary for an action, in every surface.
 
 ### 6.5 Postgres schema (owned by `apps/api/migrations`, used through `nick_of_time.store`)
 Append-only tables are marked **AO** (no `UPDATE`/`DELETE`; enforced by grants and a test).
