@@ -15,6 +15,7 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 PROTOCOL = ROOT / "eval" / "PROTOCOL.md"
 SPEC11 = ROOT / "specs" / "11-intent-classifier.md"
+SPEC15 = ROOT / "specs" / "15-model-benchmark.md"
 BEGIN = b"<!-- SEAL:BEGIN -->"
 END = b"<!-- SEAL:END -->"
 HEX64 = re.compile(r"[0-9a-f]{64}")
@@ -31,28 +32,19 @@ RESULT_GLOBS = (
     "apps/web/public/data/fraud_benchmark.json",
 )
 
-# TODO(after merge): once specs/15-model-benchmark.md and specs/17-fraud-model.md are on this branch, read §4.4 from
-# them as _spec11_block does for spec 11, and drop these two copies.
-# Verbatim from specs/15-model-benchmark.md §4.4 and specs/17-fraud-model.md §4.4 (2026-10-04).
-SPEC15_RULE = """
-1. **Hard limits** — `understand`: the floors of spec 11 §4.1 (macro-F1 per language, dispute and `human_request`
-   recall) and p95 ≤ 1.5 s per message; `word`: grounding pass rate ≥ 0.95 and preferred over the template in ≥ 60% of
-   blind comparisons `[assumption]`; B2: p95 ≤ 6 s per turn and no unsafe outcome.
-2. **Quality bar** — keep the arms that are not significantly worse than the best arm on the same items (paired
-   McNemar, p ≥ 0.05; in B2, overlapping 95% CIs). A fixed "within 2 points" cannot be measured at this test size
-   (spec 11 §4.1).
-3. **Lean choice** — among those, the **cheapest** (B1: cost per 1,000 messages; B2: cost per case); a tie goes to the
-   lower p95.
-4. **Eligibility** — the chosen arm must pass the production gate of §4.5 on the run date; if it does not, the next
-   cheapest arm that meets the bar and passes the gate is chosen, and the ADR says why.
-5. If no LLM arm beats B0 with significance (McNemar, p < 0.05), B0 stays and that is reported (spec 11 §4).
-"""
+# Spec 15 §4.4 and §4.5 are read from specs/15 (see _spec15_block). The spec 17 copy stays embedded until PR #46 merges.
+# TODO(after #46 merges): read specs/17-fraud-model.md §4.4 with _spec15_block-style slicing and drop this copy.
+# Spec 17 §4.4 as on branch feat/17-screen (PR #46), 2026-10-04, with the "pending the lead" qualifiers of rule 1 and
+# rule 2 replaced by the decision tags D-017b/c/d (decided 2026-10-04) and the n_fraud sentence shortened.
 SPEC17_RULE = """
 1. **Hard limits:** at the bank's precision levels (0.80 and 0.95), recall is at least the bank's; no country or segment
    has a recall below 80% of the overall recall `[assumption]`; scoring p95 ≤ 50 ms and model size ≤ 200 MB
-   `[assumption]`.
+   `[assumption]`. The per-country and per-segment recall is measured at the 1% alert budget (the top 1% of the window
+   by score) `[assumption]` (D-017b). The segment floor applies only to slices with at least 20 frauds `[assumption]`
+   (D-017c; `customer_segment` is not a feature but is a reporting slice, and each slice records its fraud count).
 2. **Value:** the arm beats S-bank — PR-AUC higher with the 95% bootstrap CI of the difference above zero — **or** it
-   catches at least 30% of the frauds with no bank score at the 1% alert budget `[assumption]`.
+   catches at least 30% of the frauds with no bank score at an alert budget of 1% of those transactions (AC-04)
+   `[assumption]` (D-017d).
 3. **Quality bar:** keep the arms whose PR-AUC is not significantly worse than the best arm (paired bootstrap on the
    same test transactions).
 4. **Lean choice:** among those, the cheapest to run — lowest scoring p95, then smallest model, then shortest training;
@@ -94,6 +86,12 @@ def _field(block: str, name: str) -> str:
 def _spec11_block(start: str, stop: str) -> str:
     spec = SPEC11.read_text()
     return spec[spec.index(start): spec.index(stop, spec.index(start))]
+
+
+def _spec15_block(start: str, stop: str) -> str:
+    spec = SPEC15.read_text()
+    i = spec.index(start)
+    return spec[i + len(start): spec.index(stop, i)]
 
 
 def _split_files(root=ROOT):
@@ -177,25 +175,25 @@ def test_ac_06_split_files_by_author_when_spec09_delivers():
 
 def test_spec15_ac_07_and_spec17_ac_06_rules_present():
     protocol = _norm(_text())
-    assert _norm(SPEC15_RULE) in protocol
+    rule15 = _spec15_block("### 4.4 Lean rule", "### 4.5").split("\n", 1)[1]  # drop the heading's tail
+    assert _norm(rule15) in protocol, "spec 15 §4.4 lean rule not copied as one block"
     assert _norm(SPEC17_RULE) in protocol
     assert _norm(SPEC15_GATE_RULE) in protocol
-    for criterion in (
-        "| Data sent is synthetic only (ADR 0009) | yes | — |",
-        "| Provider does not train on our requests | yes | yes |",
-        "| Retention documented; zero retention available | — | yes |",
-        "| Processing region documented | — | yes |",
-        "| Public security certification (SOC 2 / ISO 27001) | — | yes |",
-        "| Credentials outside the repo, least privilege | yes | yes |",
-        "| Version pinning | yes | yes |",
-        "| Availability: GA, SLA or status page | — | yes |",
-        "| ES/PT quality measured on our data | yes | yes |",
-    ):
-        assert criterion in protocol, criterion
+    rows = [x for x in _spec15_block("### 4.5", "- **Prices:**").splitlines() if x.startswith("| ")][1:]  # skip the header; the |--- line does not start with "| "
+    assert len(rows) == 9, rows
+    for criterion in rows:
+        assert _norm(criterion) in protocol, criterion
+    # D-012: ES/PT quality is a production-only criterion
+    assert "| ES/PT quality measured on our data | — (the benchmark measures it) | yes |" in protocol
+    assert "ES/PT quality is a production-only criterion (D-012" in protocol
     assert "spec 15 §4.5" in protocol
     assert "never used to choose" in protocol
     assert "best supervised arm + the bank's score" in protocol
     assert "scoring p95 per transaction" in protocol
+    # D-011 and D-016
+    assert "ladder `tool` → `any` → `auto`" in protocol
+    assert "recorded per arm (`tool_choice_mode`) and reused in B1" in protocol
+    assert "0 where the model accepts it, otherwise the provider default; the value used is recorded per arm" in protocol
     assert "cost and efficiency on the same machine" in protocol
 
 
@@ -206,12 +204,22 @@ def test_ac_01_every_assumption_threshold_keeps_its_label():
         "blind comparisons `[assumption]`",
         "recall below 80% of the overall recall `[assumption]`",
         "model size ≤ 200 MB `[assumption]`",
-        "1% alert budget `[assumption]`",
         "exceeds 20 USD `[assumption]`",
         "20 samples `[assumption]`",
         "depth ≤ 6 `[assumption]`",
+        # D-017 (spec 17 §4.3-4.4 on PR #46)
+        "no supervised arm exceeds twice the validation base rate, the balanced `HistGradientBoostingClassifier`",
+        "threshold is a heuristic `[assumption]`",
+        "at the 1% alert budget (the top 1% of the window by score) `[assumption]` (D-017b)",
+        "applies only to slices with at least 20 frauds `[assumption]` (D-017c",
+        "at an alert budget of 1% of those transactions (AC-04) `[assumption]` (D-017d)",
+        "within 3 points of 60/15/25 `[assumption]`",
+        "`label: injection`",
+        "spec 11 does not say",
     ):
         assert needle in protocol, needle
+    assert "the same tolerance `tests/test_spec11_protocol.py` checks" in protocol
+    assert "the 20-fraud floor for a slice" in protocol
     assert "label missing in the spec; to be added to specs 11, 15 and 17 by the lead" in protocol
     assert "aggregate counts computed by the lead on 2026-10-04" in protocol
 
