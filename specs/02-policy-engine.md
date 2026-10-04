@@ -34,7 +34,9 @@ AC-01 to AC-06 come from issue #4 with the same numbers; AC-07 onward are added 
   (`POL-SCORE-NULL` / `POL-SCORE-LLM`), and the decision shall still open a case. · [T]
 - **AC-03** — When a MX debit dispute is opened on 2026-06-03, `credit_deadline` shall be 2026-06-05 with source
   "Banxico Circular 3/2012, art. 19 Bis 3"; an AR dispute shall get +10 business days and a CO dispute +15 business days,
-  skipping weekends and the country's 2026 holidays. · [T]
+  skipping weekends and the country's 2026 holidays; a PE dispute shall get +15 business days (SBS) and a CL dispute
+  a refund deadline of +10 business days (+15 for cash advances and ATM withdrawals) and +7 more for the part above
+  35 UF (Ley 20.009). · [T]
 - **AC-04** — While `supervised_mode` is on, every action shall have approval mode `human_required`. · [T]
 - **AC-05** — If no rule allows an action, then the engine shall deny it with `POL-DEFAULT-DENY`. · [T]
 - **AC-06** — The amount tier shall change only the approval mode, never a deadline. · [T]
@@ -50,6 +52,10 @@ AC-01 to AC-06 come from issue #4 with the same numbers; AC-07 onward are added 
 - **AC-12** — Every result shall include the ids of the rules that produced it and the `policies.yaml` version. · [T]
 - **AC-13** — The same input shall always produce the same output; the test suite runs offline with no network,
   database or LLM. · [T]
+- **AC-14** — If the customer's country has no verified entry in `regulatory_clock`, then the engine shall still open the
+  case, return no legal deadline (never an invented one) and route it to a person with `POL-CLOCK-UNKNOWN`. · [T]
+- **AC-15** — While `supervised_mode` is on, `open_case` shall still run automatically; supervised mode applies only to
+  money actions (`block_card`, `unblock_card`, `provisional_credit`). · [T]
 
 ## 4. Functional requirements
 - **FR-01** Load and validate `policies.yaml` once (Pydantic model); an invalid file fails at startup, not at decision time.
@@ -59,7 +65,9 @@ AC-01 to AC-06 come from issue #4 with the same numbers; AC-07 onward are added 
   `approval.per_action`, the amount tier and `supervised_mode`.
 - **FR-05** Compute deadlines per country and product with business-day calendars loaded from data files with their source.
 - **FR-06** Validate analyst transitions against `case_queue.transitions`; compute SLA due times and the MX debit priority.
-- **FR-07** Add stable rule ids to `policies.yaml` (`rules:` section) and bump `version` to 2.
+- **FR-07** Add stable rule ids to `policies.yaml` (`rules:` section), the PE and CL clock entries with their sources,
+  the `POL-CLOCK-UNKNOWN` fallback, and bump `version` to 2.
+- **FR-08** Supervised mode applies to money actions only; registering a case is never blocked (AC-15).
 
 ### 4.1 Evaluation order (first terminal rule wins)
 | # | Rule id | Condition | Decision | Notes |
@@ -91,7 +99,12 @@ Amount tiers per country (`amount_gate.by_country`, local currency): `≤ low` �
 `> high` → `human_required`. MX transactions are in USD in the dataset and are converted at 18.0 MXN/USD
 `[assumption]` before comparing.
 
-### 4.3 Regulatory clock
+### 4.3 Regulatory clock (LATAM, data-driven)
+The clock is a **table of verified country entries** in `policies.yaml`, not code. Each entry carries the regulator, the
+legal basis, what the deadline is (refund / provisional credit or ruling / response), the number of days, business or
+calendar, the official source URL and the date it was verified. **Adding a LATAM country is a PR with a source and a
+test, no code change.** A country without a verified entry falls back to `POL-CLOCK-UNKNOWN` (AC-14).
+
 | Country · product | `credit_deadline` | `ruling_deadline` | Source (`policies.yaml`) |
 |---|---|---|---|
 | MX · debit | opened + **2 business days** | — | Banxico Circular 3/2012, art. 19 Bis 3 |
@@ -99,10 +112,16 @@ Amount tiers per country (`amount_gate.by_country`, local currency): `≤ low` �
 | AR · any card | opened + 10 business days (resolve and reimburse) | same date | BCRA |
 | CO · any card | — | opened + **15 business days** `[external, to verify]` | SFC |
 | BR · any card (PT demo only) | — | opened + 10 business days, one extension | Resolução CMN 4.860 |
+| **PE** · any card | — | opened + **15 business days** (extendable only when a third party must rule) | Resolución SBS N.° 04036-2022, Reglamento de Gestión de Reclamos y Requerimientos `[external, verified 2026-10-04]` |
+| **CL** · any card | opened + **10 business days** up to 35 UF (15 for cash advances and ATM withdrawals); +7 more days for the part above 35 UF | — | Ley 20.009 (as summarized by SERNAC) `[external, verified 2026-10-04]` |
+| any other LATAM country | — | — | `POL-CLOCK-UNKNOWN`: case opened, routed to a person, no deadline invented |
 
 - "Opened" = `DEMO_TODAY` in the demo (ADR 0012).
+- **Coverage note:** the dataset only has MX, CO and AR customers, so PE, CL and BR are exercised by unit tests and
+  fixtures; the demo runs on MX, CO and AR (BR in Portuguese with a fixture). The README states it.
+- MX, AR, CO and BR entries are re-verified against their official sources in T3 (`[external, to verify]` until then).
 - Business days = Monday–Friday minus the country's bank holidays.
-- Holiday lists live in `packages/nick_of_time/policy/holidays/{mx,ar,co,br}_2026.yaml`, each with the official source
+- Holiday lists live in `packages/nick_of_time/policy/holidays/{mx,ar,co,br,pe,cl}_2026.yaml`, each with the official source
   URL; they are `[external]` data, not code.
 - Product mapping from gold: `Tarjeta Débito` → `debit`, `Tarjeta Crédito` → `credit`; any other product type is not a
   card (rule 4).
@@ -143,15 +162,17 @@ engine.sla(case) -> {priority, sla_due_at, alert_due_at}
 - New data files: `packages/nick_of_time/policy/holidays/*_2026.yaml`.
 - No database access.
 
-## 8. Assumptions and open questions (gate 1 — the lead closes them in this PR)
-- **Q1 — medium zone:** `policies.yaml` says `block_card` is `human_required` in the medium zone (the analyst approves
-  the block after the customer confirms), while `three_zone_flow.svg` shows "customer confirms → block + verify".
-  This spec follows the YAML (safer at 79.6% precision `[data]`), and the diagram gets updated in spec 13. Keep it?
-- **Q2 — CO:** 15 **business** days (petition rules) or calendar days? Default: business days, labeled `[external, to verify]`.
-- **Q3 — MX credit:** 45 **calendar** days per LTOSF art. 23? Default: calendar days.
-- **Q4 — out-of-scope products** (not a card): `deny` with a polite abstention (rule 4), or `handoff`? Default: `deny`.
+## 8. Decisions (gate 1 closed by the lead, 2026-10-04)
+- **Q1 — medium zone:** follow `policies.yaml`: after the customer confirms, the case is opened and an analyst approves
+  the block (safer at 79.6% precision `[data]`); `three_zone_flow.svg` is updated in spec 13.
+- **Q2 — CO:** 15 **business** days, labeled `[external, to verify]` until T3.
+- **Q3 — MX credit:** 45 **calendar** days (180 if the charge was abroad).
+- **Q4 — non-card products:** `deny` with a polite abstention (rule 4).
+- **Q5 — supervised mode vs "the ticket is always opened":** supervised mode applies only to money actions (AC-15).
+- **Q6 — LATAM coverage:** data-driven clock table; PE and CL added with verified sources; any other country falls
+  back to `POL-CLOCK-UNKNOWN` (AC-14).
 - Assumption: MXN 18.0 per USD for MX amounts (`[assumption]`, already in `policies.yaml`).
-- Assumption: holiday lists are verified against the official sources while implementing; each file cites its URL.
+- Assumption: holiday lists are verified against official sources while implementing; each file cites its URL.
 
 ## 9. Out of scope
 Calibrating thresholds with data (Q-AMT, P2); the injection detector itself (spec 11); writing to Postgres (the
@@ -160,8 +181,8 @@ callers write).
 ## 10. Plan, tasks and verification
 Implementation goes in `feat/02-policy-engine` once this spec and spec 01 (package layout) are approved.
 - [ ] T1 — Pydantic model of `policies.yaml` + loader with validation; add `rules:` and `version: 2` · FR-01, FR-07, AC-12
-- [ ] T2 — `decide()` with the evaluation order of §4.1 and mode combination of §4.2 · AC-01, 02, 04, 05, 06, 07, 08, 09
-- [ ] T3 — `clock.deadline()` + holiday files with sources · AC-03
+- [ ] T2 — `decide()` with the evaluation order of §4.1 and mode combination of §4.2 · AC-01, 02, 04, 05, 06, 07, 08, 09, 15
+- [ ] T3 — `clock.deadline()` + holiday files with sources for MX, AR, CO, BR, PE, CL; re-verify every clock source · AC-03, AC-14
 - [ ] T4 — `transition()` and `sla()` · AC-10, AC-11
 - [ ] T5 — decision-table tests: zone × country × mode × tier, plus the boundaries 29/30/49/50 and null · AC-01…AC-13
 - [ ] T6 — `docs`: policy ids listed in `/agent` content (spec 04 AC-08)
