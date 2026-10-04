@@ -147,6 +147,8 @@ end-to-end harness against the real LLM runs manually (`eval/`), and a smoke tes
 - **The harness belongs to everyone:** each person adds evaluation cases for their own area.
 - **Every figure carries a label** (`[data]`, `[external]`, `[assumption]`, `[simulated]`, `[projected]`) and a query or
   link. Nothing enters the pitch without one.
+- **Regulatory and external figures cite an official public source and a verification date** (`source_url`,
+  `verified_on`), never memory or a secondary summary ([ADR 0019](docs/adr/0019-official-sources-for-regulatory-figures.md)).
 - With scope frozen, nothing new enters until what is functional is closed.
 
 ## 11. Language
