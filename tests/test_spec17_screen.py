@@ -15,7 +15,7 @@ from scripts.ml import fraud_screen as sc
 from scripts.ml import fraud_split as fs
 
 GOLD = os.environ.get("GOLD_PATH")
-GOLD_EVAL = Path(__file__).resolve().parents[1] / "data" / "gold_eval"
+GOLD_EVAL = Path(os.environ.get("GOLD_EVAL_PATH", Path(__file__).resolve().parents[1] / "data" / "gold_eval"))
 
 
 def synthetic(n=600, seed=1):
@@ -59,8 +59,12 @@ def test_ac_03_every_arm_trains_scores_and_is_calibrated_on_validation(tmp_path)
     rec = sc.run_screen(df, h, tmp_path / "out")
     names = {r["arm"] for r in rec["results"]}
     assert names == {"s_bank", "iforest", "logreg", "sgd", "gnb", "tree", "rf", "extra_trees", "hgb", "mlp", "stacked"}
+    n_val = df.filter(pl.col("split_window") == fs.VALIDATION).height
     for r in rec["results"]:
-        assert 0 <= r["pr_auc"] <= 1 + 1e-9 and 0 <= r["brier"] <= 1 and set(r["by_month"]) == {"2026-02", "2026-03"}
+        assert r["n"] == n_val  # a shuffled or misjoined label vector would fail the positive control below
+        if r["arm"] in ("logreg", "sgd", "tree", "rf", "extra_trees", "hgb", "mlp", "stacked"):
+            assert r["pr_auc"] >= 0.8, r["arm"]  # positive control: synthetic frauds are large foreign purchases
+        assert 0 <= r["pr_auc"] <= 1 + 1e-9 and 0 <= r["brier_calibration_window"] <= 1 and set(r["by_month"]) == {"2026-02", "2026-03"}
         assert r["split_hash"] == h
 
 
@@ -125,7 +129,9 @@ def test_ac_05_screen_never_sees_test_rows_or_labels(tmp_path, monkeypatch):
 def test_ac_05_no_screen_code_reads_labels_except_through_the_guard():
     src = Path(sc.__file__).read_text()
     assert "transaction_labels" not in src.replace("transaction_labels.parquet", "")  # only the file name in main()
-    assert "read_parquet" not in src and "fs.read_labels(" in src
+    for banned in ("read_parquet", "scan_parquet", ".parquet'", 'is_fraud FROM'):
+        assert banned not in src, banned
+    assert "fs.read_labels(" in src
 
 
 def test_ac_05_outputs_stay_outside_the_repo(tmp_path):
@@ -145,3 +151,37 @@ def test_ac_03_real_gold_run_opt_in(tmp_path):
     df, h = sc.load_data(GOLD, GOLD_EVAL / "transaction_labels.parquet")
     rec = sc.run_screen(df, h, sc.out_dir(str(tmp_path / "real")))
     assert rec["split_hash"] == h
+
+
+def test_ac_03_downsampling_runs_on_the_train_window_only(tmp_path, monkeypatch):
+    df, h, _, _ = prepared(tmp_path)
+    seen = []
+    real = sc.downsample
+    monkeypatch.setattr(sc, "downsample", lambda y, *a: (seen.append(len(y)), real(y, *a))[1])
+    sc.run_screen(df, h, tmp_path / "out", arms={"logreg": sc.make_arms()["logreg"]})
+    assert seen and set(seen) == {df.filter(pl.col("split_window") == fs.TRAIN).height}
+
+
+def test_ac_03_saved_model_carries_encoder_and_reproduces_scores(tmp_path):
+    df, h, _, _ = prepared(tmp_path)
+    out = tmp_path / "out"
+    rec = sc.run_screen(df, h, out, arms={"tree": sc.make_arms()["tree"]})
+    saved = joblib.load(out / "models" / "fraud-screen-tree.joblib")
+    meta = saved["meta"]
+    assert meta["features"] == ff.FEATURES and meta["bank_fill"] == -1.0 and meta["categorical_codes"]
+    va = df.filter(pl.col("split_window") == fs.VALIDATION)
+    X, _ = sc.encode(va, meta["categorical_codes"])
+    tr = df.filter(pl.col("split_window") == fs.TRAIN)
+    Xt, cats = sc.encode(tr)
+    assert cats == meta["categorical_codes"]
+    s = sc.raw_score("tree", saved["model"], X)
+    from sklearn.metrics import average_precision_score
+    got = average_precision_score(va["is_fraud"].to_numpy().astype(int), s)
+    assert got == pytest.approx(next(r for r in rec["results"] if r["arm"] == "tree")["pr_auc"])
+
+
+def test_ac_03_machine_record_and_stacked_fallback(tmp_path):
+    df, h, _, _ = prepared(tmp_path)
+    rec = sc.run_screen(df, h, tmp_path / "out", arms={"hgb": sc.make_arms()["hgb"]})
+    assert {"platform", "cpu_count", "ram_bytes", "python", "scikit_learn"} <= set(rec["machine"])
+    assert next(r for r in rec["results"] if r["arm"] == "stacked")["stacked_on"] == "hgb"

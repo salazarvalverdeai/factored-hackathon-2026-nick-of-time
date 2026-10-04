@@ -102,7 +102,9 @@ Implementation choices (`scripts/ml/fraud_features.py`) `[assumption]`:
   earlier transaction of the customer `[data]`: 61.5% in 2025-06, 23.9% in 2025-07, 10.7% in 2025-08, 0.8% in 2026-01
   (computed with `build_features` on gold v1). The windows and counts are not changed. Task 17b adds one feature,
   `n_prev` (count of strictly earlier transactions of the entity, any status), so the models can tell a thin history
-  from a quiet customer `[assumption]`; validation metrics are reported by month so the effect is visible.
+  from a quiet customer `[assumption]`; validation metrics are reported by month so the effect is visible. Risk, recorded and pending the lead: `n_prev`
+  grows with calendar time, so it can encode the period rather than the customer (|ROC-AUC| 0.522 on train+validation
+  `[data]`, probably from the extra frauds of 2025-06).
 
 ### 4.3 Arms — a lean scikit-learn screen
 The dataset is large enough for all of these (about 1.39 million Approved/Pending transactions, 896 frauds to train).
@@ -120,13 +122,19 @@ training window only, and is calibrated on the validation window.
 | Neural | `MLPClassifier` (small) | checks whether a non-linear model beyond trees adds anything |
 | Stacked | the best supervised arm + the bank's score | whether our model adds to the score rather than replacing it |
 
+Stacked base `[assumption, pending the lead]`: the best supervised arm by validation PR-AUC; when none exceeds twice the
+validation base rate, the balanced `HistGradientBoostingClassifier` (a base with no signal would only add noise to the
+bank score; on gold v1 a linear base gave stacked PR-AUC 0.460 against 0.589 for the bank score alone).
+
 Kernel SVMs and k-nearest neighbours are left out: scikit-learn documents that `SVC` fit time grows at least
 quadratically with the number of samples and is impractical beyond tens of thousands of rows.
 
 ### 4.4 Decision rule (pre-registered, lean)
 1. **Hard limits:** at the bank's precision levels (0.80 and 0.95), recall is at least the bank's; no country or segment
    has a recall below 80% of the overall recall `[assumption]`; scoring p95 ≤ 50 ms and model size ≤ 200 MB
-   `[assumption]`.
+   `[assumption]`. The per-country and per-segment recall is measured at the 1% alert budget (the top 1% of the window
+   by score) `[assumption, pending the lead]`. `customer_segment` is not a feature (D-010) but is still a reporting
+   slice.
 2. **Value:** the arm beats S-bank — PR-AUC higher with the 95% bootstrap CI of the difference above zero — **or** it
    catches at least 30% of the frauds with no bank score at the 1% alert budget `[assumption]`.
 3. **Quality bar:** keep the arms whose PR-AUC is not significantly worse than the best arm (paired bootstrap on the
@@ -184,7 +192,7 @@ retraining (ADR 0021, P2).
       fraud in train only, plus class weights where available `[assumption]`), cost and efficiency harness
       (`scripts/ml/fraud_screen.py`; models and outputs outside the repo, the protocol seal forbids results inside it);
       train and validation only, so the test-window part of AC-03 is task 17c · AC-03 (screen), AC-05
-- [x] T3b [P0] — lean rule in `eval/PROTOCOL.md` · AC-06 (PR #37)
+- [ ] T3b [P0] — lean rule in `eval/PROTOCOL.md` · AC-06 (pending merge of PR #37)
 - [ ] T4 [P0] — test-window evaluation, report, `fraud_benchmark.json` for `/evaluation` · AC-04
 - [ ] T5 [P1] — `model_score` in `get_fraud_score` and the handoff card; inventory entry · AC-07, AC-08
 
