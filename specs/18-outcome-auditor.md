@@ -144,6 +144,7 @@ tools for the third line (internal audit).
 
 ## 10. Plan, tasks and verification
 - [ ] T1 [P0] — `nick_of_time.audit` with A1–A7 as pure functions + tests on recorded fixtures · AC-01
+      (A3–A7 done, task 18a: `tests/test_spec18_audit_a3_a7.py`; A1–A2 remain, task 18b)
 - [ ] T2 [P0] — harness uses the library for its final-state checks (with @vldiego) · AC-02
 - [ ] T3 [P1] — api background task, `audit_findings`, critical flag and acknowledgment · AC-03, AC-04, AC-05
 - [ ] T4 [P0] — judge: prompt with the fixed rubric, structured output, grounding of reasons, fallback · AC-07, AC-08,

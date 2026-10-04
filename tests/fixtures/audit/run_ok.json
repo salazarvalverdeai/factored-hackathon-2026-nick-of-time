@@ -1,0 +1,213 @@
+{
+ "tool_results": [
+  {
+   "tool": "get_transaction",
+   "transaction_id": "TRX-FIXTURE0000000000001",
+   "amount": 1250.0,
+   "currency": "USD",
+   "date": "2026-05-31",
+   "merchant": "TIENDA X",
+   "channel": "ecommerce"
+  },
+  {
+   "tool": "block_card",
+   "action_id": "A-3E9F20B7C164",
+   "verification_id": "V-8B2D41C7E0A9",
+   "product_last4": "4417",
+   "status": "blocked",
+   "read_at": "2026-06-01T15:04:09Z"
+  },
+  {
+   "tool": "open_case",
+   "action_id": "A-71C0D5E8A2F3",
+   "verification_id": "V-0C6A93F1B57D",
+   "case_id": "K-104233",
+   "queue_status": "verification",
+   "read_at": "2026-06-01T15:04:11Z"
+  },
+  {
+   "tool": "get_deadline",
+   "country": "MX",
+   "product": "debit",
+   "credit_deadline": "2026-06-03"
+  }
+ ],
+ "reply": "Bloqueé tu tarjeta ····4417 y abrí el caso K-104233. Plazo: 2026-06-03.",
+ "receipt": {
+  "receipt_id": "RC-5F1C0A93D2E4",
+  "case_id": "K-104233",
+  "language": "es",
+  "issued_at": "2026-06-01T15:04:12Z",
+  "mode": "replay",
+  "product_last4": "4417",
+  "verified_facts": [
+   {
+    "fact": "Cargo no reconocido: USD 1,250.00 · 2026-05-31 · TIENDA X.",
+    "source_id": "TRX-FIXTURE0000000000001"
+   },
+   {
+    "fact": "Tarjeta de débito ····4417 bloqueada.",
+    "source_id": "V-8B2D41C7E0A9"
+   },
+   {
+    "fact": "Caso K-104233 abierto.",
+    "source_id": "K-104233"
+   }
+  ],
+  "amount": {
+   "original": {
+    "amount": "1250.00",
+    "currency": "USD"
+   },
+   "display": null
+  },
+  "actions": [
+   {
+    "label": "Tarjeta bloqueada",
+    "action_id": "A-3E9F20B7C164",
+    "state": "verified",
+    "verification_id": "V-8B2D41C7E0A9",
+    "verified_at": "2026-06-01T15:04:09Z"
+   },
+   {
+    "label": "Caso abierto",
+    "action_id": "A-71C0D5E8A2F3",
+    "state": "verified",
+    "verification_id": "V-0C6A93F1B57D",
+    "verified_at": "2026-06-01T15:04:11Z"
+   }
+  ],
+  "deadline": {
+   "country": "MX",
+   "product": "debit",
+   "credit_deadline": "2026-06-03",
+   "ruling_deadline": null,
+   "deadline_source": "Banxico Circular 3/2012, as amended by Circular 14/2018",
+   "source_url": "https://www.gob.mx/condusef/prensa/cargos-no-reconocidos-en-tarjeta-de-debito-se-restituiran-en-dos-dias-habiles-bancarios?idiom=es",
+   "verified_on": "2026-10-04"
+  },
+  "what_ai_did": "El asistente automático identificó tu cargo, bloqueó tu tarjeta ····4417 y abrió el caso K-104233. Cada acción quedó verificada.",
+  "what_a_person_does": "Una persona del banco revisa tu caso y toma la decisión final.",
+  "next_steps": [
+   "No necesitas hacer nada más por ahora.",
+   "En el enlace puedes ver tu caso o agregar información.",
+   "Te avisaremos de cada cambio de estado."
+  ],
+  "case_url": "https://nickoftime.salazarvalverdeai.com/case/K-104233"
+ },
+ "handoff": {
+  "case_id": "K-104233",
+  "language": "es",
+  "zone": "high",
+  "request": "Cargo no reconocido de USD 1250.00 el 2026-05-31 en TIENDA X.",
+  "verified_facts": [
+   {
+    "fact": "Tarjeta ····4417 bloqueada.",
+    "source_id": "V-8B2D41C7E0A9"
+   }
+  ],
+  "actions": [
+   {
+    "tool": "block_card",
+    "action_id": "A-3E9F20B7C164",
+    "result": "blocked",
+    "verified": true,
+    "verification_id": "V-8B2D41C7E0A9"
+   }
+  ],
+  "evidence": [
+   "TRX-FIXTURE0000000000001",
+   "V-8B2D41C7E0A9",
+   "K-104233"
+  ],
+  "open_questions": [],
+  "deadline": {
+   "country": "MX",
+   "product": "debit",
+   "credit_deadline": "2026-06-03",
+   "deadline_source": "Banxico"
+  },
+  "trace_id": "trace-1"
+ },
+ "actions": [
+  {
+   "tool": "block_card",
+   "action_id": "A-3E9F20B7C164",
+   "state": "verified",
+   "verification_id": "V-8B2D41C7E0A9",
+   "read_at": "2026-06-01T15:04:09Z"
+  }
+ ],
+ "db_actions": [
+  {
+   "action_id": "A-3E9F20B7C164",
+   "state": "verified",
+   "verification_id": "V-8B2D41C7E0A9",
+   "requested_at": "2026-06-01T15:04:08Z"
+  }
+ ],
+ "status_replies": [
+  {
+   "subject": "K-104233",
+   "stated_status": "verification",
+   "read_status": "verification"
+  }
+ ],
+ "told_queue_status": "verification",
+ "read_queue_status": "verification",
+ "privacy": {
+  "surfaces": {
+   "reply": "Bloqueé tu tarjeta ····4417. Caso K-104233.",
+   "notification": "Tu tarjeta 4417 quedó bloqueada (verificado). Caso K-104233."
+  },
+  "score": 62.5,
+  "policy_ids": [
+   "P-ZONE-HIGH"
+  ],
+  "transcript": [
+   "no reconozco este cargo"
+  ],
+  "other_customer_ids": [
+   "C-OTHER0000001"
+  ]
+ },
+ "events": [
+  {
+   "case_id": "K-104233",
+   "type": "status",
+   "status": "new",
+   "actor": "agent"
+  },
+  {
+   "case_id": "K-104233",
+   "type": "status",
+   "status": "verification",
+   "actor": "agent"
+  },
+  {
+   "case_id": "K-104233",
+   "type": "status",
+   "status": "resolved",
+   "actor": "person"
+  },
+  {
+   "case_id": "K-104233",
+   "type": "provisional_credit",
+   "status": null,
+   "actor": "person"
+  },
+  {
+   "case_id": "K-104233",
+   "type": "status",
+   "status": "closed",
+   "actor": "person"
+  }
+ ],
+ "active_cases": [
+  [
+   "K-104233",
+   "C-0001",
+   "TRX-FIXTURE0000000000001"
+  ]
+ ]
+}
