@@ -3,7 +3,7 @@
 - **Status:** Proposed
 - **Date:** 2026-10-04
 - **Deciders:** Freddy · **Owner:** @salazarvalverdeai (auditor and judge) · @vldiego (monitoring and regression gate)
-- **Related:** specs 10, 11, 15, 17, 18 · ADRs 0006, 0007, 0015, 0016, 0018, 0022 (proposed)
+- **Related:** specs 10, 11, 15, 17, 18 · ADRs 0006, 0007, 0015, 0016, 0018, 0022
 
 ## Context
 - The agent verifies its own actions (`verify` node), and the analyst decides escalated cases. Nothing independent
