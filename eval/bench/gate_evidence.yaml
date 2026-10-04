@@ -1,0 +1,50 @@
+# Evidence for the third-party gate (spec 15 section 4.5), by provider, checked 2026-10-04 on the cited pages.
+# A criterion with no entry here is "not documented" (which fails a production criterion). Overrides are per arm.
+# Verdicts are written by gate.py from this file; nothing is pre-registered before the run.
+providers:
+  bedrock:
+    synthetic_only:
+      verdict: pass
+      evidence_url: "docs/adr/0009 (internal: synthetic data only)"
+      checked_on: "2026-10-04"
+    no_training:
+      verdict: pass
+      evidence_url: https://aws.amazon.com/bedrock/security-compliance/
+      note: "page: data is not shared with model providers and is not used to improve the base models"
+      checked_on: "2026-10-04"
+    certification:
+      verdict: pass
+      evidence_url: https://aws.amazon.com/bedrock/security-compliance/
+      note: "page: Bedrock is in scope for ISO, SOC and CSA STAR Level 2"
+      checked_on: "2026-10-04"
+    retention:
+      verdict: not documented
+      evidence_url: https://docs.aws.amazon.com/bedrock/latest/userguide/data-retention.html
+      note: "page linked from the data-protection page; not read on this date"
+      checked_on: "2026-10-04"
+    region:
+      verdict: not documented
+      evidence_url: https://docs.aws.amazon.com/bedrock/latest/userguide/cross-region-inference.html
+      note: "not read on this date; us. profiles may route across US regions"
+      checked_on: "2026-10-04"
+  typesafe:
+    synthetic_only:
+      verdict: pass
+      evidence_url: "docs/adr/0009 (internal: synthetic data only)"
+      checked_on: "2026-10-04"
+    no_training:
+      verdict: pass
+      evidence_url: https://docs.typesafe.ai/legal.md
+      note: "page index cites the commitment not to train models on user data; the policy text itself was not read"
+      checked_on: "2026-10-04"
+    retention:
+      verdict: not documented
+      evidence_url: https://docs.typesafe.ai/legal.md
+      note: "zero data retention is offered to enterprise customers; the retention terms sit in the DPA, not read"
+      checked_on: "2026-10-04"
+arms:
+  sonnet-5-5:
+    availability:
+      verdict: fail
+      evidence_url: "specs/15-model-benchmark.md section 8 (internal: quota 0, AccessDeniedException on 2026-10-04)"
+      checked_on: "2026-10-04"

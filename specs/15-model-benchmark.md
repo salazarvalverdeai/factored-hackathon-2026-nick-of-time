@@ -119,6 +119,11 @@ system at the end of the turn (spec 04 AC-19). It measures that the agent never 
 The gate is evaluated **per arm when the benchmark runs**, from the provider's public documents, and written to
 `eval/results/bench_gate.csv` (`arm, criterion, verdict: pass|fail|not documented, evidence_url, checked_on`).
 "Not documented" fails a production criterion. No arm is excluded or chosen in this spec.
+Implementation (`eval/bench/gate.py`): the CSV also carries `needed_benchmark` and `needed_production`; the evidence
+lives in `eval/bench/gate_evidence.yaml` (by provider, with per-arm overrides); a criterion without evidence is "not
+documented"; `es_pt_quality` stays "not documented" until the run measures it. Prices in `prices.yaml` carry
+`status: confirmed|assumption`; on 2026-10-04 the pricing page text confirmed only Nova Micro/Lite/Pro, Ministral,
+Mistral Large 3 and Gemma, and for Nova Micro and Lite it differs from the Price List figures above (page used).
 
 | Criterion | Needed to benchmark | Needed for production |
 |---|---|---|
@@ -166,13 +171,13 @@ Public third-party leaderboards; fine-tuning; batch or provisioned throughput pr
 (reported, not optimized).
 
 ## 10. Plan, tasks and verification
-- [ ] T1 — `eval/bench/arms.yaml` and `prices.yaml` (each price confirmed on the pricing page, with date); budget guard ·
+- [x] T1 — `eval/bench/arms.yaml` and `prices.yaml` (each price confirmed on the pricing page, with date); budget guard ·
       AC-05, AC-08
 - [ ] T2 — B1 runner over spec 11 arms + the LLM candidates + Jev; unavailable arms recorded · AC-01, AC-06
-- [ ] T3 — structured-output smoke test; `word` task set (40 template instances from dev cases) and blind preference
+- [ ] T3 — (smoke test done in PR 15a: `eval/bench/smoke.py`, AC-11; `word` task set pending spec 09) structured-output smoke test; `word` task set (40 template instances from dev cases) and blind preference
       sheet · AC-11, AC-12
 - [ ] T3b — short list and B2 runner on the harness (spec 10), historical mode only, `coherence_rate` · AC-02, AC-09
-- [ ] T4 — gate evaluation per arm with evidence and date · AC-10
+- [x] T4 — gate evaluation per arm with evidence and date · AC-10
 - [ ] T5 — table, Pareto chart, JSON for `/evaluation` · AC-03, AC-04
 - [ ] T6 — lean rule per task in `eval/PROTOCOL.md` before the run; "model selection" ADR with the three rows per task
       and the model map · AC-07
