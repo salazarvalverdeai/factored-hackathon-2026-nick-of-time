@@ -158,7 +158,8 @@ Modes (ADR 0020): `replay` (dataset, "today" = `DEMO_TODAY`) for evaluation and 
 ### 4.5 Suggestion chips
 Chips help the customer take the next step without typing. Three kinds: **text** (sends its label as the next message),
 **action** (sends a structured `action`, skipping the classifier) and **link** (an internal route set by the server).
-Labels live in `messages.yaml suggest.*` (ES/PT); ES examples below.
+Labels and chip kinds (`text`, `action`, `link`) live in `messages.yaml suggest.*` (ES/PT); the action payload
+(`type`, spec 01 §6.4) and the route are set by server code. ES examples below.
 
 | State after the turn | Chips |
 |---|---|
@@ -221,8 +222,11 @@ messages.
 - [ ] T6 — `status` and `connect` nodes and the returning-customer path · AC-06, AC-19, AC-24, AC-28
 - [ ] T7 — progress stream; S1/S2 wiring (Bedrock, structured output); usage; graceful degradation to S0 · AC-14, AC-17
 - [ ] T8 — Platform deployment; `/agent` content · AC-07, AC-08
-- [x] T-MSG — `contracts/messages.yaml`: ES/PT templates for greet, plan, connect, suggestion chips, status labels and
-      receipt (placeholders `{name}`, tool facts only) · AC-10, AC-15, AC-16, AC-19, AC-21, AC-29, AC-31
+- [x] T-MSG — `contracts/messages.yaml`: ES/PT templates for greet, plan, connect, suggestion chips, status labels,
+      receipt and notify (placeholders `{name}`, tool facts only). Supports AC-06, AC-10, AC-11, AC-15, AC-16, AC-19,
+      AC-21, AC-25, AC-26, AC-28, AC-29, AC-31, AC-32; behavior tested in T2–T6. T2–T7 extend the file (clarify,
+      refuse, progress AC-17, duplicate AC-23, re-evaluation AC-24, reversed charge); each extension is a contract
+      change that needs the lead's approval.
 - [ ] Tests `tests/test_spec04_*.py` with the `fake` LLM and the fake MCP; EV-0001 end to end in historical mode
 
 **Closing checklist:** every AC has a passing test or check · status → Implemented · ADR if a question changes a

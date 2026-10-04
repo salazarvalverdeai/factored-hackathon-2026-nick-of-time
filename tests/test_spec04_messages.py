@@ -1,4 +1,8 @@
-"""Spec 04 — contracts/messages.yaml (offline, no network)."""
+"""Spec 04 — contracts/messages.yaml (offline, no network).
+
+These tests support AC-06, AC-10, AC-11, AC-15, AC-16, AC-19, AC-21, AC-25, AC-26, AC-28, AC-29, AC-31, AC-32
+by checking the contract file only; the behavior itself is tested in T2-T6.
+"""
 import re
 from pathlib import Path
 
@@ -7,12 +11,36 @@ import yaml
 
 PATH = Path(__file__).resolve().parents[1] / "contracts" / "messages.yaml"
 PLACEHOLDER = re.compile(r"\{([a-z_0-9]+)\}")
-FORBIDDEN = re.compile(r"score|policy|policies|política|politica|rule id|fraud_score|zone|zona", re.I)
-PROMISE = re.compile(r"cr[eé]dito provisional|crédito provisório|devolver|devolveremos|reembols", re.I)
+ALLOWED = {
+    "first_name", "case_id", "deadline_date", "deadline_ruling", "deadline_credit", "deadline_source",
+    "source_url", "verified_on", "amount", "currency", "merchant", "display_amount", "display_currency",
+    "rate", "rate_source", "as_of", "last4", "verification_id", "verified_at", "read_at", "status_label",
+    "card_label", "action_label", "step_n", "case_url", "receipt_id", "channel",
+}
+FORBIDDEN = re.compile(
+    r"score|puntaje|puntuaci|pontua|policy|policies|pol[ií]tica|rule id|fraud_score|zone|zona|"
+    r"riesgo|risco|transcript|transcrip|transcri", re.I)
+PROMISE = re.compile(
+    r"cr[eé]dito provisional|cr[eé]dito provis|abono|devolver|devolvemos|devolveremos|reembols|estorno|"
+    r"a tu favor|a seu favor", re.I)
+SPEC_CHIPS_ES = {  # spec 04 §4.5 table
+    "report_unrecognized": "No reconozco un cargo", "report_duplicate": "Me cobraron dos veces",
+    "check_case": "¿Cómo va mi caso?", "none_of_these": "Ninguno de estos",
+    "show_recent": "Muéstrame mis últimos cargos", "dont_remember_amount": "No recuerdo el monto",
+    "talk_to_person": "Hablar con una persona", "confirm_yes": "Sí, continúa",
+    "confirm_no": "No es ese cargo", "view_case": "Ver mi caso", "send_summary": "Enviarme el comprobante",
+    "request_call": "Que me llame una persona", "add_info": "Agregar información",
+    "request_reevaluation": "Pedir reevaluación", "report_another": "Reportar otro cargo",
+    "reauthenticate": "Verificar de nuevo",
+}
+
+
+def text():
+    return PATH.read_text(encoding="utf-8")
 
 
 def load():
-    return yaml.safe_load(PATH.read_text(encoding="utf-8"))
+    return yaml.safe_load(text())
 
 
 def leaves(node, path=()):
@@ -34,7 +62,7 @@ def test_ac_10_yaml_loads_with_version_and_one_placeholder_syntax():
 
 def test_ac_10_every_template_has_es_and_pt():
     found = list(leaves(load()))
-    assert len(found) > 30
+    assert len(found) > 40
     for key, leaf in found:
         for lang in ("es", "pt"):
             assert isinstance(leaf.get(lang), str) and leaf[lang].strip(), f"{key}.{lang}"
@@ -45,74 +73,115 @@ def test_ac_10_placeholder_sets_match_between_es_and_pt():
         assert set(PLACEHOLDER.findall(leaf["es"])) == set(PLACEHOLDER.findall(leaf["pt"])), key
 
 
-@pytest.mark.parametrize("top", ["greet", "plan", "connect", "suggest", "status", "receipt"])
-def test_ac_15_ac_16_ac_29_spec_names_top_level_keys(top):
+def test_ac_10_es_and_pt_texts_differ():
+    for key, leaf in leaves(load()):
+        assert leaf["es"] != leaf["pt"], key
+
+
+def test_ac_25_every_placeholder_is_allowed_and_documented_in_header():
+    header = text().split("version:")[0]
+    for key, leaf in leaves(load()):
+        names = set(PLACEHOLDER.findall(leaf["es"]))
+        assert names <= ALLOWED, (key, names - ALLOWED)
+    for name in ALLOWED:
+        assert name in header, name
+
+
+@pytest.mark.parametrize("top", ["greet", "plan", "connect", "suggest", "status", "receipt", "notify"])
+def test_ac_15_ac_16_ac_29_ac_26_spec_names_top_level_keys(top):
     assert top in load()
 
 
-def test_ac_15_greet_uses_profile_first_name_and_max_three_capabilities():
+def test_ac_15_greet_uses_profile_first_name_and_one_to_three_capabilities():
     greet = load()["greet"]
-    assert "{first_name}" in greet["hello"]["es"] and "{first_name}" in greet["hello"]["pt"]
-    assert len([k for k in greet if k.startswith("capability_")]) <= 3
+    for lang in ("es", "pt"):
+        assert "{first_name}" in greet["hello"][lang]
+    assert 1 <= len([k for k in greet if k.startswith("capability_")]) <= 3
     assert "persona" in greet["human_review"]["es"] and "pessoa" in greet["human_review"]["pt"]
 
 
 def test_ac_16_plan_has_numbered_steps_and_confirmation():
     plan = load()["plan"]
     steps = [v for k, v in plan.items() if k.startswith("step_")]
-    assert steps and all("{step_n}" in s["es"] for s in steps)
+    assert steps and all("{step_n}" in s["es"] and "{step_n}" in s["pt"] for s in steps)
     assert "confirm_ask" in plan
 
 
-def test_ac_06_ac_19_status_labels_match_spec_03():
+def test_ac_11_supports_confirm_question_and_confirm_chips():
+    data = load()
+    assert data["plan"]["confirm_ask"]["es"].startswith("¿")
+    assert data["suggest"]["confirm_yes"]["kind"] == "action"
+    assert data["suggest"]["confirm_no"]["kind"] == "action"
+
+
+def test_ac_06_ac_19_status_labels_match_spec_03_and_map_queue_states():
     label = load()["status"]["label"]
     keys = ("received", "in_review", "resolved", "closed")
     assert [label[k]["es"] for k in keys] == ["Recibido", "En revisión", "Resuelto", "Cerrado"]
     assert [label[k]["pt"] for k in keys] == ["Recebido", "Em análise", "Resolvido", "Encerrado"]
+    assert [label[k]["from"] for k in keys] == [["new"], ["verification", "review"], ["resolved"], ["closed"]]
 
 
-def test_ac_19_status_reads_state_the_reading_time():
+def test_ac_19_status_reads_state_the_reading_time_and_failure_has_no_facts():
     status = load()["status"]
     for key in ("card_read", "case_read"):
-        assert "{read_at}" in status[key]["es"] and "{read_at}" in status[key]["pt"]
-    assert "read_failed" in status
+        for lang in ("es", "pt"):
+            assert "{read_at}" in status[key][lang]
+    for lang in ("es", "pt"):
+        assert not PLACEHOLDER.search(status["read_failed"][lang])
 
 
-def test_ac_29_ac_31_ac_32_suggest_chips_cover_spec_table_with_kinds():
+def test_ac_19_card_and_action_labels_are_localized_lookups():
+    status = load()["status"]
+    assert set(status["card_label"]) == {"active", "blocked", "closed", "suspended"}
+    assert set(status["action_label"]) == {"open_case", "block_card", "request_call", "send_case_summary"}
+    assert status["card_label"]["blocked"] == {"es": "bloqueada", "pt": "bloqueado"}
+
+
+def test_ac_29_ac_31_ac_32_chip_labels_equal_spec_table_with_kinds():
     suggest = load()["suggest"]
-    expected = {
-        "report_unrecognized": "text", "report_duplicate": "text", "check_case": "text",
-        "none_of_these": "action", "show_recent": "text", "dont_remember_amount": "text",
-        "talk_to_person": "action", "confirm_yes": "action", "confirm_no": "action",
-        "view_case": "link", "send_receipt": "action", "request_call": "action", "add_info": "text",
-        "request_reevaluation": "action", "report_another": "text", "reauthenticate": "link",
-    }
-    assert {k: v["kind"] for k, v in suggest.items()} == expected
-    assert suggest["report_unrecognized"]["es"] == "No reconozco un cargo"
-    assert suggest["request_call"]["es"] == "Que me llame una persona"
+    assert {k: v["es"] for k, v in suggest.items()} == SPEC_CHIPS_ES
+    assert {k for k, v in suggest.items() if v["kind"] == "link"} == {"view_case", "reauthenticate"}
+    assert suggest["send_summary"]["kind"] == "action"
+    assert all(v["kind"] in ("text", "action", "link") for v in suggest.values())
 
 
-def test_ac_11_ac_16_connect_keys_exist():
-    assert {"requested", "requested_case", "general_contact"} <= set(load()["connect"])
+def test_ac_28_connect_keys_exist_and_promise_no_time():
+    connect = load()["connect"]
+    assert {"requested", "requested_case", "general_contact"} <= set(connect)
+    for lang in ("es", "pt"):
+        assert "contact_window" not in connect["requested"][lang]
 
 
-def test_ac_21_receipt_has_required_facts():
+def test_ac_21_ac_25_receipt_has_required_facts():
     receipt = load()["receipt"]
-    text = " ".join(v["es"] for v in receipt.values())
-    for name in ("last4", "verification_id", "verified_at", "case_id", "deadline_date", "deadline_source"):
-        assert "{%s}" % name in text, name
-    assert {"what_ai_did", "what_a_person_does"} <= set(receipt)
+    joined = " ".join(v["es"] for v in receipt.values())
+    for name in ("last4", "verification_id", "verified_at", "case_id", "deadline_ruling", "deadline_credit",
+                 "deadline_source", "source_url", "verified_on", "display_amount", "rate_source"):
+        assert "{%s}" % name in joined, name
+    assert {"deadline_unknown", "what_a_person_does", "what_ai_did_blocked", "what_ai_did_case_only",
+            "what_ai_did_block_unconfirmed", "transaction_no_merchant"} <= set(receipt)
+    assert "sent_to" not in receipt
 
 
-def test_ac_30_no_forbidden_words_in_customer_text():
+def test_ac_26_send_requested_is_not_delivery():
+    notify = load()["notify"]
+    assert {"send_requested", "send_delivered"} <= set(notify)
+    for lang in ("es", "pt"):
+        assert "{channel}" in notify["send_requested"][lang]
+
+
+def test_never_send_no_internal_terms_in_customer_text():
+    """notifications.never_send (policies.yaml): no score, policy ids, zones or transcript, ES/PT."""
     for key, leaf in leaves(load()):
         for lang in ("es", "pt"):
-            text = PLACEHOLDER.sub("", leaf[lang])
-            assert not FORBIDDEN.search(text), f"{key}.{lang}"
-            assert not re.search(r"\bPOL-|\bG-[A-Z]+-\d", text), key
-        assert not re.search(r"\{(score|policy_id|rule_id|zone|fraud_score|transcript)\}", leaf["es"])
+            plain = PLACEHOLDER.sub("", leaf[lang])
+            assert not FORBIDDEN.search(plain), f"{key}.{lang}"
+            assert not re.search(r"\bPOL-|\bG-[A-Z]+-\d", plain), key
+    assert not re.search(r"\{(score|policy_id|rule_id|zone|fraud_score|transcript)\}", text())
 
 
-def test_ac_16_no_promise_of_outcome_or_credit():
+def test_rule_6_no_promise_of_outcome_or_credit():
+    """CLAUDE.md rule 6: provisional credit is always a human decision; templates never promise it."""
     for key, leaf in leaves(load()):
         assert not PROMISE.search(leaf["es"] + " " + leaf["pt"]), key
