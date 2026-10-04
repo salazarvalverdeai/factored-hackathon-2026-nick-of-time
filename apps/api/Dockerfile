@@ -3,7 +3,7 @@
 FROM python:3.13-slim
 WORKDIR /srv
 RUN pip install --no-cache-dir "fastapi>=0.115,<1" "uvicorn>=0.30,<1" "pydantic>=2.7,<3" "pyyaml>=6" "jsonschema>=4" \
-    "rfc3339-validator>=0.1.4,<1"
+    "rfc3339-validator>=0.1.4,<1" tzdata
 COPY contracts ./contracts
 COPY packages ./packages
 COPY apps/api/app ./apps/api/app

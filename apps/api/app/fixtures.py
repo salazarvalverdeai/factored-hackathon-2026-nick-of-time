@@ -3,10 +3,15 @@ from __future__ import annotations
 
 import datetime as dt
 
-from nick_of_time.contracts import (CaseSummary, CaseView, CustomerCaseSummary, ProductView, TurnResult,
+import yaml
+
+from nick_of_time.contracts import (CONTRACTS_DIR, CaseSummary, CaseView, CustomerCaseSummary, ProductView, TurnResult,
                                     sample_receipt)
 
-REPLAY_TODAY = dt.date(2026, 6, 1)               # ADR 0020: DEMO_TODAY applies to replay sessions only
+POLICIES = yaml.safe_load((CONTRACTS_DIR / "policies.yaml").read_text())   # decisions live there (constitution #2)
+POLICIES_VERSION = POLICIES["version"]
+SESSION_TTL_MINUTES = POLICIES["identity"]["session_ttl_minutes"]
+REPLAY_TODAY = dt.date(2026, 6, 1)               # ADR 0020 default of DEMO_TODAY, which applies to replay sessions only
 OTP = "123456"                                   # mock OTP shown on screen (ADR 0017)
 CASE_ID = "K-104233"
 OTHER_CASE_ID = "K-104299"                       # belongs to another customer: 403 for the demo customer
@@ -27,7 +32,8 @@ CUSTOMERS = [
     ], start=1)
 ]
 OWNER = CUSTOMERS[0]["customer_id"]
-CASE_OWNERS = {CASE_ID: OWNER, OTHER_CASE_ID: CUSTOMERS[1]["customer_id"]}
+RESOLVED_CASE_ID = "K-104240"                    # the demo customer's resolved case: reevaluation 201, close_case 200
+CASE_OWNERS = {CASE_ID: OWNER, RESOLVED_CASE_ID: OWNER, OTHER_CASE_ID: CUSTOMERS[1]["customer_id"]}
 
 _SRC = {"deadline_source": "Banxico Circular 3/2012, as amended by Circular 14/2018",
         "deadline_source_url": "https://www.gob.mx/condusef/prensa/cargos-no-reconocidos-en-tarjeta-de-debito-se-"
@@ -39,7 +45,7 @@ def case_view(case_id: str = CASE_ID, mode: str = "replay", today: dt.date = REP
     credit = dt.date(2026, 6, 3)
     return CaseView(
         case_id=case_id, customer_id=CASE_OWNERS.get(case_id, OWNER), country="MX", zone="high",
-        queue_status="verification", credit_deadline=credit, ruling_deadline=None, created_at=NOW,
+        queue_status="resolved" if case_id == RESOLVED_CASE_ID else "verification", credit_deadline=credit, ruling_deadline=None, created_at=NOW,
         sla_due_at=NOW + dt.timedelta(days=2), priority="high", tags=["fixture"],
         transaction={"transaction_id": TRANSACTION_ID, "amount": 1250.0, "currency": "USD", "date": "2026-05-31",
                      "merchant": "TIENDA X", "synthetic": False},
@@ -89,7 +95,7 @@ def final_state(run_id: str, arm: str) -> dict:
             "notifications": ["case_opened"], "other_customer_data_exposed": False,
             "action_states": {"block_card": "verified"},
             "totals": {"latency_ms": 0, "tokens_in": 0, "tokens_out": 0, "cost_usd": 0.0},
-            "run_meta": {"git_sha": "stub", "policies_version": 2, "provider": "fake"}}
+            "run_meta": {"git_sha": "stub", "policies_version": POLICIES_VERSION, "provider": "fake"}}
 
 
 HANDOFF = {"case_id": CASE_ID, "language": "es", "zone": "high", "request": "Cargo no reconocido de USD 1,250.00",
