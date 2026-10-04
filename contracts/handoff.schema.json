@@ -90,6 +90,14 @@
           "verification_id": {
             "type": "string"
           }
+        },
+        "if": {
+          "required": ["verified"],
+          "properties": {"verified": {"const": true}}
+        },
+        "then": {
+          "required": ["verification_id"],
+          "properties": {"verification_id": {"pattern": "^V-[0-9A-F]{12}$"}}
         }
       }
     },
@@ -98,7 +106,7 @@
       "items": {
         "type": "string"
       },
-      "description": "IDs: T-, P-, A-, V-, R-, K-"
+      "description": "IDs: T-, P-, A-, V-, RC-, K-"
     },
     "open_questions": {
       "type": "array",
@@ -129,7 +137,9 @@
       "type": "object",
       "required": [
         "country",
-        "deadline_source"
+        "deadline_source",
+        "source_url",
+        "verified_on"
       ],
       "properties": {
         "country": {
@@ -148,6 +158,14 @@
         },
         "deadline_source": {
           "type": "string"
+        },
+        "source_url": {
+          "type": "string",
+          "pattern": "^https://\\S+$"
+        },
+        "verified_on": {
+          "type": "string",
+          "format": "date"
         }
       }
     },

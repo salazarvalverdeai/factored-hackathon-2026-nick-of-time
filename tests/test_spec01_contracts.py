@@ -10,12 +10,12 @@ import re
 import sys
 import types
 from pathlib import Path
-from typing import get_args
+from typing import Union, get_args, get_origin
 
 import jsonschema
 import pytest
 import yaml
-from pydantic import ValidationError
+from pydantic import BaseModel, ValidationError
 
 import contracts as contracts_pkg
 from contracts import tools
@@ -47,14 +47,14 @@ def test_ac_01_tool_names_are_re_exported_not_redeclared():
 def test_ac_01_guard_rejects_a_name_declared_in_tools_and_here(tmp_path, monkeypatch):
     fake = tmp_path / "tools.py"
     fake.write_text("from typing import Literal\nZone = Literal['high']\ntype Mode = Literal['live']\n"
-                    "class Money: ...\n")
+                    "class Money: ...\nfrom typing import TypeAlias\nActionState: TypeAlias = Literal['verified']\n")
     module = types.ModuleType("contracts.tools")
     module.__file__ = str(fake)
     exec(fake.read_text(), module.__dict__)
     monkeypatch.setitem(sys.modules, "contracts.tools", module)
     monkeypatch.setattr(contracts_pkg, "tools", module)
     spec = importlib.util.spec_from_file_location("nick_of_time._contracts_probe", c.__file__)
-    with pytest.raises(ImportError, match=r"\['Mode', 'Money', 'Zone'\]"):
+    with pytest.raises(ImportError, match=r"\['ActionState', 'Mode', 'Money', 'Zone'\]"):
         spec.loader.exec_module(importlib.util.module_from_spec(spec))   # a fresh copy; the real module is untouched
 
 
@@ -70,6 +70,16 @@ def test_ac_01_ids_have_the_contract_prefix_and_shape(kind):
     assert all(i.startswith(ids.PREFIX[kind]) and ids.is_valid(kind, i) for i in made)
     assert len(made) > 150                      # random, not a counter (case ids have 10^6 values)
     assert not ids.is_valid(kind, ids.PREFIX[kind] + "x")
+
+
+def test_ac_01_gold_id_shapes():
+    """Gold ids [data]: customers CLI- + 12 (3,077 of 150,000 have no digit), transactions TRX- + 20, products PRD- + 12."""
+    patterns = ids.GOLD_PATTERN
+    assert re.fullmatch(patterns["customer"], "CLI-EXAMPLE00001") and re.fullmatch(patterns["customer"], "CLI-ABCDEFGHIJKL")
+    assert not any(re.fullmatch(patterns["customer"], bad) for bad in ("CLI-EXAMPLE0001", "CLI-example00001", "K-104233",
+                                                                       "CLI-EXAMPLE000012"))
+    assert re.fullmatch(patterns["transaction"], "TRX-SYN00000000000000001")
+    assert not re.fullmatch(patterns["transaction"], "SYN-0001")
 
 
 def test_ac_01_vocabularies_match_policies_and_the_eval_schema():
@@ -107,10 +117,10 @@ def _resolve(node: dict, root: dict) -> dict:
 
 
 def _shape(node: dict, root: dict, path: str = "$") -> dict[str, object]:
-    """`required` of every object and enum, pattern and format of every leaf, keyed by path."""
+    """`required` and `additionalProperties` of every object, enum, pattern and format of every leaf, by path."""
     node = _resolve(node, root)
     if "properties" in node:
-        out: dict[str, object] = {path: sorted(node.get("required", []))}
+        out: dict[str, object] = {path: (sorted(node.get("required", [])), node.get("additionalProperties"))}
         for name, sub in node["properties"].items():
             out |= _shape(sub, root, f"{path}.{name}")
         return out
@@ -125,6 +135,21 @@ def test_ac_01_receipt_schema_and_model_agree_at_every_level():
     assert "date-time" in FORMATS.checkers and "date" in FORMATS.checkers   # rfc3339-validator is installed
     model = c.CustomerReceipt.model_json_schema()
     assert _shape(RECEIPT, RECEIPT) == _shape(model, model)       # the model takes its patterns from nick_of_time.ids
+
+
+def _bare_datetimes(annotation) -> bool:
+    if annotation is dt.datetime:
+        return True
+    return any(_bare_datetimes(arg) for arg in get_args(annotation)) or any(
+        _bare_datetimes(meta) for meta in getattr(annotation, "__metadata__", ()))
+
+
+def test_ac_01_every_timestamp_carries_its_utc_offset():
+    models = [m for m in vars(c).values() if isinstance(m, type) and issubclass(m, BaseModel) and m.__module__ == c.__name__]
+    assert len(models) > 20
+    naive = [f"{m.__name__}.{name}" for m in models for name, field in m.model_fields.items()
+             if _bare_datetimes(field.annotation)]
+    assert not naive, f"use AwareDatetime: {naive}"
 
 
 def _variant(path: str, value) -> dict:
@@ -244,9 +269,11 @@ def test_ac_04_sample_receipt_validates_against_the_schema():
 NOW = "2026-06-01T15:04:12Z"                    # DEMO_TODAY (ADR 0020)
 HANDOFF = {"case_id": "K-104233", "language": "es", "zone": "high", "request": "Cargo no reconocido USD 1,250.00",
            "verified_facts": [{"fact": "Tarjeta bloqueada", "source_id": "V-8B2D41C7E0A9"}],
-           "actions": [{"tool": "block_card", "action_id": "A-3E9F20B7C164", "result": "Blocked", "verified": True}],
+           "actions": [{"tool": "block_card", "action_id": "A-3E9F20B7C164", "result": "Blocked", "verified": True,
+                        "verification_id": "V-8B2D41C7E0A9"}],
            "evidence": ["TRX-FIXTURE0000000000001"], "open_questions": [],
-           "deadline": {"country": "MX", "deadline_source": "Banxico Circular 3/2012"}, "trace_id": "run-1", "score": 72}
+           "deadline": {"country": "MX", "deadline_source": "Banxico Circular 3/2012",
+                        "source_url": SAMPLE["deadline"]["source_url"], "verified_on": "2026-10-04"}, "trace_id": "run-1", "score": 72}
 CHIPS = [{"id": "view_case", "label": "Ver mi caso", "kind": "link", "href": "/case/K-104233"},
          {"id": "send_summary", "label": "Enviarme el comprobante", "kind": "action", "action": {"type": "send_summary"}}]
 ACTION = {"tool": "block_card", "action_id": "A-3E9F20B7C164", "state": "verified", "verification_id": "V-8B2D41C7E0A9",
@@ -273,7 +300,7 @@ BAD_TURNS = {
     "href with a newline": _turn(suggestions=[CHIPS[1], {**CHIPS[0], "href": "/\n/evil.example"}]),
     "one chip": _turn(suggestions=CHIPS[:1]),
     "four chips": _turn(suggestions=CHIPS * 2),
-    "unknown action state": _turn(actions=[{**ACTION, "state": "done"}]),
+    "unknown action state": _turn(actions=[{**ACTION, "state": "done"}], progress=[]),
     "verified without verification_id": _turn(actions=[{**ACTION, "verification_id": None}]),
     "verified without read_at": _turn(actions=[{**ACTION, "read_at": None}]),
     "verified progress without any action": _turn(actions=[]),
@@ -286,6 +313,20 @@ BAD_TURNS = {
     "negative intent_confidence": _turn(intent_confidence=-0.1),
     "more options than policies.yaml allows": _turn(options=OPTIONS + OPTIONS[:1]),
     "negative usage tokens": _turn(usage=[{**USAGE, "tokens_in": -1}]),
+    "handoff deadline is not a date": _turn(handoff={**HANDOFF, "deadline": {**HANDOFF["deadline"],
+                                                                             "credit_deadline": "pronto"}}),
+    "handoff action verified without verification_id": _turn(handoff={
+        **HANDOFF, "actions": [{k: v for k, v in HANDOFF["actions"][0].items() if k != "verification_id"}]}),
+    "handoff action with a bad verification_id": _turn(handoff={
+        **HANDOFF, "actions": [{**HANDOFF["actions"][0], "verification_id": "V-1"}]}),
+    "handoff deadline without source_url": _turn(handoff={
+        **HANDOFF, "deadline": {k: v for k, v in HANDOFF["deadline"].items() if k != "source_url"}}),
+    "handoff deadline without verified_on": _turn(handoff={
+        **HANDOFF, "deadline": {k: v for k, v in HANDOFF["deadline"].items() if k != "verified_on"}}),
+    "negative usage cost": _turn(usage=[{**USAGE, "cost_usd": -0.01}]),
+    "negative usage tokens_out": _turn(usage=[{**USAGE, "tokens_out": -1}]),
+    "negative trace ms": _turn(trace=[{"node": "classify", "status": "ok", "ms": -1}]),
+    "option id that is not a transaction id": _turn(options=[{**OPTIONS[0], "id": "SYN-0001"}]),
     "handoff that is not a card": _turn(handoff={"case_id": "K-104233"}),
     "customer_id from the client": _turn(customer_id="CLI-EXAMPLE00001"),
 }
@@ -313,6 +354,8 @@ BAD_FINALS = {
     "live mode": {"mode": "live"},
     "negative total cost": {"totals": {**FINAL["totals"], "cost_usd": -0.01}},
     "turn 0": {"turns": [{**FINAL["totals"], "turn": 0}]},
+    "bad transaction id": {"transaction_id": "TRX-1"},
+    "bad candidate transaction id": {"candidate_transaction_ids": ["SYN-0001"]},
     "negative turn latency": {"turns": [{**FINAL["totals"], "turn": 1, "latency_ms": -1}]},
 }
 
@@ -366,6 +409,11 @@ BAD_VIEWS = [
     (c.CaseView, {**CASE, "created_at": "2026-06-01T15:04:12"}),
     (c.CaseView, {k: v for k, v in CASE.items() if k != "deadline_source_url"}),
     (c.CaseView, {**CASE, "deadline_source_url": "http://example.org"}),
+    (c.CaseView, {k: v for k, v in CASE.items() if k != "deadline_source"}),
+    (c.CaseView, {k: v for k, v in CASE.items() if k != "deadline_verified_on"}),
+    (c.CaseView, {**{k: v for k, v in CASE.items() if k not in ("deadline_source_url", "credit_deadline")},
+                  "ruling_deadline": "2026-07-16"}),
+    (c.CaseView, {**CASE, "transaction": {**CASE["transaction"], "transaction_id": "SYN-0001"}}),
     (c.CustomerCaseSummary, {"case_id": "K-104233", "status_label": "x", "updated_at": NOW, "related_case_id": "K-1"}),
     (c.CustomerCaseSummary, {"case_id": "K-104233", "status_label": "x", "updated_at": NOW, "product_last4": "44170"}),
     (c.ProductView, {"product_id": "PRD-FIXTURE00001", "type": "debit", "last4": "44", "status": "Blocked",

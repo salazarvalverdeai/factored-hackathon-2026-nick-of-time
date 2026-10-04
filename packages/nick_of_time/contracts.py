@@ -13,7 +13,7 @@ import datetime as dt
 import json
 from functools import cache
 from pathlib import Path
-from typing import Any, Literal, Optional
+from typing import Annotated, Any, Literal, Optional
 
 import jsonschema
 import yaml
@@ -172,7 +172,7 @@ class TurnAction(_Contract):                    # a button or chip press; skips 
 
 
 class Option(_Contract):
-    id: str
+    id: str = Field(pattern=GOLD_PATTERN["transaction"])
     label: str
 
 
@@ -280,7 +280,9 @@ class TurnResult(_TurnCore):
     def _handoff_follows_its_schema(self) -> TurnResult:
         if self.handoff is not None:
             try:
-                jsonschema.validate(self.handoff, load_schema("handoff.schema.json"))
+                validator = jsonschema.Draft202012Validator(
+                    load_schema("handoff.schema.json"), format_checker=jsonschema.Draft202012Validator.FORMAT_CHECKER)
+                validator.validate(self.handoff)
             except jsonschema.ValidationError as err:
                 raise ValueError(f"handoff: {err.message}") from None
         return self
@@ -326,9 +328,9 @@ class FinalState(_Contract):
     decision: Optional[Decision] = None
     zone: Optional[Zone] = None
     intent: Optional[Intent] = None
-    transaction_id: Optional[str] = None
-    product_id: Optional[str] = None
-    candidate_transaction_ids: list[str] = []
+    transaction_id: Optional[str] = Field(None, pattern=GOLD_PATTERN["transaction"])
+    product_id: Optional[str] = Field(None, pattern=GOLD_PATTERN["product"])
+    candidate_transaction_ids: list[Annotated[str, Field(pattern=GOLD_PATTERN["transaction"])]] = []
     product_status: Optional[str] = None
     case_open: bool
     case_id: Optional[str] = Field(None, pattern=PATTERN["case"])
@@ -366,7 +368,7 @@ class CaseSummary(_CaseCore):
 
 
 class CaseTransaction(_Contract):
-    transaction_id: str
+    transaction_id: str = Field(pattern=GOLD_PATTERN["transaction"])
     amount: float                               # [assumption] same type as contracts/tools.py Transaction.amount
     currency: str
     date: dt.date
@@ -412,8 +414,10 @@ class _CaseDetail(_CaseCore):
 
     @model_validator(mode="after")
     def _a_legal_date_has_its_source(self) -> _CaseDetail:
-        if (self.credit_deadline or self.ruling_deadline) and not (self.deadline_source and self.deadline_source_url):
-            raise ValueError("a legal deadline travels with deadline_source and deadline_source_url (ADR 0019)")
+        if (self.credit_deadline or self.ruling_deadline) and not (
+                self.deadline_source and self.deadline_source_url and self.deadline_verified_on):
+            raise ValueError("a legal deadline travels with deadline_source, deadline_source_url and "
+                             "deadline_verified_on (ADR 0019)")
         return self
 
 
@@ -439,7 +443,7 @@ class CustomerCaseSummary(_Contract):
 
 
 class ProductView(_Contract):
-    product_id: str
+    product_id: str = Field(pattern=GOLD_PATTERN["product"])
     type: str
     last4: str = Field(pattern=LAST4)
     status: str
