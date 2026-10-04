@@ -86,6 +86,8 @@ AC-01 to AC-06 come from issue #4 with the same numbers; AC-07 onward are added 
 | 1 | `POL-SESSION` | session expired or unverified | `reauthenticate` | G-SES-01 |
 | 2 | `POL-INJECTION` | input flagged by the injection detector (spec 11) | `deny` | G-IN-01, logged |
 | 3 | `POL-CROSS-CUSTOMER` | request targets another customer's data | `deny` | G-SES-02, logged |
+| 3a | `POL-HUMAN-REQUEST` | intent `human_request` | `connect_person` | `request_call` on the active case, or a general request; never refused (CFPB 2023) |
+| 3b | `POL-STATUS` | intent `status_inquiry` | `answer_status` | read-only: the agent re-reads cards or cases (spec 04 AC-19); no case is opened |
 | 4 | `POL-OUT-OF-SCOPE` | intent `out_of_scope`, or product is not a card | `deny` (polite abstention) | G-IN-04 |
 | 5 | `POL-CLARIFY` | confidence < τ, or candidates > 1 (≤ 3), or candidates = 0 | `ask` (≤ 2 turns) | then rule 5b |
 | 5b | `POL-CLARIFY-EXHAUSTED` | clarification turns > 2 | `handoff` (`clarification_exhausted`) | |
@@ -210,6 +212,9 @@ fx.convert(amount=1250.0, from_currency="USD", to_currency="MXN") -> {amount, ra
 - **Q5 — supervised mode vs "the ticket is always opened":** supervised mode applies only to money actions (AC-15).
 - **Q6 — LATAM coverage:** data-driven clock table; PE and CL added with verified sources; any other country falls
   back to `POL-CLOCK-UNKNOWN` (AC-14).
+- **Rules 3a–3b (added 2026-10-04 with the five intents of spec 11):** a request for a person and a status question
+  are answered after the security checks (rules 1–3) and before the dispute rules; every reply, including
+  `reauthenticate` and `deny`, still offers a way to a person (spec 04 AC-20).
 - **Q7 — demo date:** ~~move `DEMO_TODAY` to 2026-06-01?~~ **Decided (lead, 2026-10-04):** two time modes (ADR 0020,
   proposed). `replay` uses `DEMO_TODAY = 2026-06-01` (Monday), so charges of May 30–31 qualify for the MX 48 h rule;
   `live` uses the real date with labeled synthetic transactions. The clock receives "today" from the mode (AC-16).
@@ -238,6 +243,8 @@ changes a decision · lessons added to `CLAUDE.md`.
 ## 11. Sources
 External sources checked on 2026-10-04; the clock's legal sources are in the table of §4.3 and the reference-rate
 sources in the table of §4.4.
+- CFPB, *Chatbots in consumer finance* (6 June 2023), on not blocking access to a person (rule 3a):
+  https://www.consumerfinance.gov/data-research/research-reports/chatbots-in-consumer-finance/chatbots-in-consumer-finance/
 - IANA time zone database (zone names of §4.4): https://www.iana.org/time-zones
 - Internal: `contracts/policies.yaml` (`amount_gate`, `approval`, `case_queue`, `regulatory_clock`),
   `contracts/gold_contract.md` R1 (gold ends 2026-05-31), ADR 0019 (official sources), ADR 0020 (proposed, two modes),
