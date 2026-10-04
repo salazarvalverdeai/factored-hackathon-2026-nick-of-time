@@ -6,9 +6,9 @@
 - **Status:** Draft (2026-10-04; gate 1 closed by the lead)
 - **Owner:** @salazarvalverdeai · **Priority:** P0 benchmark, P1 analyst signal · **Size:** M
 - **Challenge dimension:** Machine Learning (a learned model against a baseline), Technical Judgment
-- **Depends on:** gold v1 and `gold_eval/transaction_labels`, ADR 0022 (proposed) · **Enables:** a second signal in the
+- **Depends on:** gold v1 and `gold_eval/transaction_labels`, ADR 0022 · **Enables:** a second signal in the
   handoff card (specs 03, 04, console), the model inventory (ADR 0021), `/evaluation`
-- **ADRs:** 0006, 0007, 0015, 0021 (proposed), 0022 (proposed) · **Issue:** #28
+- **ADRs:** 0006, 0007, 0015, 0021, 0022 · **Issue:** #28
 
 ---
 
@@ -178,5 +178,5 @@ retraining (ADR 0021, P2).
   https://scikit-learn.org/stable/modules/generated/sklearn.svm.SVC.html
 - Federal Reserve, FDIC and OCC, *SR 26-2* (17 April 2026) — a non-generative model is in its scope: outcomes analysis,
   ongoing monitoring, model inventory: https://www.federalreserve.gov/supervisionreg/srletters/SR2602.pdf
-- Internal: ADR 0006 (score as a swappable input), ADR 0015 (pre-registration), ADR 0021 (proposed), ADR 0022 (proposed).
+- Internal: ADR 0006 (score as a swappable input), ADR 0015 (pre-registration), ADR 0021, ADR 0022.
 - Thresholds marked `[assumption]` have no external source.

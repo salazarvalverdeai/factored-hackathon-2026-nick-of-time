@@ -31,7 +31,7 @@ code is not re-specified (brownfield adoption).
 4. An action is reported to the customer only after its post-condition is verified (`accepted ≠ verified`).
 5. The receipt and the handoff card contain **only facts returned by tools** (exact-match grounding).
 6. No case is closed without a person. Provisional credit is always a human decision.
-7. `is_fraud` lives only in `data/gold_eval/` and is read only by the evaluation harness.
+7. `is_fraud` lives only in `data/gold_eval/`; it is read by the evaluation harness and, by time window, by the fraud-model training pipeline (ADR 0022) — never by the runtime.
 8. Every figure carries a label: `[data]` `[external]` `[assumption]` `[simulated]` `[projected]`.
 9. Contracts in `contracts/` change only through a PR approved by the lead.
 10. No secrets in the repo; they live in AWS SSM Parameter Store, Platform deployment secrets or GitHub secrets.

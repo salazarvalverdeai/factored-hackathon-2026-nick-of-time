@@ -1,6 +1,6 @@
 # 0022. Fraud labels may train our fraud model, by time window, and never reach the runtime
 
-- **Status:** Proposed (draft — local review)
+- **Status:** Accepted
 - **Date:** 2026-10-04
 - **Deciders:** Freddy · **Owner:** @salazarvalverdeai
 - **Related:** spec 17 · ADRs 0006, 0007, 0021 · constitution rule 7 in `CLAUDE.md`
