@@ -2,11 +2,12 @@
 
 - **Feature:** pure, deterministic code that turns `contracts/policies.yaml` into decisions — zone, decision, approval
   mode per action, allowed queue transitions and legal deadlines — with the rule ids that justify each one.
-- **Status:** Draft
+- **Status:** Draft (gate 1 closed; Q7 closed by ADR 0020 on 2026-10-04; adds `clock.today(mode)`, display currency
+  and the re-evaluation window)
 - **Owner:** @salazarvalverdeai · **Priority:** P0 · **Size:** M
 - **Challenge dimension:** Technical Judgment (deterministic logic where AI is not appropriate)
 - **Depends on:** `contracts/policies.yaml` · **Enables:** 03 (tools re-check permissions), 04 (decide node), 05 (queue
-  transitions, supervised mode) · **ADRs:** 0005, 0006, 0012
+  transitions, supervised mode) · **ADRs:** 0005, 0006, 0019, 0020 (proposed; supersedes 0012)
 - **Issue:** #4
 
 > Full profile: money and compliance decisions. The engine never calls a network, a database or an LLM.
@@ -57,6 +58,13 @@ AC-01 to AC-06 come from issue #4 with the same numbers; AC-07 onward are added 
   case, return no legal deadline (never an invented one) and route it to a person with `POL-CLOCK-UNKNOWN`. · [T]
 - **AC-15** — While `supervised_mode` is on, `open_case` shall still run automatically; supervised mode applies only to
   money actions (`block_card`, `unblock_card`, `provisional_credit`). · [T]
+- **AC-16** — The clock shall take "today" only from `clock.today(mode, country)`: `DEMO_TODAY` in `replay`, the real
+  date in the country's time zone in `live`; no function reads the system clock elsewhere. · [T]
+- **AC-17** — When a conversion is requested, `fx.convert()` shall use only a reference rate that has `source_url`,
+  `as_of` and `verified_on`; if none exists it shall return no converted amount, and the original amount is shown
+  alone. Deadlines and zones never depend on a converted amount. · [T]
+- **AC-18** — If a customer asks to re-evaluate a case resolved more than `reevaluation.window_days` ago in their
+  country, then the engine shall deny it with `POL-REEVAL-WINDOW` and the agent offers a call instead. · [T]
 
 ## 4. Functional requirements
 - **FR-01** Load and validate `policies.yaml` once (Pydantic model); an invalid file fails at startup, not at decision time.
@@ -69,6 +77,8 @@ AC-01 to AC-06 come from issue #4 with the same numbers; AC-07 onward are added 
 - **FR-07** Add stable rule ids to `policies.yaml` (`rules:` section), the PE and CL clock entries with their sources,
   the `POL-CLOCK-UNKNOWN` fallback, and bump `version` to 2.
 - **FR-08** Supervised mode applies to money actions only; registering a case is never blocked (AC-15).
+- **FR-09** Add to `policies.yaml`, per country: `time_zone`, `display_currency` and an `fx_reference` entry with its
+  official source; and a `reevaluation` section with `window_days` per country (§4.4).
 
 ### 4.1 Evaluation order (first terminal rule wins)
 | # | Rule id | Condition | Decision | Notes |
@@ -118,7 +128,9 @@ test, no code change.** A country without a verified entry falls back to `POL-CL
 | CL · any card | opened + **10 business days** up to 35 UF (15 for cash advances and ATM withdrawals); +7 more days for the part above 35 UF | — | Ley 20.009 | [SERNAC](https://www.sernac.cl/portal/604/w3-propertyname-791.html) | 2026-10-04 |
 | any other LATAM country | — | — | `POL-CLOCK-UNKNOWN`: case opened, routed to a person, no deadline invented |
 
-- "Opened" = `DEMO_TODAY` in the demo (ADR 0012).
+- "Opened" = `clock.today(mode, country)`: `DEMO_TODAY = 2026-06-01` in `replay`, the real date in the country's time
+  zone in `live` (ADR 0020, proposed). Example: a MX debit notice on Monday 2026-06-01 about a charge on 2026-05-31 →
+  credit by Wednesday 2026-06-03.
 - **Coverage note:** the dataset only has MX, CO and AR customers, so PE, CL and BR are exercised by unit tests and
   fixtures; the demo runs on MX, CO and AR (BR in Portuguese with a fixture). The README states it.
 - **Every entry cites its official public source and the date it was verified** (ADR 0019); `policies.yaml` stores them as
@@ -132,6 +144,25 @@ test, no code change.** A country without a verified entry falls back to `POL-CL
 - MX debit SLA (`case_queue.deadline_sla.mx_debit`): priority `high` from business day 1; `alert_due_at` = start of
   business day 2.
 
+### 4.4 Time zone, display currency and re-evaluation window
+The customer sees the transaction's **original, exact amount** and, when it differs, an **approximate** amount in the
+display currency (their country's currency, or USD if they ask), always with the rate's source and date. The reference
+rate is each central bank's official series; the value and `as_of` are filled in T7 and re-verified per release
+(ADR 0019). The amount tiers of §4.2 keep their own documented rates and are not affected.
+
+| Country | `time_zone` (IANA) | `display_currency` | Official reference rate (`fx_reference.source_url`) |
+|---|---|---|---|
+| MX | `America/Mexico_City` | MXN | Banxico, FIX — [banxico.org.mx](https://www.banxico.org.mx/tipcamb/main.do?page=tip&idioma=sp) |
+| CO | `America/Bogota` | COP | Banco de la República, TRM — [banrep.gov.co](https://www.banrep.gov.co/es/glosario/tasa-cambio-trm) |
+| AR | `America/Argentina/Buenos_Aires` | ARS | BCRA, Com. "A" 3500 — [bcra.gob.ar](https://www.bcra.gob.ar/catalogo_de_datos/tipo-de-cambio-de-referencia-mayorista-y-promedio-mensual/) |
+| PE | `America/Lima` | PEN | BCRP — [bcrp.gob.pe](https://www.bcrp.gob.pe/estadisticas/tipo-de-cambio.html) |
+| CL | `America/Santiago` | CLP | Banco Central de Chile, dólar observado — [bcentral.cl](https://www.bcentral.cl/en/areas/statistics/exchange-statistics/types-of-changes-and-parities) |
+| BR | `America/Sao_Paulo` | BRL | BCB, PTAX — [bcb.gov.br](https://www.bcb.gov.br/estabilidadefinanceira/historicocotacoes) |
+
+**Re-evaluation window:** a resolved case can be sent back to review within `reevaluation.window_days` of its
+resolution (proposal: 30 days for every country `[assumption]`, a product policy with no regulatory source); later, the
+agent offers a call (AC-18). A closed case is never reopened by the customer: spec 03 opens a related case.
+
 ## 5. Non-functional requirements
 - **Performance:** `decide()` < 5 ms p95 (pure Python, policies cached).
 - **Security:** read-only access to `policies.yaml`; no environment variable can loosen a rule (only `supervised_mode`
@@ -144,7 +175,7 @@ engine = PolicyEngine.load("contracts/policies.yaml")      # validates; exposes 
 
 decision: Decision = engine.decide(DecisionInput(
     session_state="verified|expired|unverified",
-    intent="unrecognized_charge|wrongful_charge|inquiry|out_of_scope",
+    intent="unrecognized_charge|wrongful_charge|status_inquiry|human_request|out_of_scope",
     intent_confidence=0.93, candidates=1, clarification_turns=0,
     injection_flagged=False, cross_customer=False,
     score=72.0, score_source="dataset",                     # from get_fraud_score
@@ -155,18 +186,22 @@ decision: Decision = engine.decide(DecisionInput(
 #           queue_status_after, rule_ids [..], guardrail_ids [..], policies_version
 
 engine.check(action="block_card", zone="high", amount=..., country=..., supervised_mode=False) -> Allow | Deny
-deadline: Deadline = clock.deadline(country="MX", product="debit", opened_on=date(2026, 6, 3), abroad=False)
+today: date = clock.today(mode="replay", country="MX")     # 2026-06-01 in replay; the real local date in live
+deadline: Deadline = clock.deadline(country="MX", product="debit", opened_on=today, abroad=False)
 # Deadline: credit_deadline, ruling_deadline, deadline_source, calendar ("business"|"calendar"), holidays_skipped [..]
 engine.transition(current="verification", action="resolve", actor="analyst:…") -> new status | Deny
 engine.sla(case) -> {priority, sla_due_at, alert_due_at}
+engine.reevaluation_allowed(country="MX", resolved_on=date(...), today=today) -> Allow | Deny("POL-REEVAL-WINDOW")
+fx.convert(amount=1250.0, from_currency="USD", to_currency="MXN") -> {amount, rate, rate_source, as_of} | None
 ```
 
 ## 7. Data model touched
-- `contracts/policies.yaml`: adds `rules:` (ids and descriptions of §4.1) and `version: 2`. No threshold changes.
+- `contracts/policies.yaml`: adds `rules:` (ids and descriptions of §4.1), per-country `time_zone`,
+  `display_currency` and `fx_reference`, the `reevaluation` section, and `version: 2`. No threshold changes.
 - New data files: `packages/nick_of_time/policy/holidays/*_2026.yaml`.
 - No database access.
 
-## 8. Decisions (gate 1 closed by the lead, 2026-10-04; Q7 open)
+## 8. Decisions (gate 1 closed by the lead, 2026-10-04)
 - **Q1 — medium zone:** follow `policies.yaml`: after the customer confirms, the case is opened and an analyst approves
   the block (safer at 79.6% precision `[data]`); `three_zone_flow.svg` is updated in spec 13.
 - **Q2 — CO:** 15 **business** days, labeled `[external, to verify]` until T3.
@@ -175,10 +210,11 @@ engine.sla(case) -> {priority, sla_due_at, alert_due_at}
 - **Q5 — supervised mode vs "the ticket is always opened":** supervised mode applies only to money actions (AC-15).
 - **Q6 — LATAM coverage:** data-driven clock table; PE and CL added with verified sources; any other country falls
   back to `POL-CLOCK-UNKNOWN` (AC-14).
-- **Q7 — demo date (open, lead):** the MX 2-business-day credit applies only to charges from the 48 h before the notice.
-  Gold ends on 2026-05-31, so with `DEMO_TODAY=2026-06-03` no MX debit charge qualifies. Proposal: move `DEMO_TODAY` to
-  **2026-06-01 (Monday)**, so charges of May 30–31 qualify and the credit deadline is 2026-06-03 (supersedes ADR 0012).
-- Assumption: MXN 18.0 per USD for MX amounts (`[assumption]`, already in `policies.yaml`).
+- **Q7 — demo date:** ~~move `DEMO_TODAY` to 2026-06-01?~~ **Decided (lead, 2026-10-04):** two time modes (ADR 0020,
+  proposed). `replay` uses `DEMO_TODAY = 2026-06-01` (Monday), so charges of May 30–31 qualify for the MX 48 h rule;
+  `live` uses the real date with labeled synthetic transactions. The clock receives "today" from the mode (AC-16).
+- Assumption: MXN 18.0 per USD for the MX amount tiers (`[assumption]`, already in `policies.yaml`); it is never shown to
+  a customer — customer-facing conversions use the official reference rate of §4.4.
 - Assumption: holiday lists are verified against official sources while implementing; each file cites its URL.
 
 ## 9. Out of scope
@@ -193,6 +229,17 @@ Implementation goes in `feat/02-policy-engine` once this spec and spec 01 (packa
 - [ ] T4 — `transition()` and `sla()` · AC-10, AC-11
 - [ ] T5 — decision-table tests: zone × country × mode × tier, plus the boundaries 29/30/49/50 and null · AC-01…AC-13
 - [ ] T6 — `docs`: policy ids listed in `/agent` content (spec 04 AC-08)
+- [ ] T7 — `clock.today(mode, country)`, time zones, `fx_reference` values from the official series with `as_of`
+      and `verified_on`, `fx.convert()`, `reevaluation_allowed()` · AC-16, AC-17, AC-18
 
 **Closing checklist:** every AC has a passing test that cites it · status → Implemented · ADR if a question above
 changes a decision · lessons added to `CLAUDE.md`.
+
+## 11. Sources
+External sources checked on 2026-10-04; the clock's legal sources are in the table of §4.3 and the reference-rate
+sources in the table of §4.4.
+- IANA time zone database (zone names of §4.4): https://www.iana.org/time-zones
+- Internal: `contracts/policies.yaml` (`amount_gate`, `approval`, `case_queue`, `regulatory_clock`),
+  `contracts/gold_contract.md` R1 (gold ends 2026-05-31), ADR 0019 (official sources), ADR 0020 (proposed, two modes),
+  `queries/pitch/p08_fraud_score_thresholds.csv` and ADR 0006 (79.6% precision at score ≥ 30 `[data]`).
+- Values marked `[assumption]` (MXN and BRL tier rates, the 30-day re-evaluation window) have no external source.
