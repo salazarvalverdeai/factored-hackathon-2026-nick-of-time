@@ -67,13 +67,16 @@ Reads gold `transactions_enriched`, `products`, `customers` (country only) throu
 in-memory table of card transactions indexed by `customer_id` (≈ 516k rows). Reads and writes Postgres through
 `nick_of_time.store`: `sessions` (read), `cases`, `case_events`, `product_overrides`, `idempotency`, `policy_denials`.
 
-## 8. Assumptions and open questions (gate 1)
-- **Q1 — currency:** MX cards operate 100% in USD in the dataset, while customers speak in pesos; matching through the
-  policy rate (18.0 `[assumption]`) is the proposal. OK?
-- **Q2 — statuses:** `Declined` and `Reversed` transactions are not disputable charges and are excluded; if the customer
-  describes a reversed charge, the agent says it was already reversed (spec 04). OK?
-- **Q3 — order of writes:** `open_case` first (the ticket is always opened), then `block_card`, which requires the open
-  case. OK?
+## 8. Decisions (gate 1, lead, 2026-10-04)
+- **Q1 — currency:** match MX pesos against USD transactions through the policy rate (18.0 `[assumption]`). Display in
+  the customer's currency is covered by the proposed `convert_amount` tool (Q4).
+- **Q2 — statuses:** `Declined` and `Reversed` transactions are excluded; a reversed charge is reported as already
+  reversed (spec 04).
+- **Q3 — order of writes:** `open_case` first (the ticket is always opened), then `block_card`, which requires the open case.
+- **Q4 — open, under review:** tool contract v1.1 — enriched `get_product_status` and `get_case`, new `list_my_cards`,
+  `list_my_cases`, `add_case_info`, `request_call`, `request_reevaluation`, `convert_amount` — and the case lifecycle:
+  no duplicate active case per transaction; a resolved case can be sent back to review by a re-evaluation request; a
+  closed case is never reopened, a new case is opened with `related_case_id`.
 - Assumption: the DuckDB in-memory load fits the EC2 (t3.medium, 4 GB) — measured in T5.
 
 ## 9. Out of scope
