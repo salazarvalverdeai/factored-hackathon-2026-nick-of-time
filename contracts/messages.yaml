@@ -1,0 +1,212 @@
+# Customer-facing message templates (spec 04 §4.2 and §4.5, spec 03 get_case / send_case_summary, spec 01 §6.7).
+# Changes only through a PR approved by the lead (CLAUDE.md rule 9).
+#
+# Conventions
+# - Every leaf is a mapping with `es` (LATAM neutral Spanish) and `pt` (Brazilian Portuguese). Chip leaves also
+#   carry `kind` (text | action | link), which the server sets, never the model (spec 04 AC-29, AC-32).
+# - Placeholders use ONE syntax: {name}. The es and pt texts of a leaf use exactly the same set of names.
+# - Placeholders are filled only with facts returned by tools (ADR 0016, grounding). Allowed names:
+#   first_name (get_customer_profile) · case_id · deadline_date · deadline_source (get_case / policy clock) ·
+#   amount · currency · merchant · last4 · verification_id · verified_at · read_at · status_label · action_label ·
+#   step_n · contact_window · case_url · receipt_id · channel (masked, from the confirmed channels)
+# - Never a placeholder or text for the fraud score, policy ids, rule ids, zones or the transcript
+#   (notifications.never_send in policies.yaml).
+# - Never promise an outcome or a provisional credit: a person reviews and decides (CLAUDE.md rule 6).
+# - Dates are absolute (YYYY-MM-DD) and come from tools; the template never computes them.
+version: "0.1.0"
+
+greet:
+  # AC-15: first name from get_customer_profile, at most 3 capabilities, a person reviews what needs it.
+  hello:
+    es: "Hola, {first_name}. Soy el asistente de disputas de tu banco. Puedo:"
+    pt: "Olá, {first_name}. Sou o assistente de contestações do seu banco. Posso:"
+  capability_1:
+    es: "- Ayudarte a reportar un cargo que no reconoces o que fue incorrecto."
+    pt: "- Ajudar você a informar uma cobrança que não reconhece ou que foi indevida."
+  capability_2:
+    es: "- Bloquear tu tarjeta cuando corresponde y confirmar que quedó bloqueada."
+    pt: "- Bloquear seu cartão quando for o caso e confirmar que ele foi bloqueado."
+  capability_3:
+    es: "- Mostrarte el estado de tus tarjetas y de tus casos."
+    pt: "- Mostrar a situação dos seus cartões e dos seus casos."
+  human_review:
+    es: "Una persona revisa los casos que lo necesitan."
+    pt: "Uma pessoa revisa os casos que precisam disso."
+
+plan:
+  # AC-16: numbered steps shown before acting. High zone executes; medium zone waits for confirmation.
+  intro:
+    es: "Esto es lo que voy a hacer:"
+    pt: "Isto é o que vou fazer:"
+  step_open_case:
+    es: "{step_n}. Abrir un caso con la información de este cargo ({merchant}, {amount} {currency})."
+    pt: "{step_n}. Abrir um caso com as informações desta cobrança ({merchant}, {amount} {currency})."
+  step_block_card:
+    es: "{step_n}. Bloquear tu tarjeta terminada en {last4}."
+    pt: "{step_n}. Bloquear seu cartão com final {last4}."
+  step_verify:
+    es: "{step_n}. Verificar que el bloqueo y el caso quedaron registrados."
+    pt: "{step_n}. Verificar se o bloqueio e o caso foram registrados."
+  step_deadline:
+    es: "{step_n}. Mostrarte la fecha límite legal y su fuente."
+    pt: "{step_n}. Mostrar a você o prazo legal e a sua fonte."
+  step_person:
+    es: "{step_n}. Pasar el caso a una persona, que lo revisa y decide."
+    pt: "{step_n}. Encaminhar o caso a uma pessoa, que o revisa e decide."
+  confirm_ask:
+    es: "¿Quieres que continúe con estos pasos?"
+    pt: "Quer que eu continue com estes passos?"
+
+connect:
+  # AC-28 and node `connect`: register a call request; never refuse, never promise an outcome.
+  requested:
+    es: "Listo, registré tu solicitud para que una persona te llame. Contacto previsto: {contact_window}."
+    pt: "Pronto, registrei seu pedido para que uma pessoa ligue para você. Contato previsto: {contact_window}."
+  requested_case:
+    es: "Registré tu solicitud en el caso {case_id}. Contacto previsto: {contact_window}."
+    pt: "Registrei seu pedido no caso {case_id}. Contato previsto: {contact_window}."
+  # No verified session: general path with no customer data. [assumption] the bank's contact details are
+  # not in the repo, so the wording points to the number printed on the card.
+  general_contact:
+    es: "No pude verificar tu sesión. Para hablar con una persona, usa el teléfono de atención que figura al reverso de tu tarjeta."
+    pt: "Não consegui verificar sua sessão. Para falar com uma pessoa, use o telefone de atendimento que consta no verso do seu cartão."
+
+status:
+  # Customer status labels; must match spec 03 get_case (Recibido, En revisión, Resuelto, Cerrado).
+  label:
+    received:
+      es: "Recibido"
+      pt: "Recebido"
+    in_review:
+      es: "En revisión"
+      pt: "Em análise"
+    resolved:
+      es: "Resuelto"
+      pt: "Resolvido"
+    closed:
+      es: "Cerrado"
+      pt: "Encerrado"
+  # AC-19: re-read in the same turn and state the time of the reading; never state a status if the read failed.
+  card_read:
+    es: "Tu tarjeta terminada en {last4} figura como {status_label} (leído el {read_at})."
+    pt: "Seu cartão com final {last4} consta como {status_label} (lido em {read_at})."
+  case_read:
+    es: "Tu caso {case_id} está {status_label} (leído el {read_at}). Fecha límite: {deadline_date} ({deadline_source})."
+    pt: "Seu caso {case_id} está {status_label} (lido em {read_at}). Prazo: {deadline_date} ({deadline_source})."
+  read_failed:
+    es: "No pude verificarlo ahora, así que prefiero no darte un estado que no confirmé. Intenta de nuevo en un momento."
+    pt: "Não consegui verificar agora, então prefiro não informar uma situação que não confirmei. Tente novamente em instantes."
+  # Four action states of AC-18; `verified` only after the post-condition read.
+  action_in_progress:
+    es: "{action_label}: en curso."
+    pt: "{action_label}: em andamento."
+  action_requested:
+    es: "{action_label}: solicitado."
+    pt: "{action_label}: solicitado."
+  action_verified:
+    es: "{action_label}: verificado ({verified_at})."
+    pt: "{action_label}: verificado ({verified_at})."
+  action_not_confirmed:
+    es: "{action_label}: NO confirmado. Una persona lo revisará."
+    pt: "{action_label}: NÃO confirmado. Uma pessoa vai revisar."
+
+suggest:
+  # Chips of spec 04 §4.5. Labels are the exact text sent for text chips (AC-32).
+  report_unrecognized:
+    kind: text
+    es: "No reconozco un cargo"
+    pt: "Não reconheço uma cobrança"
+  report_duplicate:
+    kind: text
+    es: "Me cobraron dos veces"
+    pt: "Fui cobrado duas vezes"
+  check_case:
+    kind: text
+    es: "¿Cómo va mi caso?"
+    pt: "Como está meu caso?"
+  none_of_these:
+    kind: action
+    es: "Ninguno de estos"
+    pt: "Nenhuma destas"
+  show_recent:
+    kind: text
+    es: "Muéstrame mis últimos cargos"
+    pt: "Mostre minhas últimas cobranças"
+  dont_remember_amount:
+    kind: text
+    es: "No recuerdo el monto"
+    pt: "Não lembro o valor"
+  talk_to_person:
+    kind: action
+    es: "Hablar con una persona"
+    pt: "Falar com uma pessoa"
+  confirm_yes:
+    kind: action
+    es: "Sí, continúa"
+    pt: "Sim, continue"
+  confirm_no:
+    kind: action
+    es: "No es ese cargo"
+    pt: "Não é essa cobrança"
+  view_case:
+    kind: link
+    es: "Ver mi caso"
+    pt: "Ver meu caso"
+  send_receipt:
+    kind: action
+    es: "Enviarme el comprobante"
+    pt: "Enviar o comprovante para mim"
+  request_call:
+    kind: action
+    es: "Que me llame una persona"
+    pt: "Que uma pessoa me ligue"
+  add_info:
+    kind: text
+    es: "Agregar información"
+    pt: "Adicionar informações"
+  request_reevaluation:
+    kind: action
+    es: "Pedir reevaluación"
+    pt: "Pedir reavaliação"
+  report_another:
+    kind: text
+    es: "Reportar otro cargo"
+    pt: "Informar outra cobrança"
+  reauthenticate:
+    kind: link
+    es: "Verificar de nuevo"
+    pt: "Verificar novamente"
+
+receipt:
+  # AC-21 / spec 01 §6.7: card last 4, verification id and time, case id, absolute deadline with legal source,
+  # what the AI did and what a person does next. Rendered only from verified facts.
+  title:
+    es: "Comprobante de tu caso {case_id}"
+    pt: "Comprovante do seu caso {case_id}"
+  receipt_id:
+    es: "Comprobante: {receipt_id}"
+    pt: "Comprovante: {receipt_id}"
+  transaction:
+    es: "Cargo reportado: {merchant}, {amount} {currency}."
+    pt: "Cobrança informada: {merchant}, {amount} {currency}."
+  card_blocked:
+    es: "Tarjeta terminada en {last4}: bloqueada y verificada (verificación {verification_id}, {verified_at})."
+    pt: "Cartão com final {last4}: bloqueado e verificado (verificação {verification_id}, {verified_at})."
+  deadline:
+    es: "Fecha límite legal: {deadline_date}. Fuente: {deadline_source}."
+    pt: "Prazo legal: {deadline_date}. Fonte: {deadline_source}."
+  what_ai_did:
+    es: "Lo que hizo el asistente: abrió tu caso, bloqueó la tarjeta y verificó ambos pasos."
+    pt: "O que o assistente fez: abriu seu caso, bloqueou o cartão e verificou as duas etapas."
+  what_ai_did_unblocked:
+    es: "Lo que hizo el asistente: abrió tu caso y lo pasó a una persona."
+    pt: "O que o assistente fez: abriu seu caso e o encaminhou a uma pessoa."
+  what_a_person_does:
+    es: "Lo que sigue: una persona revisa tu caso y toma la decisión. Te avisaremos cada vez que cambie su estado."
+    pt: "O que vem a seguir: uma pessoa revisa seu caso e toma a decisão. Avisaremos você a cada mudança de situação."
+  case_link:
+    es: "Sigue tu caso aquí: {case_url}"
+    pt: "Acompanhe seu caso aqui: {case_url}"
+  sent_to:
+    es: "Te envié el comprobante a {channel}."
+    pt: "Enviei o comprovante para {channel}."

@@ -221,6 +221,8 @@ messages.
 - [ ] T6 — `status` and `connect` nodes and the returning-customer path · AC-06, AC-19, AC-24, AC-28
 - [ ] T7 — progress stream; S1/S2 wiring (Bedrock, structured output); usage; graceful degradation to S0 · AC-14, AC-17
 - [ ] T8 — Platform deployment; `/agent` content · AC-07, AC-08
+- [x] T-MSG — `contracts/messages.yaml`: ES/PT templates for greet, plan, connect, suggestion chips, status labels and
+      receipt (placeholders `{name}`, tool facts only) · AC-10, AC-15, AC-16, AC-19, AC-21, AC-29, AC-31
 - [ ] Tests `tests/test_spec04_*.py` with the `fake` LLM and the fake MCP; EV-0001 end to end in historical mode
 
 **Closing checklist:** every AC has a passing test or check · status → Implemented · ADR if a question changes a
