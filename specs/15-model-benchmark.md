@@ -8,7 +8,7 @@
 - **Owner:** @salazarvalverdeai (B2 runs on @vldiego's harness) · **Priority:** P0 · **Size:** M
 - **Challenge dimension:** Machine Learning, Technical Judgment (explicit trade-offs of accuracy, latency and cost)
 - **Depends on:** 09 (data), 11 (arms B0–B3), 10 (harness for B2), 04 (graph arms) · **Enables:** the model-selection
-  ADR, `/evaluation`, the results slide · **ADRs:** 0009, 0015, 0019, 0020 (proposed)
+  ADR, `/evaluation`, the results slide · **ADRs:** 0009, 0015, 0019, 0020
 - **Issue:** #17
 
 ---
@@ -198,6 +198,6 @@ External sources checked on 2026-10-04.
     gateway price: https://opper.ai/typesafe/jev-1-13-0
 - **Bedrock quotas:** `aws service-quotas list-service-quotas --service-code bedrock --region us-east-2` (2026-10-04).
 - **Internal:** ADR 0009 (synthetic data only), ADR 0015 (pre-registered selection), ADR 0019 (official sources), ADR
-  0020 (proposed, two modes), spec 11 §4 and Q1 (thresholds, McNemar), spec 10 (harness, held-out),
+  0020 (two modes), spec 11 §4 and Q1 (thresholds, McNemar), spec 10 (harness, held-out),
   `contracts/policies.yaml` G-OPS-01, `scripts/checks/check_jev.py`.
 - Budget and run-time limits marked `[assumption]` have no external source.
