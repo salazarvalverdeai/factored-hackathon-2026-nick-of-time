@@ -61,6 +61,11 @@ clarify:
   max_candidate_transactions: 3          # more candidates → ask for amount/date; if it persists → human
   max_clarification_turns: 2
 
+contact:                                 # callback promise for request_call (D-008); the tool computes the time, never the LLM
+  # [assumption] no external source exists for this bank-side SLA; conservative: within one business day.
+  # Counted in the customer's country business calendar and time zone; absent or null means no time is promised.
+  callback_within_business_hours: 8
+
 handoff:
   triggers: [zone_human, amount_over_case_gate, identity_unverified, clarification_exhausted, tool_failure, language_low_confidence]
   payload_schema: contracts/handoff.schema.json

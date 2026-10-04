@@ -15,7 +15,7 @@ ALLOWED = {
     "first_name", "case_id", "ruling_deadline", "credit_deadline", "deadline_source",
     "source_url", "verified_on", "amount", "currency", "merchant", "display_amount", "display_currency",
     "rate", "rate_source", "as_of", "last4", "verification_id", "verified_at", "read_at", "status_label",
-    "card_label", "action_label", "step_n", "case_url", "receipt_id", "channel",
+    "card_label", "action_label", "step_n", "case_url", "receipt_id", "channel", "expected_contact_by",
 }
 FORBIDDEN = re.compile(
     r"score|puntaje|puntuaci|pontua|policy|policies|pol[ií]tica|rule id|fraud_score|zone|zona|"
@@ -179,11 +179,12 @@ def test_ac_29_ac_31_ac_32_chip_labels_and_kinds_equal_spec_table():
     assert {k: (v["kind"], v["es"], v["pt"]) for k, v in suggest.items()} == SPEC_CHIPS
 
 
-def test_ac_28_connect_keys_exist_and_promise_no_time():
+def test_ac_28_d008_connect_keys_exist_and_null_variant_promises_no_time():
     connect = load()["connect"]
-    assert {"requested", "requested_case", "general_contact"} <= set(connect)
+    assert {"requested", "requested_no_window", "requested_case", "general_contact"} <= set(connect)
     for lang in ("es", "pt"):
-        assert "contact_window" not in connect["requested"][lang]
+        assert "{expected_contact_by}" in connect["requested"][lang]
+        assert not PLACEHOLDER.search(connect["requested_no_window"][lang])
 
 
 def test_ac_21_ac_25_receipt_has_required_facts():

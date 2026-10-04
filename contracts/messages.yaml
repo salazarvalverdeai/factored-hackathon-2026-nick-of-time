@@ -10,7 +10,7 @@
 #   get_case) · source_url · verified_on (spec 01 §6.7 deadline object) · amount · currency · merchant ·
 #   display_amount · display_currency · rate · rate_source · as_of (convert_amount) · last4 · verification_id ·
 #   verified_at · read_at · status_label · card_label · action_label (localized lookups of status.* below) ·
-#   step_n · case_url · receipt_id · channel (masked, from the confirmed channels)
+#   step_n · case_url · receipt_id · channel (masked, from the confirmed channels) · expected_contact_by (request_call, ISO datetime computed by the tool)
 # - Optional facts: a template that needs a fact the tool did not return is not rendered (null merchant uses the
 #   *_no_merchant variants; a null deadline uses the deadline_unknown lines).
 # - Tasks T2-T7 of spec 04 extend this file (clarify, refuse, progress labels AC-17, duplicate case AC-23,
@@ -70,9 +70,13 @@ plan:
 connect:
   # AC-28 and node `connect`: register a call request; never refuse, never promise an outcome.
   requested:
-    # [assumption] request_call returns only event_id, so no contact window is promised (lead decision D-008).
-    es: "Listo, registré tu solicitud para que una persona te llame."
-    pt: "Pronto, registrei seu pedido para que uma pessoa ligue para você."
+    # D-008: used when request_call returns expected_contact_by; the time comes from the tool, never computed here.
+    es: "Listo, registré tu solicitud. Te llamaremos antes del {expected_contact_by}."
+    pt: "Pronto, registrei seu pedido. Vamos ligar para você até {expected_contact_by}."
+  requested_no_window:
+    # D-008: expected_contact_by is null (the policy has no window); no time is promised.
+    es: "Listo, registré tu solicitud. Una persona te contactará pronto."
+    pt: "Pronto, registrei seu pedido. Uma pessoa entrará em contato em breve."
   requested_case:
     es: "Registré tu solicitud en el caso {case_id}."
     pt: "Registrei seu pedido no caso {case_id}."
