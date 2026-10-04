@@ -1,12 +1,13 @@
 # Spec 04 — Agent graph on LangGraph Platform
 
 - **Feature:** the `dispute_intake` graph that takes a customer's message (ES/PT) to a verified outcome — block, case,
-  deadline — and returns a receipt for the customer and a handoff card for the analyst, with a trace of every step.
-- **Status:** Draft
+  deadline — tells the customer what it is doing while it does it, returns a verified receipt and a handoff card, and
+  answers status questions by reading the system again.
+- **Status:** Draft (updated 2026-10-04 with improvements #11, #12, #13, #15, #16)
 - **Owner:** @salazarvalverdeai · **Priority:** P0 · **Size:** L
 - **Challenge dimension:** AI Engineering, Technical Judgment
-- **Depends on:** 01 (graph I/O, arms), 02 (engine), 03 (tools), 11 (classifier; rules arm until it lands), Bedrock
-- **Enables:** 07, 10, 15 · **ADRs:** 0005, 0008, 0009, 0013, 0016
+- **Depends on:** 01 (graph I/O, arms, modes), 02 (engine, clock), 03 (tools v1.1), 11 (classifier; rules arm until it
+  lands), Bedrock · **Enables:** 07, 10, 15 · **ADRs:** 0005, 0008, 0009, 0013, 0016, 0019, 0020 (proposed)
 - **Issue:** #6
 
 > Full profile: this is the core of the product and the place where AI and rules meet.
@@ -16,124 +17,174 @@
 ## 1. Introduction
 The graph follows the challenge's cycle — understand, decide, act, verify, escalate — with one rule: **the LLM
 understands, the rules decide, the tools act, verification confirms, a person closes.** The LLM is used for language
-(intent and slots when the classifier is unsure, and clarifying questions); every decision comes from the policy engine
-(spec 02); every action goes through the MCP tools (spec 03); every fact shown to the customer or the analyst comes
-from a tool result (ADR 0016).
+(intent and slots when the classifier is unsure, and the wording of replies); every decision comes from the policy
+engine (spec 02); every action goes through the MCP tools (spec 03); every fact shown comes from a tool result
+(ADR 0016). Conversation design follows the
+Guidelines for Human-AI Interaction (make clear what the system can do, explain why, support correction, keep a human
+reachable) and avoids the chatbot risks named by the CFPB (inaccurate information, not recognizing that a customer
+invokes a right, blocking access to a person). Sources in §11.
 
 ## 2. User stories
-- As a **customer**, I want to report a charge I don't recognize in my language and get proof of what was done and by
-  when, so I don't need to call again.
-- As an **analyst**, I want escalated cases to arrive with verified facts, evidence ids and a proposal, so I decide in
-  one read.
-- As the **bank**, I want the agent to say "no" when it must (injection, other customers, expired session) and to never
-  report an action it did not verify.
+- As a **customer**, I want to report a charge in my language, see what the assistant is doing, and get proof of what
+  was done and by when, so I do not need to call.
+- As a **returning customer**, I want to ask "is my card blocked?" or "how is my case?" and get the current answer.
+- As an **analyst**, I want escalated cases with verified facts, evidence ids and a proposal.
+- As the **bank**, I want the agent to say "no" when it must and never report an action it did not verify.
 
 ## 3. Acceptance criteria (EARS)
-AC-01 to AC-08 come from issue #6 with the same numbers; AC-09 onward are added by this spec.
+AC-01 to AC-08 come from issue #6 with the same numbers; the rest are added by this spec.
 
-- **AC-01** — When EV-0001 runs (MX, debit, high score), the final state shall be: card Blocked and verified, case open,
-  MX deadline visible, receipt with a date. · [T]
+**Core outcome**
+- **AC-01** — When EV-0001 runs (MX, debit, high score, historical mode), the final state shall be: card Blocked and
+  verified, case open, MX deadline visible, receipt with a date. · [T]
 - **AC-02** — When intent confidence is below τ, or there is more than one candidate transaction, the agent shall ask
   with options and not act. · [T]
 - **AC-03** — If the message carries an injection or asks for another customer's data, then the agent shall answer DENY
   with the guardrail id and report it for `policy_denials`. · [T]
 - **AC-04** — If `block_card` does not answer after the retries, then the agent shall escalate with "action NOT
   confirmed" and never say "blocked". · [T]
-- **AC-05** — The receipt, the handoff card and the reply shall contain only facts returned by tools; any number, date,
-  id or status that is not in a tool result shall be dropped and logged (G-OUT-01). · [T]
-- **AC-06** — When the customer returns with their `case_id`, the agent shall answer with the case's current status and
-  deadline and return the new information for `customer_info_added`. · [T]
+- **AC-05** — The receipt, the handoff card and every reply shall contain only facts returned by tools; any number, date,
+  id or status not in a tool result shall be dropped and logged (G-OUT-01). · [T]
+- **AC-06** — When a returning customer asks about a case, the agent shall answer with `get_case` (status label, stored
+  deadline, timeline) and record new information with `add_case_info`. · [T]
 - **AC-07** — The graph shall be deployed on Platform and answer a run coming from the public `/api`. · [C]
 - **AC-08** — (P1) `/agent` shall show the exported graph diagram, a readable `policies.yaml`, the guardrails with their
   ids and the models with their versions. · [U]
+
+**Language and arms**
 - **AC-09** — When the arm is `S0`, the graph shall complete every case without any LLM call. · [T]
 - **AC-10** — The reply shall be in the customer's language (ES or PT) for every decision. · [T]
-- **AC-11** — When the zone is medium, the agent shall ask the customer to confirm the transaction and, once confirmed,
-  open the case and hand it off with the proposal `approve_block` (spec 02 §4.2). · [T]
+
+**Zones and handoff**
+- **AC-11** — When the zone is medium, the agent shall show its plan and ask for confirmation; once confirmed, it shall
+  open the case and hand it off with the proposal `approve_block`. · [T]
 - **AC-12** — When the zone is human, the agent shall open the case and emit a handoff card that validates against
   `handoff.schema.json`, with `copilot_proposal.requires_human = true`. · [T]
 - **AC-13** — After 2 clarification turns without a single transaction, the agent shall hand off with reason
   `clarification_exhausted`. · [T]
-- **AC-14** — Every run shall return its LLM usage (model, tokens, latency, cost) and its denials, so the api can write
-  `llm_calls` and `policy_denials`. · [T]
+- **AC-14** — Every run shall return its LLM usage and its denials, so the api can write `llm_calls` and `policy_denials`. · [T]
+
+**Conversation design (improvements #12 and #15)**
+- **AC-15** — The first reply of a session shall greet the customer by first name from `get_customer_profile` (never from
+  the text), say what the assistant can do in at most 3 bullets, and say that a person reviews cases that need it. · [T]
+- **AC-16** — Before acting, the agent shall state its plan as numbered steps; in the high zone it then executes, in the
+  medium zone it waits for confirmation. · [T]
+- **AC-17** — While a run is in progress, the stream shall emit one customer-facing progress label per step (ES/PT, no
+  internal terms). · [T]
+- **AC-18** — Every action shown to the customer shall carry one of four states — in progress, requested, verified (with
+  time), not confirmed — and "verified" only after the post-condition read. · [T]
+- **AC-19** — When the customer asks for the status of a card or case, the agent shall read it again in that turn
+  (`get_product_status`, `list_my_cards`, `get_case`, `list_my_cases`) and state the time of the reading; if the read
+  fails, it shall say it could not verify and never state a status. · [T]
+- **AC-20** — Every final reply shall offer a way to a person ("request a call") and, when a case exists, a link to
+  `/case/{id}`. · [T]
+- **AC-21** — The receipt shall show the card's last 4 digits, the verification id and time, the case id, the absolute
+  deadline date with its legal source, what the AI did and what a person does next. · [T]
+- **AC-22** — The agent shall never say a case is "assigned to an analyst" unless `get_case` shows `taken_by_person`. · [T]
+
+**Cases, money and modes (improvements #13 and #16)**
+- **AC-23** — If the customer disputes a transaction that already has an active case, the agent shall not open another
+  one and shall say so with the existing case id and deadline. · [T]
+- **AC-24** — When the customer asks for re-evaluation, the agent shall use `request_reevaluation` and explain that a
+  person decides. · [T]
+- **AC-25** — Every amount shall be shown as the exact original amount, plus the customer's display currency as an
+  approximation from `convert_amount`, with its rate source. · [T]
+- **AC-26** — When the customer asks for the receipt by e-mail or Telegram, the agent shall use `send_case_summary`
+  (template only, confirmed channels) and confirm delivery only from `list_my_notifications`. · [T]
+- **AC-27** — The graph shall use the session's mode (historical or live) for "today" and for which transactions exist;
+  it shall never read the system clock directly. · [T]
 
 ## 4. Functional requirements
 
 ### 4.1 State (typed)
-`messages`, `language`, `session_id`, `session_state`, `arm`, `case_id_in` (returning customer), `intent`,
-`intent_confidence`, `slots` {amount, currency, date, merchant}, `injection_flagged`, `candidates` [Transaction],
-`selected_transaction`, `score`, `decision` (spec 02 `Decision`), `clarification_turns`, `customer_confirmed`,
-`actions` [{tool, action_id, accepted, verified, verification_id}], `case`, `receipt`, `handoff`, `reply`,
-`guardrails_triggered`, `denials`, `usage`, `trace`.
+`messages`, `language`, `session_id`, `session_state`, `mode` (`replay`|`live`), `arm`, `profile` {first_name,
+display_currency, channels}, `case_id_in`, `intent`, `intent_confidence`, `slots` {amount, currency, date, merchant},
+`injection_flagged`, `candidates`, `selected_transaction`, `score`, `decision` (spec 02), `plan` [steps],
+`clarification_turns`, `customer_confirmed`, `actions` [{tool, action_id, state, verification_id, read_at}], `case`,
+`receipt`, `handoff`, `reply`, `progress` [labels], `guardrails_triggered`, `denials`, `usage`, `trace`.
 
 ### 4.2 Nodes and edges
 ```
-understand ─► identity ─► retrieve ─► decide ─┬─► act ─► verify ─► respond
-                                               ├─► clarify ─────────► respond   (decision ask / confirm)
-                                               └─► refuse ──────────► respond   (deny / reauthenticate)
-returning customer (case_id_in): understand ─► case_status ─► respond
+greet ─► understand ─► identity ─► route ─┬─► retrieve ─► decide ─┬─► plan ─► act ─► verify ─► respond
+                                          │                       ├─► clarify ─────────────► respond   (ask / confirm)
+                                          │                       └─► refuse ──────────────► respond   (deny / reauthenticate)
+                                          └─► status ──────────────────────────────────────► respond   (inquiry: cards, cases, notifications)
 ```
-| Node | Does | Uses |
+| Node | Does | Tools / rules |
 |---|---|---|
-| `understand` | Language detection; injection detector; intent + slots with the arm's classifier; relative dates resolved against `DEMO_TODAY` | spec 11 · LLM only in S1/S2 when confidence < τ |
-| `identity` | Reads `session_state` from the run config (injected by the api); never trusts ids in the text | — |
-| `retrieve` | `search_transaction` with the slots; `get_fraud_score` for the selected transaction | MCP |
-| `decide` | `engine.decide(...)` with everything above; records rule ids in the trace | spec 02 |
-| `act` | `open_case` (always when a case is due), then `block_card` when the decision and mode allow it; idempotency key `session:transaction:action:run` | MCP |
-| `verify` | `get_product_status == Blocked` and `get_case_status == Open`; 2 retries, 800 ms timeout; failure → `escalate_unconfirmed_action` | MCP |
-| `clarify` | Question with options (≤ 3 candidates) or a request for amount/date; counts turns | templates; LLM wording in S1/S2 |
-| `refuse` | DENY or re-authenticate message with no data | templates |
-| `respond` | Builds `receipt` and `handoff` with `nick_of_time.receipt` from verified facts; reply from ES/PT templates (S1/S2 may reword with the LLM, then the grounding check runs) | spec 01 §6.7 |
-| `case_status` | Returning customer: `get_case_status` + `compute_deadline`; returns the new information for the api to record | MCP |
+| `greet` | First turn only: name, capabilities, human reachable | `get_customer_profile` · `messages.yaml greet.*` |
+| `understand` | Language; injection detector; intent + slots with the arm's classifier; relative dates against the mode's "today" | spec 11 · LLM only in S1/S2 below τ |
+| `identity` | Reads `session_state` and `mode` from the run config (injected by the api); never trusts ids in the text | — |
+| `route` | Dispute → retrieve; status question → status; anything else → refuse | intent |
+| `retrieve` | Finds the transaction; gets the score; converts amounts for display | `search_transaction` · `get_fraud_score` · `convert_amount` |
+| `decide` | The decision with rule ids | spec 02 `engine.decide()` |
+| `plan` | Numbered steps shown to the customer | `messages.yaml plan.*` |
+| `act` | `open_case` (dedupe, related case), then `block_card` when allowed; idempotency key `session:transaction:action:run` | MCP |
+| `verify` | Post-conditions; 2 retries, 800 ms timeout; failure → `not_confirmed` + escalation | `get_product_status` · `get_case` |
+| `status` | Re-reads cards, cases or notifications and answers with the reading time | `list_my_cards` · `get_case` · `list_my_cases` · `list_my_notifications` |
+| `clarify` | Options (≤ 3 candidates) or a request for amount/date; counts turns | templates; LLM wording in S1/S2 |
+| `refuse` | DENY or re-authenticate with no data and a way forward | templates |
+| `respond` | Receipt and handoff from verified facts; reply from templates (S1/S2 may reword, then the grounding check runs); CTAs | `nick_of_time.receipt` · `send_case_summary` · `request_call` · `request_reevaluation` · `add_case_info` |
 
 ### 4.3 Grounding check (ADR 0016)
-Every number, date, id and status in `reply`, `receipt` and `handoff` is matched exactly against the tool results and
-the policy. Anything unmatched is removed, the template version is used instead, and `G-OUT-01` is added to the trace.
+Every number, date, id and status in `reply`, `receipt` and `handoff` is matched exactly against tool results and the
+policy. Anything unmatched is removed, the template version is used instead, and `G-OUT-01` is added to the trace.
 
-### 4.4 Arms (spec 01 §6.8)
-`S0` rules classifier + templates, no LLM · `S1` chosen classifier + Haiku 4.5 · `S2` Sonnet 4.6 · benchmark arms
-from spec 15. The arm comes from `configurable.arm`; default in production: the arm chosen by the model-selection ADR.
+### 4.4 Arms and modes (spec 01 §6.8)
+Arms: `S0` rules + templates, no LLM · `S1` chosen classifier + Haiku 4.5 · `S2` Sonnet 4.6 · benchmark arms (spec 15).
+The arm comes from `configurable.arm`; the production default is the arm chosen by the model-selection ADR (spec 15).
+Modes (ADR 0020, proposed): `replay` (dataset, "today" = `DEMO_TODAY`) for evaluation and processed sample cases;
+`live` (real today, recent synthetic transactions for demo customers) for the public demo.
 
 ## 5. Non-functional requirements
-- **Latency:** p95 per turn ≤ 6 s with S1 `[assumption]`; tools stay under their 800 ms budget.
+- **Latency:** p95 per turn ≤ 6 s with S1 `[assumption]`; first progress label within 1 s.
 - **Cost:** ≤ 0.02 USD per case with S1 `[assumption]`, measured by the harness.
-- **Safety:** customer text and tool outputs are passed to the LLM as delimited data, never as instructions; the LLM
-  never sees `policies.yaml`.
+- **Graceful degradation:** if Bedrock fails or the per-conversation budget is exhausted (G-OPS-01), the run continues
+  as `S0` and says so in the trace.
+- **Safety:** customer text and tool outputs reach the LLM as delimited data; the LLM never sees `policies.yaml` and
+  never writes outbound messages.
 - **Observability:** LangSmith traces in development; the run's `trace` and `usage` are the source of truth for the api.
+- **Message format:** ≤ 3 lines per message, bullets for steps, cards for the receipt and options, one question at a time.
 
 ## 6. API contract
-The graph's input, config and output are those of spec 01 §6.4. This spec needs **four additions to spec 01** (to apply
-before spec 01 is approved): `configurable.session_state` (injected by the api), and in `TurnResult` the fields
-`usage` [{provider, model, tokens_in, tokens_out, latency_ms, cost_usd}], `denials` [{policy_id, guardrail_id, detail}]
-and `customer_info` (text added by a returning customer, or null).
+Graph input, config and output follow spec 01 §6.4, with these additions (applied to spec 01 in the same review):
+`configurable.session_state`, `configurable.mode`, and in `TurnResult`: `progress` [labels], `plan` [steps],
+`usage` [{provider, model, tokens_in, tokens_out, latency_ms, cost_usd}], `denials` [{policy_id, guardrail_id, detail}],
+and `actions[].state` with the four-state vocabulary.
 
 ## 7. Data model touched
-None directly: the graph reads and writes only through the MCP tools; the api persists `usage`, `denials`,
-`customer_info` and the receipt from the run output.
+None directly: the graph reads and writes only through the MCP tools (spec 03 v1.1); the api persists `usage` and
+`denials` from the run output.
 
 ## 8. Assumptions and open questions (gate 1)
-- **Q1 — replies:** templates by default and LLM rewording only in S1/S2 behind the grounding check — or templates only,
-  everywhere? Proposal: templates + optional rewording.
-- **Q2 — the four additions to spec 01** (§6): agree?
-- **Q3 — returning customer:** the agent answers status and deadline and passes the new information to the api; the full
-  history lives in `/case/{id}` (spec 13). Enough?
-- **Q4 — reversed charges:** if the customer describes a charge that appears as `Reversed`, the agent says it was
-  already reversed and opens no case. OK?
-- Assumption: p95 ≤ 6 s and ≤ 0.02 USD per case are targets, confirmed or corrected by the benchmark (spec 15).
+- **Q1 — replies:** templates by default; LLM rewording only in S1/S2, behind the grounding check. *(proposal)*
+- **Q2 — additions to spec 01** (§6): applied with the spec 01 update. *(proposal)*
+- **Q3 — returning customer:** status and stored deadline from `get_case`; new information through `add_case_info`; the
+  full history lives in `/case/{id}`. *(proposal)*
+- **Q4 — reversed charges:** the agent says the charge was already reversed and opens no case. *(proposal)*
+- Assumptions: the p95 ≤ 6 s and ≤ 0.02 USD per case targets are confirmed or corrected by the benchmark (spec 15).
 
 ## 9. Out of scope
-Case investigation, chargebacks, provisional credit (always a person), voice, multi-agent designs.
+Case investigation, chargebacks, provisional credit (always a person), voice, multi-agent designs, free-text outbound
+messages.
 
 ## 10. Plan, tasks and verification
-- [ ] T1 — State and graph skeleton on top of the spec 01 echo graph; `langgraph dev` locally · AC-07
-- [ ] T2 — `understand` with the rules arm (B0) and the injection rules; language detection · AC-03, AC-09, AC-10
-- [ ] T3 — `retrieve`, `decide`, `clarify`, `refuse` · AC-02, AC-11, AC-12, AC-13
-- [ ] T4 — `act`, `verify` with retries and the unconfirmed-action path · AC-01, AC-04
-- [ ] T5 — `respond`: receipt and handoff builders + grounding check · AC-05, AC-12
-- [ ] T6 — returning customer path · AC-06
-- [ ] T7 — S1/S2 LLM wiring (Bedrock, structured output) and usage reporting · AC-09, AC-14
-- [ ] T8 — Platform deployment (`langgraph.json`, secrets) · AC-07; `/agent` content · AC-08
-- [ ] Tests `tests/test_spec04_*.py` with the `fake` LLM and the fake MCP; EV-0001 end to end
+- [ ] T1 — State and graph skeleton on the spec 01 echo graph; `langgraph dev` locally · AC-07, AC-27
+- [ ] T2 — `greet`, `understand` (rules arm + injection rules), `route` · AC-03, AC-09, AC-10, AC-15
+- [ ] T3 — `retrieve`, `decide`, `plan`, `clarify`, `refuse` · AC-02, AC-11, AC-12, AC-13, AC-16, AC-23, AC-25
+- [ ] T4 — `act`, `verify` with retries, the four-state vocabulary and the unconfirmed path · AC-01, AC-04, AC-18
+- [ ] T5 — `respond`: receipt, handoff, grounding check, CTAs · AC-05, AC-20, AC-21, AC-22, AC-26
+- [ ] T6 — `status` node and returning-customer path · AC-06, AC-19, AC-24
+- [ ] T7 — progress stream; S1/S2 wiring (Bedrock, structured output); usage; graceful degradation to S0 · AC-14, AC-17
+- [ ] T8 — Platform deployment; `/agent` content · AC-07, AC-08
+- [ ] Tests `tests/test_spec04_*.py` with the `fake` LLM and the fake MCP; EV-0001 end to end in historical mode
 
 **Closing checklist:** every AC has a passing test or check · status → Implemented · ADR if a question changes a
 decision · lessons to `CLAUDE.md`.
+
+## 11. Sources
+- Microsoft Research, *Guidelines for Human-AI Interaction* (2019): https://www.microsoft.com/en-us/research/publication/guidelines-for-human-ai-interaction/
+- CFPB, *Chatbots in consumer finance* (June 2023): https://files.consumerfinance.gov/f/documents/cfpb_chatbot-issue-spotlight_2023-06.pdf
+- Message length and structured replies: https://uxdesign.cc/chatbot-building-best-practices-why-message-length-matters-e951bed1b550
+- Internal: ADR 0016 (grounding), ADR 0019 (official sources), `contracts/policies.yaml` (`clarify`, `reliability`,
+  `notifications.never_send`), spec 02 (decisions), spec 03 (tools v1.1), improvement drafts #11–#16.
