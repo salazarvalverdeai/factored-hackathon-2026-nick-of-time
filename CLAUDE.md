@@ -81,6 +81,8 @@ cd apps/web && npm ci && npm run dev     # front end on :3000
 - Conventional Commits with a `why:` body; branches `spec/NN-slug`, `feat/NN-slug`, `fix/NN-slug` (CONTRIBUTING.md).
 - Tests for spec NN live in `tests/test_specNN_*.py` and cite the acceptance criterion (`AC-03`) in name or docstring.
 - Never call the real LLM in CI: use the `fake` provider.
+- Brand: UI, avatars, favicons and customer-facing copy follow [`docs/brand/BRAND.md`](docs/brand/BRAND.md) (colors,
+  Sora type, calm and precise voice). The SVGs in `docs/brand/` are the source of truth: never redraw the mark.
 
 ## Spec-driven flow (short)
 Spec (what) → plan (how) → tasks → implement, with human review at each gate. One spec per person at a time; parallel
