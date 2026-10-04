@@ -15,7 +15,7 @@ States: **Draft → Approved → In progress → Implemented → Superseded**. S
 | 03 | MCP server with the 7 customer tools | @salazarvalverdeai | P0 | M | 01, 02 | #5 | Not started |
 | 04 | Agent graph on LangGraph Platform (guardrails, receipt, handoff, returning customer) | @salazarvalverdeai | P0 | L | 02, 03 | #6 | Not started |
 | 05 | Backend: API + Postgres + analyst login (Cognito) + customer session/OTP | @gianzk | P0 | L | 01 | #7 | Not started |
-| 06 | Deploy + CI (Compose on EC2, GHCR, OIDC, SSM) | @gianzk | P0 | M | — | #8 | Not started |
+| 06 | Deploy + CI (Compose on EC2, GHCR, OIDC, SSM) | @gianzk | P0 | M | — | #8 | Draft |
 | 07 | Customer chat `/chat` with verified receipt and trace | @gianzk | P0 | L | 16, 04, 05 | #9 | Not started |
 | 08 | Analyst login + console `/login`, `/console` | @gianzk | P0 | L | 16, 05 | #10 | Not started |
 | 09 | Demo and evaluation data (demo index, agent cases, classifier set) | @vldiego | P0 | M | gold | #11 | Not started |
