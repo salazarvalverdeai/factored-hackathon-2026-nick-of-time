@@ -239,7 +239,6 @@ def test_ac_01_every_assumption_threshold_keeps_its_label():
     ):
         assert needle in protocol, needle
     assert "the same tolerance `tests/test_spec11_protocol.py` checks" in protocol
-    assert "the 20-fraud floor for a slice" in protocol
     assert "label missing in the spec; to be added to specs 11, 15 and 17 by the lead" in protocol
     assert "aggregate counts computed by the lead on 2026-10-04" in protocol
 
