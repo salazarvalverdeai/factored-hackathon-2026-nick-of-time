@@ -13,19 +13,20 @@ from functools import cache
 from pathlib import Path
 from typing import Any, Literal, Optional
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, model_validator
 
 from contracts import tools as _tools
-from nick_of_time.ids import PATTERN
+from nick_of_time.ids import GOLD_PATTERN, PATTERN
 
 
 def _defined_names(path: Path) -> set[str]:
     """Public top-level names a module defines itself (classes, functions, assignments, type aliases)."""
+    type_alias = getattr(ast, "TypeAlias", ())     # the `type X = …` statement exists from Python 3.12 only
     names: set[str] = set()
     for node in ast.parse(path.read_text()).body:
         if isinstance(node, (ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)):
             names.add(node.name)
-        elif isinstance(node, ast.TypeAlias):
+        elif isinstance(node, type_alias):
             names.add(node.name.id)
         elif isinstance(node, ast.Assign):
             names |= {t.id for t in node.targets if isinstance(t, ast.Name)}
@@ -37,6 +38,12 @@ def _defined_names(path: Path) -> set[str]:
 # ---------- re-export of contracts/tools.py ----------
 TOOL_NAMES: tuple[str, ...] = tuple(sorted(_defined_names(Path(_tools.__file__))))
 globals().update({name: getattr(_tools, name) for name in TOOL_NAMES})
+
+# FR-01: a name defined in contracts/tools.py is re-exported, never re-declared below (classes and type aliases alike).
+# The scan reads this file's source, so it runs before anything else here can fail.
+_CLASH = set(TOOL_NAMES) & _defined_names(Path(__file__))
+if _CLASH:
+    raise ImportError(f"nick_of_time.contracts re-declares names of contracts/tools.py: {sorted(_CLASH)}")
 
 CONTRACTS_DIR = Path(_tools.__file__).resolve().parent
 
@@ -56,8 +63,12 @@ ActionState = Literal["in_progress", "requested", "verified", "not_confirmed"]  
 Decision = Literal["block_and_open_case", "confirm", "ask", "handoff", "answer_status", "connect_person", "deny",
                    "reauthenticate", "escalate_unconfirmed_action"]
 Intent = Literal["unrecognized_charge", "wrongful_charge", "status_inquiry", "human_request", "out_of_scope"]
+ProductType = Literal["debit", "credit"]                                         # policies.yaml regulatory_clock
 DECIMAL = r"^-?[0-9]+(\.[0-9]+)?$"
-SOURCE_ID = r"^(TRX|PRD|K|V)-[A-Za-z0-9]+$"     # gold transaction/product ids, or K-/V- from nick_of_time.ids
+HTTPS_URL = r"^https://\S+$"
+# a gold transaction or product id, or a K-/V- id from nick_of_time.ids
+SOURCE_ID = "^(" + "|".join(p.strip("^$") for p in (GOLD_PATTERN["transaction"], GOLD_PATTERN["product"],
+                                                     PATTERN["case"], PATTERN["verification"])) + ")$"
 
 
 class _Contract(BaseModel):
@@ -97,7 +108,7 @@ class ReceiptAction(_Contract):
     action_id: str = Field(pattern=PATTERN["action"])
     state: ActionState
     verification_id: Optional[str] = Field(None, pattern=PATTERN["verification"])
-    verified_at: Optional[dt.datetime] = None
+    verified_at: Optional[AwareDatetime] = None
 
     @model_validator(mode="after")
     def _verified_means_read(self) -> ReceiptAction:
@@ -106,12 +117,12 @@ class ReceiptAction(_Contract):
 
 
 class ReceiptDeadline(_Contract):
-    country: str
-    product: str
+    country: str = Field(pattern=r"^[A-Z]{2}$")
+    product: ProductType
     credit_deadline: Optional[dt.date] = None
     ruling_deadline: Optional[dt.date] = None
     deadline_source: str
-    source_url: str = Field(pattern=r"^https://\S+$")
+    source_url: str = Field(pattern=HTTPS_URL)
     verified_on: dt.date
 
     @model_validator(mode="after")
@@ -125,7 +136,7 @@ class CustomerReceipt(_Contract):
     receipt_id: str = Field(pattern=PATTERN["receipt"])
     case_id: str = Field(pattern=PATTERN["case"])
     language: Language
-    issued_at: dt.datetime
+    issued_at: AwareDatetime
     verified_facts: list[ReceiptFact]
     mode: Optional[Mode] = None
     product_last4: Optional[str] = Field(None, pattern=r"^[0-9]{4}$")
@@ -135,15 +146,10 @@ class CustomerReceipt(_Contract):
     what_ai_did: str
     what_a_person_does: str
     next_steps: list[str] = []                  # never null; empty by default
-    case_url: Optional[str] = None
+    case_url: Optional[str] = Field(None, pattern=HTTPS_URL)
 
 
 def sample_receipt() -> CustomerReceipt:
     """The fixture receipt kept in the schema's `examples` [simulated]; stubs and the echo graph return it (AC-04)."""
     return CustomerReceipt.model_validate(load_schema("customer_receipt.schema.json")["examples"][0])
 
-
-# FR-01: a name defined in contracts/tools.py is re-exported, never re-declared here (classes and type aliases alike).
-_CLASH = set(TOOL_NAMES) & _defined_names(Path(__file__))
-if _CLASH:
-    raise ImportError(f"nick_of_time.contracts re-declares names of contracts/tools.py: {sorted(_CLASH)}")

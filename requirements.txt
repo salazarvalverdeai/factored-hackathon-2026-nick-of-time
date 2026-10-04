@@ -7,6 +7,7 @@ pandera[polars]>=0.20
 pytest>=8
 pyyaml>=6
 jsonschema>=4
+rfc3339-validator>=0.1.4,<1   # without it jsonschema skips "format": "date-time" (spec 01 §6.7)
 # Lines below cap the next major so a breaking release never reaches CI untested (tzdata is calendar-versioned).
 # shared package, api and mcp (specs 01, 02, 03; ADRs 0008, 0010, 0017, 0020)
 pydantic>=2.7,<3

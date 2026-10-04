@@ -23,6 +23,10 @@ PATTERN: dict[str, str] = {
 }
 
 
+# Gold ids are never generated here; their shapes come from gold `transactions` and `products` [data].
+GOLD_PATTERN: dict[str, str] = {"transaction": r"^TRX-[A-Z0-9]{20}$", "product": r"^PRD-[A-Z0-9]{12}$"}
+
+
 def new_id(kind: Kind) -> str:
     """A fresh random identifier of the given kind; always matches PATTERN[kind]."""
     if kind == "case":
