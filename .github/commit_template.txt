@@ -1,0 +1,11 @@
+<type>(<scope>): <imperative summary, ≤ 72 chars>
+
+why: <one sentence: the reason for this change>
+
+- <change 1>
+- <change 2>
+
+Refs: spec NN · ADR: NNNN
+# types: feat fix docs test refactor chore ci build perf
+# scopes: api agent mcp policy store web eval ml data infra spec adr
+# enable once: git config commit.template .github/commit_template.txt

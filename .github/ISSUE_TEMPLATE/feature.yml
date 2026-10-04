@@ -1,0 +1,53 @@
+name: Feature
+description: A feature assigned by the lead. The issue tracks it; the spec in specs/ is the source of truth.
+title: "[NN] <feature name>"
+labels: ["spec"]
+body:
+  - type: input
+    id: spec
+    attributes:
+      label: Spec
+      description: Path to the spec (created by the owner in a spec/NN-slug PR).
+      placeholder: specs/NN-slug.md
+    validations:
+      required: true
+  - type: dropdown
+    id: priority
+    attributes:
+      label: Priority
+      options: ["P0 — no submission without it", "P1 — adds points", "P2 — only if time allows"]
+    validations:
+      required: true
+  - type: dropdown
+    id: size
+    attributes:
+      label: Size
+      options: ["S — under 1 h", "M — 1–2 h", "L — 2–4 h"]
+    validations:
+      required: true
+  - type: textarea
+    id: goal
+    attributes:
+      label: Goal and deliverable
+      description: One line on why it exists and what is working when it is done.
+    validations:
+      required: true
+  - type: textarea
+    id: criteria
+    attributes:
+      label: Acceptance criteria (EARS) with evidence
+      description: Copied into section 3 of the spec with the same numbers. Evidence — [T] test · [C] command · [U] screenshot/video · [D] file.
+      value: |
+        - [ ] AC-01 When …, the system shall … · [T]
+        - [ ] AC-02 If …, then the system shall … · [T]
+    validations:
+      required: true
+  - type: input
+    id: depends
+    attributes:
+      label: Depends on / enables
+      placeholder: "depends on #NN · enables #NN"
+  - type: textarea
+    id: out
+    attributes:
+      label: Out of scope

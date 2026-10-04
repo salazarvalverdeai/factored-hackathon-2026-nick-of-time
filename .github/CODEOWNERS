@@ -1,0 +1,36 @@
+# Code owners: GitHub requests their review automatically and `main` requires one code-owner approval.
+# Areas list the owner plus a second reviewer so nobody is blocked on their own folder. The last matching rule wins.
+# Spec 01 (integration contract) needs all three approvals by team agreement (see CONTRIBUTING.md).
+
+# Default: any teammate
+*                               @salazarvalverdeai @gianzk @vldiego
+
+# Front end and backend platform
+/apps/web/                      @gianzk @salazarvalverdeai
+/apps/api/                      @gianzk @salazarvalverdeai
+/infra/                         @gianzk @salazarvalverdeai
+/.github/workflows/             @gianzk @salazarvalverdeai
+
+# Agent, tools and policies
+/apps/agent/                    @salazarvalverdeai @gianzk
+/apps/mcp/                      @salazarvalverdeai @gianzk
+/packages/policy/               @salazarvalverdeai @gianzk
+/langgraph.json                 @salazarvalverdeai
+
+# Data, evaluation and analytics
+/data/                          @vldiego @salazarvalverdeai
+/eval/                          @vldiego @salazarvalverdeai
+/queries/                       @vldiego @salazarvalverdeai
+/apps/web/app/evaluation/       @vldiego @gianzk
+/apps/web/app/analytics/        @vldiego @gianzk
+/apps/web/app/data/             @vldiego @gianzk
+
+# Scope and decisions: the lead approves
+/contracts/                     @salazarvalverdeai
+/specs/                         @salazarvalverdeai
+/docs/adr/                      @salazarvalverdeai
+/eval/PROTOCOL.md               @salazarvalverdeai
+/CLAUDE.md                      @salazarvalverdeai
+/CONTRIBUTING.md                @salazarvalverdeai
+/.github/CODEOWNERS             @salazarvalverdeai
+/.github/pull_request_template.md @salazarvalverdeai
