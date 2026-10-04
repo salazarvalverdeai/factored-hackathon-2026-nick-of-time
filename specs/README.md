@@ -26,6 +26,7 @@ States: **Draft → Approved → In progress → Implemented → Superseded**. S
 | 14 | Operational lakehouse (bronze → silver → gold of case events; Databricks desirable) | @vldiego | P1 | M–L | 05 | #16 | Not started |
 | 15 | Model benchmark (Haiku 4.5 vs Sonnet 4.6 vs Jev vs TF-IDF + LR vs rules; cost vs quality) | @salazarvalverdeai | P0 | M | 09, 11 | #17 | Not started |
 | 16 | Web foundation + front-end standard (page shells, shared components, mock API client) | @gianzk | P0 | M | 01 | #18 | Not started |
+| 18 | Outcome auditor + the judge's second opinion for the analyst | @salazarvalverdeai · @gianzk · @vldiego | P0 | M | 01, 02, 04, 10 | — | Draft |
 
 Deliverables without a spec (tracked as issues with a checklist): **E1** pitch (slides, 3-minute video, landing
 page) — #19 · **E2** submission package (README, secrets audit, `v1.0.0`, e-mail) — #20.
