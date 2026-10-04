@@ -184,7 +184,10 @@ def test_ac_28_d008_connect_keys_exist_and_null_variant_promises_no_time():
     assert {"requested", "requested_no_window", "requested_case", "general_contact"} <= set(connect)
     for lang in ("es", "pt"):
         assert "{expected_contact_by}" in connect["requested"][lang]
-        assert not PLACEHOLDER.search(connect["requested_no_window"][lang])
+        text = connect["requested_no_window"][lang]
+        assert not PLACEHOLDER.search(text)
+        body = re.sub(r"^(Listo|Pronto),", "", text)  # the approved greeting is not a time word
+        assert not re.search(r"\d|pronto|breve|hoy|hoje|mañana|amanhã|hora|minut|d[ií]a", body, re.I)
 
 
 def test_ac_21_ac_25_receipt_has_required_facts():

@@ -63,8 +63,10 @@ AC-01 to AC-06 come from issue #5 with the same numbers; AC-07 onward are added 
   customer-facing status label, the customer-visible timeline, `taken_by_person` and `related_case_id`. · [T]
 - **AC-17** — `add_case_info` shall accept text only for an active case, at most 1,000 characters, and shall reject card
   numbers, CVV and passwords with `G-IN-04`; the stored text is marked as customer data. · [T]
-- **AC-18** — `request_call` shall keep one open request per case; a second request returns the existing one; the result carries `expected_contact_by` computed from the policy key
-  (ISO datetime in the country calendar and time zone), or `null` when the policy has none (D-008). · [T]
+- **AC-18** — `request_call` shall keep one open request per case; a second request returns the existing one; the result carries `expected_contact_by` (`YYYY-MM-DD` or `null`),
+  computed from `contact.callback_within_business_days` counted from `clock.today(mode, country)` (replay: notice
+  2026-06-01 → 2026-06-02), stored in the `call_requested` event payload and never recomputed; `null` when the policy
+  has none (D-008). · [T]
 - **AC-19** — `request_reevaluation` shall: move a resolved case within the window back to `review` with
   `reevaluation_requested` and the reason; deny a resolved case outside the window with `POL-REEVAL-WINDOW`; open a new
   case with `related_case_id` for a closed case; and return an active case unchanged with `already_in_progress`. · [T]
@@ -95,7 +97,7 @@ graph's run id). Kind: R read · W write · N notification.
 | `get_case` | R | Replaces `get_case_status`. Status label for the customer (`Recibido`, `En revisión`, `Resuelto`, `Cerrado` and PT equivalents from `messages.yaml`), stored deadlines with source, transaction, visible timeline, `taken_by_person` (an `assigned` event exists), `related_case_id`, `read_at`. |
 | `list_my_cases` | R | The session customer's cases (active first) with status label, deadlines, last 4 and `updated_at`. |
 | `add_case_info` | W | AC-17; writes `case_events(customer_info_added)`. |
-| `request_call` | W | AC-18; `{preferred_time?}`; writes `case_events(call_requested)`; returns `{event_id, expected_contact_by}` (D-008). `expected_contact_by` is an ISO datetime the tool computes from `contact.callback_within_business_hours` in `policies.yaml`, in the customer's country business calendar and time zone (rules decide, never the LLM); when the policy has no value it is `null` and the tool never invents a time. `RequestCallResult.expected_contact_by` lands in `contracts/tools.py` v1.1 (task 01b). |
+| `request_call` | W | AC-18; `{preferred_time?}`; writes `case_events(call_requested)`; returns `{event_id, expected_contact_by}` (D-008): a `YYYY-MM-DD` date or `null`, computed by the tool from `contact.callback_within_business_days` with `clock.add_business_days` (spec 02), stored in the event and never recomputed; the tool never invents a date. `RequestCallResult.expected_contact_by` (`Optional[date]`) lands in `contracts/tools.py` v1.1 (task 01b). |
 | `request_reevaluation` | W | AC-19; asks `engine.reevaluation_allowed()` (spec 02); writes `case_events(reevaluation_requested)` + `status_changed(review)`, or a new case + `case_events(related_case_opened)` on the closed case. |
 | `convert_amount` | R | AC-20; never changes a deadline or a zone. |
 | `send_case_summary` | N | AC-21; renders `messages.yaml receipt.*` with the case's verified facts, writes `notifications(trigger=on_request)` + `case_events(notification_sent)`, hands delivery to the api's sender (Telegram or Resend); returns `notification_id` and `state: "requested"`. |

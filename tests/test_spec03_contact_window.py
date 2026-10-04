@@ -4,7 +4,7 @@ from pathlib import Path
 import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
-KEY = "callback_within_business_hours"
+KEY = "callback_within_business_days"
 
 
 def test_d008_policy_key_exists_and_is_positive_number():
@@ -20,5 +20,8 @@ def test_d008_spec_03_and_04_use_the_policy_key_and_field():
 
 
 def test_d008_messages_allow_the_placeholder():
-    text = (ROOT / "contracts/messages.yaml").read_text()
-    assert "expected_contact_by (request_call" in text
+    from tests.test_spec04_messages import ALLOWED
+
+    assert "expected_contact_by" in ALLOWED
+    header = (ROOT / "contracts/messages.yaml").read_text().split("version:")[0]
+    assert "expected_contact_by" in header

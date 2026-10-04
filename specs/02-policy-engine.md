@@ -189,6 +189,7 @@ decision: Decision = engine.decide(DecisionInput(
 
 engine.check(action="block_card", zone="high", amount=..., country=..., supervised_mode=False) -> Allow | Deny
 today: date = clock.today(mode="replay", country="MX")     # 2026-06-01 in replay; the real local date in live
+add_by: date = clock.add_business_days(country="MX", start=today, n=1)   # D-008 (task 02b): callback date for request_call
 deadline: Deadline = clock.deadline(country="MX", product="debit", opened_on=today, abroad=False)
 # Deadline: credit_deadline, ruling_deadline, deadline_source, calendar ("business"|"calendar"), holidays_skipped [..]
 engine.transition(current="verification", action="resolve", actor="analyst:…") -> new status | Deny
@@ -199,7 +200,7 @@ fx.convert(amount=1250.0, from_currency="USD", to_currency="MXN") -> {amount, ra
 
 ## 7. Data model touched
 - `contracts/policies.yaml`: adds `rules:` (ids and descriptions of §4.1), per-country `time_zone`,
-  `display_currency` and `fx_reference`, the `reevaluation` section, and `version: 2`. No threshold changes.
+  `display_currency` and `fx_reference`, the `reevaluation` section, `contact.callback_within_business_days` (D-008, task 02b), and `version: 2`. No threshold changes.
 - New data files: `packages/nick_of_time/policy/holidays/*_2026.yaml`.
 - No database access.
 
