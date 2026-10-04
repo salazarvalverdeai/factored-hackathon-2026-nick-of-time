@@ -147,7 +147,8 @@ def test_ac_02_static_features():
 
 
 def test_ac_02_segment_and_input_columns_are_not_leaky():
-    assert "customer_segment" not in ff.FEATURES  # snapshot at the cut (gold contract, data_quality A1) [D-010]
+    # snapshot at the cut (contracts/gold_contract.md, docs/eda/data_quality.md §A1) [D-010]
+    assert "customer_segment" not in ff.FEATURES
     assert not [c for c in ff.INPUT_COLUMNS if ff.is_forbidden(c)]
     f1 = feats([row("t1", T0, customer_segment="Plus")])
     assert f1 == feats([row("t1", T0, customer_segment="Premium")])
@@ -187,8 +188,10 @@ def test_ac_02_usd_fallback_entity_fallback_and_window_boundaries():
 def test_ac_02_distance_uses_previous_transaction_with_a_known_location():
     f = {r["transaction_id"]: r for r in feats([
         row("a", T0, lat=-34.6, lon=-58.4), row("b", T0 + timedelta(hours=1), lat=None, lon=None),
+        row("c0", T0 + timedelta(hours=2), lat=10.0, lon=10.0),  # located, same time as c, earlier in input
         row("c", T0 + timedelta(hours=2), lat=-34.6, lon=-58.4)])}
-    assert f["c"]["km_from_prev"] == 0 and f["c"]["secs_since_prev"] == 3600  # km from a, time from b
+    # km from a, time from b: a same-timestamp row (c0) is never history, even when located and listed first
+    assert f["c"]["km_from_prev"] == 0 and f["c"]["secs_since_prev"] == 3600
     assert f["b"]["km_from_prev"] is None
 
 
@@ -224,3 +227,29 @@ def test_ac_01_real_gold_split_hash_and_counts():
     assert s.height == n  # every gold transaction is inside the three windows
     assert dict(s.group_by("split_window").len().iter_rows()) == {"train": 925246, "validation": 224784, "test": 238990}
     assert fs.split_hash(s) == REAL_SPLIT_HASH
+
+
+def test_ac_05_main_reads_only_train_validation_labels_and_f01_filters_them(tmp_path, monkeypatch):
+    import re
+    import sys
+    s, _ = label_fixture(tmp_path)  # the label file also holds labels for the test-window ids
+    gold = tmp_path / "gold"
+    gold.mkdir()
+    split_fixture().with_columns(pl.lit("Tarjeta Débito").alias("product_type")).write_parquet(
+        gold / "transactions_enriched.parquet")
+    seen: list[set] = []
+    real = fs.monthly_counts
+
+    def spy(con):
+        seen.append({r[0] for r in con.execute("select transaction_id from transaction_labels").fetchall()})
+        return real(con)
+
+    monkeypatch.setattr(fs, "monthly_counts", spy)
+    monkeypatch.setattr(sys, "argv", ["fraud_split", "--gold", str(gold), "--eval", str(tmp_path),
+                                      "--out", str(tmp_path / "out")])
+    fs.main()
+    assert seen == [set(s.filter(pl.col("split_window").is_in(["train", "validation"]))["transaction_id"])]
+    # second guard: f01 joins labels only for months before the test window
+    f01 = (fs.QUERIES / "f01_monthly_counts.sql").read_text()
+    lab = re.search(r"lab AS \((.*?)\)\nSELECT", f01, re.S).group(1)
+    assert re.search(rf"WHERE t\.month < DATE '{fs.WINDOWS[fs.TEST][0]}'", lab)
