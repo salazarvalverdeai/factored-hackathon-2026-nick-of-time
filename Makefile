@@ -6,7 +6,7 @@ PYTHON ?= python3
 PY := .venv/bin/python
 SOURCE ?= s3
 
-.PHONY: setup deps pipeline fixture report test hooks check-bedrock check-telegram check-resend check-jev check-all telegram-profile env-pull gold-pull labels-pull
+.PHONY: setup deps pipeline fixture report test lint hooks check-bedrock check-telegram check-resend check-jev check-all telegram-profile env-pull gold-pull labels-pull
 
 setup: deps pipeline fixture report
 
@@ -27,6 +27,11 @@ report:
 
 test:
 	$(PY) -m pytest -q
+
+# Same pinned ruff as CI (ruff.toml); installs into the venv on first use.
+lint:
+	$(PY) -m pip install -q ruff==0.14.0
+	$(PY) -m ruff check .
 
 hooks: $(PY)
 	$(PY) -m pip install -q pre-commit
