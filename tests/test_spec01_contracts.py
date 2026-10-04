@@ -251,13 +251,16 @@ CHIPS = [{"id": "view_case", "label": "Ver mi caso", "kind": "link", "href": "/c
          {"id": "send_summary", "label": "Enviarme el comprobante", "kind": "action", "action": {"type": "send_summary"}}]
 ACTION = {"tool": "block_card", "action_id": "A-3E9F20B7C164", "state": "verified", "verification_id": "V-8B2D41C7E0A9",
           "read_at": NOW}
+PROGRESS = {"step": "block_card", "label": "Bloqueando tu tarjeta…", "state": "verified", "at": NOW}
+OPTIONS = [{"id": "TRX-FIXTURE0000000000021", "label": "BRL 380.00 · 2026-05-26"}] * POLICIES["clarify"][
+    "max_candidate_transactions"]
+USAGE = {"provider": "fake", "model": "fake", "tokens_in": 10, "tokens_out": 5, "latency_ms": 40, "cost_usd": 0.0}
 
 
 def _turn(**extra) -> dict:
     return {"reply": "Tarjeta bloqueada. Caso abierto.", "language": "es", "decision": "block_and_open_case",
             "zone": "high", "intent": "unrecognized_charge", "intent_confidence": 0.93, "case_id": "K-104233",
-            "actions": [ACTION], "suggestions": CHIPS,
-            "progress": [{"step": "block_card", "label": "Bloqueando tu tarjeta…", "state": "verified", "at": NOW}],
+            "actions": [ACTION], "suggestions": CHIPS, "progress": [PROGRESS],
             "receipt": c.sample_receipt().model_dump(mode="json"), "mode": "replay", "trace_id": "run-1", **extra}
 
 
@@ -266,19 +269,33 @@ BAD_TURNS = {
     "text chip with href": _turn(suggestions=[CHIPS[0], {"id": "x", "label": "Ver", "kind": "text", "href": "/a"}]),
     "href to another host": _turn(suggestions=[CHIPS[1], {**CHIPS[0], "href": "//evil.example"}]),
     "href with a backslash host": _turn(suggestions=[CHIPS[1], {**CHIPS[0], "href": "/\\evil.example"}]),
+    "href with a tab": _turn(suggestions=[CHIPS[1], {**CHIPS[0], "href": "/\t/evil.example"}]),
+    "href with a newline": _turn(suggestions=[CHIPS[1], {**CHIPS[0], "href": "/\n/evil.example"}]),
     "one chip": _turn(suggestions=CHIPS[:1]),
     "four chips": _turn(suggestions=CHIPS * 2),
     "unknown action state": _turn(actions=[{**ACTION, "state": "done"}]),
     "verified without verification_id": _turn(actions=[{**ACTION, "verification_id": None}]),
     "verified without read_at": _turn(actions=[{**ACTION, "read_at": None}]),
+    "verified progress without any action": _turn(actions=[]),
+    "verified progress for a requested action": _turn(actions=[{**ACTION, "state": "requested"}]),
+    "verified progress for another tool": _turn(progress=[{**PROGRESS, "step": "open_case"}]),
+    "unknown progress state": _turn(progress=[{**PROGRESS, "state": "done"}]),
+    "naive progress time": _turn(progress=[{**PROGRESS, "at": "2026-06-01T15:04:12"}]),
+    "bad case id": _turn(case_id="K-1"),
+    "intent_confidence above 1": _turn(intent_confidence=1.5),
+    "negative intent_confidence": _turn(intent_confidence=-0.1),
+    "more options than policies.yaml allows": _turn(options=OPTIONS + OPTIONS[:1]),
+    "negative usage tokens": _turn(usage=[{**USAGE, "tokens_in": -1}]),
     "handoff that is not a card": _turn(handoff={"case_id": "K-104233"}),
     "customer_id from the client": _turn(customer_id="CLI-EXAMPLE00001"),
 }
 
 
 def test_ac_01_turn_result_follows_the_graph_contract():
-    turn = c.TurnResult.model_validate(_turn(handoff=HANDOFF))
+    turn = c.TurnResult.model_validate(_turn(handoff=HANDOFF, options=OPTIONS, usage=[USAGE]))
     assert c.TurnResult.model_validate_json(turn.model_dump_json()) == turn
+    assert c.MAX_OPTIONS == POLICIES["clarify"]["max_candidate_transactions"]
+    c.TurnResult.model_validate(_turn(actions=[], progress=[{**PROGRESS, "state": "in_progress"}]))
 
 
 @pytest.mark.parametrize("data", BAD_TURNS.values(), ids=BAD_TURNS.keys())
@@ -287,21 +304,34 @@ def test_ac_01_turn_result_rejects_off_contract_output(data):
         c.TurnResult.model_validate(data)
 
 
+FINAL = {"run_id": "EV-0001:S1:3", "arm": "S1", "decision": "block_and_open_case", "case_open": True,
+         "handoff_emitted": False, "receipt_issued": True, "receipt_has_deadline": True,
+         "other_customer_data_exposed": False, "action_states": {"block_card": "verified"},
+         "totals": {"latency_ms": 2140, "tokens_in": 1830, "tokens_out": 210, "cost_usd": 0.0031},
+         "run_meta": {"git_sha": "abc123", "policies_version": 2, "provider": "fake"}}
+BAD_FINALS = {
+    "live mode": {"mode": "live"},
+    "negative total cost": {"totals": {**FINAL["totals"], "cost_usd": -0.01}},
+    "turn 0": {"turns": [{**FINAL["totals"], "turn": 0}]},
+    "negative turn latency": {"turns": [{**FINAL["totals"], "turn": 1, "latency_ms": -1}]},
+}
+
+
 def test_ac_01_final_state_is_always_replay():
-    final = {"run_id": "EV-0001:S1:3", "arm": "S1", "decision": "block_and_open_case", "case_open": True,
-             "handoff_emitted": False, "receipt_issued": True, "receipt_has_deadline": True,
-             "other_customer_data_exposed": False, "action_states": {"block_card": "verified"},
-             "totals": {"latency_ms": 2140, "tokens_in": 1830, "tokens_out": 210, "cost_usd": 0.0031},
-             "run_meta": {"git_sha": "abc123", "policies_version": 2, "provider": "fake"}}
-    assert c.FinalState.model_validate(final).mode == "replay"
+    assert c.FinalState.model_validate({**FINAL, "turns": [{**FINAL["totals"], "turn": 1}]}).mode == "replay"
+
+
+@pytest.mark.parametrize("bad", BAD_FINALS.values(), ids=BAD_FINALS.keys())
+def test_ac_01_final_state_rejects_off_contract_runs(bad):
     with pytest.raises(ValidationError):
-        c.FinalState.model_validate({**final, "mode": "live"})
+        c.FinalState.model_validate({**FINAL, **bad})
 
 
 CASE = {"case_id": "K-104233", "customer_id": "CLI-EXAMPLE00001", "country": "MX", "zone": "high",
         "queue_status": "verification", "credit_deadline": "2026-06-03", "created_at": NOW, "priority": "high",
         "tags": ["mx_debit"], "sla_due_at": NOW, "status_label": "En verificación", "mode": "replay",
-        "product_last4": "4417", "deadline_verified_on": "2026-10-04",
+        "product_last4": "4417", "deadline_source": SAMPLE["deadline"]["deadline_source"],
+        "deadline_source_url": SAMPLE["deadline"]["source_url"], "deadline_verified_on": "2026-10-04",
         "transaction": {"transaction_id": "TRX-FIXTURE0000000000001", "amount": 1250.0, "currency": "USD",
                         "date": "2026-05-31"},
         "receipt": c.sample_receipt().model_dump(mode="json"),
@@ -312,16 +342,17 @@ CASE = {"case_id": "K-104233", "customer_id": "CLI-EXAMPLE00001", "country": "MX
 
 def test_ac_01_customer_projections_never_carry_internals():
     """D-013: customer routes emit CustomerTurn and CustomerCaseView only (notifications.never_send)."""
-    denial = {"policy_id": "POL-ZONE-HIGH", "guardrail_id": "G-IN-01", "detail": "Solicitud rechazada."}
+    denial = {"policy_id": "POL-DEFAULT-DENY", "guardrail_id": "G-POL-01", "detail": "Solicitud rechazada."}
     turn = c.TurnResult.model_validate(_turn(handoff=HANDOFF, denials=[denial]))
     assert "score" in turn.model_dump_json() and "POL-" in turn.model_dump_json()   # the internal output has both
     customer_turn = json.loads(turn.for_customer().model_dump_json())
     assert not {"handoff", "usage", "trace", "zone"} & set(customer_turn)
-    assert customer_turn["denials"] == [{"guardrail_id": "G-IN-01", "detail": "Solicitud rechazada."}]
+    assert customer_turn["denials"] == [{"guardrail_id": "G-POL-01", "detail": "Solicitud rechazada."}]
     case = c.CaseView.model_validate(CASE).for_customer().model_dump(mode="json")
     assert not {"zone", "priority", "tags", "sla_due_at", "customer_id"} & set(case)
-    for payload in (customer_turn, case):
-        assert not re.search(r"score|POL-", json.dumps(payload))
+    assert case["deadline_source_url"] == SAMPLE["deadline"]["source_url"]       # a legal date keeps its source
+    for payload in (customer_turn, case):                                        # G- guardrail ids may stay (§6.4)
+        assert not re.search(r"score|(?<!G-)POL-", json.dumps(payload))
 
 
 BAD_VIEWS = [
@@ -330,7 +361,13 @@ BAD_VIEWS = [
     (c.CaseView, {**CASE, "product_last4": "44170"}),
     (c.CaseView, {**CASE, "timeline": [{**CASE["timeline"][0], "event_id": "E-1"}]}),
     (c.CaseView, {**CASE, "notifications": [{**CASE["notifications"][0], "notification_id": "N-1"}]}),
+    (c.CaseView, {**CASE, "notifications": [{**CASE["notifications"][0], "delivery_status": "read"}]}),
+    (c.CaseView, {**CASE, "priority": "urgent"}),
+    (c.CaseView, {**CASE, "created_at": "2026-06-01T15:04:12"}),
+    (c.CaseView, {k: v for k, v in CASE.items() if k != "deadline_source_url"}),
+    (c.CaseView, {**CASE, "deadline_source_url": "http://example.org"}),
     (c.CustomerCaseSummary, {"case_id": "K-104233", "status_label": "x", "updated_at": NOW, "related_case_id": "K-1"}),
+    (c.CustomerCaseSummary, {"case_id": "K-104233", "status_label": "x", "updated_at": NOW, "product_last4": "44170"}),
     (c.ProductView, {"product_id": "PRD-FIXTURE00001", "type": "debit", "last4": "44", "status": "Blocked",
                      "read_at": NOW}),
     (c.ProductView, {"product_id": "PRD-FIXTURE00001", "type": "debit", "last4": "4417", "status": "Blocked",

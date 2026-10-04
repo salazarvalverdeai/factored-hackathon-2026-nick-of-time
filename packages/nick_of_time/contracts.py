@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Any, Literal, Optional
 
 import jsonschema
+import yaml
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, model_validator
 
 from contracts import tools as _tools
@@ -159,6 +160,10 @@ def sample_receipt() -> CustomerReceipt:
 
 # ---------- graph output (§6.4) ----------
 LAST4 = r"^[0-9]{4}$"
+# A path on our own host: URL-safe characters only, so "//", "/\" and tabs or newlines (browsers strip them) fail.
+INTERNAL_HREF = r"^/([A-Za-z0-9._~%?#=&-][A-Za-z0-9._~%/?#=&-]*)?$"
+MAX_OPTIONS: int = yaml.safe_load((CONTRACTS_DIR / "policies.yaml").read_text())["clarify"][
+    "max_candidate_transactions"]
 
 
 class TurnAction(_Contract):                    # a button or chip press; skips the classifier
@@ -175,7 +180,7 @@ class ProgressItem(_Contract):
     step: str
     label: str
     state: ActionState
-    at: dt.datetime
+    at: AwareDatetime
 
 
 class ActionRecord(_Contract):
@@ -183,7 +188,7 @@ class ActionRecord(_Contract):
     action_id: str = Field(pattern=PATTERN["action"])
     state: ActionState
     verification_id: Optional[str] = Field(None, pattern=PATTERN["verification"])
-    read_at: Optional[dt.datetime] = None
+    read_at: Optional[AwareDatetime] = None
 
     @model_validator(mode="after")
     def _verified_means_read(self) -> ActionRecord:
@@ -196,7 +201,7 @@ class Suggestion(_Contract):
     label: str
     kind: Literal["text", "action", "link"]
     action: Optional[TurnAction] = None
-    href: Optional[str] = Field(None, pattern=r"^/([^/\\].*)?$")   # internal route; "//" or "/\" would reach a host
+    href: Optional[str] = Field(None, pattern=INTERNAL_HREF)
 
     @model_validator(mode="after")
     def _payload_matches_kind(self) -> Suggestion:
@@ -238,7 +243,7 @@ class _TurnCore(_Contract):                     # fields the customer may see
     decision: Optional[Decision] = None
     intent: Optional[Intent] = None
     intent_confidence: Optional[float] = Field(None, ge=0, le=1)
-    options: list[Option] = Field(default_factory=list, max_length=3)   # policies.yaml clarify.max_candidate_transactions
+    options: list[Option] = Field(default_factory=list, max_length=MAX_OPTIONS)
     case_id: Optional[str] = Field(None, pattern=PATTERN["case"])
     plan: list[str] = []
     progress: list[ProgressItem] = []
@@ -248,6 +253,14 @@ class _TurnCore(_Contract):                     # fields the customer may see
     guardrails_triggered: list[str] = []
     mode: Mode
     trace_id: str
+
+    @model_validator(mode="after")
+    def _verified_progress_was_read(self) -> _TurnCore:
+        """Constitution #4 for progress labels too: "verified" needs a verified action record of the same tool."""
+        read = {a.tool for a in self.actions if a.state == "verified"}
+        if any(p.state == "verified" and p.step not in read for p in self.progress):
+            raise ValueError("a verified progress item needs a verified actions[] record with the same tool")
+        return self
 
 
 class CustomerTurn(_TurnCore):
@@ -341,13 +354,13 @@ class _CaseCore(_Contract):
     queue_status: QueueStatus
     credit_deadline: Optional[dt.date] = None
     ruling_deadline: Optional[dt.date] = None
-    created_at: dt.datetime
+    created_at: AwareDatetime
 
 
 class CaseSummary(_CaseCore):
     customer_id: str
     zone: Zone
-    sla_due_at: Optional[dt.datetime] = None
+    sla_due_at: Optional[AwareDatetime] = None
     priority: Literal["normal", "high"] = "normal"   # [assumption] raised by policies.yaml case_queue.deadline_sla
     tags: list[str] = []
 
@@ -365,7 +378,7 @@ class TimelineItem(_Contract):
     event_id: str = Field(pattern=PATTERN["event"])
     type: str
     label: str
-    created_at: dt.datetime
+    created_at: AwareDatetime
 
 
 class CaseChannels(_Contract):
@@ -378,7 +391,7 @@ class CaseNotification(_Contract):
     channel: Literal["log", "telegram", "email"]
     masked_address: Optional[str] = None
     delivery_status: Literal["queued", "sent", "delivered", "bounced", "failed"]
-    created_at: dt.datetime
+    created_at: AwareDatetime
 
 
 class _CaseDetail(_CaseCore):
@@ -391,9 +404,17 @@ class _CaseDetail(_CaseCore):
     receipt: Optional[CustomerReceipt] = None
     timeline: list[TimelineItem] = []           # customer-visible events only
     deadline_countdown_days: Optional[int] = None
+    deadline_source: Optional[str] = None
+    deadline_source_url: Optional[str] = Field(None, pattern=HTTPS_URL)
     deadline_verified_on: Optional[dt.date] = None   # [assumption] D-014: stored with the case's deadline
     channels: CaseChannels = Field(default_factory=CaseChannels)
     notifications: list[CaseNotification] = []
+
+    @model_validator(mode="after")
+    def _a_legal_date_has_its_source(self) -> _CaseDetail:
+        if (self.credit_deadline or self.ruling_deadline) and not (self.deadline_source and self.deadline_source_url):
+            raise ValueError("a legal deadline travels with deadline_source and deadline_source_url (ADR 0019)")
+        return self
 
 
 class CustomerCaseView(_CaseDetail):
@@ -414,7 +435,7 @@ class CustomerCaseSummary(_Contract):
     ruling_deadline: Optional[dt.date] = None
     product_last4: Optional[str] = Field(None, pattern=LAST4)
     related_case_id: Optional[str] = Field(None, pattern=PATTERN["case"])
-    updated_at: dt.datetime
+    updated_at: AwareDatetime
 
 
 class ProductView(_Contract):
@@ -423,4 +444,4 @@ class ProductView(_Contract):
     last4: str = Field(pattern=LAST4)
     status: str
     verification_id: Optional[str] = Field(None, pattern=PATTERN["verification"])
-    read_at: dt.datetime
+    read_at: AwareDatetime

@@ -236,10 +236,15 @@ shape of `data` is fixed in the producing spec.
   `answer_status` and `connect_person` come from spec 02 rules 3a–3b.
 - `suggestions` holds 2 or 3 chips chosen by rules (spec 04 §4.5): `kind` is `text` (the web sends `label` as the next
   message), `action` (the web sends `action` as the next input) or `link` (`href` is an internal route set by the
-  server, never `//` or `/\`). The web shows them only under the last reply. The four action states are the only
-  vocabulary for an action, in every surface; a `verified` action carries `verification_id` and `read_at`.
+  server: a `/` path of URL-safe characters, so never `//`, `/\`, a tab or a newline). The web shows them only under
+  the last reply. The four action states are the only vocabulary for an action, in every surface; a `verified` action
+  carries `verification_id` and `read_at`, and a `progress` item says `verified` only when `actions[]` holds a
+  verified record of the same tool (`step` = `tool`). `options` holds at most `clarify.max_candidate_transactions`.
 - `CustomerTurn` = `TurnResult` without `handoff`, `zone`, `usage`, `trace` and `denials[].policy_id`
   (`TurnResult.for_customer()`); it is the only shape the browser receives (D-013 `[assumption]`, §6.2).
+  `G-…` guardrail ids may appear in the chat; `notifications.never_send.policy_ids` means `POL-…` rule ids; receipts
+  and notifications carry neither. `denials[].detail` comes only from a `messages.yaml` template, never from engine
+  output.
 
 ### 6.5 Postgres schema (owned by `apps/api/migrations`, used through `nick_of_time.store`)
 Append-only tables are marked **AO** (no `UPDATE`/`DELETE`; enforced by grants and a test).
@@ -272,7 +277,8 @@ Queue statuses (from `policies.yaml`): `new → verification | review → resolv
 - `CaseView`: `CaseSummary` + `{transaction: {transaction_id, amount, currency, date, merchant, synthetic},
   product_last4, status_label, taken_by_person, related_case_id, mode, receipt: customer_receipt|null,
   timeline: [{event_id, type, label, created_at}] (customer-visible only), deadline_countdown_days,
-  deadline_verified_on (`[assumption]` D-014, §6.5),
+  deadline_source, deadline_source_url, deadline_verified_on (`[assumption]` D-014, §6.5; a deadline date always
+  comes with its source and an `https://` URL, ADR 0019),
   channels: {telegram: bool, email: bool}, notifications: [{notification_id, channel, masked_address,
   delivery_status, created_at}]}`.
 - `CustomerCaseView`: `CaseView` without `customer_id`, `zone`, `priority`, `tags` and `sla_due_at`
@@ -281,8 +287,8 @@ Queue statuses (from `policies.yaml`): `new → verification | review → resolv
   updated_at}`.
 - `ProductView`: `{product_id, type, last4, status, verification_id, read_at}`.
 - `[assumption]` `priority` is `normal|high` (raised by `case_queue.deadline_sla`); `transaction.amount` is a number,
-  as in `contracts/tools.py` `Transaction`. Ids follow `nick_of_time.ids`; `last4` is 4 digits. Python models:
-  `nick_of_time.contracts`.
+  as in `contracts/tools.py` `Transaction`. Ids follow `nick_of_time.ids`; `last4` is 4 digits; timestamps carry
+  their UTC offset. Python models: `nick_of_time.contracts`.
 
 ### 6.7 Customer receipt (`contracts/customer_receipt.schema.json`, new)
 ```json
