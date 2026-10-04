@@ -6,7 +6,7 @@ PYTHON ?= python3
 PY := .venv/bin/python
 SOURCE ?= s3
 
-.PHONY: setup deps pipeline fixture report test hooks
+.PHONY: setup deps pipeline fixture report test hooks check-bedrock check-telegram check-resend check-jev check-all telegram-profile env-pull gold-pull labels-pull
 
 setup: deps pipeline fixture report
 
@@ -31,3 +31,38 @@ test:
 hooks: $(PY)
 	$(PY) -m pip install -q pre-commit
 	.venv/bin/pre-commit install
+
+# Access checks (docs/runbooks/): read the local .env, never print secrets. Extra flags through ARGS="...".
+check-bedrock:
+	cd scripts/checks && ../../$(PY) check_bedrock.py $(ARGS)
+
+check-telegram:
+	cd scripts/checks && ../../$(PY) check_telegram.py $(ARGS)
+
+check-resend:
+	cd scripts/checks && ../../$(PY) check_resend.py $(ARGS)
+
+check-jev:
+	cd scripts/checks && ../../$(PY) check_jev.py $(ARGS)
+
+check-all: check-bedrock check-telegram check-jev
+
+# Telegram bot profile: English name; description, short description and commands in EN (default), ES and PT.
+telegram-profile:
+	$(PY) scripts/telegram_profile.py
+
+# Fill the local .env from SSM (/nickoftime/prod/*) without printing values. ARGS=--force overwrites existing values.
+env-pull:
+	$(PY) scripts/env_pull.py $(ARGS)
+
+# Project data from the team bucket (no dataset credentials needed). Labels are readable only by Diego and the lead.
+GOLD_BUCKET ?= s3://nickoftime-gold-061039767206
+AWS_TEAM_PROFILE ?= nickoftime
+
+gold-pull:
+	aws s3 sync $(GOLD_BUCKET)/gold/v1/ data/gold/ --profile $(AWS_TEAM_PROFILE) --only-show-errors
+	$(PY) scripts/verify_gold.py
+
+labels-pull:
+	aws s3 cp $(GOLD_BUCKET)/labels/v1/transaction_labels.parquet data/gold_eval/transaction_labels.parquet --profile $(AWS_TEAM_PROFILE) --only-show-errors
+	$(PY) scripts/verify_gold.py

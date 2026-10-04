@@ -128,9 +128,11 @@ reviewable in 15 minutes; if not, split it.
 - `/api/health` reports the app version, git SHA, gold version, `policies.yaml` version and the Platform revision.
 
 ## 8. Continuous integration
-Every PR runs: pytest (offline, fixtures only), the web app's lint and build, and a secret scan. CI never calls a
-real LLM (the `fake` provider) and never reads the real gold (a small fixture). Target: under 5 minutes. The
-end-to-end harness against the real LLM runs manually (`eval/`), and a smoke test runs after every deploy.
+Every PR runs: pytest (offline, fixtures only), the web app's lint and build, and a secret scan. PRs that touch
+`apps/web/` also run the **Playwright** end-to-end and accessibility suite against the mock API (desktop and 390 px
+mobile); its screenshots count as [U] evidence. CI never calls a real LLM (the `fake` provider) and never reads the real
+gold (a small fixture). Target: under 5 minutes per job. The evaluation harness against the real LLM runs manually
+(`eval/`), and a Playwright smoke runs after every deploy. Details: [`docs/testing.md`](docs/testing.md).
 
 ## 9. Definitions
 - **Feature:** a unit of user-visible value with one owner and one spec (`specs/NN-slug.md`).
@@ -147,6 +149,8 @@ end-to-end harness against the real LLM runs manually (`eval/`), and a smoke tes
 - **The harness belongs to everyone:** each person adds evaluation cases for their own area.
 - **Every figure carries a label** (`[data]`, `[external]`, `[assumption]`, `[simulated]`, `[projected]`) and a query or
   link. Nothing enters the pitch without one.
+- **Regulatory and external figures cite an official public source and a verification date** (`source_url`,
+  `verified_on`), never memory or a secondary summary ([ADR 0019](docs/adr/0019-official-sources-for-regulatory-figures.md)).
 - With scope frozen, nothing new enters until what is functional is closed.
 
 ## 11. Language
