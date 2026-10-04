@@ -58,7 +58,7 @@ AC-01 to AC-05 come from issue #13 with the same numbers; AC-06 onward are added
 |---|---|---|---|
 | **B0 — rules (baseline)** | ES/PT keyword and pattern lists per intent | regex for amounts and currencies, date parser, merchant after "en/em/de" | deterministic; used by S0 |
 | **B1 — TF-IDF + LR** | char 2–5 + word 1–2 n-grams, logistic regression, class-balanced, calibrated | same as B0 | trained on the train split |
-| **B2 — LLM** | Claude Haiku 4.5, structured output (intent, confidence, slots) | from the LLM | zero-shot with the label definitions; no examples from test |
+| **B2 — LLM** | the LLM chosen by the lean rule of spec 15 §4.3 (Claude Haiku 4.5 until the benchmark runs), structured output (intent, confidence, slots) | from the LLM | zero-shot with the label definitions; no examples from test |
 | **B3 — cascade** (P1) | B1; below τ → B2 | B0 regex, B2 when regex finds nothing | production pattern: cheap first, LLM only when unsure |
 | Embeddings + LR, Jev | — | — | not in this spec: Jev is a spec 15 arm; embeddings are P2 |
 
