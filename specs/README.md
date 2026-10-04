@@ -10,7 +10,7 @@ States: **Draft → Approved → In progress → Implemented → Superseded**. S
 
 | # | Feature | Owner | P | Size | Depends on | Issue | Status |
 |---|---|---|---|---|---|---|---|
-| 01 | Integration contract + stubs (folders, REST API, MCP contract, graph I/O, Postgres schema, customer receipt, eval hooks) | @salazarvalverdeai · approved by all three | P0 | M | — | #3 | Not started |
+| 01 | Integration contract + stubs (folders, REST API, MCP contract, graph I/O, Postgres schema, customer receipt, eval hooks) | @salazarvalverdeai · approved by all three | P0 | M | — | #3 | Draft |
 | 02 | Policy engine + regulatory clock | @salazarvalverdeai | P0 | M | contracts | #4 | Not started |
 | 03 | MCP server with the 7 customer tools | @salazarvalverdeai | P0 | M | 01, 02 | #5 | Not started |
 | 04 | Agent graph on LangGraph Platform (guardrails, receipt, handoff, returning customer) | @salazarvalverdeai | P0 | L | 02, 03 | #6 | Not started |
