@@ -132,7 +132,7 @@ greet ─► understand ─► identity ─► route ─┬─► retrieve ─�
 | `greet` | First turn only: name, capabilities, human reachable, starter chips | `get_customer_profile` · `messages.yaml greet.*` |
 | `understand` | Language; injection detector; intent + slots with the arm's classifier; relative dates against the mode's "today" | spec 11 · LLM only in S1/S2 below τ |
 | `identity` | Reads `session_state` and `mode` from the run config (injected by the api); never trusts ids in the text | — |
-| `route` | Runs spec 02 rules 1–4 on the understood input: `reauthenticate`/`deny` → refuse; `connect_person` → connect (never refused); `answer_status` → status; a dispute → retrieve, then `decide` applies rules 5–9 | `engine.decide()` |
+| `route` | Runs spec 02 rules 1–4 with `engine.screen()` on the understood input: `reauthenticate`/`deny` → refuse; `connect_person` → connect (never refused); `answer_status` → status (a status question that also reports a charge goes on to the dispute path when there is no active case, D-020); a dispute, or a call request that reports a charge → retrieve, then `decide` applies rules 5–9 | `engine.screen()` |
 | `retrieve` | Finds the transaction; gets the score; converts amounts for display | `search_transaction` · `get_fraud_score` · `convert_amount` |
 | `decide` | The decision with rule ids | spec 02 `engine.decide()` |
 | `plan` | Numbered steps shown to the customer | `messages.yaml plan.*` |

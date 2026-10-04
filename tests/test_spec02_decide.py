@@ -2,28 +2,37 @@
 from __future__ import annotations
 
 import copy
+import itertools
+import json
+import math
+import unicodedata
+from pathlib import Path
+from typing import get_args
 
 import pytest
 import yaml
 from pydantic import ValidationError
 
 from nick_of_time.policy import Allow, DecisionInput, Deny, Policies, PolicyDecision, PolicyEngine
+from nick_of_time.policy.engine import HandoffReason
 from nick_of_time.policy.model import POLICIES_PATH
 
 ENGINE = PolicyEngine.load()
 RAW = yaml.safe_load(POLICIES_PATH.read_text())
+ROOT = Path(__file__).resolve().parents[1]
 ZONES = ["high", "medium", "human"]
 SCORE_OF = {"high": 72.0, "medium": 40.0, "human": 10.0}
 MONEY = ["block_card", "unblock_card", "provisional_credit"]
 COUNTRIES = ["MX", "CO", "AR", "BR", "PE", "CL"]
 GATED = {"MX", "CO", "AR", "BR"}                     # amount_gate.by_country; PE and CL have no tier [assumption]
+FLAGS = ["dispute_detected", "injection_flagged", "cross_customer", "supervised_mode"]
+BASE = {"session_state": "verified", "intent": "unrecognized_charge", "intent_confidence": 0.93, "candidates": 1,
+        "score": 72.0, "score_source": "dataset", "amount": 1250.0, "currency": "USD", "country": "MX",
+        "product_type": "debit", **dict.fromkeys(FLAGS, False)}    # EV-0001: verified, MX debit, one candidate, high
 
 
 def turn(**overrides) -> DecisionInput:
-    """EV-0001 as a policy input: verified session, MX debit, one candidate, high score."""
-    return DecisionInput(**{"session_state": "verified", "intent": "unrecognized_charge", "intent_confidence": 0.93,
-                            "candidates": 1, "score": 72.0, "score_source": "dataset", "amount": 1250.0,
-                            "currency": "USD", "country": "MX", "product_type": "debit", **overrides})
+    return DecisionInput(**{**BASE, **overrides})
 
 
 def supervised_by_file() -> PolicyEngine:
@@ -32,52 +41,85 @@ def supervised_by_file() -> PolicyEngine:
     return PolicyEngine(Policies.model_validate(raw))
 
 
-OPEN, BLOCK, DENY4 = ["open_case"], ["open_case", "block_card"], ("deny", None, [], None, None, ["POL-OUT-OF-SCOPE"], ["G-IN-04"])
-ROWS = [  # row, overrides → decision, zone, allowed_actions, handoff_reason, queue_status_after, rule_ids, guardrail_ids
-    ("1", dict(session_state="expired"), "reauthenticate", None, [], None, None, ["POL-SESSION"], ["G-SES-01"]),
-    ("2", dict(injection_flagged=True), "deny", None, [], None, None, ["POL-INJECTION"], ["G-IN-01"]),
-    ("3", dict(cross_customer=True), "deny", None, [], None, None, ["POL-CROSS-CUSTOMER"], ["G-SES-02"]),
-    ("3a", dict(intent="human_request"), "connect_person", None, [], None, None, ["POL-HUMAN-REQUEST"], []),
-    ("3b", dict(intent="status_inquiry"), "answer_status", None, [], None, None, ["POL-STATUS"], []),
-    ("4-intent", dict(intent="out_of_scope"), *DENY4),
-    ("4-product", dict(product_type="Cuenta de Ahorro"), *DENY4),
-    ("4-no-product", dict(product_type=None), *DENY4),
-    ("5", dict(intent_confidence=0.5), "ask", None, [], None, None, ["POL-CLARIFY"], ["G-IN-03"]),
-    ("5b", dict(candidates=2, clarification_turns=2), "handoff", None, [], "clarification_exhausted", None,
-     ["POL-CLARIFY-EXHAUSTED"], ["G-IN-03"]),
-    ("6-null", dict(score=None), "handoff", "human", OPEN, "zone_human", "review", ["POL-SCORE-NULL", "POL-TICKET-ALWAYS"], []),
-    ("6-llm", dict(score_source="llm"), "handoff", "human", OPEN, "zone_human", "review",
-     ["POL-SCORE-LLM", "POL-TICKET-ALWAYS"], []),
-    ("7", {}, "block_and_open_case", "high", BLOCK, None, "verification", ["POL-ZONE-HIGH", "POL-TICKET-ALWAYS"], []),
-    ("7-over-gate", dict(amount=5000.01), "handoff", "high", OPEN, "amount_over_case_gate", "review",
-     ["POL-ZONE-HIGH", "POL-AMOUNT-GATE", "POL-TICKET-ALWAYS"], ["G-TOOL-02"]),
-    ("7-supervised", dict(supervised_mode=True), "handoff", "high", OPEN, None, "review",
-     ["POL-ZONE-HIGH", "POL-SUPERVISED", "POL-TICKET-ALWAYS"], ["G-TOOL-02"]),
-    ("8", dict(score=40.0), "confirm", "medium", [], None, None, ["POL-ZONE-MEDIUM"], []),
-    ("8-confirmed", dict(score=40.0, customer_confirmed=True), "handoff", "medium", OPEN, None, "review",
-     ["POL-ZONE-MEDIUM", "POL-TICKET-ALWAYS"], []),
-    ("8-declined", dict(score=40.0, customer_confirmed=False), "ask", None, [], None, None,
-     ["POL-ZONE-MEDIUM", "POL-CLARIFY"], ["G-IN-03"]),
-    ("9", dict(score=10.0), "handoff", "human", OPEN, "zone_human", "review", ["POL-ZONE-HUMAN", "POL-TICKET-ALWAYS"], []),
+def row(name, overrides, decision, rules, guards=(), zone=None, allowed=(), reason=None, queue=None, call=None):
+    return pytest.param(overrides, dict(decision=decision, zone=zone, allowed_actions=list(allowed),
+                                        handoff_reason=reason, request_call=call, queue_status_after=queue,
+                                        rule_ids=rules, guardrail_ids=list(guards)), id=name)
+
+
+OPEN, BLOCK, HUMAN = ["open_case"], ["open_case", "block_card"], dict(zone="human", allowed=["open_case"], queue="review")
+ROWS = [
+    row("1", dict(session_state="expired", intent="human_request"), "reauthenticate", ["POL-SESSION"], ["G-SES-01"]),
+    row("2", dict(injection_flagged=True), "deny", ["POL-INJECTION"], ["G-IN-01"]),
+    row("3", dict(cross_customer=True), "deny", ["POL-CROSS-CUSTOMER"], ["G-SES-02"]),
+    row("3a", dict(intent="human_request"), "connect_person", ["POL-HUMAN-REQUEST"], call="active_or_general"),
+    row("3a-charge", dict(intent="human_request", dispute_detected=True), "connect_person",
+        ["POL-HUMAN-REQUEST", "POL-ZONE-HIGH", "POL-TICKET-ALWAYS"], zone="high", allowed=OPEN, queue="review",
+        call="opened_case"),
+    row("3a-charge-unclear", dict(intent="human_request", dispute_detected=True, candidates=2), "connect_person",
+        ["POL-HUMAN-REQUEST"], call="general"),
+    row("3a-charge-not-card", dict(intent="human_request", dispute_detected=True, product_type="Cuenta Ahorro"),
+        "connect_person", ["POL-HUMAN-REQUEST"], call="general"),
+    row("3b", dict(intent="status_inquiry"), "answer_status", ["POL-STATUS"]),
+    row("3b-charge", dict(intent="status_inquiry", dispute_detected=True), "answer_status", ["POL-STATUS"]),
+    row("4-intent", dict(intent="out_of_scope"), "deny", ["POL-OUT-OF-SCOPE"], ["G-IN-04"]),
+    row("4-intent-unsure", dict(intent="out_of_scope", intent_confidence=0.79), "ask", ["POL-CLARIFY"], ["G-IN-03"]),
+    row("4-product", dict(product_type="Cuenta Ahorro"), "deny", ["POL-OUT-OF-SCOPE"], ["G-IN-04"]),
+    row("5", dict(intent_confidence=0.5), "ask", ["POL-CLARIFY"], ["G-IN-03"]),
+    row("5b", dict(candidates=2, clarification_turns=2), "handoff", ["POL-CLARIFY-EXHAUSTED"], ["G-IN-03"],
+        reason="clarification_exhausted", call="general"),
+    row("6-null", dict(score=None), "handoff", ["POL-SCORE-NULL", "POL-TICKET-ALWAYS"], reason="zone_human", **HUMAN),
+    row("6-llm", dict(score_source="llm"), "handoff", ["POL-SCORE-LLM", "POL-TICKET-ALWAYS"], reason="zone_human",
+        **HUMAN),
+    row("6-source", dict(score_source="synthetic"), "handoff", ["POL-SCORE-SOURCE", "POL-TICKET-ALWAYS"],
+        reason="zone_human", **HUMAN),
+    row("7", {}, "block_and_open_case", ["POL-ZONE-HIGH", "POL-TICKET-ALWAYS"], zone="high", allowed=BLOCK,
+        queue="verification"),
+    row("7-over-gate", dict(amount=5000.01), "handoff", ["POL-ZONE-HIGH", "POL-AMOUNT-GATE", "POL-TICKET-ALWAYS"],
+        ["G-TOOL-02"], zone="high", allowed=OPEN, reason="amount_over_case_gate", queue="review"),
+    row("7-no-gate", dict(country="PE", currency="PEN"), "handoff",
+        ["POL-ZONE-HIGH", "POL-AMOUNT-UNKNOWN", "POL-TICKET-ALWAYS"], ["G-TOOL-02"], zone="high", allowed=OPEN,
+        reason="amount_over_case_gate", queue="review"),
+    row("7-supervised", dict(supervised_mode=True), "handoff", ["POL-ZONE-HIGH", "POL-SUPERVISED", "POL-TICKET-ALWAYS"],
+        ["G-TOOL-02"], zone="high", allowed=OPEN, reason="supervised_mode", queue="review"),
+    row("8", dict(score=40.0), "confirm", ["POL-ZONE-MEDIUM"], zone="medium"),
+    row("8-confirmed", dict(score=40.0, customer_confirmed=True), "handoff", ["POL-ZONE-MEDIUM", "POL-TICKET-ALWAYS"],
+        zone="medium", allowed=OPEN, reason="zone_medium", queue="review"),
+    row("8-declined", dict(score=40.0, customer_confirmed=False), "ask", ["POL-ZONE-MEDIUM", "POL-CLARIFY"],
+        ["G-IN-03"]),
+    row("9", dict(score=10.0), "handoff", ["POL-ZONE-HUMAN", "POL-TICKET-ALWAYS"], reason="zone_human", **HUMAN),
 ]
 
 
-@pytest.mark.parametrize("row", ROWS, ids=[row[0] for row in ROWS])
-def test_ac_12_every_rule_row_decides_and_cites_its_ids_and_version(row):
-    d = ENGINE.decide(turn(**row[1]))
-    assert [d.decision, d.zone, d.allowed_actions, d.handoff_reason, d.queue_status_after, d.rule_ids,
-            d.guardrail_ids] == list(row[2:])
+@pytest.mark.parametrize("overrides, expected", ROWS)
+def test_ac_12_every_rule_row_decides_and_cites_its_ids_and_version(overrides, expected):
+    d = ENGINE.decide(turn(**overrides))
+    assert d.model_dump(include=set(expected)) == expected
     assert d.policies_version == 2 and set(d.rule_ids) <= set(RAW["rules"]) and bool(d.approval_modes) == bool(d.zone)
-    assert d.handoff_reason in {None, *RAW["handoff"]["triggers"]}
 
 
-@pytest.mark.parametrize("row", ROWS, ids=[row[0] for row in ROWS])
-def test_ac_05_decide_and_the_tools_re_check_agree_on_what_runs(row):
-    t, d = turn(**row[1]), ENGINE.decide(turn(**row[1]))
-    for action in RAW["approval"]["per_action"] if d.zone else []:
-        result = ENGINE.check(action, d.zone, amount=t.amount, currency=t.currency, country=t.country,
-                              supervised_mode=t.supervised_mode)
-        assert isinstance(result, Allow) == (action in d.allowed_actions or (d.decision, action) == ("confirm", "open_case"))
+@pytest.mark.parametrize("overrides, expected", ROWS)
+def test_ac_05_decide_and_the_tools_re_check_agree_on_what_runs(overrides, expected):
+    t, d = turn(**overrides), ENGINE.decide(turn(**overrides))
+    checked = {action for action in RAW["approval"]["per_action"] if d.zone and isinstance(ENGINE.check(
+        action, d.zone, amount=t.amount, currency=t.currency, country=t.country, supervised_mode=t.supervised_mode), Allow)}
+    assert set(d.allowed_actions) <= checked
+    assert d.decision not in ("block_and_open_case", "handoff") or set(d.allowed_actions) == checked
+
+
+def test_ac_12_a_handoff_always_carries_a_reason_and_nothing_else_does():
+    """D-024 D3: handoff ⇔ handoff_reason, over zones, sources, amounts, countries, supervised and confirmation."""
+    for score, source, amount, country, supervised, confirmed, candidates, turns in itertools.product(
+            [72.0, 40.0, 10.0, None], ["dataset", "llm", "synthetic"], [10.0, 5000.01, None], COUNTRIES,
+            [False, True], [None, True, False], [0, 1, 2], [0, 2]):
+        d = ENGINE.decide(turn(score=score, score_source=source, amount=amount, country=country, candidates=candidates,
+                               supervised_mode=supervised, customer_confirmed=confirmed, clarification_turns=turns))
+        assert (d.decision == "handoff") == (d.handoff_reason is not None), d
+
+
+def test_ac_12_handoff_reasons_are_the_schema_vocabulary():
+    schema = json.loads((ROOT / "contracts/handoff.schema.json").read_text())
+    assert list(get_args(HandoffReason)) == schema["properties"]["handoff_reason"]["enum"] == RAW["handoff"]["triggers"]
 
 
 @pytest.mark.parametrize("path, value", [("rules", {k: v for k, v in RAW["rules"].items() if k != "POL-SCORE-NULL"}),
@@ -101,12 +143,31 @@ def test_ac_12_the_first_terminal_rule_wins(winner, overrides):
     assert ENGINE.screen(turn(**overrides)) == (None if winner == "POL-CLARIFY" else ENGINE.decide(turn(**overrides)))
 
 
+@pytest.mark.parametrize("supervised", [False, True])
+@pytest.mark.parametrize("score", [72.0, 40.0, 10.0, None])
+def test_ac_12_a_call_request_with_a_charge_registers_the_call_and_opens_the_case(score, supervised):
+    """D-020: rule 3a is not terminal when the message also reports a charge; open_case only, never a block."""
+    t = turn(intent="human_request", dispute_detected=True, score=score, supervised_mode=supervised)
+    d = ENGINE.decide(t)
+    assert ENGINE.screen(t) is None
+    assert (d.decision, d.allowed_actions, d.request_call, d.handoff_reason) == ("connect_person", OPEN, "opened_case", None)
+    assert d.rule_ids[0] == "POL-HUMAN-REQUEST" and d.approval_modes["open_case"] == "auto"
+
+
+@pytest.mark.parametrize("field", FLAGS)
+def test_ac_05_a_missing_safety_flag_fails_closed(field):
+    with pytest.raises(ValidationError):
+        DecisionInput(**{k: v for k, v in BASE.items() if k != field})
+    with pytest.raises(TypeError):
+        ENGINE.check("block_card", "high", amount=10.0, currency="USD", country="MX")
+
+
 @pytest.mark.parametrize("state", ["expired", "unverified", "none", "", "Verified"])
 def test_ac_07_an_unverified_session_reauthenticates_before_any_other_rule(state):
     d = ENGINE.decide(turn(session_state=state, injection_flagged=True, cross_customer=True, intent="human_request",
-                           score=None, candidates=0))
-    assert (d.decision, d.rule_ids, d.guardrail_ids, d.zone, d.allowed_actions, d.approval_modes) == (
-        "reauthenticate", ["POL-SESSION"], ["G-SES-01"], None, [], {})
+                           dispute_detected=True, score=None, candidates=0))
+    assert (d.decision, d.rule_ids, d.guardrail_ids, d.zone, d.allowed_actions, d.approval_modes, d.request_call) == (
+        "reauthenticate", ["POL-SESSION"], ["G-SES-01"], None, [], {}, None)
 
 
 @pytest.mark.parametrize("product", ["debit", "credit"])
@@ -122,26 +183,44 @@ def test_ac_01_the_zone_follows_the_score_band_in_every_country_and_product(scor
                                               "medium": ("confirm", None), "human": ("handoff", "zone_human")}[zone]
 
 
-@pytest.mark.parametrize("bad", [dict(score=-0.01), dict(score=100.01), dict(score=72.0, score_source=None),
-                                 dict(score_source="customer"), dict(customer_id="CLI-X"), dict(zone="high")])
+@pytest.mark.parametrize("label, product", [("Tarjeta Débito", "debit"), ("Tarjeta Crédito", "credit"),
+                                            (unicodedata.normalize("NFD", "Tarjeta Débito"), "debit")])
+def test_ac_01_gold_card_labels_map_to_the_product(label, product):
+    assert turn(product_type=label).product_type == product
+    assert ENGINE.decide(turn(product_type=label)) == ENGINE.decide(turn(product_type=product))
+
+
+@pytest.mark.parametrize("bad", [dict(score=-0.01), dict(score=100.01), dict(score=math.nan), dict(score=72.0, score_source=None),
+                                 dict(score_source="LLM"), dict(customer_id="CLI-X"), dict(zone="high"),
+                                 dict(country="mx"), dict(country="MEX"), dict(currency="usd"), dict(currency="US"),
+                                 dict(candidates=1, product_type=None)])
 def test_ac_01_the_zone_comes_only_from_get_fraud_score_never_from_the_text(bad):
-    """FR-03 and constitution #3: no score without its tool source, no zone and no customer_id as input."""
+    """FR-03 and constitution #3: no score without its tool source, no zone or customer_id, well-formed codes."""
     with pytest.raises(ValidationError):
         turn(**bad)
+
+
+@pytest.mark.parametrize("candidates", [0, 2])
+@pytest.mark.parametrize("product", [None, "Cuenta Ahorro", "debit"])
+def test_ac_08_the_product_is_judged_only_once_one_transaction_is_identified(candidates, product):
+    """Assumption 4: with 0 or 2 candidates, rule 4's product branch cannot fire; rule 5 asks."""
+    assert ENGINE.decide(turn(candidates=candidates, product_type=product)).rule_ids == ["POL-CLARIFY"]
 
 
 @pytest.mark.parametrize("country", COUNTRIES)
 @pytest.mark.parametrize("score, source, ids", [
     (None, "dataset", ["POL-SCORE-NULL"]), (None, None, ["POL-SCORE-NULL"]), (None, "llm", ["POL-SCORE-NULL", "POL-SCORE-LLM"]),
-    (100.0, "llm", ["POL-SCORE-LLM"]), (40.0, "llm", ["POL-SCORE-LLM"]), (10.0, "llm", ["POL-SCORE-LLM"])])
-def test_ac_02_a_null_or_llm_score_is_zone_human_and_still_opens_a_case(score, source, ids, country):
+    (100.0, "llm", ["POL-SCORE-LLM"]), (40.0, "llm", ["POL-SCORE-LLM"]), (10.0, "llm", ["POL-SCORE-LLM"]),
+    (72.0, "synthetic", ["POL-SCORE-SOURCE"]), (40.0, "customer", ["POL-SCORE-SOURCE"]),
+    (None, "synthetic", ["POL-SCORE-NULL", "POL-SCORE-SOURCE"])])
+def test_ac_02_a_null_llm_or_non_deciding_score_is_zone_human_and_still_opens_a_case(score, source, ids, country):
     d = ENGINE.decide(turn(score=score, score_source=source, country=country))
     assert (d.decision, d.zone, d.handoff_reason, d.queue_status_after) == ("handoff", "human", "zone_human", "review")
     assert d.rule_ids == [*ids, "POL-TICKET-ALWAYS"] and d.allowed_actions == ["open_case"]
 
 
-@pytest.mark.parametrize("source", ["dataset", "rules", "model"])
-def test_ac_02_only_the_llm_source_forces_the_human_zone(source):
+@pytest.mark.parametrize("source", RAW["scoring"]["deciding_sources"])
+def test_ac_02_only_the_deciding_sources_place_a_zone(source):
     assert ENGINE.decide(turn(score_source=source)).zone == "high"
 
 
@@ -174,7 +253,7 @@ def test_ac_15_open_case_stays_auto_under_supervised_mode_and_any_amount(zone, s
     ("block_card", ""), ("block_card", "medium"), ("block_card", "human"),
     *[(action, zone) for action in ("provisional_credit", "unblock_card") for zone in ZONES]])
 def test_ac_05_an_action_no_rule_allows_is_denied_by_default(action, zone):
-    assert ENGINE.check(action, zone, amount=10.0, currency="USD", country="MX") == Deny(
+    assert ENGINE.check(action, zone, amount=10.0, currency="USD", country="MX", supervised_mode=False) == Deny(
         action=action, policy_id="POL-DEFAULT-DENY", guardrail_id="G-POL-01", rule_ids=["POL-DEFAULT-DENY"],
         policies_version=2)
 
@@ -185,10 +264,7 @@ TIERS = [  # country, currency, amount, tier: every boundary of amount_gate.by_c
     *[(c, "USD", amount, tier) for c in EDGES for amount, tier in
       ((0, "auto"), (1000, "auto"), (1000.01, "manual_check"), (5000, "manual_check"), (5000.01, "human_required"))],
     *[(c, cur, amount, tier) for c, (cur, low, high) in EDGES.items() for amount, tier in
-      ((low, "auto"), (low + 0.01, "manual_check"), (high, "manual_check"), (high + 0.01, "human_required"))],
-    ("MX", "EUR", 1, "human_required"), ("MX", None, 1, "human_required"), ("MX", "USD", None, "human_required"),
-    ("CO", "MXN", 1, "human_required"), ("PE", "PEN", 1, "human_required"), ("CL", "CLP", 1, "human_required"),
-    (None, "USD", 1, "human_required")]
+      ((low, "auto"), (low + 0.01, "manual_check"), (high, "manual_check"), (high + 0.01, "human_required"))]]
 
 
 @pytest.mark.parametrize("country, currency, amount, tier", TIERS)
@@ -203,6 +279,18 @@ def test_ac_06_the_amount_tier_changes_only_the_block_mode_never_the_zone_or_a_d
     assert not [f for model in (PolicyDecision, Allow, Deny) for f in model.model_fields if "deadline" in f]
 
 
+@pytest.mark.parametrize("country, currency, amount", [
+    ("MX", "EUR", 1), ("MX", None, 1), ("MX", "USD", None), ("MX", "USD", -0.01), ("MX", "USD", math.nan),
+    ("MX", "USD", math.inf), ("CO", "MXN", 1), ("PE", "PEN", 1), ("CL", "CLP", 1), (None, "USD", 1)])
+def test_ac_06_with_no_tier_a_person_decides_citing_pol_amount_unknown(country, currency, amount):
+    assert ENGINE.amount_tier(amount, currency, country) == "human_required"
+    d = ENGINE.decide(turn(country=country, currency=currency, amount=amount))
+    assert (d.decision, d.handoff_reason) == ("handoff", "amount_over_case_gate")
+    assert d.rule_ids == ["POL-ZONE-HIGH", "POL-AMOUNT-UNKNOWN", "POL-TICKET-ALWAYS"]
+    deny = ENGINE.check("block_card", "high", amount=amount, currency=currency, country=country, supervised_mode=False)
+    assert (deny.policy_id, deny.guardrail_id) == ("POL-AMOUNT-UNKNOWN", "G-TOOL-02")
+
+
 @pytest.mark.parametrize("intent", ["unrecognized_charge", "wrongful_charge"])
 @pytest.mark.parametrize("confidence, candidates, asks", [
     (0.0, 1, True), (0.7999, 1, True), (0.80, 1, False), (1.0, 1, False),
@@ -215,12 +303,14 @@ def test_ac_08_low_confidence_or_not_exactly_one_candidate_asks(intent, confiden
 
 @pytest.mark.parametrize("turns, decision", [(0, "ask"), (1, "ask"), (2, "handoff"), (3, "handoff")])
 @pytest.mark.parametrize("unclear", [dict(intent_confidence=0.5), dict(candidates=0), dict(candidates=2),
-                                     dict(score=40.0, customer_confirmed=False)])
+                                     dict(score=40.0, customer_confirmed=False),
+                                     dict(intent="out_of_scope", intent_confidence=0.5)])
 def test_ac_08_after_two_clarification_turns_it_hands_off(unclear, turns, decision):
+    """clarification_turns = clarification questions already sent; exhausted → handoff with a general call (D2)."""
     d = ENGINE.decide(turn(clarification_turns=turns, **unclear))
     exhausted = decision == "handoff"
     assert (d.decision, d.allowed_actions, d.queue_status_after) == (decision, [], None)
-    assert d.handoff_reason == ("clarification_exhausted" if exhausted else None)
+    assert (d.handoff_reason, d.request_call) == (("clarification_exhausted", "general") if exhausted else (None, None))
     assert d.rule_ids[-1] == ("POL-CLARIFY-EXHAUSTED" if exhausted else "POL-CLARIFY")
 
 

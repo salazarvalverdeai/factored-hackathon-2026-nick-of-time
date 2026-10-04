@@ -2,22 +2,28 @@
 database, LLM or clock. Every result cites the rule ids that produced it and the policies.yaml version (AC-12)."""
 from __future__ import annotations
 
+import math
+import unicodedata
 from decimal import Decimal
 from pathlib import Path
-from typing import Optional, Union, get_args
+from typing import Literal, Optional, Union, get_args
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from nick_of_time.contracts import Decision, GetFraudScoreOut, Intent, ProductType, QueueStatus, Zone
+from nick_of_time.contracts import Decision, Intent, ProductType, QueueStatus, Zone
 from nick_of_time.policy.model import MODES, POLICIES_PATH, ApprovalMode, Policies, load_policies
 
-CARDS = get_args(ProductType)                             # gold Tarjeta Débito / Tarjeta Crédito, mapped by the caller
-ScoreSource = GetFraudScoreOut.model_fields["source"].annotation
+CARDS = get_args(ProductType)
+GOLD_PRODUCT = {"Tarjeta Débito": "debit", "Tarjeta Crédito": "credit"}      # gold products.product_type (§4.3)
+HandoffReason = Literal["zone_human", "zone_medium", "supervised_mode", "amount_over_case_gate", "identity_unverified",
+                        "clarification_exhausted", "tool_failure", "language_low_confidence"]   # handoff.schema.json
+CallRequest = Literal["active_or_general", "opened_case", "general"]          # where request_call registers the call
 ZONE_RULE: dict[str, str] = {"high": "POL-ZONE-HIGH", "medium": "POL-ZONE-MEDIUM", "human": "POL-ZONE-HUMAN"}
 EMITTED = {*ZONE_RULE.values(), "POL-SESSION", "POL-INJECTION", "POL-CROSS-CUSTOMER", "POL-HUMAN-REQUEST", "POL-STATUS",
            "POL-OUT-OF-SCOPE", "POL-CLARIFY", "POL-CLARIFY-EXHAUSTED", "POL-SCORE-NULL", "POL-SCORE-LLM",
-           "POL-TICKET-ALWAYS", "POL-AMOUNT-GATE", "POL-SUPERVISED", "POL-DEFAULT-DENY"}
-REASONS = {"zone_human", "amount_over_case_gate", "clarification_exhausted"}
+           "POL-SCORE-SOURCE", "POL-TICKET-ALWAYS", "POL-AMOUNT-GATE", "POL-AMOUNT-UNKNOWN", "POL-SUPERVISED",
+           "POL-DEFAULT-DENY"}
+REASONS = {"zone_human", "zone_medium", "supervised_mode", "amount_over_case_gate", "clarification_exhausted"}
 
 
 class _Frozen(BaseModel):
@@ -26,27 +32,36 @@ class _Frozen(BaseModel):
 
 class DecisionInput(_Frozen):
     """One understood turn. No customer_id: it lives only in the session (constitution #3). The score and its source
-    come only from get_fraud_score, never from the customer's text (FR-03)."""
+    come only from get_fraud_score, never from the customer's text (FR-03). The four flags have no default: a caller
+    that forgets one gets an error, never "not flagged" (fail closed)."""
     session_state: str                                    # only "verified" passes rule 1
     intent: Intent
     intent_confidence: float = Field(ge=0, le=1)
+    dispute_detected: bool                                # the message also reports a charge (rule 3a, D-020)
+    injection_flagged: bool
+    cross_customer: bool
+    supervised_mode: bool
     candidates: int = Field(0, ge=0)
-    clarification_turns: int = Field(0, ge=0)             # clarification questions already asked
-    injection_flagged: bool = False
-    cross_customer: bool = False
+    clarification_turns: int = Field(0, ge=0)             # clarification questions already sent to the customer
     score: Optional[float] = Field(None, ge=0, le=100)
-    score_source: Optional[ScoreSource] = None
-    amount: Optional[float] = Field(None, ge=0)
-    currency: Optional[str] = None
-    country: Optional[str] = None
-    product_type: Optional[str] = None                    # "debit" | "credit"; anything else is not a card
+    score_source: Optional[str] = Field(None, pattern=r"^[a-z_]+$")
+    amount: Optional[float] = None                        # missing, negative or not finite → tier human_required
+    currency: Optional[str] = Field(None, pattern=r"^[A-Z]{3}$")
+    country: Optional[str] = Field(None, pattern=r"^[A-Z]{2}$")
+    product_type: Optional[str] = None                    # debit | credit, or the gold label; anything else is not a card
     customer_confirmed: Optional[bool] = None             # medium zone; None = not asked yet
-    supervised_mode: bool = False
+
+    @field_validator("product_type")
+    @classmethod
+    def _from_gold_label(cls, value: Optional[str]) -> Optional[str]:
+        return GOLD_PRODUCT.get(unicodedata.normalize("NFC", value), value) if value else value
 
     @model_validator(mode="after")
-    def _score_comes_with_its_source(self) -> DecisionInput:
+    def _facts_come_from_tools(self) -> DecisionInput:
         if self.score is not None and self.score_source is None:
             raise ValueError("a score needs the source get_fraud_score returned with it (FR-03)")
+        if self.candidates == 1 and self.product_type is None:
+            raise ValueError("one identified transaction needs its product_type (rule 4)")
         return self
 
 
@@ -55,7 +70,8 @@ class PolicyDecision(_Frozen):
     zone: Optional[Zone] = None
     approval_modes: dict[str, ApprovalMode] = {}          # effective mode per action, once a zone is known
     allowed_actions: list[str] = []                       # what the agent may run this turn; anything else is denied
-    handoff_reason: Optional[str] = None
+    handoff_reason: Optional[HandoffReason] = None        # set exactly when decision == "handoff"
+    request_call: Optional[CallRequest] = None            # register a call request, and where
     queue_status_after: Optional[QueueStatus] = None
     rule_ids: list[str] = Field(min_length=1)
     guardrail_ids: list[str] = []
@@ -90,15 +106,19 @@ class PolicyEngine:
 
     # ---------- approval modes (§4.2, FR-04) ----------
     def amount_tier(self, amount: Optional[float], currency: Optional[str], country: Optional[str]) -> ApprovalMode:
-        """The tier in the country's currency; USD converts at the gate's usd_rate. [assumption] No gate for the
-        country, no amount or another currency → human_required: no rule allows less."""
+        return self._tier(amount, currency, country)[0]
+
+    def _tier(self, amount, currency, country) -> tuple[ApprovalMode, str]:
+        """The tier and the rule behind it; USD converts at the gate's usd_rate. [assumption] No gate for the country,
+        an amount missing, negative or not finite, or another currency → human_required (POL-AMOUNT-UNKNOWN)."""
         gate, tiers = self.policies.amount_gate.by_country.get(country or ""), self.policies.amount_gate.tiers
-        if gate is None or amount is None or currency not in (gate.currency, "USD"):
-            return "human_required"
+        if (gate is None or amount is None or not math.isfinite(amount) or amount < 0
+                or currency not in (gate.currency, "USD")):
+            return "human_required", "POL-AMOUNT-UNKNOWN"
         local = Decimal(str(amount)) * (Decimal(str(gate.usd_rate)) if currency == "USD" else 1)
         if local <= Decimal(str(gate.low)):
-            return tiers.up_to_low
-        return tiers.up_to_high if local <= Decimal(str(gate.high)) else tiers.above_high
+            return tiers.up_to_low, "POL-AMOUNT-GATE"
+        return tiers.up_to_high if local <= Decimal(str(gate.high)) else tiers.above_high, "POL-AMOUNT-GATE"
 
     def _mode(self, action: str, zone: str, amount, currency, country, supervised: bool) -> tuple[ApprovalMode, list]:
         """Stricter of per_action, the amount tier and supervised mode, on money actions only (AC-15); also returns
@@ -107,16 +127,24 @@ class PolicyEngine:
         base = approval.per_action[action][zone]
         if action not in approval.money_actions:
             return base, []
+        tier, tier_rule = self._tier(amount, currency, country)
         supervised = supervised or approval.supervised_mode
-        raisers = [(rule, mode) for rule, mode in (("POL-AMOUNT-GATE", self.amount_tier(amount, currency, country)),
+        raisers = [(rule, mode) for rule, mode in ((tier_rule, tier),
                                                    ("POL-SUPERVISED", "human_required" if supervised else "auto"))
                    if MODES.index(mode) > MODES.index(base)]
         return max([base, *(m for _, m in raisers)], key=MODES.index), [rule for rule, _ in raisers]
 
-    def check(self, action: str, zone: str, *, amount: Optional[float] = None, currency: Optional[str] = None,
-              country: Optional[str] = None, supervised_mode: bool = False) -> Union[Allow, Deny]:
+    def _modes(self, zone: str, inp: DecisionInput) -> tuple[dict[str, ApprovalMode], list[str]]:
+        modes, raised = {}, []
+        for action in self.policies.approval.per_action:
+            modes[action], by = self._mode(action, zone, inp.amount, inp.currency, inp.country, inp.supervised_mode)
+            raised += [rule for rule in by if rule not in raised]
+        return modes, raised
+
+    def check(self, action: str, zone: str, *, supervised_mode: bool, amount: Optional[float] = None,
+              currency: Optional[str] = None, country: Optional[str] = None) -> Union[Allow, Deny]:
         """May an automated caller (agent or customer tool) run `action` now? human_required is denied here: only a
-        person runs it, through the analyst api."""
+        person runs it, through the analyst api. supervised_mode is required (fail closed)."""
         if action not in self.policies.approval.per_action or zone not in ZONE_RULE:
             return self._deny(action, "POL-DEFAULT-DENY", [])
         mode, raised = self._mode(action, zone, amount, currency, country, supervised_mode)
@@ -128,31 +156,35 @@ class PolicyEngine:
     # ---------- decide (§4.1) ----------
     def screen(self, inp: DecisionInput) -> Optional[PolicyDecision]:
         """Rules 1–4: session, injection, another customer, a person, a status question, out of scope. None means
-        "a dispute: go on" (spec 04 `route` calls it before retrieving the transaction)."""
+        "a dispute: go on" (spec 04 `route` calls it before retrieving the transaction), also for a call request that
+        reports a charge, which decide() completes once the transaction is known."""
+        call = inp.intent == "human_request"
+        confident = inp.intent_confidence >= self.policies.clarify.intent_confidence_min
         for hit, decision, rule in (
                 (inp.session_state != "verified", "reauthenticate", "POL-SESSION"),
                 (inp.injection_flagged, "deny", "POL-INJECTION"),
                 (inp.cross_customer, "deny", "POL-CROSS-CUSTOMER"),
-                (inp.intent == "human_request", "connect_person", "POL-HUMAN-REQUEST"),
-                (inp.intent == "status_inquiry", "answer_status", "POL-STATUS"),
-                # [assumption] the product is judged only once one transaction is identified; unknown is not a card
-                (inp.intent == "out_of_scope" or (inp.candidates == 1 and inp.product_type not in CARDS),
+                (call and not inp.dispute_detected, "connect_person", "POL-HUMAN-REQUEST"),
+                (inp.intent == "status_inquiry", "answer_status", "POL-STATUS"),   # spec 04: dispute path if no case
+                (not call and ((inp.intent == "out_of_scope" and confident)       # D-024: below τ, rule 5 asks
+                               or (inp.candidates == 1 and inp.product_type not in CARDS)),
                  "deny", "POL-OUT-OF-SCOPE")):
             if hit:
-                return self._result(decision, [rule])
+                return self._result(decision, [rule],
+                                    request_call="active_or_general" if rule == "POL-HUMAN-REQUEST" else None)
         return None
 
     def decide(self, inp: DecisionInput) -> PolicyDecision:
         """§4.1 in order; the first terminal rule wins and every rule that fired is reported (FR-02)."""
         if (early := self.screen(inp)) is not None:
             return early
+        if inp.intent == "human_request":
+            return self._call_and_case(inp)
         if inp.intent_confidence < self.policies.clarify.intent_confidence_min or inp.candidates != 1:
             return self._clarify(inp, [])
         zone, rules = self._zone(inp)
-        modes: dict[str, ApprovalMode] = {}
-        for action in self.policies.approval.per_action:
-            modes[action], raised = self._mode(action, zone, inp.amount, inp.currency, inp.country, inp.supervised_mode)
-            rules += [rule for rule in raised if rule not in rules]
+        modes, raised = self._modes(zone, inp)
+        rules += raised
         if zone == "medium" and inp.customer_confirmed is None:
             return self._result("confirm", rules, zone=zone, approval_modes=modes)
         if zone == "medium" and inp.customer_confirmed is False:
@@ -162,16 +194,32 @@ class PolicyEngine:
             return self._result("block_and_open_case", rules, zone=zone, approval_modes=modes,
                                 allowed_actions=["open_case", "block_card"],
                                 queue_status_after=self.policies.approval.manual_check_leaves_case_in)
-        # [assumption] medium, and high blocked only by supervised mode, have no handoff_reason in the schema: null
-        over_gate = zone == "high" and self.amount_tier(inp.amount, inp.currency, inp.country) == "human_required"
-        reason = "zone_human" if zone == "human" else "amount_over_case_gate" if over_gate else None
+        if zone == "high":                                # per_action makes the block manual_check: a raiser stopped it
+            over = self.amount_tier(inp.amount, inp.currency, inp.country) == "human_required"
+            reason = "amount_over_case_gate" if over else "supervised_mode"
+        else:
+            reason = "zone_human" if zone == "human" else "zone_medium"
         return self._result("handoff", rules, zone=zone, approval_modes=modes, allowed_actions=["open_case"],
                             handoff_reason=reason, queue_status_after="review")
 
+    def _call_and_case(self, inp: DecisionInput) -> PolicyDecision:
+        """Rule 3a with a charge (D-020): register the call and open the case (auto, never a block) on the one card
+        transaction; with no single card transaction, only a general call."""
+        if inp.candidates != 1 or inp.product_type not in CARDS:
+            return self._result("connect_person", ["POL-HUMAN-REQUEST"], request_call="general")
+        zone, rules = self._zone(inp)
+        modes, raised = self._modes(zone, inp)
+        return self._result("connect_person", ["POL-HUMAN-REQUEST", *rules, *raised, "POL-TICKET-ALWAYS"], zone=zone,
+                            approval_modes=modes, allowed_actions=["open_case"], request_call="opened_case",
+                            queue_status_after="review")
+
     def _zone(self, inp: DecisionInput) -> tuple[Zone, list[str]]:
-        """Rules 6–9: a null or llm score is zone human with its own id (AC-02); otherwise the score's band (AC-01)."""
+        """Rule 6: a null score, an llm score or one from a source that does not decide is zone human, each with its
+        own id (AC-02); otherwise rules 7–9 by the score's band (AC-01)."""
+        source, deciding = inp.score_source, self.policies.scoring.deciding_sources
         rules = [rule for rule, hit in (("POL-SCORE-NULL", inp.score is None),
-                                        ("POL-SCORE-LLM", inp.score_source == "llm")) if hit]
+                                        ("POL-SCORE-LLM", source == "llm"),
+                                        ("POL-SCORE-SOURCE", source not in (None, "llm", *deciding))) if hit]
         if rules:
             return "human", rules
         zones = self.policies.zones
@@ -180,9 +228,11 @@ class PolicyEngine:
         return zone, [ZONE_RULE[zone]]
 
     def _clarify(self, inp: DecisionInput, rules: list[str]) -> PolicyDecision:
-        """Rules 5 and 5b (AC-08): ask; once max_clarification_turns questions were asked, hand off to a person."""
+        """Rules 5 and 5b (AC-08): ask; once max_clarification_turns questions were sent, hand off to a person and
+        register a general call (D-024): there is no single transaction to open a case for."""
         if inp.clarification_turns >= self.policies.clarify.max_clarification_turns:
-            return self._result("handoff", [*rules, "POL-CLARIFY-EXHAUSTED"], handoff_reason="clarification_exhausted")
+            return self._result("handoff", [*rules, "POL-CLARIFY-EXHAUSTED"], handoff_reason="clarification_exhausted",
+                                request_call="general")
         return self._result("ask", [*rules, "POL-CLARIFY"])
 
     def _result(self, decision: str, rule_ids: list[str], **fields) -> PolicyDecision:
