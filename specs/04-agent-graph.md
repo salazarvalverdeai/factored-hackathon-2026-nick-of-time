@@ -3,7 +3,7 @@
 - **Feature:** the `dispute_intake` graph that takes a customer's message (ES/PT) to a verified outcome — block, case,
   deadline — tells the customer what it is doing while it does it, returns a verified receipt and a handoff card, and
   answers status questions by reading the system again.
-- **Status:** Draft (updated 2026-10-04 with improvements #11, #12, #13, #15, #16)
+- **Status:** Draft — reviewed by the lead on 2026-10-04 (improvements #11–#16; suggestion chips added after the review)
 - **Owner:** @salazarvalverdeai · **Priority:** P0 · **Size:** L
 - **Challenge dimension:** AI Engineering, Technical Judgment
 - **Depends on:** 01 (graph I/O, arms, modes), 02 (engine, clock), 03 (tools v1.1), 11 (classifier; rules arm until it
@@ -77,12 +77,24 @@ AC-01 to AC-08 come from issue #6 with the same numbers; the rest are added by t
   (`get_product_status`, `list_my_cards`, `get_case`, `list_my_cases`) and state the time of the reading; if the read
   fails, it shall say it could not verify and never state a status. · [T]
 - **AC-20** — Every final reply shall offer a way to a person ("request a call") and, when a case exists, a link to
-  `/case/{id}`. · [T]
+  `/case/{id}`, both as suggestion chips (§4.5). · [T]
 - **AC-21** — The receipt shall show the card's last 4 digits, the verification id and time, the case id, the absolute
   deadline date with its legal source, what the AI did and what a person does next. · [T]
 - **AC-22** — The agent shall never say a case is "assigned to an analyst" unless `get_case` shows `taken_by_person`. · [T]
 - **AC-28** — When the intent is `human_request`, the agent shall register a call request (`request_call`) or, without
   a verified session, show the bank's general contact path; it shall never refuse. · [T]
+
+**Suggestion chips (lead requirement, 2026-10-04)**
+- **AC-29** — Every reply shall end with 2 or 3 suggestion chips (`suggestions`) chosen by the rule table of §4.5 from
+  the decision and the state, in the customer's language; the LLM never writes or picks a chip, in any arm. · [T]
+- **AC-30** — An action chip shall be offered only if it is allowed in the current state, checked against the engine
+  and the latest tool reading (never "Bloquear mi tarjeta" after `get_product_status` read `Blocked`, never "Pedir
+  reevaluación" for an active case). · [T]
+- **AC-31** — On the first turn, the agent shall offer three starter chips: report an unrecognized charge, report a
+  wrongful charge, check a case. · [T]
+- **AC-32** — Pressing a text chip shall give the same result as typing its label; pressing an action chip shall send
+  the structured `action` of spec 01 §6.4, which skips the classifier; a link chip opens an internal route set by the
+  server, never by the model. · [T]
 
 **Cases, money and modes (improvements #13 and #16)**
 - **AC-23** — If the customer disputes a transaction that already has an active case, the agent shall not open another
@@ -103,7 +115,8 @@ AC-01 to AC-08 come from issue #6 with the same numbers; the rest are added by t
 display_currency, channels}, `case_id_in`, `intent`, `intent_confidence`, `slots` {amount, currency, date, merchant},
 `injection_flagged`, `candidates`, `selected_transaction`, `score`, `decision` (spec 02), `plan` [steps],
 `clarification_turns`, `customer_confirmed`, `actions` [{tool, action_id, state, verification_id, read_at}], `case`,
-`receipt`, `handoff`, `reply`, `progress` [labels], `guardrails_triggered`, `denials`, `usage`, `trace`.
+`receipt`, `handoff`, `reply`, `progress` [labels], `suggestions` [chips], `guardrails_triggered`, `denials`, `usage`,
+`trace`.
 
 ### 4.2 Nodes and edges
 ```
@@ -116,7 +129,7 @@ greet ─► understand ─► identity ─► route ─┬─► retrieve ─�
 ```
 | Node | Does | Tools / rules |
 |---|---|---|
-| `greet` | First turn only: name, capabilities, human reachable | `get_customer_profile` · `messages.yaml greet.*` |
+| `greet` | First turn only: name, capabilities, human reachable, starter chips | `get_customer_profile` · `messages.yaml greet.*` |
 | `understand` | Language; injection detector; intent + slots with the arm's classifier; relative dates against the mode's "today" | spec 11 · LLM only in S1/S2 below τ |
 | `identity` | Reads `session_state` and `mode` from the run config (injected by the api); never trusts ids in the text | — |
 | `route` | Runs spec 02 rules 1–4 on the understood input: `reauthenticate`/`deny` → refuse; `connect_person` → connect (never refused); `answer_status` → status; a dispute → retrieve, then `decide` applies rules 5–9 | `engine.decide()` |
@@ -129,17 +142,40 @@ greet ─► understand ─► identity ─► route ─┬─► retrieve ─�
 | `connect` | Registers a call request on the active case (or a general one) and says when to expect it; without a verified session, the bank's general contact path with no data | `request_call` · `messages.yaml connect.*` |
 | `clarify` | Options (≤ 3 candidates) or a request for amount/date; counts turns | templates; LLM wording in S1/S2 |
 | `refuse` | DENY or re-authenticate with no data and a way forward | templates |
-| `respond` | Receipt and handoff from verified facts; reply from templates (S1/S2 may reword, then the grounding check runs); CTAs | `nick_of_time.receipt` · `send_case_summary` · `request_call` · `request_reevaluation` · `add_case_info` |
+| `respond` | Receipt and handoff from verified facts; reply from templates (S1/S2 may reword, then the grounding check runs); suggestion chips from §4.5 | `nick_of_time.receipt` · `send_case_summary` · `request_call` · `request_reevaluation` · `add_case_info` · `messages.yaml suggest.*` |
 
 ### 4.3 Grounding check (ADR 0016)
 Every number, date, id and status in `reply`, `receipt` and `handoff` is matched exactly against tool results and the
 policy. Anything unmatched is removed, the template version is used instead, and `G-OUT-01` is added to the trace.
 
 ### 4.4 Arms and modes (spec 01 §6.8)
-Arms: `S0` rules + templates, no LLM · `S1` chosen classifier + Haiku 4.5 · `S2` Sonnet 4.6 · benchmark arms (spec 15).
+Arms: `S0` rules + templates, no LLM · `S1` chosen classifier + the LLM chosen by spec 15 (Haiku 4.5 until the
+benchmark runs) · `S2` Sonnet 4.6 · benchmark arms (spec 15).
 The arm comes from `configurable.arm`; the production default is the arm chosen by the model-selection ADR (spec 15).
 Modes (ADR 0020, proposed): `replay` (dataset, "today" = `DEMO_TODAY`) for evaluation and processed sample cases;
 `live` (real today, recent synthetic transactions for demo customers) for the public demo.
+
+### 4.5 Suggestion chips
+Chips help the customer take the next step without typing. Three kinds: **text** (sends its label as the next message),
+**action** (sends a structured `action`, skipping the classifier) and **link** (an internal route set by the server).
+Labels live in `messages.yaml suggest.*` (ES/PT); ES examples below.
+
+| State after the turn | Chips |
+|---|---|
+| First turn (`greet`) | text "No reconozco un cargo" · text "Me cobraron dos veces" · text "¿Cómo va mi caso?" |
+| `ask` — candidates shown as cards | action "Ninguno de estos" · text "Muéstrame mis últimos cargos" · action "Hablar con una persona" |
+| `ask` — amount or date missing | text "Muéstrame mis últimos cargos" · text "No recuerdo el monto" · action "Hablar con una persona" |
+| `confirm` (medium zone) | action "Sí, continúa" · action "No es ese cargo" · action "Hablar con una persona" |
+| Case opened, actions verified (receipt) | link "Ver mi caso" · action "Enviarme el comprobante" · action "Que me llame una persona" |
+| `handoff` or `escalate_unconfirmed_action` | link "Ver mi caso" · text "Agregar información" · action "Que me llame una persona" |
+| `answer_status` — active case | link "Ver mi caso" · text "Agregar información" · action "Que me llame una persona" |
+| `answer_status` — resolved, within the re-evaluation window | action "Pedir reevaluación" · link "Ver mi caso" · action "Que me llame una persona" |
+| `connect_person` | link "Ver mi caso" (if a case exists) · text "Reportar otro cargo" |
+| `deny` / out of scope | text "No reconozco un cargo" · text "¿Cómo va mi caso?" · action "Hablar con una persona" |
+| `reauthenticate` | link "Verificar de nuevo" · action "Hablar con una persona" (general contact path, AC-28) |
+
+Rules: at most 3 chips; a path to a person is always among them, except right after `connect_person`; every action chip
+passes AC-30; chips are stored with the reply exactly as shown and the web shows them only under the last reply (spec 07).
 
 ## 5. Non-functional requirements
 - **Latency:** p95 per turn ≤ 6 s with S1 `[assumption]`; first progress label within 1 s.
@@ -155,18 +191,20 @@ Modes (ADR 0020, proposed): `replay` (dataset, "today" = `DEMO_TODAY`) for evalu
 Graph input, config and output follow spec 01 §6.4, with these additions (applied to spec 01 in the same review):
 `configurable.session_state`, `configurable.mode`, and in `TurnResult`: `progress` [labels], `plan` [steps],
 `usage` [{provider, model, tokens_in, tokens_out, latency_ms, cost_usd}], `denials` [{policy_id, guardrail_id, detail}],
-and `actions[].state` with the four-state vocabulary.
+`actions[].state` with the four-state vocabulary, and `suggestions` [{id, label, kind, action?, href?}] (§4.5).
 
 ## 7. Data model touched
 None directly: the graph reads and writes only through the MCP tools (spec 03 v1.1); the api persists `usage` and
 `denials` from the run output.
 
-## 8. Assumptions and open questions (gate 1)
-- **Q1 — replies:** templates by default; LLM rewording only in S1/S2, behind the grounding check. *(proposal)*
-- **Q2 — additions to spec 01** (§6): applied with the spec 01 update. *(proposal)*
+## 8. Decisions (gate 1, lead review 2026-10-04)
+- **Q1 — replies:** templates by default; LLM rewording only in S1/S2, behind the grounding check.
+- **Q2 — additions to spec 01** (§6): applied with the spec 01 update.
 - **Q3 — returning customer:** status and stored deadline from `get_case`; new information through `add_case_info`; the
-  full history lives in `/case/{id}`. *(proposal)*
-- **Q4 — reversed charges:** the agent says the charge was already reversed and opens no case. *(proposal)*
+  full history lives in `/case/{id}`.
+- **Q4 — reversed charges:** the agent says the charge was already reversed and opens no case.
+- **Q5 — suggestion chips** (lead requirement): mandatory in the agent and the web; chosen by rules (§4.5), never by the
+  LLM, so a chip never offers something the policy would deny.
 - Assumptions: the p95 ≤ 6 s and ≤ 0.02 USD per case targets are confirmed or corrected by the benchmark (spec 15).
 
 ## 9. Out of scope
@@ -178,7 +216,8 @@ messages.
 - [ ] T2 — `greet`, `understand` (rules arm + injection rules), `route` · AC-03, AC-09, AC-10, AC-15
 - [ ] T3 — `retrieve`, `decide`, `plan`, `clarify`, `refuse` · AC-02, AC-11, AC-12, AC-13, AC-16, AC-23, AC-25
 - [ ] T4 — `act`, `verify` with retries, the four-state vocabulary and the unconfirmed path · AC-01, AC-04, AC-18
-- [ ] T5 — `respond`: receipt, handoff, grounding check, CTAs · AC-05, AC-20, AC-21, AC-22, AC-26
+- [ ] T5 — `respond`: receipt, handoff, grounding check, suggestion chips · AC-05, AC-20, AC-21, AC-22, AC-26,
+      AC-29, AC-30, AC-31, AC-32
 - [ ] T6 — `status` and `connect` nodes and the returning-customer path · AC-06, AC-19, AC-24, AC-28
 - [ ] T7 — progress stream; S1/S2 wiring (Bedrock, structured output); usage; graceful degradation to S0 · AC-14, AC-17
 - [ ] T8 — Platform deployment; `/agent` content · AC-07, AC-08
