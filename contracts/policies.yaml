@@ -1,6 +1,29 @@
 # policies.yaml — policy engine outside the model. Version every change (git). The LLM never reads or edits this file.
-version: 1
+version: 2               # 2: rules, approval.money_actions, amount_gate usd_rate (spec 02 FR-07)
 default: deny            # nothing runs unless a rule allows it
+
+rules:                   # stable ids every decision cites (spec 02 §4.1, AC-12); the engine refuses to start if one it emits is missing
+  POL-SESSION:           {text: "session expired or unverified -> reauthenticate, before any other rule", guardrail: G-SES-01}
+  POL-INJECTION:         {text: "input flagged by the injection detector (spec 11) -> deny", guardrail: G-IN-01}
+  POL-CROSS-CUSTOMER:    {text: "request targets another customer's data -> deny", guardrail: G-SES-02}
+  POL-HUMAN-REQUEST:     {text: "intent human_request -> connect_person; never refused"}
+  POL-STATUS:            {text: "intent status_inquiry -> answer_status; read-only, no case opened"}
+  POL-OUT-OF-SCOPE:      {text: "intent out_of_scope, or the identified transaction's product is not a card -> deny (polite abstention)", guardrail: G-IN-04}
+  POL-CLARIFY:           {text: "intent confidence below clarify.intent_confidence_min, or not exactly one candidate -> ask", guardrail: G-IN-03}
+  POL-CLARIFY-EXHAUSTED: {text: "still unclear after clarify.max_clarification_turns -> handoff (clarification_exhausted)", guardrail: G-IN-03}
+  POL-SCORE-NULL:        {text: "no fraud score -> zone human; the case is still opened"}
+  POL-SCORE-LLM:         {text: "score from the llm provider -> zone human; an LLM score never decides a block"}
+  POL-ZONE-HIGH:         {text: "score in zones.high -> block_and_open_case, or handoff when the block needs a person"}
+  POL-ZONE-MEDIUM:       {text: "score in zones.medium -> confirm with the customer, then open the case and hand off proposing approve_block"}
+  POL-ZONE-HUMAN:        {text: "score in zones.human -> open the case and hand off (zone_human); no block"}
+  POL-TICKET-ALWAYS:     {text: "open_case runs with mode auto in every zone; registering is not a money decision"}
+  POL-AMOUNT-GATE:       {text: "the amount tier made a money action's approval mode stricter; it never changes a deadline", guardrail: G-TOOL-02}
+  POL-SUPERVISED:        {text: "supervised_mode forced human_required on a money action", guardrail: G-TOOL-02}
+  POL-DEFAULT-DENY:      {text: "no rule allows the action -> deny", guardrail: G-POL-01}
+  POL-CLOCK-UNKNOWN:     {text: "no verified regulatory_clock entry for the country -> case opened, no deadline, routed to a person"}
+  POL-QUEUE-TRANSITION:  {text: "analyst transition not listed in case_queue.transitions -> deny", guardrail: G-POL-01}
+  POL-CLOSE-HUMAN:       {text: "close requested by a non-human actor -> deny", guardrail: G-POL-01}
+  POL-REEVAL-WINDOW:     {text: "re-evaluation requested after reevaluation.window_days -> deny; the agent offers a call", guardrail: G-POL-01}
 
 identity:
   session_ttl_minutes: 15
@@ -31,14 +54,16 @@ amount_gate:                             # [assumption] pending Q-AMT calibratio
   # The stricter of approval.per_action and the amount tier wins (auto < manual_check < human_required).
   amount: transactions.amount            # local currency; USD transactions (MX is 100% USD in the dataset) are converted first
   tiers: {up_to_low: auto, up_to_high: manual_check, above_high: human_required}
-  by_country:                            # provisional values: low ≈ 1,000 USD, high ≈ 5,000 USD
-    MX: {currency: MXN, low: 18000, high: 90000}          # 18.0 MXN/USD [assumption]: the dataset has no MXN; confirm with Diego (Q-AMT)
-    CO: {currency: COP, low: 4000000, high: 20000000}     # 4,000 COP/USD, the dataset's fixed implied rate
-    AR: {currency: ARS, low: 350000, high: 1750000}       # 350 ARS/USD, the dataset's fixed implied rate
-    BR: {currency: BRL, low: 5500, high: 27500}           # 5.5 BRL/USD [assumption]: the dataset has no BR; confirm with Diego (Q-AMT)
+  # A country without an entry, a missing amount or a currency other than the entry's or USD → human_required [assumption].
+  by_country:                            # provisional values: low ≈ 1,000 USD, high ≈ 5,000 USD; usd_rate converts USD amounts
+    MX: {currency: MXN, usd_rate: 18.0, low: 18000, high: 90000}        # 18.0 MXN/USD [assumption]: the dataset has no MXN; confirm with Diego (Q-AMT)
+    CO: {currency: COP, usd_rate: 4000, low: 4000000, high: 20000000}   # 4,000 COP/USD [data], the dataset's fixed implied rate
+    AR: {currency: ARS, usd_rate: 350, low: 350000, high: 1750000}      # 350 ARS/USD [data], the dataset's fixed implied rate
+    BR: {currency: BRL, usd_rate: 5.5, low: 5500, high: 27500}          # 5.5 BRL/USD [assumption]: the dataset has no BR; confirm with Diego (Q-AMT)
 
 approval:                                # approval mode per action: auto | human_required | manual_check
-  supervised_mode: false                 # global switch in the console; true forces human_required everywhere; every change is audited
+  supervised_mode: false                 # global switch in the console; true forces human_required on money actions; every change is audited
+  money_actions: [block_card, unblock_card, provisional_credit]   # amount tiers and supervised_mode apply only to these (spec 02 AC-15)
   per_action:
     open_case:          {high: auto, medium: auto, human: auto}                                 # logging a case is not a money decision
     block_card:         {high: manual_check, medium: human_required, human: human_required}     # high: runs and verifies now; the case stays in 'verification' until an analyst closes it

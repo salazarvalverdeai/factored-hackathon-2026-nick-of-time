@@ -2,8 +2,8 @@
 
 - **Feature:** pure, deterministic code that turns `contracts/policies.yaml` into decisions — zone, decision, approval
   mode per action, allowed queue transitions and legal deadlines — with the rule ids that justify each one.
-- **Status:** Draft (gate 1 closed; Q7 closed by ADR 0020 on 2026-10-04; adds `clock.today(mode)`, display currency
-  and the re-evaluation window)
+- **Status:** In progress (T1 done; gate 1 closed; Q7 closed by ADR 0020 on 2026-10-04; adds `clock.today(mode)`,
+  display currency and the re-evaluation window)
 - **Owner:** @salazarvalverdeai · **Priority:** P0 · **Size:** M
 - **Challenge dimension:** Technical Judgment (deterministic logic where AI is not appropriate)
 - **Depends on:** `contracts/policies.yaml` · **Enables:** 03 (tools re-check permissions), 04 (decide node), 05 (queue
@@ -200,9 +200,15 @@ fx.convert(amount=1250.0, from_currency="USD", to_currency="MXN") -> {amount, ra
 ```
 
 ## 7. Data model touched
-- `contracts/policies.yaml`: adds `rules:` (ids and descriptions of §4.1), per-country `time_zone`,
+- `contracts/policies.yaml`: adds `rules:` (every id this spec names, each with its text and guardrail: those of §4.1,
+  `POL-AMOUNT-GATE` and `POL-SUPERVISED` for a stricter mode in §4.2, `POL-CLOCK-UNKNOWN`, `POL-QUEUE-TRANSITION`,
+  `POL-CLOSE-HUMAN` and `POL-REEVAL-WINDOW`), `approval.money_actions` (AC-15), `usd_rate` per
+  `amount_gate.by_country` entry (the tier rates of §4.2, until now only in comments), per-country `time_zone`,
   `display_currency` and `fx_reference`, the `reevaluation` section, and `version: 2`; validates
   `contact.callback_within_business_days` (D-008, task 02b). No threshold changes.
+- The loader (FR-01) also refuses a file that breaks a firm rule: `default` other than `deny`, `open_case` not `auto`
+  or `provisional_credit` not `human_required` in every zone, `close` not `human_only`, zone bands with gaps, tiers
+  that loosen as the amount grows, or a rule citing an unknown guardrail.
 - New data files: `packages/nick_of_time/policy/holidays/*_2026.yaml`.
 - No database access.
 
@@ -231,7 +237,7 @@ callers write).
 
 ## 10. Plan, tasks and verification
 Implementation goes in `feat/02-policy-engine` once this spec and spec 01 (package layout) are approved.
-- [ ] T1 — Pydantic model of `policies.yaml` + loader with validation; add `rules:` and `version: 2` · FR-01, FR-07, AC-12
+- [x] T1 — Pydantic model of `policies.yaml` + loader with validation; add `rules:` and `version: 2` · FR-01, FR-07, AC-12
 - [ ] T2 — `decide()` with the evaluation order of §4.1 and mode combination of §4.2 · AC-01, 02, 04, 05, 06, 07, 08, 09, 15
 - [ ] T3 — `clock.deadline()` + holiday files with sources for MX, AR, CO, BR, PE, CL; re-verify every clock source · AC-03, AC-14
 - [ ] T4 — `transition()` and `sla()` · AC-10, AC-11
