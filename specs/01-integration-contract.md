@@ -127,7 +127,7 @@ OpenAPI is generated from the code at `/api/docs` (schema at `/api/openapi.json`
 | PUT | `/api/me/preferences` | `{display_currency?, language?}` | the stored preferences (kept in the session) | 200 / 400 / 401 |
 | GET | `/api/cases/{case_id}` | — | `CustomerCaseView` (§6.6) if the case belongs to the session's customer | 200 / 403 / 404 / 401 |
 | POST | `/api/cases/{case_id}/info` | `{text}` | `{event_id}` → event `customer_info_added` | 201 / 403 / 404 / 401 |
-| POST | `/api/cases/{case_id}/call-request` | `{preferred_time?}` | `{event_id, expected_contact_by}` (D-008: `YYYY-MM-DD` or null) → event `call_requested` | 201 / 403 / 404 / 401 |
+| POST | `/api/cases/{case_id}/call-request` | `{preferred_time?}` | `{event_id, expected_contact_by}` → event `call_requested`; `expected_contact_by` is `YYYY-MM-DD` or `null`, from `contact.callback_within_business_days` and stored in the event (D-008, spec 03 AC-18) | 201 / 403 / 404 / 401 |
 | POST | `/api/cases/{case_id}/reevaluation` | `{reason}` | `{event_id, case_id}` — a resolved case returns to `review`; a closed case gets a new case with `related_case_id` (spec 03) | 201 / 403 / 404 / 409 / 401 |
 | POST | `/api/cases/{case_id}/channels/telegram` | — | `{deep_link, expires_at}` (one-time token, TTL 15 min) | 201 / 403 / 404 / 401 |
 | POST | `/api/cases/{case_id}/channels/email` | `{email}` | `{confirmation_sent: true}` — confirmation link to that address | 202 / 400 / 403 / 404 / 401 |
@@ -190,6 +190,10 @@ shape of `data` is fixed in the producing spec.
   `[assumption]` (D-014, pending the lead): the `open_case` and `get_case` results carry `deadline_verified_on`
   with the stored deadline, so a receipt re-sent later can fill `deadline.verified_on` (§6.7, ADR 0019); the models
   land with T4.
+  `contracts/tools.py` lists them in `CUSTOMER_TOOLS` (name → models) and `VERIFIED_WITH` (the column above). A W or N
+  result says at most `state: "requested"`; the verifying read returns `verification_id` and `read_at`, and
+  `open_case`/`block_card` also name the `V-` id their read will report `[assumption]` (spec 18 A3). The fake server
+  (`apps/mcp/mcp_server/fake.py`) answers each tool with fixtures built from these models.
 
 - **Errors:** every tool returns `ToolError` (`DENY`, `NOT_FOUND`, `SESSION_EXPIRED`, `UNAVAILABLE`) instead of raising;
   a `DENY` is also written to `policy_denials` with its `policy_id`.
@@ -467,8 +471,9 @@ Implementation goes in one `feat/01-*` branch per task (for example `feat/01-pac
       covers AC-01, AC-04 (receipt half; the echo graph is T5) · `tests/test_spec01_contracts.py`
 - [x] T3 — api stub: every route of §6.2 and §6.8 returning fixtures validated by the models; `mode` on sessions ·
       covers AC-02, AC-06, AC-07
-- [ ] T4 — `contracts/tools.py` v1.1 and `policies.yaml` `actors.customer.tools` with the 16 tools; fake MCP server
-      returning fixtures from those models, `synthetic` rows in `live` · covers AC-03, AC-08
+- [x] T4 — `contracts/tools.py` v1.1 and `policies.yaml` `actors.customer.tools` with the 16 tools; fake MCP server
+      returning fixtures from those models · covers AC-03 · `tests/test_spec01_mcp_stub.py`. `synthetic` rows in
+      `live` (AC-08) are P1 (D-001) and stay open.
 - [ ] T5 — echo graph `dispute_intake` returning a `TurnResult` with a sample receipt; `langgraph.json` sets
       `"python_version": "3.13"` (§6.1) · covers AC-04
 - [x] T6 — `infra/compose.dev.yml` (api stub, mcp stub, postgres) and `.env.example` names of §6.9 · covers AC-02

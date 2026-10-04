@@ -53,7 +53,9 @@ actions:
   provisional_credit: {zones: [], decided_by: human, note: "country obligation; never the model"}
 
 actors:                                  # two tool sets that never cross; every call is audited with its actor
-  customer: {via: mcp, tools: [search_transaction, get_fraud_score, compute_deadline, block_card, open_case, get_product_status, get_case_status]}
+  customer: {via: mcp, tools: [get_customer_profile, search_transaction, get_fraud_score, compute_deadline, open_case,
+                               block_card, get_product_status, list_my_cards, get_case, list_my_cases, add_case_info,
+                               request_call, request_reevaluation, convert_amount, send_case_summary, list_my_notifications]}
   analyst:  {via: api, tools: [list_cases, get_case, approve_credit, approve_block, unblock_card, request_customer_info, mark_ambiguous, close_case, reopen_case, supervised_mode], executed_by: human_only, copilot: proposes_only}
 
 clarify:
