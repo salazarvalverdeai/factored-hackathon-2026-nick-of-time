@@ -52,6 +52,9 @@ await api.approveCredit(id);                            // throws ApiError { cod
 - Spec 01 (integration contract) is not merged yet. When it lands, regenerate `lib/types.ts` from its stubs.
 
 ## Style rules
+- **Brand:** follow [`docs/brand/BRAND.md`](../../docs/brand/BRAND.md). Violet `#7C3AED` is the primary, teal `#0F766E` means verified, amber `#D97706` marks deadlines and
+  urgency (restrained), dark base `#080812` with `#111827` panels, Sora for text and JetBrains Mono for code. Logos and avatars are copies of the
+  SVG/PNG sources in `docs/brand/` under `public/brand/`: never redraw the mark, no glow or shadows. Use the tokens (`bg-primary`, `text-brand-teal`, `border-brand-amber`).
 - English for code, comments and UI; Spanish or Portuguese only for customer-facing text (agent replies, notifications).
 - Tailwind classes and the theme tokens (`bg-background`, `text-muted-foreground`, `border`…); no hard-coded colors except the zone and status badges.
 - Dark mode is the default and must stay readable; check both before asking for review.

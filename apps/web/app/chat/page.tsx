@@ -219,7 +219,12 @@ function Conversation({ onExpired }: { onExpired: () => void }) {
             </p>
           ) : null}
           {messages.map((m) => (
-            <div key={m.id} className={m.role === "customer" ? "flex justify-end" : "flex justify-start"}>
+            <div key={m.id} className={m.role === "customer" ? "flex justify-end" : "flex items-start justify-start gap-2"}>
+              {m.role === "customer" ? null : (
+                // Chat agent avatar: the symbol master, no face or mascot (docs/brand/BRAND.md §9).
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src="/brand/chat-agent-avatar.png" alt="" aria-hidden="true" className="size-8 shrink-0 rounded-full" />
+              )}
               <div className={`min-w-0 max-w-[88%] space-y-2 ${m.role === "customer" ? "text-right" : ""}`}>
                 {m.reply?.deny ? (
                   <DenyState message={m.text} />
@@ -278,12 +283,15 @@ function ReceiptCard({ receipt }: { receipt: Receipt }) {
     <Card data-slot="receipt" className="text-left">
       <CardHeader>
         <CardTitle className="flex flex-wrap items-center gap-2">
+          {/* Verified-state avatar: same symbol with the verification cue (docs/brand/BRAND.md §9). */}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/brand/verified-state-avatar.png" alt="" aria-hidden="true" className="size-6 rounded-full" />
           Receipt <span className="font-mono">{receipt.caseId}</span> <StatusBadge status="verification" />
         </CardTitle>
         <CardDescription>Issued at {receipt.time}</CardDescription>
       </CardHeader>
       <CardContent className="space-y-3 text-sm">
-        <p>
+        <p className="border-l-2 border-brand-amber pl-3">
           <b>Legal deadline:</b> {formatDeadline(receipt.deadline)}
           <span className="block text-xs text-muted-foreground">Source: {receipt.deadline.deadlineSource}</span>
         </p>
@@ -322,7 +330,7 @@ const KIND_LABEL: Record<TraceStep["kind"], string> = {
 const KIND_CLASS: Record<TraceStep["kind"], string> = {
   ok: "bg-muted text-muted-foreground",
   accepted: "bg-amber-500/15 text-amber-700 dark:text-amber-400",
-  verified: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400",
+  verified: "bg-brand-teal/15 text-teal-700 dark:text-teal-300",
   guardrail: "bg-red-500/15 text-red-700 dark:text-red-400",
   deny: "bg-red-500/15 text-red-700 dark:text-red-400",
 };

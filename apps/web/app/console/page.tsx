@@ -175,7 +175,7 @@ function Console({ actor }: { actor: string }) {
         >
           <span
             aria-hidden
-            className={`inline-block h-4 w-7 rounded-full p-0.5 transition-colors ${supervised ? "bg-emerald-500" : "bg-muted"}`}
+            className={`inline-block h-4 w-7 rounded-full p-0.5 transition-colors ${supervised ? "bg-brand-violet" : "bg-muted"}`}
           >
             <span className={`block size-3 rounded-full bg-background transition-transform ${supervised ? "translate-x-3" : ""}`} />
           </span>

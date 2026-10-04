@@ -21,10 +21,10 @@ export function ZoneBadge({ zone, className }: { zone: Zone; className?: string 
 }
 
 const STATUS: Record<CaseStatus, { label: string; className: string }> = {
-  new: { label: "New", className: "bg-sky-500/15 text-sky-700 dark:text-sky-400" },
+  new: { label: "New", className: "bg-slate-500/15 text-slate-700 dark:text-slate-300" },
   verification: { label: "Verification", className: "bg-violet-500/15 text-violet-700 dark:text-violet-400" },
   review: { label: "Review", className: "bg-amber-500/15 text-amber-700 dark:text-amber-400" },
-  resolved: { label: "Resolved", className: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400" },
+  resolved: { label: "Resolved", className: "bg-brand-teal/15 text-teal-700 dark:text-teal-300" },
   closed: { label: "Closed", className: "bg-muted text-muted-foreground" },
 };
 

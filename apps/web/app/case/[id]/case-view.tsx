@@ -82,9 +82,9 @@ export function CaseView({ id }: { id: string }) {
               <CardDescription>A person always closes the case.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-3 text-sm">
-              <div data-slot="countdown" className="rounded-lg border p-3">
+              <div data-slot="countdown" className="rounded-lg border border-brand-amber/50 bg-brand-amber/5 p-3">
                 <p className="text-xs uppercase tracking-wide text-muted-foreground">Legal deadline</p>
-                <p className="text-2xl font-semibold">{left === null ? "Pending" : left <= 0 ? "Due today" : `${left} day${left === 1 ? "" : "s"} left`}</p>
+                <p className="text-2xl font-semibold text-amber-700 dark:text-amber-400">{left === null ? "Pending" : left <= 0 ? "Due today" : `${left} day${left === 1 ? "" : "s"} left`}</p>
                 <p>{formatDeadline(c.deadline)}</p>
                 <p className="text-xs text-muted-foreground">Source: {c.deadline.deadlineSource} · demo date {DEMO_TODAY} [simulated]</p>
               </div>
@@ -127,7 +127,7 @@ export function CaseView({ id }: { id: string }) {
             </CardContent>
           </Card>
 
-          {feedback ? <p role="status" className="rounded-lg border border-emerald-500/40 bg-emerald-500/5 p-2 text-sm">{feedback}</p> : null}
+          {feedback ? <p role="status" className="rounded-lg border border-brand-teal/40 bg-brand-teal/5 p-2 text-sm">{feedback}</p> : null}
           {error ? <ErrorState title="That did not work" message={error} /> : null}
         </div>
 
@@ -157,7 +157,7 @@ export function CaseView({ id }: { id: string }) {
             </CardHeader>
             <CardContent className="space-y-4 text-sm">
               <div className="space-y-2">
-                <p className="font-medium">Telegram {linked ? <span className="text-emerald-600 dark:text-emerald-400">· linked ✓</span> : null}</p>
+                <p className="font-medium">Telegram {linked ? <span className="text-teal-700 dark:text-teal-300">· linked ✓</span> : null}</p>
                 {!linked ? (
                   <>
                     <Button size="sm" disabled={busy} onClick={() => act(async () => setLink(await api.createTelegramLink(id)), "Link created: it works for 15 minutes.")}>
@@ -178,7 +178,7 @@ export function CaseView({ id }: { id: string }) {
               </div>
 
               <div className="space-y-2">
-                <p className="font-medium">E-mail {confirmedEmail ? <span className="text-emerald-600 dark:text-emerald-400">· {confirmedEmail} ✓</span> : null}</p>
+                <p className="font-medium">E-mail {confirmedEmail ? <span className="text-teal-700 dark:text-teal-300">· {confirmedEmail} ✓</span> : null}</p>
                 {!confirmedEmail ? (
                   <form
                     className="flex gap-2"
