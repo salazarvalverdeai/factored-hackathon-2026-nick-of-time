@@ -6,7 +6,7 @@
 - **Owner:** @salazarvalverdeai · **Priority:** P0 · **Size:** M
 - **Challenge dimension:** AI Engineering, Technical Judgment
 - **Depends on:** framework (#2) · **Enables:** 03, 05, 07, 08, 10, 13, 16 · **ADRs:** 0005, 0007, 0008, 0010, 0013, 0017, 0019,
-  0020 (proposed)
+  0020
 - **Issue:** #3 · **Approval:** all three (@salazarvalverdeai, @gianzk, @vldiego)
 
 > Full profile: this spec *is* the contract. Contract version **1.1.0** (1.0.0 was the first review draft; 1.1.0 adds
@@ -71,7 +71,7 @@ Copied from issue #3 (same numbers). Evidence: [T] test · [C] command · [U] sc
 - **Observability:** every request carries `trace_id` (the LangGraph run id when there is one; otherwise a UUID) into
   `case_events`, `llm_calls` and `policy_denials`.
 - **Time:** all business dates use `clock.today(mode)` — `DEMO_TODAY` in `replay`, the real date in the customer's
-  country time zone in `live` (ADR 0020, proposed; it supersedes ADR 0012). Timestamps are UTC ISO-8601; dates
+  country time zone in `live` (ADR 0020; it supersedes ADR 0012). Timestamps are UTC ISO-8601; dates
   `YYYY-MM-DD`.
 
 ## 6. Contracts
@@ -345,7 +345,7 @@ sessions. Names only in `.env.example`; values in SSM (`/nickoftime/prod/*`) or 
 ## 7. Data model touched
 Creates the Postgres schema of §6.5 and the receipt schema of §6.7; reads gold v1 (`gold/v1/` in S3, local
 `data/gold/`) read-only; never reads `gold_eval`. `demo_transactions` lives only in Postgres and never flows into gold,
-the lakehouse or evaluation (ADR 0020, proposed).
+the lakehouse or evaluation (ADR 0020).
 
 ## 8. Assumptions and open questions (gate 1 — to close in this PR)
 - **Q1 (all):** shared package name `nick_of_time` under `packages/` — OK? (Diego: OK)
@@ -359,7 +359,7 @@ the lakehouse or evaluation (ADR 0020, proposed).
   in the body (§6.2).
 - **Q6 (lead):** ~~are the 7 tools enough for the messages the agent must send?~~ **Decided (lead, 2026-10-04):** the
   16 tools of §6.3 (improvement #13), the four action states, delivery status for notifications, display currency and
-  the two time modes (ADR 0020, proposed). The coherence rules become harness cases (spec 10).
+  the two time modes (ADR 0020). The coherence rules become harness cases (spec 10).
 - Assumption: analysts and customers use the same origin (`nickoftime.salazarvalverdeai.com`); no CORS.
 - Assumption: Platform reaches the MCP over the internet with the API key; locally `langgraph dev` + local MCP.
 
@@ -393,5 +393,5 @@ External sources checked on 2026-10-04.
   https://resend.com/docs/webhooks/verify-webhooks-requests · e-mail event types (`email.sent`, `email.delivered`,
   `email.bounced`, `email.failed`, …): https://resend.com/docs/webhooks/event-types
 - Internal: `contracts/gold_contract.md` R1 (gold window), `contracts/policies.yaml` (queue statuses, tools,
-  `notifications.never_send`), `contracts/tools.py`, ADRs 0005, 0007, 0008, 0010, 0013, 0016, 0017, 0019, 0020
-  (proposed), improvement drafts #12 (action states), #13 (tool catalog), #16 (two modes).
+  `notifications.never_send`), `contracts/tools.py`, ADRs 0005, 0007, 0008, 0010, 0013, 0016, 0017, 0019, 0020,
+  improvement drafts #12 (action states), #13 (tool catalog), #16 (two modes).
