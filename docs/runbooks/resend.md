@@ -12,9 +12,22 @@ Free plan: 3,000 e-mails/month, 100/day, 3 domains, 30-day log retention. Use th
 - Domain: **`notify.nickoftime.salazarvalverdeai.com`** (Resend recommends a subdomain to isolate reputation).
 - Sender: `avisos@notify.nickoftime.salazarvalverdeai.com`.
 - Region: **North Virginia (`us-east-1`)**; alternatives: Ireland, São Paulo, Tokyo.
-- Resend → Domains → Add Domain → copy the **Records** tab (DKIM TXT, SPF TXT, MX) exactly. The lead's agent creates
-  them in Hostinger (dry run, backup, apply, verify on public DNS). Verification usually takes ~15 minutes; up to 72 h.
-  DMARC is optional.
+- Resend → Domains → Add Domain → copy the **Records** tab exactly. The lead's agent creates them in Hostinger (dry
+  run, backup, apply, verify on public DNS). Verification usually takes ~15 minutes; up to 72 h. DMARC is optional.
+
+**Done on 2026-10-04** (domain id `36f8ca8a-60d7-4864-b7f0-a8cfe12ab24c`). Resend returned four records, all created in
+the `salazarvalverdeai.com` zone:
+
+| Type | Name | Value | Resend group |
+|---|---|---|---|
+| TXT | `resend._domainkey.notify.nickoftime` | `p=MIGf…` (public DKIM key; copy it from Resend) | DKIM |
+| MX | `send.notify.nickoftime` | `10 feedback-smtp.us-east-1.amazonses.com` | SPF |
+| TXT | `send.notify.nickoftime` | `v=spf1 include:amazonses.com ~all` | SPF |
+| CNAME | `rsend.notify.nickoftime` | `send.forge.rmta.net` | SPF |
+
+MX, SPF and the CNAME verified within minutes; DKIM took about 2 hours although the published value already matched on
+every public resolver. If DKIM stays `pending`, wait (Resend allows up to 72 h) instead of re-creating the record. The
+domain was verified the same day and `make check-resend` passed from `avisos@notify.nickoftime.salazarvalverdeai.com`.
 
 ## 3. API key and values
 Resend → API Keys → Create: **Sending access**, restricted to the domain above.
