@@ -76,7 +76,7 @@ for lang, texts in TEXTS.items():
     call("setMyCommands", {"commands": commands, "language_code": lang})
 
     label = lang or "default"
-    name = call("getMyName", {"language_code": lang})["name"]
+    name = call("getMyName", {"language_code": lang})["name"] or f"{NAME} (default)"
     short = call("getMyShortDescription", {"language_code": lang})["short_description"]
     listed = [c["command"] for c in call("getMyCommands", {"language_code": lang})]
     if short != texts["short_description"] or listed != list(texts["commands"]):

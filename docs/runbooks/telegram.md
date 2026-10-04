@@ -6,9 +6,8 @@ Facts verified against the official [Bot API](https://core.telegram.org/bots/api
 
 ## 1. Create the bot (owner: lead)
 1. In Telegram, open **@BotFather** (verified) → `/newbot`.
-2. Name: **`Nick of Time · Case Updates`**. Username: **`NickOfTimeBot`**; fallbacks `NickOfTimeCasesBot`,
-   `NickOfTimeUpdatesBot` (5–32 characters, must end in `bot`, case-insensitive). On 2026-10-04 none of the three had a
-   public t.me page; BotFather has the final word.
+2. Name: **`Nick of Time · Case Updates`**. Username: **`NickOfTimeUpdatesBot`** (5–32 characters, must end in `bot`,
+   case-insensitive). **Done on 2026-10-04:** the bot is [@NickOfTimeUpdatesBot](https://t.me/NickOfTimeUpdatesBot).
 3. BotFather returns the **token**. Do not paste it anywhere except step 2.
 4. In BotFather: `/setprivacy` → Enable (private chats only) and `/setuserpic` → `telegram-avatar-640.png` from the
    brand kit. The rest of the profile is set by `make telegram-profile` (step 3).
@@ -41,14 +40,14 @@ aws ssm put-parameter --profile nickoftime --region us-east-2 --type SecureStrin
 Local `.env`:
 ```
 TELEGRAM_BOT_TOKEN=<token>
-TELEGRAM_BOT_USERNAME=NickOfTimeBot
+TELEGRAM_BOT_USERNAME=NickOfTimeUpdatesBot
 TELEGRAM_WEBHOOK_SECRET=<value from SSM>
 ```
 
 ## 3. Profile and access check
 ```bash
 make telegram-profile
-# OK    token valid: bot @NickOfTimeBot
+# OK    token valid: bot @NickOfTimeUpdatesBot
 # OK    [default] name 'Nick of Time · Case Updates' · short description set · commands /start /stop
 # OK    [es] …   OK    [pt] …
 ```
@@ -57,7 +56,7 @@ Then:
 2. Run:
 ```bash
 make check-telegram ARGS=--send-test
-# OK    token valid: bot @NickOfTimeBot (id …)
+# OK    token valid: bot @NickOfTimeUpdatesBot (id …)
 # WARN  no webhook set yet (expected until spec 13 deploys /api/telegram/webhook)
 # OK    test message delivered (message id …)
 ```
