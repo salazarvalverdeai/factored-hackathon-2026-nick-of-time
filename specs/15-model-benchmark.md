@@ -59,9 +59,10 @@ Same numbers as issue #17; AC-10 onward are added by this spec.
 The screen includes every text model available on demand in `us-east-2` that is **not more expensive than the
 incumbent** (Haiku 4.5), one or two sizes per provider family, plus the incumbent, one quality ceiling and Jev. The list
 lives in `eval/bench/arms.yaml`; adding a model is one line. Availability: `aws bedrock list-foundation-models` and
-`list-inference-profiles` in `us-east-2` on 2026-10-04. Prices: AWS Price List API, US East (Ohio), on-demand standard
-tier, 2026-10-04, in USD per 1M tokens `[external, to verify in T1 against the pricing page]` — the API labels some units
-"1K tokens" while the values match the pricing page's per-1M figures.
+`list-inference-profiles` in `us-east-2` on 2026-10-04. Prices: AWS Price List offer files for `us-east-2` (US East,
+Ohio), on-demand standard tier, read 2026-10-04, in USD per 1M tokens `[external]` — AmazonBedrock (publicationDate
+2026-10-03) and AmazonBedrockFoundationModels (publicationDate 2026-09-30), URLs in §11; the files label some units
+"1K tokens" while the values match the per-1M figures.
 
 | Family | Candidates (Bedrock id) | Input / output per 1M |
 |---|---|---|
@@ -79,6 +80,20 @@ tier, 2026-10-04, in USD per 1M tokens `[external, to verify in T1 against the p
 Models offered only through inference profiles in `us-east-2` (Nova Micro, Nova Pro, Nova 2 Lite, Llama 4, Claude) are
 called with their `us.` profile id. All LLM arms get the same prompt, the same structured-output schema and temperature
 0; differences come only from the model.
+
+**Structured-output method (D-011):** Converse tool use (`toolConfig` with the intent schema), `maxTokens` of at least
+512, the same request in the smoke test and B1. `toolChoice` `tool` is documented only for Anthropic Claude 3+ and Amazon
+Nova (ToolChoice API reference), so each arm walks the ladder `tool` → `any` → `auto`: it steps down only when Bedrock
+rejects the mode (a ValidationException about tool use), the first accepted mode decides and its tool input must match
+the schema, and the mode is recorded per arm (`tool_choice_mode`) for B1 to reuse. An arm whose reply fails the schema,
+or that rejects every mode, is "no structured output". A ValidationException for an invalid model id or a required
+inference profile is "unavailable" with a `config:` reason; any other ValidationException and botocore's
+`ParamValidationError` are bugs in our request and stop the run. **Lifecycle:** each arm's model card state is recorded
+in `arms.yaml`; five arms are Legacy (Gemma 3 12B and 27B, Llama 3.3 70B, Llama 4 Scout and Maverick; EOL 2027-03-30)
+and may come back unavailable, since new customers cannot use Legacy models (AC-06). **Prices
+(`eval/bench/prices.yaml`):** all but Jev come from the offer files above and match the table; the Anthropic rows are
+the regional, non-global prices that the `us.` profiles pay `[external]`. Only Jev stays `[assumption]` (third-party
+gateway listing).
 
 ### 4.2 Tasks — one model per task
 The rules decide and the tools act, so the agent needs an LLM for only two tasks (spec 04); the analyst's console adds a
@@ -119,6 +134,13 @@ system at the end of the turn (spec 04 AC-19). It measures that the agent never 
 The gate is evaluated **per arm when the benchmark runs**, from the provider's public documents, and written to
 `eval/results/bench_gate.csv` (`arm, criterion, verdict: pass|fail|not documented, evidence_url, checked_on`).
 "Not documented" fails a production criterion. No arm is excluded or chosen in this spec.
+Implementation (`eval/bench/gate.py`): the CSV also carries `needed_benchmark` and `needed_production`; the evidence
+lives in `eval/bench/gate_evidence.yaml` (by provider, with per-arm overrides); a criterion without evidence is "not
+documented" and is stamped with the evaluation date; `version_pinning` comes from the provider's lifecycle policy (on
+Bedrock each model id is one fixed version with its own EOL date and no automatic migration), and the id format is only
+a fallback for a provider without that evidence (an id without a version is then "not documented"); `es_pt_quality`
+stays "not documented" until the run measures it, and is a production-only criterion because the benchmark itself
+measures it (D-012).
 
 | Criterion | Needed to benchmark | Needed for production |
 |---|---|---|
@@ -130,7 +152,7 @@ The gate is evaluated **per arm when the benchmark runs**, from the provider's p
 | Credentials outside the repo, least privilege | yes | yes |
 | Version pinning | yes | yes |
 | Availability: GA, SLA or status page | — | yes |
-| ES/PT quality measured on our data | yes | yes |
+| ES/PT quality measured on our data | — (the benchmark measures it) | yes |
 
 - **Prices:** `eval/bench/prices.yaml` with the price per 1M input and output tokens per model, the source URL and the
   date checked (ADR 0019). Cost = tokens × price; Platform and infrastructure costs are reported apart.
@@ -166,13 +188,14 @@ Public third-party leaderboards; fine-tuning; batch or provisioned throughput pr
 (reported, not optimized).
 
 ## 10. Plan, tasks and verification
-- [ ] T1 — `eval/bench/arms.yaml` and `prices.yaml` (each price confirmed on the pricing page, with date); budget guard ·
-      AC-05, AC-08
+- [x] T1 — `eval/bench/arms.yaml` and `prices.yaml` (each price confirmed in the AWS Price List offer files, with
+      date); budget guard · AC-05, AC-08
 - [ ] T2 — B1 runner over spec 11 arms + the LLM candidates + Jev; unavailable arms recorded · AC-01, AC-06
-- [ ] T3 — structured-output smoke test; `word` task set (40 template instances from dev cases) and blind preference
-      sheet · AC-11, AC-12
+- [ ] T3 — structured-output smoke test (done, `eval/bench/smoke.py`, AC-11; live run pending Bedrock invoke
+      rights); `word` task set (40 template instances from dev cases) and blind preference sheet (pending spec 09) ·
+      AC-11, AC-12
 - [ ] T3b — short list and B2 runner on the harness (spec 10), historical mode only, `coherence_rate` · AC-02, AC-09
-- [ ] T4 — gate evaluation per arm with evidence and date · AC-10
+- [x] T4 — gate evaluation per arm with evidence and date · AC-10
 - [ ] T5 — table, Pareto chart, JSON for `/evaluation` · AC-03, AC-04
 - [ ] T6 — lean rule per task in `eval/PROTOCOL.md` before the run; "model selection" ADR with the three rows per task
       and the model map · AC-07
@@ -182,9 +205,17 @@ External sources checked on 2026-10-04.
 - **Bedrock availability:** `aws bedrock list-foundation-models --region us-east-2` and `list-inference-profiles`
   (team account, 2026-10-04) · model cards:
   https://docs.aws.amazon.com/bedrock/latest/userguide/conversation-inference-supported-models-features.html ·
-  Converse API (tool use): https://docs.aws.amazon.com/bedrock/latest/userguide/conversation-inference.html
-- **Bedrock prices:** AWS Price List API (`aws pricing get-products --service-code AmazonBedrock` and
-  `AmazonBedrockFoundationModels`, location US East (Ohio), 2026-10-04) · pricing page: https://aws.amazon.com/bedrock/pricing/
+  Converse API (tool use): https://docs.aws.amazon.com/bedrock/latest/userguide/conversation-inference.html ·
+  ToolChoice (`tool` only for Anthropic Claude 3 and Amazon Nova):
+  https://docs.aws.amazon.com/bedrock/latest/APIReference/API_runtime_ToolChoice.html
+- **Bedrock lifecycle and version pinning:** https://docs.aws.amazon.com/bedrock/latest/userguide/model-lifecycle-legacy.html
+  ("Migration will not happen automatically"; "New customers can't use Legacy models") · model cards (state, EOL date
+  per id), linked per arm in `eval/bench/arms.yaml`: https://docs.aws.amazon.com/bedrock/latest/userguide/model-cards.html
+- **Bedrock prices:** AWS Price List offer files, `us-east-2`, read 2026-10-04 — AmazonBedrock (publicationDate
+  2026-10-03): https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonBedrock/current/us-east-2/index.json ·
+  AmazonBedrockFoundationModels (publicationDate 2026-09-30):
+  https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonBedrockFoundationModels/current/us-east-2/index.json ·
+  pricing page: https://aws.amazon.com/bedrock/pricing/
 - **Evidence for the gate, to re-check on the run date:**
   - Amazon Bedrock — model providers have no access to prompts and completions:
     https://docs.aws.amazon.com/bedrock/latest/userguide/data-protection.html · data not used to improve base models;
