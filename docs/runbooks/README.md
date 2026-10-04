@@ -8,6 +8,8 @@ Step-by-step guides to enable each external service. Every runbook ends the same
 3. **Access check → `make check-<service>`**. It reads `.env`, calls the service once, prints `OK`/`FAIL` and never
    prints a secret.
 
+**New teammate? Start with [team-setup.md](team-setup.md)** — from a fresh machine to data, configuration and checks.
+
 | Service | Runbook | Used by | Check |
 |---|---|---|---|
 | Amazon Bedrock (Claude) | [bedrock.md](bedrock.md) | specs 04, 11, 15 | `make check-bedrock` |
