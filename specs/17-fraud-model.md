@@ -70,6 +70,13 @@ all products and on the card subset, which is the number that matters for the pr
 | Validation (thresholds, calibration) | 2026-02 → 2026-03 | 182 | 68 |
 | Test (scored once) | 2026-04 → 2026-05 | 211 | 75 |
 
+Split record `[data]`, gold v1 (reproduce: `python -m scripts.ml.fraud_split --gold $GOLD --eval $GOLD_EVAL --out <dir
+outside the repo>`; the opt-in test `tests/test_spec17_split_features.py::test_ac_01_real_gold_split_hash_and_counts`
+asserts it): transactions per window — train 925,246, validation 224,784, test 238,990; frauds — train 896,
+validation 182 (match the table above); split hash (sha256 over the window definitions and the sorted
+`transaction_id|window` pairs)
+`877a3a2386375dd35fe535e29f1f04d2326fa79bcc5c65349b151cda445df15a`. Later tasks must recompute it and stop if it differs.
+
 The fraud rate is about 0.09%, so PR-AUC is the main metric, not ROC-AUC. With 75 card frauds in the test window the
 card CIs are wide; that is reported, not hidden.
 
@@ -79,11 +86,22 @@ Amount in USD and its log; currency; channel; transaction type and category; mer
 **earlier** transactions only: count and amount in the previous 1 h, 24 h and 7 days; amount against the customer's
 median; first time at this merchant; distance and time from the previous transaction's location. Excluded:
 `product_status` (a snapshot taken after the fact), the `qc_*` columns, `process_date` and the labels.
-Implementation choices (`scripts/ml/fraud_features.py`) `[assumption]`: history looks only at the customer's earlier
-Approved/Pending transactions with a strictly smaller timestamp (a same-time transaction is never history); rows without
-a `customer_id` use the product as the entity; `amount_usd` falls back to `amount` when the currency is USD; the
-bank's `fraud_score` and `response_code` are not features (the score is the baseline arm and enters only the stacked
-arm).
+Implementation choices (`scripts/ml/fraud_features.py`) `[assumption]`:
+- History is **all** strictly earlier transactions of the customer (timestamp smaller; a same-time transaction is never
+  history), whatever their status: a Declined attempt is known at authorization, and a later status such as Reversed
+  must not shape earlier features (D-009). Feature rows are emitted only for Approved/Pending transactions.
+- Rows without a `customer_id` use the product as the entity; `amount_usd` falls back to `amount` when the currency is
+  USD; the bank's `fraud_score` and `response_code` are not features (the score is the baseline arm and enters only the
+  stacked arm).
+- `customer_segment` is **not** a feature: gold holds one snapshot taken at the cut, so it can rewrite history
+  (`contracts/gold_contract.md`, `docs/data_quality.md` §A1) (D-010). `customer_country` and `product_type` are kept,
+  assuming they are stable at transaction time.
+- `km_from_prev` uses the closest strictly earlier transaction **with a known location**; `secs_since_prev` uses the
+  closest strictly earlier transaction of any kind.
+- Cold start: gold begins on 2025-06-01, so early rows have no history. Share of Approved/Pending transactions with no
+  earlier transaction of the customer `[data]`: 61.5% in 2025-06, 23.9% in 2025-07, 10.7% in 2025-08, 0.8% in 2026-01
+  (computed with `build_features` on gold v1). Whether to burn in the first months is decided in task 17b; the
+  training window is not changed here.
 
 ### 4.3 Arms — a lean scikit-learn screen
 The dataset is large enough for all of these (about 1.39 million Approved/Pending transactions, 896 frauds to train).
@@ -167,7 +185,9 @@ retraining (ADR 0021, P2).
   `[data]`; the 100% caveat: `docs/README.md` (zones row).
 - Gold v1 counts (1,477,723 transactions, 1,372 frauds, 19.8% of frauds without a score; frauds per window for all
   products and for cards, Approved/Pending): aggregate queries over `data/gold/transactions_enriched` and
-  `data/gold_eval/transaction_labels`, run on 2026-10-04 by the lead; versioned in T1 `[data]`.
+  `data/gold_eval/transaction_labels`, run on 2026-10-04 by the lead; train and validation counts are versioned in
+  `queries/fraud/f01_monthly_counts.sql`; the test-window counts are re-derived only by the evaluation step (ADR 0022)
+  `[data]`.
 - Labels only in `gold_eval`: `contracts/gold_contract.md` R3 and G1.
 - Saito and Rehmsmeier, *The Precision-Recall Plot Is More Informative than the ROC Plot When Evaluating Binary
   Classifiers on Imbalanced Datasets*, PLOS ONE (2015): https://doi.org/10.1371/journal.pone.0118432

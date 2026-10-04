@@ -74,6 +74,11 @@ def split_record(split: pl.DataFrame, labels: pl.DataFrame | None = None) -> dic
     return rec
 
 
+def register_labels(con: duckdb.DuckDBPyConnection, labels: pl.DataFrame) -> None:
+    """Expose `transaction_labels` from the frame `read_labels` returned, never from the whole label file."""
+    con.register("transaction_labels", labels.select("transaction_id", "is_fraud").to_arrow())
+
+
 def monthly_counts(con: duckdb.DuckDBPyConnection) -> pl.DataFrame:
     """Runs f01 (labels joined only before the test window). Needs a `transaction_labels` view on `con`."""
     return con.execute((QUERIES / "f01_monthly_counts.sql").read_text()).pl()
@@ -90,9 +95,10 @@ def main() -> None:
     labels_path = Path(a.eval) / "transaction_labels.parquet"
     con = connect(a.gold)
     split = build_split(con)
-    rec = split_record(split, read_labels(labels_path, split, LABEL_WINDOWS))
+    labels = read_labels(labels_path, split, LABEL_WINDOWS)
+    rec = split_record(split, labels)
     (out / "split.json").write_text(json.dumps(rec, indent=2))
-    con.execute(f"CREATE VIEW transaction_labels AS SELECT * FROM read_parquet('{labels_path}')")
+    register_labels(con, labels)  # the view holds train/validation labels only; f01's CASE is a second guard
     monthly_counts(con).write_csv(out / "monthly_counts.csv")  # f01 never selects test-month labels
     print(json.dumps(rec, indent=2))
 
