@@ -54,8 +54,6 @@ def prepared(tmp_path, monkeypatch=None):
     return sc.assemble(tx, split, labels), fs.split_hash(split), split, lab_path
 
 
-
-
 def test_ac_03_every_arm_trains_scores_and_is_calibrated_on_validation(tmp_path):
     df, h, _, _ = prepared(tmp_path)
     rec = sc.run_screen(df, h, tmp_path / "out")
@@ -66,7 +64,8 @@ def test_ac_03_every_arm_trains_scores_and_is_calibrated_on_validation(tmp_path)
         assert r["n"] == n_val  # a shuffled or misjoined label vector would fail the positive control below
         if r["arm"] in ("logreg", "sgd", "tree", "rf", "extra_trees", "hgb", "mlp", "stacked"):
             assert r["pr_auc"] >= 0.8, r["arm"]  # positive control: synthetic frauds are large foreign purchases
-        assert 0 <= r["pr_auc"] <= 1 + 1e-9 and 0 <= r["brier_calibration_window"] <= 1 and set(r["by_month"]) == {"2026-02", "2026-03"}
+        assert 0 <= r["pr_auc"] <= 1 + 1e-9 and 0 <= r["brier_calibration_window"] <= 1
+        assert set(r["by_month"]) == {"2026-02", "2026-03"}
         assert r["split_hash"] == h
 
 
@@ -147,6 +146,7 @@ def test_ac_05_no_screen_code_reads_labels_except_through_the_guard():
     for banned in ("read_parquet", "scan_parquet", ".parquet'", "is_fraud FROM", "read_table", "pyarrow"):
         assert banned not in src, banned
     assert not re.search(r"FROM\s+['\"]?\{", src)  # f-string FROM '{path}'
+    assert src.count("parquet") == 1  # only the label file name in main(): no duckdb from_parquet, no other reader
     assert "fs.read_labels(" in src
 
 
@@ -187,9 +187,8 @@ def test_ac_03_downsampling_runs_on_the_train_window_only(tmp_path, monkeypatch)
 def test_ac_03_saved_model_carries_encoder_and_reproduces_scores(tmp_path, monkeypatch):
     df, h, _, _ = prepared(tmp_path)
     out = tmp_path / "out"
-    scored = {}  # the validation scores each arm produced during the screen
-    real = sc.fit_calibrator
-    monkeypatch.setattr(sc, "fit_calibrator", lambda arm, s, y: (scored.__setitem__(arm, s.copy()), real(arm, s, y))[1])
+    used, real = {}, sc.raw_score  # each arm's first scoring call in the screen: the validation matrix and its scores
+    monkeypatch.setattr(sc, "raw_score", lambda a, m, X: (s := real(a, m, X), used.setdefault(a, (X.copy(), s)))[0])
     sc.run_screen(df, h, out, arms={"tree": sc.make_arms()["tree"]})
     va = df.filter(pl.col("split_window") == fs.VALIDATION)
     for arm, features in (("tree", ff.FEATURES), ("stacked", ff.FEATURES + [sc.BANK])):
@@ -197,8 +196,12 @@ def test_ac_03_saved_model_carries_encoder_and_reproduces_scores(tmp_path, monke
         meta = saved["meta"]
         assert meta["features"] == features and meta["bank_fill"] == -1.0 and meta["categorical_codes"]
         X, _ = sc.encode(va, meta["categorical_codes"], meta["features"])  # the file alone, no code-side lists
-        np.testing.assert_array_equal(sc.raw_score(arm, saved["model"], X), scored[arm])
+        assert saved["model"].n_features_in_ == len(meta["features"]) == X.shape[1]
+        np.testing.assert_array_equal(X, used[arm][0])  # same codes, column order and bank fill as in training
+        np.testing.assert_array_equal(real(arm, saved["model"], X), used[arm][1])
     assert meta["stacked_on"] == "tree" and meta["bank_column"]["null_fill"] == -1.0  # raw 0-100 score, not /100
+    bank = va[sc.BANK]  # the stored fill is the one the stacked model was trained with, not only a label
+    assert bank.null_count() and np.array_equal(X[:, meta["features"].index(sc.BANK)], bank.fill_null(-1.0).to_numpy())
 
 
 def test_ac_03_machine_record_and_stacked_fallback(tmp_path):

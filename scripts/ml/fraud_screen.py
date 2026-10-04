@@ -169,7 +169,8 @@ def metrics(val: pl.DataFrame, s: np.ndarray, calibrated: np.ndarray) -> dict:
            "recall_p80": recall_at_precision(y, s, 0.80), "recall_p95": recall_at_precision(y, s, 0.95),
            "recall_budget_1pct": recall_at_budget(y, s),
            "recall_budget_1pct_no_bank_score": recall_at_budget(y[noscore], s[noscore]),
-           "brier_calibration_window": float(brier_score_loss(y, calibrated)), "by_country": {}, "by_segment": {}, "by_month": {}}
+           "brier_calibration_window": float(brier_score_loss(y, calibrated)),
+           "by_country": {}, "by_segment": {}, "by_month": {}}
     for key, col in (("by_country", "customer_country"), ("by_segment", "customer_segment")):
         for g in val[col].drop_nulls().unique().sort().to_list():
             m = (val[col] == g).to_numpy() & (y == 1)

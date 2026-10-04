@@ -199,7 +199,8 @@ retraining (ADR 0021, P2).
       fraud in train only, plus class weights where available `[assumption]`), cost and efficiency harness
       (`scripts/ml/fraud_screen.py`; models and outputs outside the repo, the protocol seal forbids results inside it);
       train and validation only, so the test-window part of AC-03 is task 17c · AC-03 (screen), AC-05
-- [ ] T3b [P0] — lean rule in `eval/PROTOCOL.md` · AC-06 (pending merge of PR #37)
+- [ ] T3b [P0] — lean rule in `eval/PROTOCOL.md` · AC-06 · #47 (merged); sync PROTOCOL §3.1 and §3.3 rules 1–2 with
+      spec §4.3–4.4 before the seal (task PROT2, decision D-017)
 - [ ] T4 [P0] — test-window evaluation, report, `fraud_benchmark.json` for `/evaluation` · AC-04
 - [ ] T5 [P1] — `model_score` in `get_fraud_score` and the handoff card; inventory entry · AC-07, AC-08
 
