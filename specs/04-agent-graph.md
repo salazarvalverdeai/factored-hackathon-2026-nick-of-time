@@ -81,6 +81,8 @@ AC-01 to AC-08 come from issue #6 with the same numbers; the rest are added by t
 - **AC-21** — The receipt shall show the card's last 4 digits, the verification id and time, the case id, the absolute
   deadline date with its legal source, what the AI did and what a person does next. · [T]
 - **AC-22** — The agent shall never say a case is "assigned to an analyst" unless `get_case` shows `taken_by_person`. · [T]
+- **AC-28** — When the intent is `human_request`, the agent shall register a call request (`request_call`) or, without
+  a verified session, show the bank's general contact path; it shall never refuse. · [T]
 
 **Cases, money and modes (improvements #13 and #16)**
 - **AC-23** — If the customer disputes a transaction that already has an active case, the agent shall not open another
@@ -108,20 +110,23 @@ display_currency, channels}, `case_id_in`, `intent`, `intent_confidence`, `slots
 greet ─► understand ─► identity ─► route ─┬─► retrieve ─► decide ─┬─► plan ─► act ─► verify ─► respond
                                           │                       ├─► clarify ─────────────► respond   (ask / confirm)
                                           │                       └─► refuse ──────────────► respond   (deny / reauthenticate)
-                                          └─► status ──────────────────────────────────────► respond   (inquiry: cards, cases, notifications)
+                                          ├─► status ──────────────────────────────────────► respond   (answer_status: cards, cases, notifications)
+                                          ├─► connect ─────────────────────────────────────► respond   (connect_person: request_call)
+                                          └─► refuse ──────────────────────────────────────► respond   (rules 1–4: session, injection, other customer, out of scope)
 ```
 | Node | Does | Tools / rules |
 |---|---|---|
 | `greet` | First turn only: name, capabilities, human reachable | `get_customer_profile` · `messages.yaml greet.*` |
 | `understand` | Language; injection detector; intent + slots with the arm's classifier; relative dates against the mode's "today" | spec 11 · LLM only in S1/S2 below τ |
 | `identity` | Reads `session_state` and `mode` from the run config (injected by the api); never trusts ids in the text | — |
-| `route` | Dispute → retrieve; status question → status; anything else → refuse | intent |
+| `route` | Runs spec 02 rules 1–4 on the understood input: `reauthenticate`/`deny` → refuse; `connect_person` → connect (never refused); `answer_status` → status; a dispute → retrieve, then `decide` applies rules 5–9 | `engine.decide()` |
 | `retrieve` | Finds the transaction; gets the score; converts amounts for display | `search_transaction` · `get_fraud_score` · `convert_amount` |
 | `decide` | The decision with rule ids | spec 02 `engine.decide()` |
 | `plan` | Numbered steps shown to the customer | `messages.yaml plan.*` |
 | `act` | `open_case` (dedupe, related case), then `block_card` when allowed; idempotency key `session:transaction:action:run` | MCP |
 | `verify` | Post-conditions; 2 retries, 800 ms timeout; failure → `not_confirmed` + escalation | `get_product_status` · `get_case` |
 | `status` | Re-reads cards, cases or notifications and answers with the reading time | `list_my_cards` · `get_case` · `list_my_cases` · `list_my_notifications` |
+| `connect` | Registers a call request on the active case (or a general one) and says when to expect it; without a verified session, the bank's general contact path with no data | `request_call` · `messages.yaml connect.*` |
 | `clarify` | Options (≤ 3 candidates) or a request for amount/date; counts turns | templates; LLM wording in S1/S2 |
 | `refuse` | DENY or re-authenticate with no data and a way forward | templates |
 | `respond` | Receipt and handoff from verified facts; reply from templates (S1/S2 may reword, then the grounding check runs); CTAs | `nick_of_time.receipt` · `send_case_summary` · `request_call` · `request_reevaluation` · `add_case_info` |
@@ -174,7 +179,7 @@ messages.
 - [ ] T3 — `retrieve`, `decide`, `plan`, `clarify`, `refuse` · AC-02, AC-11, AC-12, AC-13, AC-16, AC-23, AC-25
 - [ ] T4 — `act`, `verify` with retries, the four-state vocabulary and the unconfirmed path · AC-01, AC-04, AC-18
 - [ ] T5 — `respond`: receipt, handoff, grounding check, CTAs · AC-05, AC-20, AC-21, AC-22, AC-26
-- [ ] T6 — `status` node and returning-customer path · AC-06, AC-19, AC-24
+- [ ] T6 — `status` and `connect` nodes and the returning-customer path · AC-06, AC-19, AC-24, AC-28
 - [ ] T7 — progress stream; S1/S2 wiring (Bedrock, structured output); usage; graceful degradation to S0 · AC-14, AC-17
 - [ ] T8 — Platform deployment; `/agent` content · AC-07, AC-08
 - [ ] Tests `tests/test_spec04_*.py` with the `fake` LLM and the fake MCP; EV-0001 end to end in historical mode
