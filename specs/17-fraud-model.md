@@ -79,6 +79,11 @@ Amount in USD and its log; currency; channel; transaction type and category; mer
 **earlier** transactions only: count and amount in the previous 1 h, 24 h and 7 days; amount against the customer's
 median; first time at this merchant; distance and time from the previous transaction's location. Excluded:
 `product_status` (a snapshot taken after the fact), the `qc_*` columns, `process_date` and the labels.
+Implementation choices (`scripts/ml/fraud_features.py`) `[assumption]`: history looks only at the customer's earlier
+Approved/Pending transactions with a strictly smaller timestamp (a same-time transaction is never history); rows without
+a `customer_id` use the product as the entity; `amount_usd` falls back to `amount` when the currency is USD; the
+bank's `fraud_score` and `response_code` are not features (the score is the baseline arm and enters only the stacked
+arm).
 
 ### 4.3 Arms — a lean scikit-learn screen
 The dataset is large enough for all of these (about 1.39 million Approved/Pending transactions, 896 frauds to train).
@@ -149,8 +154,8 @@ Deep learning or graph features; streaming features; using the model for automat
 retraining (ADR 0021, P2).
 
 ## 10. Plan, tasks and verification
-- [ ] T1 [P0] — versioned queries for the monthly label counts and the time split; split hash · AC-01
-- [ ] T2 [P0] — feature builder from earlier transactions only + leakage test · AC-02
+- [x] T1 [P0] — versioned queries for the monthly label counts and the time split; split hash · AC-01
+- [x] T2 [P0] — feature builder from earlier transactions only + leakage test · AC-02
 - [ ] T3 [P0] — the arms of §4.3 with calibration on validation; cost and efficiency harness; lean rule in
       `eval/PROTOCOL.md` · AC-03, AC-05, AC-06
 - [ ] T4 [P0] — test-window evaluation, report, `fraud_benchmark.json` for `/evaluation` · AC-04
