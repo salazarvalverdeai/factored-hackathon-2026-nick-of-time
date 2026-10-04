@@ -2,8 +2,8 @@
 
 - **Feature:** pure, deterministic code that turns `contracts/policies.yaml` into decisions — zone, decision, approval
   mode per action, allowed queue transitions and legal deadlines — with the rule ids that justify each one.
-- **Status:** In progress (T1 done; gate 1 closed; Q7 closed by ADR 0020 on 2026-10-04; adds `clock.today(mode)`,
-  display currency and the re-evaluation window)
+- **Status:** In progress (T1 and T2 done; gate 1 closed; Q7 closed by ADR 0020 on 2026-10-04; adds
+  `clock.today(mode)`, display currency and the re-evaluation window)
 - **Owner:** @salazarvalverdeai · **Priority:** P0 · **Size:** M
 - **Challenge dimension:** Technical Judgment (deterministic logic where AI is not appropriate)
 - **Depends on:** `contracts/policies.yaml` · **Enables:** 03 (tools re-check permissions), 04 (decide node), 05 (queue
@@ -89,17 +89,18 @@ AC-01 to AC-06 come from issue #4 with the same numbers; AC-07 onward are added 
 | 3 | `POL-CROSS-CUSTOMER` | request targets another customer's data | `deny` | G-SES-02, logged |
 | 3a | `POL-HUMAN-REQUEST` | intent `human_request` | `connect_person` | `request_call` on the active case, or a general request; never refused (CFPB 2023) |
 | 3b | `POL-STATUS` | intent `status_inquiry` | `answer_status` | read-only: the agent re-reads cards or cases (spec 04 AC-19); no case is opened |
-| 4 | `POL-OUT-OF-SCOPE` | intent `out_of_scope`, or product is not a card | `deny` (polite abstention) | G-IN-04 |
+| 4 | `POL-OUT-OF-SCOPE` | intent `out_of_scope`, or the one identified transaction's product is not a card (unknown counts as not a card `[assumption]`) | `deny` (polite abstention) | G-IN-04 |
 | 5 | `POL-CLARIFY` | confidence < τ, or candidates > 1 (≤ 3), or candidates = 0 | `ask` (≤ 2 turns) | then rule 5b |
-| 5b | `POL-CLARIFY-EXHAUSTED` | clarification turns > 2 | `handoff` (`clarification_exhausted`) | |
+| 5b | `POL-CLARIFY-EXHAUSTED` | clarification turns already asked ≥ `clarify.max_clarification_turns` (2) | `handoff` (`clarification_exhausted`) | |
 | 6 | `POL-SCORE-NULL` / `POL-SCORE-LLM` | score null, or source `llm` | zone `human` | case is still opened |
 | 7 | `POL-ZONE-HIGH` | score ≥ 50 | `block_and_open_case` | block mode from §4.2 |
-| 8 | `POL-ZONE-MEDIUM` | 30 ≤ score < 50 | `confirm`, then see §4.2 | customer confirmation required |
+| 8 | `POL-ZONE-MEDIUM` | 30 ≤ score < 50 | `confirm`, then see §4.2; "not that charge" → rule 5 / 5b `[assumption]` | customer confirmation required |
 | 9 | `POL-ZONE-HUMAN` | score < 30 | `handoff` (`zone_human`) | case opened, no block |
 | — | `POL-DEFAULT-DENY` | any action no rule allows | deny | `default: deny` |
 
 `POL-TICKET-ALWAYS`: in every zone that reaches rules 6–9, `open_case` is allowed with mode `auto` (registering is not
-a money decision).
+a money decision). `screen()` runs rules 1–4 only (spec 04 `route`, before the transaction is retrieved). τ applies at
+rule 5 only: rules 3a, 3b and 4 match the intent label at any confidence.
 
 ### 4.2 Approval modes and what happens to the case
 | Zone | `block_card` mode (policies) | Effective mode = stricter of mode, amount tier, supervised | Case status after the turn |
@@ -114,6 +115,12 @@ Amount tiers per country (`amount_gate.by_country`, local currency): `≤ low` �
 `[assumption]` before comparing. Each entry's `usd_rate` is a threshold-conversion parameter, never shown to a customer
 (customer-facing amounts use §4.4): COP 4,000 and ARS 350 are the gold's implied rates `[data]`
 (`queries/policy/implied_usd_rate.sql`); MXN 18.0 and BRL 5.5 stay `[assumption]` (the gold has no MXN or BRL amounts).
+When the tier or supervised mode makes a money action
+stricter than `approval.per_action`, the result cites `POL-AMOUNT-GATE` or `POL-SUPERVISED`. `[assumption]` A country
+without an entry (PE, CL), a missing amount or a currency other than the entry's or USD gets `human_required`;
+`handoff_reason` is `amount_over_case_gate` when the tier forced the handoff and null in the medium zone or when
+supervised mode alone forced it (`handoff.schema.json` has no value for them). `check()` answers for automated callers:
+`human_required` is a `Deny` citing the rule that raised the mode, else `POL-DEFAULT-DENY`.
 
 ### 4.3 Regulatory clock (LATAM, data-driven)
 The clock is a **table of verified country entries** in `policies.yaml`, not code. Each entry carries the regulator, the
@@ -178,7 +185,7 @@ agent offers a call (AC-18). A closed case is never reopened by the customer: sp
 ```python
 engine = PolicyEngine.load("contracts/policies.yaml")      # validates; exposes engine.version
 
-decision: Decision = engine.decide(DecisionInput(
+decision: PolicyDecision = engine.decide(DecisionInput(
     session_state="verified|expired|unverified",
     intent="unrecognized_charge|wrongful_charge|status_inquiry|human_request|out_of_scope",
     intent_confidence=0.93, candidates=1, clarification_turns=0,
@@ -187,10 +194,11 @@ decision: Decision = engine.decide(DecisionInput(
     amount=1250.0, currency="USD", country="MX", product_type="debit",
     customer_confirmed=None, supervised_mode=False,
 ))
-# Decision: decision, zone, approval_modes {action: mode}, allowed_actions, handoff_reason,
+# PolicyDecision: decision (contracts.Decision), zone, approval_modes {action: mode}, allowed_actions, handoff_reason,
 #           queue_status_after, rule_ids [..], guardrail_ids [..], policies_version
-
-engine.check(action="block_card", zone="high", amount=..., country=..., supervised_mode=False) -> Allow | Deny
+engine.screen(input) -> PolicyDecision | None              # rules 1–4 only; None = a dispute, go on (spec 04 route)
+engine.amount_tier(amount=1250.0, currency="USD", country="MX") -> "auto" | "manual_check" | "human_required"
+engine.check(action="block_card", zone="high", amount=..., currency=..., country=..., supervised_mode=False) -> Allow | Deny
 today: date = clock.today(mode="replay", country="MX")     # 2026-06-01 in replay; the real local date in live
 add_by: date = clock.add_business_days(country="MX", start=today, n=1)   # 2026-06-02 in replay (D-008)
 # callback date for request_call; task 02b implements it in T3 with a unit test (2026-06-01 + 1 → 2026-06-02)
@@ -258,7 +266,7 @@ callers write).
 ## 10. Plan, tasks and verification
 Implementation goes in `feat/02-policy-engine` once this spec and spec 01 (package layout) are approved.
 - [x] T1 — Pydantic model of `policies.yaml` + loader with validation; add `rules:` and `version: 2` · FR-01, FR-07, AC-12
-- [ ] T2 — `decide()` with the evaluation order of §4.1 and mode combination of §4.2 · AC-01, 02, 04, 05, 06, 07, 08, 09, 15
+- [x] T2 — `decide()` with the evaluation order of §4.1 and mode combination of §4.2 · AC-01, 02, 04, 05, 06, 07, 08, 09, 15
 - [ ] T3 — `clock.deadline()` + holiday files with sources for MX, AR, CO, BR, PE, CL; re-verify every clock source · AC-03, AC-14
 - [ ] T4 — `transition()` and `sla()` · AC-10, AC-11
 - [ ] T5 — decision-table tests: zone × country × mode × tier, plus the boundaries 29/30/49/50 and null · AC-01…AC-13
