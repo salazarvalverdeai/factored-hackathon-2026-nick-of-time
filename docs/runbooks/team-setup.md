@@ -14,7 +14,7 @@ Git · Python 3.13 · Node 24 · AWS CLI v2 · Docker (for the full stack, after
 
 ## 2. AWS access (your own IAM user, never shared keys)
 1. Sign in at `https://061039767206.signin.aws.amazon.com/console` with the user the lead gave you (secure channel).
-2. Set your password and **enable MFA** (IAM → your user → Security credentials).
+2. Set your password. MFA is not required during the sprint (lead decision, 2026-10-04).
 3. Same page → **Create access key** (CLI). Then on your machine:
    ```bash
    aws configure --profile nickoftime     # region us-east-2, output json
