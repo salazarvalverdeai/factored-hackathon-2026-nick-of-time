@@ -1,0 +1,30 @@
+name: Bug
+description: Something does not behave as its spec says.
+title: "fix: <what is wrong>"
+labels: ["bug"]
+body:
+  - type: input
+    id: spec
+    attributes:
+      label: Spec and criterion
+      placeholder: "spec 05 AC-04"
+  - type: textarea
+    id: what
+    attributes:
+      label: What happens vs what should happen
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      description: URL or command, input, observed output. Never paste secrets or tokens.
+    validations:
+      required: true
+  - type: dropdown
+    id: severity
+    attributes:
+      label: Severity
+      options: ["blocks the demo", "wrong result", "cosmetic"]
+    validations:
+      required: true

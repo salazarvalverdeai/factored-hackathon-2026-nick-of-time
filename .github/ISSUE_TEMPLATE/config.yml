@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: How we work
+    url: https://github.com/salazarvalverdeai/factored-hackathon-2026-nick-of-time/blob/main/CONTRIBUTING.md
+    about: Spec workflow, acceptance criteria, ADRs, branches, commits and approvals.

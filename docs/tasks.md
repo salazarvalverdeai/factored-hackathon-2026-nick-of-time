@@ -1,5 +1,8 @@
 # Board (move to GitHub issues on Monday)
 
+> **Historical (2026-09-28).** Kept for context. Current decisions live in [`docs/adr/`](adr/README.md), the work
+> plan in [`specs/`](../specs/README.md) and GitHub issues, and how we work in [`CONTRIBUTING.md`](../CONTRIBUTING.md).
+
 ## Mon 28 · contracts and repo (everyone, 2 h)
 - [ ] Public repo `factored-hackathon-2026-nick-of-time` with `.gitignore` (`.env`, `data/`) from commit 1
 - [ ] Review `problem.md`, `contracts/policies.yaml`, `contracts/tools.py`, `contracts/handoff.schema.json`, `eval/eval_case.schema.json` (30 min, everyone)

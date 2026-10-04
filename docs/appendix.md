@@ -1,5 +1,8 @@
 # Appendices: stack, contracts, numbers, open items
 
+> **Historical (2026-09-28).** Kept for context. Current decisions live in [`docs/adr/`](adr/README.md), the work
+> plan in [`specs/`](../specs/README.md) and GitHub issues, and how we work in [`CONTRIBUTING.md`](../CONTRIBUTING.md).
+
 ## Stack and settled decisions (Monday 28)
 
 | Question | Decision | Why |
