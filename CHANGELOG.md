@@ -10,6 +10,9 @@ All notable changes to this project are documented here. The format follows
 - GitHub workflow: pull request and commit templates, issue templates, `CODEOWNERS`, CI (pytest, web lint + build,
   secret scan).
 - `docs/infrastructure.md`, `STATUS.md` and the option A architecture diagram.
+- Deploy path (spec 06): `infra/compose.yml`, Caddy config, `infra/deploy.sh` with pull-first and rollback,
+  `infra/backup.sh` (daily Postgres dump to S3), `.github/workflows/deploy.yml` (GHCR → OIDC → SSM), web production
+  image, placeholder `api` (`/api/health`) and `mcp` images, and `tests/test_spec06_deploy.py`.
 
 ### Removed
 - Per-person Spanish guides in `docs/team/`, superseded by specs and issues.
