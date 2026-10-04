@@ -183,8 +183,14 @@ messages.
 decision · lessons to `CLAUDE.md`.
 
 ## 11. Sources
-- Microsoft Research, *Guidelines for Human-AI Interaction* (2019): https://www.microsoft.com/en-us/research/publication/guidelines-for-human-ai-interaction/
-- CFPB, *Chatbots in consumer finance* (June 2023): https://files.consumerfinance.gov/f/documents/cfpb_chatbot-issue-spotlight_2023-06.pdf
-- Message length and structured replies: https://uxdesign.cc/chatbot-building-best-practices-why-message-length-matters-e951bed1b550
+External sources checked on 2026-10-04.
+- Amershi et al., *Guidelines for Human-AI Interaction* (CHI 2019, 18 guidelines):
+  https://www.microsoft.com/en-us/research/publication/guidelines-for-human-ai-interaction/
+- CFPB, *Chatbots in consumer finance* (6 June 2023) — inaccurate information, failure to recognize disputes, doom loops
+  without a person: https://www.consumerfinance.gov/data-research/research-reports/chatbots-in-consumer-finance/chatbots-in-consumer-finance/
+- Nielsen Norman Group, Budiu, *The User Experience of Chatbots* (2018) — say what the bot can do, buttons plus text,
+  an escape hatch to a person: https://www.nngroup.com/articles/chatbots/
+- Rasa, *How to Create Effective Chatbot Conversation Designs* (2025) — short messages, quick replies, confirm critical
+  actions: https://rasa.com/blog/how-to-design-chatbot-conversation
 - Internal: ADR 0016 (grounding), ADR 0019 (official sources), `contracts/policies.yaml` (`clarify`, `reliability`,
   `notifications.never_send`), spec 02 (decisions), spec 03 (tools v1.1), improvement drafts #11–#16.
