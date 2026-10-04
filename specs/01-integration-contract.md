@@ -423,13 +423,13 @@ Implementation goes in one `feat/01-*` branch per task (for example `feat/01-pac
       view models, customer projections), `ids.py` · covers AC-01 · `tests/test_spec01_contracts.py`
 - [x] T2 — `contracts/customer_receipt.schema.json` + `eval_case.schema.json` minor change + example cases updated ·
       covers AC-01, AC-04 (receipt half; the echo graph is T5) · `tests/test_spec01_contracts.py`
-- [ ] T3 — api stub: every route of §6.2 and §6.8 returning fixtures validated by the models; `mode` on sessions ·
+- [x] T3 — api stub: every route of §6.2 and §6.8 returning fixtures validated by the models; `mode` on sessions ·
       covers AC-02, AC-06, AC-07
 - [ ] T4 — `contracts/tools.py` v1.1 and `policies.yaml` `actors.customer.tools` with the 16 tools; fake MCP server
       returning fixtures from those models, `synthetic` rows in `live` · covers AC-03, AC-08
 - [ ] T5 — echo graph `dispute_intake` returning a `TurnResult` with a sample receipt; `langgraph.json` sets
       `"python_version": "3.13"` (§6.1) · covers AC-04
-- [ ] T6 — `infra/compose.dev.yml` (api stub, mcp stub, postgres) and `.env.example` names of §6.9 · covers AC-02
+- [x] T6 — `infra/compose.dev.yml` (api stub, mcp stub, postgres) and `.env.example` names of §6.9 · covers AC-02
 - [x] T7 — remove the empty `apps/api/{audit,classifier,graph,policy,tools}` folders
 - [ ] T8 — tests `tests/test_spec01_*.py` citing AC-02, AC-03, AC-04, AC-06, AC-07, AC-08
 - [ ] T9 — the store's case insert retries with a fresh `ids.new_id("case")` on a `case_id` primary-key conflict

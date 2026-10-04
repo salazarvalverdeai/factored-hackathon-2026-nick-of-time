@@ -1,0 +1,31 @@
+# Local stack for development (spec 01 T6, AC-02):  docker compose -f infra/compose.dev.yml up --build
+# api stub on :8000, mcp stub on :8001, Postgres on :5432. Names of settings only; copy .env.example to .env.
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: nickoftime
+      POSTGRES_HOST_AUTH_METHOD: trust      # local development only, bound to localhost
+    ports: ["127.0.0.1:5432:5432"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d nickoftime"]
+      interval: 5s
+      retries: 10
+
+  api:
+    build: {context: .., dockerfile: apps/api/Dockerfile}
+    env_file: [{path: ../.env, required: false}]
+    environment:
+      DATABASE_URL: postgresql://postgres@postgres:5432/nickoftime
+      MCP_URL: http://mcp:8001/mcp
+      EVAL_MODE: ${EVAL_MODE:-false}
+    ports: ["127.0.0.1:8000:8000"]
+    depends_on: {postgres: {condition: service_healthy}}
+
+  mcp:
+    # The fake MCP server lands with spec 01 task 01b (apps/mcp/Dockerfile); until then this service does not build.
+    build: {context: .., dockerfile: apps/mcp/Dockerfile}
+    env_file: [{path: ../.env, required: false}]
+    environment:
+      LLM_PROVIDER: fake
+    ports: ["127.0.0.1:8001:8001"]
