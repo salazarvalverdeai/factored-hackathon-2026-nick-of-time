@@ -99,7 +99,7 @@ OpenAPI is generated from the code at `/api/docs`; this table is the agreed cont
 
 | Method | Path | Request | Response | Codes |
 |---|---|---|---|---|
-| GET | `/api/health` | — | `{status, version, git_sha, gold_version, policies_version, platform_revision, demo_today}` | 200 |
+| GET | `/api/health` | — | `{status, version, contract_version, git_sha, gold_version, policies_version, platform_revision, models: {graph, fast}, prompt_hash, classifier_version, demo_today}` | 200 |
 | GET | `/api/demo/customers` | — | `[{customer_id, display_name, country, segment, scenario, language}]` (6 demo customers, spec 09) | 200 |
 | POST | `/api/sessions` | `{customer_id}` | `{session_id, otp_demo, expires_at}` — the OTP is shown on screen (mock, ADR 0017) | 201 / 404 |
 | POST | `/api/sessions/{session_id}/verify` | `{otp}` | `{verified, expires_at}` + sets `not_session` cookie | 200 / 401 / 410 |
@@ -189,14 +189,14 @@ Append-only tables are marked **AO** (no `UPDATE`/`DELETE`; enforced by grants a
 
 | Table | Columns (type) | Notes |
 |---|---|---|
-| `sessions` | `session_id` text PK · `customer_id` text · `otp_hash` text · `verified_at` timestamptz null · `expires_at` timestamptz · `language` text · `tool_faults` text[] · `created_at` | TTL 15 min |
-| `cases` | `case_id` text PK · `customer_id` · `transaction_id` · `product_id` · `country` · `product_type` · `zone` · `dispute_type` · `credit_deadline` date null · `ruling_deadline` date null · `deadline_source` text · `trace_id` · `created_at` | static facts only |
+| `sessions` | `session_id` text PK · `customer_id` text null · `otp_hash` text · `verified_at` timestamptz null · `expires_at` timestamptz · `language` text · `tool_faults` text[] · `run_id` text null · `arm` text null · `created_at` | TTL 15 min; `run_id`/`arm` set only by the eval seed |
+| `cases` | `case_id` text PK · `customer_id` · `transaction_id` · `product_id` · `country` · `product_type` · `zone` · `dispute_type` · `credit_deadline` date null · `ruling_deadline` date null · `deadline_source` text · `run_id` text null · `trace_id` · `created_at` | static facts only |
 | `case_events` **AO** | `event_id` text PK · `case_id` FK · `seq` int · `type` text · `actor` text · `payload` jsonb · `customer_visible` bool · `trace_id` · `created_at` | unique (`case_id`, `seq`) |
-| `product_overrides` **AO** | `override_id` PK · `product_id` · `status` · `case_id` · `actor` · `created_at` | current status = latest row, else gold |
+| `product_overrides` **AO** | `override_id` PK · `product_id` · `status` · `case_id` · `actor` · `run_id` text null · `created_at` | current status = latest row **for the same `run_id`**, else gold |
 | `notifications` **AO** | `notification_id` PK · `case_id` · `customer_id` · `event` · `channel` (`log|telegram|email`) · `text` · `delivered` bool · `created_at` | |
 | `customer_channels` **AO** | `channel_id` PK · `customer_id` · `channel` · `address` (chat id or e-mail) · `event` (`linked|confirmed|revoked`) · `created_at` | latest row per channel wins |
 | `link_tokens` | `token` PK · `case_id` · `channel` · `expires_at` · `used_at` null | one-time |
-| `idempotency` | `key` PK · `action` · `result` jsonb · `created_at` | |
+| `idempotency` | `key` PK · `action` · `result` jsonb · `run_id` text null · `created_at` | the key is prefixed with `run_id` when present |
 | `policy_denials` **AO** | `denial_id` PK · `trace_id` · `session_id` · `policy_id` · `guardrail_id` · `detail` jsonb · `created_at` | |
 | `llm_calls` **AO** | `call_id` PK · `trace_id` · `provider` · `model` · `tokens_in` · `tokens_out` · `latency_ms` · `cost_usd` numeric · `created_at` | |
 | `settings_events` **AO** | `event_id` PK · `key` · `value` jsonb · `actor` · `created_at` | `supervised_mode` = latest |
@@ -233,13 +233,45 @@ receipt `RC-` · notification `N-` · session `S-` + 16 url-safe chars · transa
 ### 6.8 Evaluation hooks (`EVAL_MODE=true` only)
 | Method | Path | Request | Response |
 |---|---|---|---|
-| POST | `/api/eval/seed` | `eval_case.initial_state` | `{session_id, thread_id}` — creates the session (`verified|expired|none`), applies `fixtures` as overlays and `tool_faults` |
+| POST | `/api/eval/seed` | `{initial_state: eval_case.initial_state, run_id: str, arm: str}` | `{session_id, thread_id, run_id, arm}` — always returns a `session_id`: `verified` (OTP done), `expired` (expires_at in the past) or `none` (row with no customer and no verification, so every tool answers `SESSION_EXPIRED` and the expected decision is `reauthenticate`). Applies `fixtures` as overlays and `tool_faults` |
 | GET | `/api/eval/final-state/{session_id}` | — | `FinalState` below |
 
-`FinalState`: `{decision, zone, intent, product_status, case_open, case_id, queue_status, handoff_emitted,
-receipt_issued, receipt_has_deadline, notifications: [event], guardrail_ids: [..], other_customer_data_exposed,
-latency_ms, tokens_in, tokens_out, cost_usd}`. The harness drives turns through `/api/agent/...` with the seeded
-session and compares `FinalState` against `expected`.
+**Isolation between runs (pass^4).** Every row written while serving a seeded session carries its `run_id`
+(`sessions`, `cases`, `case_events` through their case, `product_overrides`, `idempotency`, `notifications`,
+`policy_denials`, `llm_calls`), and every read of mutable state filters by the session's `run_id` (product status =
+latest override for the same `run_id`, else gold). Rows are never reset or deleted, so the append-only rule holds and
+each of the four runs starts from the same gold state. The harness uses `run_id = <case_id>:<arm>:<k>` (k = 1…4).
+
+**Arms (system configurations).** One deployment serves every arm: `seed` stores `arm` in the session and the api
+injects it as `configurable.arm`; the graph resolves it with `nick_of_time.config.resolve(arm)`.
+
+| Arm | Understanding | Replies | LLM |
+|---|---|---|---|
+| `S0` | rules classifier (B0) | deterministic templates | none |
+| `S1` | classifier chosen by spec 11 | templates + LLM for clarifying questions | Claude Haiku 4.5 |
+| `S2` | same as S1 | same as S1 | Claude Sonnet 4.6 |
+| benchmark arms (spec 15, B2) | as S1 | as S1 | the arm's model (e.g. `jev`) |
+
+S0–S2 are named here and are the system comparison of ADR 0015; spec 15 can add arms without changing this contract.
+
+`FinalState` (one per session, i.e. per run):
+```json
+{
+  "run_id": "EV-0001:S1:3", "arm": "S1",
+  "decision": "…", "zone": "…", "intent": "…",
+  "transaction_id": "T-… | null", "product_id": "P-… | null", "candidate_transaction_ids": ["T-…"],
+  "product_status": "Blocked | Active | …", "case_open": true, "case_id": "K-… | null", "queue_status": "…",
+  "handoff_emitted": true, "receipt_issued": true, "receipt_has_deadline": true,
+  "notifications": ["case_opened"], "guardrail_ids": ["G-IN-01"], "other_customer_data_exposed": false,
+  "turns": [{"turn": 1, "latency_ms": 2140, "tokens_in": 1830, "tokens_out": 210, "cost_usd": 0.0031}],
+  "totals": {"latency_ms": 2140, "tokens_in": 1830, "tokens_out": 210, "cost_usd": 0.0031},
+  "run_meta": {"git_sha": "…", "platform_revision": "…", "policies_version": 2, "provider": "bedrock",
+               "model_graph": "…", "model_fast": "…", "prompt_hash": "sha256:…", "classifier_version": "…"}
+}
+```
+`transaction_id`/`product_id` are the ones acted on (block or case); per-turn latency feeds p50/p95, totals feed the
+cost per case. The harness drives turns through `/api/agent/...` with the seeded session and compares `FinalState`
+against `expected`.
 
 **Schema change (`eval/eval_case.schema.json`, minor):** add `"customer_returns"` to `type`; add
 `expected.receipt: {"issued": bool, "has_deadline": bool}` and `initial_state.case_id` (for returning customers).
@@ -259,7 +291,9 @@ Creates the Postgres schema of §6.5 and the receipt schema of §6.7; reads gold
 - **Q2 (@gianzk):** `/chat` uses agent-chat-ui against the `/api/agent/...` proxy (LangGraph Server protocol), so the
   session is injected server-side — OK, or do you prefer a single `POST /api/chat/runs` SSE route?
 - **Q3 (@gianzk):** Alembic for migrations under `apps/api/migrations` — OK?
-- **Q4 (@vldiego):** `FinalState` and the seed hook are enough for the harness and the benchmark B2?
+- **Q4 (@vldiego):** ~~`FinalState` and the seed hook are enough?~~ **Answered in review:** added run isolation by
+  `run_id`, `transaction_id`/`product_id` acted on, `run_meta` (models, prompt hash, versions), arms S0/S1/S2 selected
+  through `seed`, per-turn latency and cost, and the `session: "none"` behavior (§6.8).
 - **Q5 (all):** `440` for an expired session (vs `401` without session) — OK?
 - Assumption: analysts and customers use the same origin (`nickoftime.salazarvalverdeai.com`); no CORS.
 - Assumption: Platform reaches the MCP over the internet with the API key; locally `langgraph dev` + local MCP.
