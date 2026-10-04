@@ -127,7 +127,19 @@
    "credit_deadline": "2026-06-03",
    "deadline_source": "Banxico"
   },
-  "trace_id": "trace-1"
+  "trace_id": "trace-1",
+  "intent_confidence": 0.92,
+  "guardrails_triggered": [
+   "G-IN-01"
+  ],
+  "notifications_sent": [
+   {
+    "event": "case_opened",
+    "provider": "telegram",
+    "delivered": true,
+    "ts": "2026-06-01T15:04:13Z"
+   }
+  ]
  },
  "actions": [
   {
@@ -136,6 +148,13 @@
    "state": "verified",
    "verification_id": "V-8B2D41C7E0A9",
    "read_at": "2026-06-01T15:04:09Z"
+  },
+  {
+   "tool": "open_case",
+   "action_id": "A-71C0D5E8A2F3",
+   "state": "verified",
+   "verification_id": "V-0C6A93F1B57D",
+   "read_at": "2026-06-01T15:04:11Z"
   }
  ],
  "db_actions": [
@@ -144,6 +163,12 @@
    "state": "verified",
    "verification_id": "V-8B2D41C7E0A9",
    "requested_at": "2026-06-01T15:04:08Z"
+  },
+  {
+   "action_id": "A-71C0D5E8A2F3",
+   "state": "verified",
+   "verification_id": "V-0C6A93F1B57D",
+   "requested_at": "2026-06-01T15:04:10Z"
   }
  ],
  "status_replies": [
@@ -153,16 +178,14 @@
    "read_status": "verification"
   }
  ],
- "told_queue_status": "verification",
- "read_queue_status": "verification",
  "privacy": {
   "surfaces": {
-   "reply": "Bloqueé tu tarjeta ····4417. Caso K-104233.",
+   "reply": "Bloqueé tu tarjeta ····4417 y abrí el caso K-104233. Plazo: 2026-06-03.",
    "notification": "Tu tarjeta 4417 quedó bloqueada (verificado). Caso K-104233."
   },
   "score": 62.5,
   "policy_ids": [
-   "P-ZONE-HIGH"
+   "POL-ZONE-HIGH"
   ],
   "transcript": [
    "no reconozco este cargo"
@@ -188,22 +211,22 @@
    "case_id": "K-104233",
    "type": "status",
    "status": "resolved",
-   "actor": "person"
+   "actor": "analyst:abc123"
   },
   {
    "case_id": "K-104233",
    "type": "provisional_credit",
    "status": null,
-   "actor": "person"
+   "actor": "analyst:abc123"
   },
   {
    "case_id": "K-104233",
    "type": "status",
    "status": "closed",
-   "actor": "person"
+   "actor": "analyst:abc123"
   }
  ],
- "active_cases": [
+ "case_keys": [
   [
    "K-104233",
    "C-0001",

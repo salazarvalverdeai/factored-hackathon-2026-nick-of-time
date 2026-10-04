@@ -86,6 +86,14 @@ Each criterion carries its phase: **[P0]** in the submission · **[P1]** if time
 | A9 | Notifications | each status change produced its notification on the confirmed channels, with a delivery status | medium |
 | A10 | Cost and latency | within the budget and limits of G-OPS-01 | low |
 
+Notes on A3–A7 (task 18a). A3 also audits the verified claims shown to people (`receipt.actions[]` by `verified_at`,
+`handoff.actions[]` by `verified: true`) against the end-of-turn store read. A4 covers numbers, dates and ids, with
+locale-aware amounts (a last separator followed by 1–2 digits is the decimal mark, groups of 3 are thousands); statuses
+belong to A5. A4 skips fields that are not tool facts (`intent_confidence`, `guardrails_triggered`, `notifications_sent[].ts`).
+A6 applies the transcript rule to notification surfaces only. A7 also requires a person (an `analyst:` actor) for
+`resolved`, not only for `closed`; active cases are derived from each case's last status and duplicates are keyed by
+customer and transaction.
+
 ### 4.2 Judge
 - **Input:** the handoff card (`handoff.schema.json`), the transcript, the tool results with their ids, the decision with
   its rule ids, the bank's score and the auditor's results. Never the customer's other cases, never secrets.
@@ -119,6 +127,13 @@ comes from the policy engine, not from an LLM, so the judge does not grade its o
 findings: list[Finding] = audit.run(records)            # records: TurnResult, trace, tool results, case events
 opinion: SecondOpinion | None = judge.opinion(handoff, transcript, evidence, audit=findings)
 ```
+- **Input mapping (for the `records_for_run(run_id)` adapter of T2, reused by T3).** `FinalState` does not change.
+  A3: `ActionRecord`s from the TurnResult, `receipt.actions`, `handoff.actions`, and `ActionRead`s from `case_events`
+  (`requested_at` = `created_at` of `card_blocked`/`case_opened`, V- id from the `block_verified` payload). A5:
+  `FinalState.status_replies` (told vs a fresh read, the K- id included). A6: surfaces from the reply, the receipt and
+  `notifications.text`; `other_customer_data_exposed` from `FinalState`. A7: `LifecycleEvent`s (`status` is a
+  `QueueStatus`, `actor` is `agent`, `system`, `customer` or `analyst:<sub>`) and `(case_id, customer_id, transaction_id)`
+  keys from `case_events` and `cases`. Open gap for specs 01b/03: a stored V- id for `open_case`'s post-condition.
 - `GET /api/console/cases/{case_id}` adds `audit: [{check_id, status, severity, expected, observed}]` and
   `second_opinion: {...} | null`.
 - `POST /api/console/cases/{case_id}/audit/{finding_id}/ack` → event `audit_acknowledged` with the analyst as actor.
@@ -145,6 +160,7 @@ tools for the third line (internal audit).
 ## 10. Plan, tasks and verification
 - [ ] T1 [P0] — `nick_of_time.audit` with A1–A7 as pure functions + tests on recorded fixtures · AC-01
       (A3–A7 done, task 18a: `tests/test_spec18_audit_a3_a7.py`; A1–A2 remain, task 18b)
+      Note: AC-01 names A1–A10, but P0 is A1–A7 (§4.3, T1); A8–A10 are outside P0, pending the lead.
 - [ ] T2 [P0] — harness uses the library for its final-state checks (with @vldiego) · AC-02
 - [ ] T3 [P1] — api background task, `audit_findings`, critical flag and acknowledgment · AC-03, AC-04, AC-05
 - [ ] T4 [P0] — judge: prompt with the fixed rubric, structured output, grounding of reasons, fallback · AC-07, AC-08,
