@@ -6,7 +6,7 @@ PYTHON ?= python3
 PY := .venv/bin/python
 SOURCE ?= s3
 
-.PHONY: setup deps pipeline fixture report test hooks
+.PHONY: setup deps pipeline fixture report test hooks check-bedrock check-telegram check-resend check-jev check-all
 
 setup: deps pipeline fixture report
 
@@ -31,3 +31,18 @@ test:
 hooks: $(PY)
 	$(PY) -m pip install -q pre-commit
 	.venv/bin/pre-commit install
+
+# Access checks (docs/runbooks/): read the local .env, never print secrets. Extra flags through ARGS="...".
+check-bedrock:
+	cd scripts/checks && ../../$(PY) check_bedrock.py $(ARGS)
+
+check-telegram:
+	cd scripts/checks && ../../$(PY) check_telegram.py $(ARGS)
+
+check-resend:
+	cd scripts/checks && ../../$(PY) check_resend.py $(ARGS)
+
+check-jev:
+	cd scripts/checks && ../../$(PY) check_jev.py $(ARGS)
+
+check-all: check-bedrock check-telegram check-jev
