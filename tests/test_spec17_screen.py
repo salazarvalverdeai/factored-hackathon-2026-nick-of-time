@@ -1,6 +1,7 @@
 """Spec 17 T3 (17b): the sklearn screen, calibration, cost harness, label guard (AC-03, AC-05). Offline, synthetic."""
 import json
 import os
+import re
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -9,6 +10,7 @@ import joblib
 import numpy as np
 import polars as pl
 import pytest
+from sklearn.dummy import DummyClassifier
 
 from scripts.ml import fraud_features as ff
 from scripts.ml import fraud_screen as sc
@@ -93,7 +95,13 @@ def test_ac_03_harness_records_time_size_p95_hash_and_stamps_models(tmp_path):
     f = out / "models" / "fraud-screen-tree.joblib"
     assert r["model_sha256"] == sc.sha256_file(f)
     assert joblib.load(f)["meta"]["split_hash"] == h
-    assert json.loads((out / "fraud_screen_validation.json").read_text())["split_hash"] == h
+    strict = json.loads((out / "fraud_screen_validation.json").read_text(),
+                        parse_constant=lambda c: pytest.fail(f"{c} is not JSON"))  # NaN/Infinity rejected, as in JS
+    assert strict["split_hash"] == h
+    bank = next(x for x in strict["results"] if x["arm"] == "s_bank")
+    assert bank["recall_budget_1pct_no_bank_score"] is None  # all ties: undefined, written as null
+    slices = [v for x in strict["results"] for k in ("by_country", "by_segment") for v in x[k].values()]
+    assert slices and all(v["n_fraud"] > 0 and 0 <= v["recall_budget_1pct"] <= 1 for v in slices)
 
 
 def test_ac_03_cold_start_history_length_feature():
@@ -126,24 +134,38 @@ def test_ac_05_screen_never_sees_test_rows_or_labels(tmp_path, monkeypatch):
         fs.read_labels(lab, split, {fs.TEST})
 
 
+def test_ac_05_assemble_refuses_test_window_rows():
+    tx, split, fraud = synthetic()  # labels for every window, bypassing read_labels: assemble is the second guard
+    labels = pl.DataFrame({"transaction_id": list(fraud), "is_fraud": list(fraud.values())})
+    with pytest.raises(fs.LabelAccessError):
+        sc.assemble(tx, split, labels)
+
+
 def test_ac_05_no_screen_code_reads_labels_except_through_the_guard():
     src = Path(sc.__file__).read_text()
     assert "transaction_labels" not in src.replace("transaction_labels.parquet", "")  # only the file name in main()
-    for banned in ("read_parquet", "scan_parquet", ".parquet'", 'is_fraud FROM'):
+    for banned in ("read_parquet", "scan_parquet", ".parquet'", "is_fraud FROM", "read_table", "pyarrow"):
         assert banned not in src, banned
+    assert not re.search(r"FROM\s+['\"]?\{", src)  # f-string FROM '{path}'
     assert "fs.read_labels(" in src
 
 
-def test_ac_05_outputs_stay_outside_the_repo(tmp_path):
+def test_ac_05_outputs_stay_outside_the_repo(tmp_path, monkeypatch):
     assert sc.out_dir(str(tmp_path / "o")).exists()
     with pytest.raises(ValueError):
         sc.out_dir(str(sc.REPO / "eval" / "results"))
-    before = {p for p in sc.REPO.rglob("*") if ".git" not in p.parts and ".venv" not in p.parts}
     df, h, _, _ = prepared(tmp_path)
+    refused = sc.REPO / "eval" / "results" / "spec17-refused"
+    with pytest.raises(ValueError):
+        sc.run_screen(df, h, refused, arms={"gnb": sc.make_arms()["gnb"]})
+    assert not refused.exists()
+    written = []  # every path run_screen writes: the model files and the JSON record
+    real_dump, real_write = sc.joblib.dump, Path.write_text
+    monkeypatch.setattr(sc.joblib, "dump", lambda obj, p: (written.append(Path(p)), real_dump(obj, p))[1])
+    monkeypatch.setattr(Path, "write_text", lambda p, *a, **k: (written.append(p), real_write(p, *a, **k))[1])
     sc.run_screen(df, h, tmp_path / "out", arms={"gnb": sc.make_arms()["gnb"]})
-    after = {p for p in sc.REPO.rglob("*") if ".git" not in p.parts and ".venv" not in p.parts
-             and "__pycache__" not in p.parts and ".pytest_cache" not in p.parts}
-    assert not {p for p in after - before if "__pycache__" not in p.parts}
+    assert len(written) == 3  # gnb, stacked, JSON
+    assert all(sc.REPO not in p.resolve().parents for p in written)
 
 
 @pytest.mark.skipif(not GOLD or not GOLD_EVAL.exists(), reason="opt-in: set GOLD_PATH (real gold run)")
@@ -162,26 +184,28 @@ def test_ac_03_downsampling_runs_on_the_train_window_only(tmp_path, monkeypatch)
     assert seen and set(seen) == {df.filter(pl.col("split_window") == fs.TRAIN).height}
 
 
-def test_ac_03_saved_model_carries_encoder_and_reproduces_scores(tmp_path):
+def test_ac_03_saved_model_carries_encoder_and_reproduces_scores(tmp_path, monkeypatch):
     df, h, _, _ = prepared(tmp_path)
     out = tmp_path / "out"
-    rec = sc.run_screen(df, h, out, arms={"tree": sc.make_arms()["tree"]})
-    saved = joblib.load(out / "models" / "fraud-screen-tree.joblib")
-    meta = saved["meta"]
-    assert meta["features"] == ff.FEATURES and meta["bank_fill"] == -1.0 and meta["categorical_codes"]
+    scored = {}  # the validation scores each arm produced during the screen
+    real = sc.fit_calibrator
+    monkeypatch.setattr(sc, "fit_calibrator", lambda arm, s, y: (scored.__setitem__(arm, s.copy()), real(arm, s, y))[1])
+    sc.run_screen(df, h, out, arms={"tree": sc.make_arms()["tree"]})
     va = df.filter(pl.col("split_window") == fs.VALIDATION)
-    X, _ = sc.encode(va, meta["categorical_codes"])
-    tr = df.filter(pl.col("split_window") == fs.TRAIN)
-    Xt, cats = sc.encode(tr)
-    assert cats == meta["categorical_codes"]
-    s = sc.raw_score("tree", saved["model"], X)
-    from sklearn.metrics import average_precision_score
-    got = average_precision_score(va["is_fraud"].to_numpy().astype(int), s)
-    assert got == pytest.approx(next(r for r in rec["results"] if r["arm"] == "tree")["pr_auc"])
+    for arm, features in (("tree", ff.FEATURES), ("stacked", ff.FEATURES + [sc.BANK])):
+        saved = joblib.load(out / "models" / f"fraud-screen-{arm}.joblib")
+        meta = saved["meta"]
+        assert meta["features"] == features and meta["bank_fill"] == -1.0 and meta["categorical_codes"]
+        X, _ = sc.encode(va, meta["categorical_codes"], meta["features"])  # the file alone, no code-side lists
+        np.testing.assert_array_equal(sc.raw_score(arm, saved["model"], X), scored[arm])
+    assert meta["stacked_on"] == "tree" and meta["bank_column"]["null_fill"] == -1.0  # raw 0-100 score, not /100
 
 
 def test_ac_03_machine_record_and_stacked_fallback(tmp_path):
     df, h, _, _ = prepared(tmp_path)
-    rec = sc.run_screen(df, h, tmp_path / "out", arms={"hgb": sc.make_arms()["hgb"]})
+    dummy = lambda: DummyClassifier(strategy="prior")  # noqa: E731 — base-rate PR-AUC, below 2x the base rate
+    rec = sc.run_screen(df, h, tmp_path / "out", arms={"logreg": dummy, "hgb": dummy})
     assert {"platform", "cpu_count", "ram_bytes", "python", "scikit_learn"} <= set(rec["machine"])
-    assert next(r for r in rec["results"] if r["arm"] == "stacked")["stacked_on"] == "hgb"
+    assert next(r for r in rec["results"] if r["arm"] == "stacked")["stacked_on"] == "hgb"  # max() alone picks logreg
+    rec = sc.run_screen(df, h, tmp_path / "out", arms={"tree": sc.make_arms()["tree"], "hgb": dummy})
+    assert next(r for r in rec["results"] if r["arm"] == "stacked")["stacked_on"] == "tree"  # clears 2x: kept

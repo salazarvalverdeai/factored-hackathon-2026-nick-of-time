@@ -40,6 +40,8 @@ LEGIT_PER_FRAUD = 100  # down-sampling of legitimate train rows [assumption]; ca
 CATEGORICAL = ["currency", "channel", "transaction_type", "transaction_category", "merchant_category", "product_type"]
 BANK = "fraud_score"
 BANK_FILL = -1.0  # a missing bank score is the lowest value (spec 17 §4.3)
+BANK_COLUMN = {"source": "transactions_enriched.fraud_score", "scale": "raw 0-100 (S-bank divides by 100)",
+               "null_fill": BANK_FILL}
 FAMILY = {"iforest": "no-labels", "logreg": "linear", "sgd": "linear", "gnb": "probabilistic", "tree": "tree",
           "rf": "ensemble", "extra_trees": "ensemble", "hgb": "ensemble", "mlp": "neural", "stacked": "stacked"}
 
@@ -102,14 +104,18 @@ def assemble(tx: pl.DataFrame, split: pl.DataFrame, labels: pl.DataFrame) -> pl.
     return df
 
 
-def encode(df: pl.DataFrame, cats: dict | None = None):
-    """Numeric matrix with NaN for null numerics; categorical codes learned on the first call (train), -1 for unseen AND for null categories."""
+def encode(df: pl.DataFrame, cats: dict | None = None, features: list[str] | None = None):
+    """Matrix of `features` (default ff.FEATURES; pass a model file's meta["features"] to rescore it) with NaN for null
+    numerics; categorical codes learned on the first call (train), -1 for unseen AND for null categories; the bank
+    column, when listed, is BANK_COLUMN (raw score, nulls as BANK_FILL)."""
     cats = cats or {c: {v: i for i, v in enumerate(sorted(df[c].drop_nulls().unique().to_list()))} for c in CATEGORICAL}
     cols = []
-    for c in ff.FEATURES:
+    for c in features or ff.FEATURES:
         s = df[c]
         if c in cats:
             s = s.replace_strict(cats[c], default=-1, return_dtype=pl.Float64)
+        elif c == BANK:
+            s = s.fill_null(BANK_FILL)
         cols.append(s.cast(pl.Float64).fill_nan(None).to_numpy())
     return np.column_stack(cols), cats
 
@@ -146,9 +152,9 @@ def recall_at_precision(y, s, p) -> float:
     return float(rec[:-1][ok].max()) if ok.any() else 0.0
 
 
-def recall_at_budget(y, s, budget=0.01) -> float:
+def recall_at_budget(y, s, budget=0.01) -> float | None:
     if y.sum() == 0:
-        return float("nan")
+        return None  # undefined, written as JSON null
     k = max(1, int(round(budget * len(s))))
     return float(y[np.argsort(-s, kind="stable")[:k]].sum() / y.sum())
 
@@ -167,8 +173,8 @@ def metrics(val: pl.DataFrame, s: np.ndarray, calibrated: np.ndarray) -> dict:
     for key, col in (("by_country", "customer_country"), ("by_segment", "customer_segment")):
         for g in val[col].drop_nulls().unique().sort().to_list():
             m = (val[col] == g).to_numpy() & (y == 1)
-            if m.sum():
-                out[key][g] = float(flagged[m].sum() / m.sum())  # recall at the 1% alert budget
+            if m.sum():  # recall at the 1% window budget and the fraud count behind it (spec 17 §4.4 rule 1)
+                out[key][g] = {"n_fraud": int(m.sum()), "recall_budget_1pct": float(flagged[m].sum() / m.sum())}
     for mth in sorted(val["month"].unique().to_list()):
         m = (val["month"] == mth).to_numpy()
         out["by_month"][mth] = {"n_fraud": int(y[m].sum()),
@@ -191,7 +197,8 @@ def p95_ms(arm: str, model, X: np.ndarray, n: int = 100) -> float:
     return float(np.percentile(lat, 95))
 
 
-def run_arm(arm, factory, Xtr, ytr, Xva, val, yva, out: Path, split_hash: str, cats: dict, with_bank: bool = False) -> dict:
+def run_arm(arm, factory, Xtr, ytr, Xva, val, yva, out: Path, split_hash: str, cats: dict,
+            features: list[str] = ff.FEATURES, extra_meta: dict | None = None) -> dict:
     if arm == "iforest":  # no labels: a random sample of train rows
         idx = np.sort(np.random.default_rng(SEED).choice(len(Xtr), min(len(Xtr), 100_000), replace=False))
     else:
@@ -207,8 +214,8 @@ def run_arm(arm, factory, Xtr, ytr, Xva, val, yva, out: Path, split_hash: str, c
     res = metrics(val, s, cal.predict_proba(_logit(s, arm))[:, 1])
     path = out / "models" / f"fraud-screen-{arm}.joblib"
     path.parent.mkdir(parents=True, exist_ok=True)
-    meta = {"arm": arm, "split_hash": split_hash, "features": ff.FEATURES + (["bank_score"] if with_bank else []),
-            "seed": SEED, "categorical_codes": cats, "bank_fill": BANK_FILL, "train_rows": int(len(idx)), "windows": fs.WINDOWS}
+    meta = {"arm": arm, "split_hash": split_hash, "features": list(features), "seed": SEED, "categorical_codes": cats,
+            "bank_fill": BANK_FILL, "train_rows": int(len(idx)), "windows": fs.WINDOWS, **(extra_meta or {})}
     joblib.dump({"model": model, "calibrator": cal, "meta": meta}, path)
     res.update(arm=arm, family=FAMILY[arm], train_seconds=train_s, model_bytes=path.stat().st_size,
                model_sha256=sha256_file(path), p95_ms=p95_ms(arm, model, Xva),
@@ -221,17 +228,20 @@ def bank_arm(val: pl.DataFrame, split_hash: str) -> dict:
     s = val[BANK].fill_null(BANK_FILL).to_numpy() / 100
     cal = fit_calibrator("bank", s, y)
     res = metrics(val, s, cal.predict_proba(_logit(s, "bank"))[:, 1])
-    res["recall_budget_1pct_no_bank_score"] = float("nan")  # the bank score is constant there: all ties, undefined
+    res["recall_budget_1pct_no_bank_score"] = None  # the bank score is constant there: all ties, undefined
     res.update(arm="s_bank", family="baseline", train_seconds=0.0, model_bytes=0, model_sha256=None, p95_ms=0.0,
                throughput_tps=None, split_hash=split_hash)
     return res
 
 
 def machine_record() -> dict:
-    """Where the cost figures were measured (spec 17 §5). Ensembles use n_jobs=-1 (all cores); the rest are single-thread."""
+    """Where the cost figures were measured (spec 17 §5). iforest, rf and extra_trees (n_jobs=-1) and hgb (OpenMP, so
+    also a stacked arm on hgb) use all cores; logreg and mlp use BLAS threads; tree, sgd and gnb run on one core."""
     ram = os.sysconf("SC_PAGE_SIZE") * os.sysconf("SC_PHYS_PAGES") if hasattr(os, "sysconf") else None
     return {"platform": platform.platform(), "cpu_count": os.cpu_count(), "ram_bytes": ram,
-            "python": platform.python_version(), "scikit_learn": sklearn.__version__, "n_jobs": "-1 for iforest/rf/extra_trees"}
+            "python": platform.python_version(), "scikit_learn": sklearn.__version__,
+            "threads": "all cores: iforest/rf/extra_trees (n_jobs=-1), hgb and stacked-on-hgb (OpenMP); "
+                       "BLAS threads: logreg/mlp; one core: tree/sgd/gnb"}
 
 
 def run_screen(df: pl.DataFrame, split_hash: str, out: Path, arms: dict | None = None) -> dict:
@@ -248,14 +258,14 @@ def run_screen(df: pl.DataFrame, split_hash: str, out: Path, arms: dict | None =
     base_rate = float(yva.mean())
     # stack on the best supervised arm; if none clears twice the base rate, on balanced HGB [assumption, pending lead]
     best = top["arm"] if top["pr_auc"] > 2 * base_rate or "hgb" not in arms else "hgb"
-    bank_tr, bank_va = tr[BANK].fill_null(BANK_FILL).to_numpy()[:, None], va[BANK].fill_null(BANK_FILL).to_numpy()[:, None]
-    stacked = run_arm("stacked", arms[best], np.hstack([Xtr, bank_tr]), ytr, np.hstack([Xva, bank_va]), va, yva, out,
-                      split_hash, cats, with_bank=True)
+    feats = ff.FEATURES + [BANK]
+    stacked = run_arm("stacked", arms[best], encode(tr, cats, feats)[0], ytr, encode(va, cats, feats)[0], va, yva, out,
+                      split_hash, cats, feats, {"stacked_on": best, "bank_column": BANK_COLUMN})
     stacked["stacked_on"] = best
     results.append(stacked)
     rec = {"split_hash": split_hash, "label_windows": sorted(fs.LABEL_WINDOWS), "machine": machine_record(),
            "results": results}
-    (out / "fraud_screen_validation.json").write_text(json.dumps(rec, indent=2, default=str))
+    (out / "fraud_screen_validation.json").write_text(json.dumps(rec, indent=2, default=str, allow_nan=False))
     return rec
 
 

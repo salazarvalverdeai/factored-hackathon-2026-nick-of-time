@@ -102,9 +102,9 @@ Implementation choices (`scripts/ml/fraud_features.py`) `[assumption]`:
   earlier transaction of the customer `[data]`: 61.5% in 2025-06, 23.9% in 2025-07, 10.7% in 2025-08, 0.8% in 2026-01
   (computed with `build_features` on gold v1). The windows and counts are not changed. Task 17b adds one feature,
   `n_prev` (count of strictly earlier transactions of the entity, any status), so the models can tell a thin history
-  from a quiet customer `[assumption]`; validation metrics are reported by month so the effect is visible. Risk, recorded and pending the lead: `n_prev`
-  grows with calendar time, so it can encode the period rather than the customer (|ROC-AUC| 0.522 on train+validation
-  `[data]`, probably from the extra frauds of 2025-06).
+  from a quiet customer `[assumption]`; validation metrics are reported by month so the effect is visible. Risk,
+  recorded and pending the lead: `n_prev` grows with calendar time, so it can encode the period rather than the
+  customer (|ROC-AUC| 0.522 on train+validation `[data]`, probably from the extra frauds of 2025-06).
 
 ### 4.3 Arms — a lean scikit-learn screen
 The dataset is large enough for all of these (about 1.39 million Approved/Pending transactions, 896 frauds to train).
@@ -124,7 +124,10 @@ training window only, and is calibrated on the validation window.
 
 Stacked base `[assumption, pending the lead]`: the best supervised arm by validation PR-AUC; when none exceeds twice the
 validation base rate, the balanced `HistGradientBoostingClassifier` (a base with no signal would only add noise to the
-bank score; on gold v1 a linear base gave stacked PR-AUC 0.460 against 0.589 for the bank score alone).
+bank score; on gold v1 a linear base gave stacked PR-AUC 0.460 against 0.589 for the bank score alone). The 2x
+threshold is a heuristic `[assumption]`, pending the protocol seal (T3b): at this prevalence one fraud ranked near the
+top can lift a no-signal arm above it, and the alternatives are to always stack on the balanced HGB or to require the
+bootstrap lower bound of the arm's PR-AUC to be above the base rate.
 
 Kernel SVMs and k-nearest neighbours are left out: scikit-learn documents that `SVC` fit time grows at least
 quadratically with the number of samples and is impractical beyond tens of thousands of rows.
@@ -134,9 +137,13 @@ quadratically with the number of samples and is impractical beyond tens of thous
    has a recall below 80% of the overall recall `[assumption]`; scoring p95 ≤ 50 ms and model size ≤ 200 MB
    `[assumption]`. The per-country and per-segment recall is measured at the 1% alert budget (the top 1% of the window
    by score) `[assumption, pending the lead]`. `customer_segment` is not a feature (D-010) but is still a reporting
-   slice.
+   slice. Each slice records its fraud count (`n_fraud`); a minimum fraud count per slice before the floor applies is
+   `[assumption]` pending the lead: on validation, S-bank itself misses the floor in the Plus segment (recall 0.463 on
+   54 frauds against 0.588 overall, 0.79x), and Premium and Student have 9 and 10 frauds `[data]`
+   (`scripts/ml/fraud_screen.py` on gold v1).
 2. **Value:** the arm beats S-bank — PR-AUC higher with the 95% bootstrap CI of the difference above zero — **or** it
-   catches at least 30% of the frauds with no bank score at the 1% alert budget `[assumption]`.
+   catches at least 30% of the frauds with no bank score at an alert budget of 1% of those transactions (AC-04)
+   `[assumption]`.
 3. **Quality bar:** keep the arms whose PR-AUC is not significantly worse than the best arm (paired bootstrap on the
    same test transactions).
 4. **Lean choice:** among those, the cheapest to run — lowest scoring p95, then smallest model, then shortest training;
