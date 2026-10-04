@@ -2,10 +2,11 @@
 
 - **Feature:** the learned components the challenge asks to compare against a baseline — the ES/PT intent and slot
   classifier and the injection detector — plus the pre-registered protocol that decides which arm ships.
-- **Status:** Draft
+- **Status:** Draft (updated 2026-10-04: status and human intents, mode-aware dates, sources)
 - **Owner:** @salazarvalverdeai (protocol reviewed by @vldiego) · **Priority:** P0 · **Size:** M
 - **Challenge dimension:** Machine Learning
-- **Depends on:** 09 (labeled sentence set) · **Enables:** 04 (understand node), 15 (benchmark B1) · **ADRs:** 0015, 0016
+- **Depends on:** 09 (labeled sentence set) · **Enables:** 04 (understand node), 15 (benchmark B1) · **ADRs:** 0015,
+  0016, 0020 (proposed)
 - **Issue:** #13
 
 > Full profile: the comparison against a baseline is a challenge requirement (organizers, 2026-09-29).
@@ -13,9 +14,23 @@
 ---
 
 ## 1. Introduction
-Understanding a dispute message means three things: the **intent** (unrecognized charge, wrongful charge, inquiry,
-out of scope), the **slots** that find the transaction (amount, currency, date, merchant) and whether the message is an
-**injection**. This spec builds a rules baseline and learned alternatives, compares them on the same frozen test, and
+Understanding a dispute message means three things: the **intent**, the **slots** that find the transaction (amount,
+currency, date, merchant) and whether the message is an **injection**. The intents are five:
+
+| Intent | Example (ES / PT) | Graph route (spec 04) |
+|---|---|---|
+| `unrecognized_charge` | "no reconozco un cargo de 1,250" / "não reconheço essa compra" | dispute |
+| `wrongful_charge` | "me cobraron dos veces" / "fui cobrado duas vezes" | dispute |
+| `status_inquiry` | "¿ya está bloqueada mi tarjeta?", "¿cómo va mi caso?" / "como está meu caso?" | status |
+| `human_request` | "quiero hablar con una persona" / "quero falar com um atendente" | request a call |
+| `out_of_scope` | anything else (loans, balance, small talk) | refuse with what it can do |
+
+`unrecognized_charge` and `wrongful_charge` come from the complaint categories of the dataset
+(`docs/eda/workflows/W3_disputes.md`) and `dispute_type` in `contracts/tools.py`. `status_inquiry` replaces the former
+`inquiry` so that a returning customer gets a fresh reading. `human_request` exists so that a customer who asks for a
+person is never blocked, and the classifier (not a keyword list alone) recognizes disputes — two risks the CFPB names
+for chatbots in consumer finance. Re-evaluation, sending the receipt
+and requesting a call also reach the graph as buttons (structured actions) that skip the classifier. This spec builds a rules baseline and learned alternatives, compares them on the same frozen test, and
 picks one with a rule written before any result is seen. The conclusion is reported whether or not a model wins.
 
 ## 3. Acceptance criteria (EARS)
@@ -32,8 +47,11 @@ AC-01 to AC-05 come from issue #13 with the same numbers; AC-06 onward are added
 - **AC-06** — The train/validation/test split shall be by author (70/15/15), fixed and hashed before training. · [C]
 - **AC-07** — τ shall be chosen on the validation split only, as the lowest threshold that keeps precision ≥ 0.95 on the
   messages the classifier accepts `[assumption]`. · [D]
-- **AC-08** — Relative dates ("ayer", "el viernes", "ontem") shall be resolved against `DEMO_TODAY`. · [T]
+- **AC-08** — Relative dates ("ayer", "el viernes", "ontem") shall be resolved against the session's "today"
+  (`clock.today(mode)`: `DEMO_TODAY` in historical mode, the real date in live mode). · [T]
 - **AC-09** — The B0 rules arm shall run with no model file and no network, so arm S0 of the graph never needs an LLM. · [T]
+- **AC-10** — When a message asks for a person in any wording of the test split, every arm shall return `human_request`
+  or abstain; it shall never return `out_of_scope` for it (recall of `human_request` reported separately). · [D]
 
 ## 4. Functional requirements
 | Arm | Intent | Slots | Notes |
@@ -63,7 +81,7 @@ legitimate messages as negatives.
 ## 6. API contract (Python, `nick_of_time.nlu`)
 ```python
 nlu = load_nlu(arm="B1", path="models/intent-b1-v1.joblib")   # arm from the run config
-r = nlu.parse(text, language_hint=None, today=DEMO_TODAY)
+r = nlu.parse(text, language_hint=None, today=clock.today(mode))   # mode from the session (ADR 0020)
 # r: intent, confidence, slots {amount, currency, date, merchant}, language, injection_flagged, arm, version
 ```
 
@@ -76,6 +94,8 @@ Reads the sentence set of spec 09 (`eval/classifier/*.jsonl`). Writes `models/in
   for injections. Approve or change before sealing.
 - **Q2 — B3 cascade:** include it as a P0 arm or keep it P1? Proposal: P1.
 - **Q3 — τ rule:** precision ≥ 0.95 on accepted messages, chosen on validation. OK?
+- **Q4 — intent set:** five intents (adds `status_inquiry` and `human_request`, replaces `inquiry`). It changes the
+  labels of the spec 09 sentence set (Diego): about 40 sentences per new intent `[assumption]`. OK?
 - Assumption: spec 09 delivers 300–400 sentences with author ids; if fewer, the CIs widen and that is reported.
 
 ## 9. Out of scope
@@ -88,3 +108,18 @@ Fine-tuning; embeddings + LR (P2); Jev (benchmarked in spec 15); the agent's use
 - [ ] T4 — B2 structured-output prompt (Haiku 4.5) · AC-02
 - [ ] T5 — injection detector, both arms · AC-04
 - [ ] T6 — evaluation script, report, export, ADR "model selection" (with spec 15) · AC-03, AC-05
+
+## 11. Sources
+External sources checked on 2026-10-04.
+- Intent names: `contracts/tools.py` (`dispute_type`), `docs/eda/workflows/W3_disputes.md` (complaint categories).
+- CFPB, *Chatbots in consumer finance* (6 June 2023) — chatbots that recognize a dispute only from specific words, and
+  that hinder access to a person: https://www.consumerfinance.gov/data-research/research-reports/chatbots-in-consumer-finance/chatbots-in-consumer-finance/
+  (PDF: https://files.consumerfinance.gov/f/documents/cfpb_chatbot-issue-spotlight_2023-06.pdf)
+- OWASP, *LLM01: Prompt Injection* (injection patterns): https://genai.owasp.org/llmrisk/llm01-prompt-injection/
+- Calibration and ECE: Guo et al., *On Calibration of Modern Neural Networks* (ICML 2017): https://arxiv.org/abs/1706.04599 ·
+  scikit-learn, *Probability calibration*: https://scikit-learn.org/stable/modules/calibration.html
+- McNemar's test for comparing classifiers: Dietterich, *Approximate Statistical Tests for Comparing Supervised
+  Classification Learning Algorithms*, Neural Computation 10(7), 1998: https://doi.org/10.1162/089976698300017197
+- Internal: `contracts/policies.yaml` (`intent_confidence_min`, G-IN-04), ADR 0015 (pre-registration), ADR 0020
+  (proposed, two modes), spec 04 §4.2 (routes).
+- Thresholds marked `[assumption]` have no external source; they are fixed in `eval/PROTOCOL.md` before sealing.
