@@ -239,3 +239,114 @@ def test_ac_04_sample_receipt_validates_against_the_schema():
     charged = dt.date.fromisoformat(re.search(r"\d{4}-\d{2}-\d{2}", facts["TRX"].fact).group())
     since_charge = sample.issued_at - dt.datetime.combine(charged, dt.time(), dt.UTC)
     assert dt.timedelta(0) < since_charge <= dt.timedelta(hours=48)          # the 48 h notice window (spec 02 §4.3)
+
+
+NOW = "2026-06-01T15:04:12Z"                    # DEMO_TODAY (ADR 0020)
+HANDOFF = {"case_id": "K-104233", "language": "es", "zone": "high", "request": "Cargo no reconocido USD 1,250.00",
+           "verified_facts": [{"fact": "Tarjeta bloqueada", "source_id": "V-8B2D41C7E0A9"}],
+           "actions": [{"tool": "block_card", "action_id": "A-3E9F20B7C164", "result": "Blocked", "verified": True}],
+           "evidence": ["TRX-FIXTURE0000000000001"], "open_questions": [],
+           "deadline": {"country": "MX", "deadline_source": "Banxico Circular 3/2012"}, "trace_id": "run-1", "score": 72}
+CHIPS = [{"id": "view_case", "label": "Ver mi caso", "kind": "link", "href": "/case/K-104233"},
+         {"id": "send_summary", "label": "Enviarme el comprobante", "kind": "action", "action": {"type": "send_summary"}}]
+ACTION = {"tool": "block_card", "action_id": "A-3E9F20B7C164", "state": "verified", "verification_id": "V-8B2D41C7E0A9",
+          "read_at": NOW}
+
+
+def _turn(**extra) -> dict:
+    return {"reply": "Tarjeta bloqueada. Caso abierto.", "language": "es", "decision": "block_and_open_case",
+            "zone": "high", "intent": "unrecognized_charge", "intent_confidence": 0.93, "case_id": "K-104233",
+            "actions": [ACTION], "suggestions": CHIPS,
+            "progress": [{"step": "block_card", "label": "Bloqueando tu tarjeta…", "state": "verified", "at": NOW}],
+            "receipt": c.sample_receipt().model_dump(mode="json"), "mode": "replay", "trace_id": "run-1", **extra}
+
+
+BAD_TURNS = {
+    "link chip without href": _turn(suggestions=[CHIPS[1], {"id": "x", "label": "Ver", "kind": "link"}]),
+    "text chip with href": _turn(suggestions=[CHIPS[0], {"id": "x", "label": "Ver", "kind": "text", "href": "/a"}]),
+    "href to another host": _turn(suggestions=[CHIPS[1], {**CHIPS[0], "href": "//evil.example"}]),
+    "href with a backslash host": _turn(suggestions=[CHIPS[1], {**CHIPS[0], "href": "/\\evil.example"}]),
+    "one chip": _turn(suggestions=CHIPS[:1]),
+    "four chips": _turn(suggestions=CHIPS * 2),
+    "unknown action state": _turn(actions=[{**ACTION, "state": "done"}]),
+    "verified without verification_id": _turn(actions=[{**ACTION, "verification_id": None}]),
+    "verified without read_at": _turn(actions=[{**ACTION, "read_at": None}]),
+    "handoff that is not a card": _turn(handoff={"case_id": "K-104233"}),
+    "customer_id from the client": _turn(customer_id="CLI-EXAMPLE00001"),
+}
+
+
+def test_ac_01_turn_result_follows_the_graph_contract():
+    turn = c.TurnResult.model_validate(_turn(handoff=HANDOFF))
+    assert c.TurnResult.model_validate_json(turn.model_dump_json()) == turn
+
+
+@pytest.mark.parametrize("data", BAD_TURNS.values(), ids=BAD_TURNS.keys())
+def test_ac_01_turn_result_rejects_off_contract_output(data):
+    with pytest.raises(ValidationError):
+        c.TurnResult.model_validate(data)
+
+
+def test_ac_01_final_state_is_always_replay():
+    final = {"run_id": "EV-0001:S1:3", "arm": "S1", "decision": "block_and_open_case", "case_open": True,
+             "handoff_emitted": False, "receipt_issued": True, "receipt_has_deadline": True,
+             "other_customer_data_exposed": False, "action_states": {"block_card": "verified"},
+             "totals": {"latency_ms": 2140, "tokens_in": 1830, "tokens_out": 210, "cost_usd": 0.0031},
+             "run_meta": {"git_sha": "abc123", "policies_version": 2, "provider": "fake"}}
+    assert c.FinalState.model_validate(final).mode == "replay"
+    with pytest.raises(ValidationError):
+        c.FinalState.model_validate({**final, "mode": "live"})
+
+
+CASE = {"case_id": "K-104233", "customer_id": "CLI-EXAMPLE00001", "country": "MX", "zone": "high",
+        "queue_status": "verification", "credit_deadline": "2026-06-03", "created_at": NOW, "priority": "high",
+        "tags": ["mx_debit"], "sla_due_at": NOW, "status_label": "En verificación", "mode": "replay",
+        "product_last4": "4417", "deadline_verified_on": "2026-10-04",
+        "transaction": {"transaction_id": "TRX-FIXTURE0000000000001", "amount": 1250.0, "currency": "USD",
+                        "date": "2026-05-31"},
+        "receipt": c.sample_receipt().model_dump(mode="json"),
+        "timeline": [{"event_id": "E-0A1B2C3D4E5F", "type": "case_opened", "label": "Caso abierto", "created_at": NOW}],
+        "notifications": [{"notification_id": "N-0A1B2C3D4E5F", "channel": "log", "delivery_status": "delivered",
+                           "created_at": NOW}]}
+
+
+def test_ac_01_customer_projections_never_carry_internals():
+    """D-013: customer routes emit CustomerTurn and CustomerCaseView only (notifications.never_send)."""
+    denial = {"policy_id": "POL-ZONE-HIGH", "guardrail_id": "G-IN-01", "detail": "Solicitud rechazada."}
+    turn = c.TurnResult.model_validate(_turn(handoff=HANDOFF, denials=[denial]))
+    assert "score" in turn.model_dump_json() and "POL-" in turn.model_dump_json()   # the internal output has both
+    customer_turn = json.loads(turn.for_customer().model_dump_json())
+    assert not {"handoff", "usage", "trace", "zone"} & set(customer_turn)
+    assert customer_turn["denials"] == [{"guardrail_id": "G-IN-01", "detail": "Solicitud rechazada."}]
+    case = c.CaseView.model_validate(CASE).for_customer().model_dump(mode="json")
+    assert not {"zone", "priority", "tags", "sla_due_at", "customer_id"} & set(case)
+    for payload in (customer_turn, case):
+        assert not re.search(r"score|POL-", json.dumps(payload))
+
+
+BAD_VIEWS = [
+    (c.CaseView, {k: v for k, v in CASE.items() if k != "transaction"}),
+    (c.CaseView, {**CASE, "related_case_id": "K-1"}),
+    (c.CaseView, {**CASE, "product_last4": "44170"}),
+    (c.CaseView, {**CASE, "timeline": [{**CASE["timeline"][0], "event_id": "E-1"}]}),
+    (c.CaseView, {**CASE, "notifications": [{**CASE["notifications"][0], "notification_id": "N-1"}]}),
+    (c.CustomerCaseSummary, {"case_id": "K-104233", "status_label": "x", "updated_at": NOW, "related_case_id": "K-1"}),
+    (c.ProductView, {"product_id": "PRD-FIXTURE00001", "type": "debit", "last4": "44", "status": "Blocked",
+                     "read_at": NOW}),
+    (c.ProductView, {"product_id": "PRD-FIXTURE00001", "type": "debit", "last4": "4417", "status": "Blocked",
+                     "verification_id": "V-1", "read_at": NOW}),
+]
+
+
+def test_ac_01_view_models_accept_the_contract_shape():
+    view = c.CaseView.model_validate(CASE)
+    assert view.channels.telegram is False and view.transaction.synthetic is False
+    c.CustomerCaseSummary.model_validate({"case_id": "K-104233", "status_label": "En verificación", "updated_at": NOW})
+    c.ProductView.model_validate({"product_id": "PRD-FIXTURE00001", "type": "debit", "last4": "4417",
+                                  "status": "Blocked", "verification_id": "V-8B2D41C7E0A9", "read_at": NOW})
+
+
+@pytest.mark.parametrize(("model", "data"), BAD_VIEWS)
+def test_ac_01_view_models_reject_off_contract_data(model, data):
+    with pytest.raises(ValidationError):
+        model.model_validate(data)

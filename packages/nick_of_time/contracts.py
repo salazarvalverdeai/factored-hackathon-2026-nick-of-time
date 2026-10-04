@@ -1,8 +1,10 @@
-"""Contract models shared by api, mcp, agent and eval (spec 01 §6.4, §6.7, FR-01).
+"""Contract models shared by api, mcp, agent and eval (spec 01 §6.4, §6.6–§6.8, FR-01).
 
 Every public name defined in `contracts/tools.py` (source of truth, lead approves) is re-exported here unchanged,
 whatever version is checked in. This module adds the shared vocabularies and the customer receipt (`CustomerReceipt`,
-mirror of `contracts/customer_receipt.schema.json`). Optional fields serialize as null, which the schema accepts.
+mirror of `contracts/customer_receipt.schema.json`), the graph output (`TurnResult`, customer projection
+`CustomerTurn`), the evaluation `FinalState` and the api view models (`CaseView`, customer projection
+`CustomerCaseView`). Optional fields serialize as null, which the schemas accept.
 """
 from __future__ import annotations
 
@@ -13,6 +15,7 @@ from functools import cache
 from pathlib import Path
 from typing import Any, Literal, Optional
 
+import jsonschema
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, model_validator
 
 from contracts import tools as _tools
@@ -153,3 +156,271 @@ def sample_receipt() -> CustomerReceipt:
     """The fixture receipt kept in the schema's `examples` [simulated]; stubs and the echo graph return it (AC-04)."""
     return CustomerReceipt.model_validate(load_schema("customer_receipt.schema.json")["examples"][0])
 
+
+# ---------- graph output (§6.4) ----------
+LAST4 = r"^[0-9]{4}$"
+
+
+class TurnAction(_Contract):                    # a button or chip press; skips the classifier
+    type: Literal["confirm", "choose_option", "verify_now", "request_call", "request_reevaluation", "send_summary"]
+    value: Optional[str] = None
+
+
+class Option(_Contract):
+    id: str
+    label: str
+
+
+class ProgressItem(_Contract):
+    step: str
+    label: str
+    state: ActionState
+    at: dt.datetime
+
+
+class ActionRecord(_Contract):
+    tool: str
+    action_id: str = Field(pattern=PATTERN["action"])
+    state: ActionState
+    verification_id: Optional[str] = Field(None, pattern=PATTERN["verification"])
+    read_at: Optional[dt.datetime] = None
+
+    @model_validator(mode="after")
+    def _verified_means_read(self) -> ActionRecord:
+        require_verification(self.state, self.verification_id, self.read_at)
+        return self
+
+
+class Suggestion(_Contract):
+    id: str
+    label: str
+    kind: Literal["text", "action", "link"]
+    action: Optional[TurnAction] = None
+    href: Optional[str] = Field(None, pattern=r"^/([^/\\].*)?$")   # internal route; "//" or "/\" would reach a host
+
+    @model_validator(mode="after")
+    def _payload_matches_kind(self) -> Suggestion:
+        if (self.kind == "action") != (self.action is not None) or (self.kind == "link") != (self.href is not None):
+            raise ValueError("an action chip carries `action`, a link chip carries `href`, a text chip neither")
+        return self
+
+
+class Denial(_Contract):
+    policy_id: Optional[str] = None
+    guardrail_id: Optional[str] = None
+    detail: str
+
+
+class CustomerDenial(_Contract):
+    guardrail_id: Optional[str] = None
+    detail: str
+
+
+class Usage(_Contract):
+    provider: str
+    model: str
+    tokens_in: int = Field(ge=0)
+    tokens_out: int = Field(ge=0)
+    latency_ms: int = Field(ge=0)
+    cost_usd: float = Field(ge=0)
+
+
+class TraceStep(_Contract):
+    node: str
+    status: Literal["ok", "deny", "error"]
+    ms: int = Field(ge=0)
+    detail: Optional[str] = None
+
+
+class _TurnCore(_Contract):                     # fields the customer may see
+    reply: str
+    language: Language
+    decision: Optional[Decision] = None
+    intent: Optional[Intent] = None
+    intent_confidence: Optional[float] = Field(None, ge=0, le=1)
+    options: list[Option] = Field(default_factory=list, max_length=3)   # policies.yaml clarify.max_candidate_transactions
+    case_id: Optional[str] = Field(None, pattern=PATTERN["case"])
+    plan: list[str] = []
+    progress: list[ProgressItem] = []
+    actions: list[ActionRecord] = []
+    suggestions: list[Suggestion] = Field(min_length=2, max_length=3)   # spec 04 §4.5, AC-29
+    receipt: Optional[CustomerReceipt] = None
+    guardrails_triggered: list[str] = []
+    mode: Mode
+    trace_id: str
+
+
+class CustomerTurn(_TurnCore):
+    """What the browser receives (D-013): no handoff, zone, usage, trace or policy ids."""
+    denials: list[CustomerDenial] = []
+
+
+class TurnResult(_TurnCore):
+    """The graph's full output; internal to api, agent and eval. Customers get `for_customer()`."""
+    zone: Optional[Zone] = None
+    handoff: Optional[dict[str, Any]] = None    # contracts/handoff.schema.json, checked below
+    denials: list[Denial] = []
+    usage: list[Usage] = []
+    trace: list[TraceStep] = []
+
+    @model_validator(mode="after")
+    def _handoff_follows_its_schema(self) -> TurnResult:
+        if self.handoff is not None:
+            try:
+                jsonschema.validate(self.handoff, load_schema("handoff.schema.json"))
+            except jsonschema.ValidationError as err:
+                raise ValueError(f"handoff: {err.message}") from None
+        return self
+
+    def for_customer(self) -> CustomerTurn:
+        data = self.model_dump(include=set(CustomerTurn.model_fields) - {"denials"})
+        return CustomerTurn(**data, denials=[CustomerDenial(guardrail_id=d.guardrail_id, detail=d.detail)
+                                             for d in self.denials])
+
+
+# ---------- evaluation (§6.8) ----------
+class StatusReply(_Contract):
+    subject: str
+    stated_status: str
+    read_status: str
+
+
+class Cost(_Contract):
+    latency_ms: int = Field(ge=0)
+    tokens_in: int = Field(ge=0)
+    tokens_out: int = Field(ge=0)
+    cost_usd: float = Field(ge=0)
+
+
+class TurnCost(Cost):
+    turn: int = Field(ge=1)
+
+
+class RunMeta(_Contract):
+    git_sha: str
+    platform_revision: Optional[str] = None
+    policies_version: int
+    provider: str
+    model_graph: Optional[str] = None
+    model_fast: Optional[str] = None
+    prompt_hash: Optional[str] = None
+    classifier_version: Optional[str] = None
+
+
+class FinalState(_Contract):
+    run_id: str                                 # "<eval case id>:<arm>:<k>"
+    arm: str
+    decision: Optional[Decision] = None
+    zone: Optional[Zone] = None
+    intent: Optional[Intent] = None
+    transaction_id: Optional[str] = None
+    product_id: Optional[str] = None
+    candidate_transaction_ids: list[str] = []
+    product_status: Optional[str] = None
+    case_open: bool
+    case_id: Optional[str] = Field(None, pattern=PATTERN["case"])
+    queue_status: Optional[QueueStatus] = None
+    handoff_emitted: bool
+    receipt_issued: bool
+    receipt_has_deadline: bool
+    notifications: list[str] = []
+    guardrail_ids: list[str] = []
+    other_customer_data_exposed: bool
+    mode: Literal["replay"] = "replay"          # the eval seed only creates replay sessions (AC-08, ADR 0020)
+    action_states: dict[str, ActionState] = {}
+    status_replies: list[StatusReply] = []
+    turns: list[TurnCost] = []
+    totals: Cost
+    run_meta: RunMeta
+
+
+# ---------- api view models (§6.6) ----------
+class _CaseCore(_Contract):
+    case_id: str = Field(pattern=PATTERN["case"])
+    country: str
+    queue_status: QueueStatus
+    credit_deadline: Optional[dt.date] = None
+    ruling_deadline: Optional[dt.date] = None
+    created_at: dt.datetime
+
+
+class CaseSummary(_CaseCore):
+    customer_id: str
+    zone: Zone
+    sla_due_at: Optional[dt.datetime] = None
+    priority: Literal["normal", "high"] = "normal"   # [assumption] raised by policies.yaml case_queue.deadline_sla
+    tags: list[str] = []
+
+
+class CaseTransaction(_Contract):
+    transaction_id: str
+    amount: float                               # [assumption] same type as contracts/tools.py Transaction.amount
+    currency: str
+    date: dt.date
+    merchant: Optional[str] = None
+    synthetic: bool = False                     # true only for live-mode demo_transactions
+
+
+class TimelineItem(_Contract):
+    event_id: str = Field(pattern=PATTERN["event"])
+    type: str
+    label: str
+    created_at: dt.datetime
+
+
+class CaseChannels(_Contract):
+    telegram: bool = False
+    email: bool = False
+
+
+class CaseNotification(_Contract):
+    notification_id: str = Field(pattern=PATTERN["notification"])
+    channel: Literal["log", "telegram", "email"]
+    masked_address: Optional[str] = None
+    delivery_status: Literal["queued", "sent", "delivered", "bounced", "failed"]
+    created_at: dt.datetime
+
+
+class _CaseDetail(_CaseCore):
+    transaction: CaseTransaction
+    product_last4: Optional[str] = Field(None, pattern=LAST4)
+    status_label: str
+    taken_by_person: bool = False
+    related_case_id: Optional[str] = Field(None, pattern=PATTERN["case"])
+    mode: Mode
+    receipt: Optional[CustomerReceipt] = None
+    timeline: list[TimelineItem] = []           # customer-visible events only
+    deadline_countdown_days: Optional[int] = None
+    deadline_verified_on: Optional[dt.date] = None   # [assumption] D-014: stored with the case's deadline
+    channels: CaseChannels = Field(default_factory=CaseChannels)
+    notifications: list[CaseNotification] = []
+
+
+class CustomerCaseView(_CaseDetail):
+    """What `GET /api/cases/{id}` returns (D-013): no zone, priority, tags, SLA or customer id."""
+
+
+class CaseView(CaseSummary, _CaseDetail):
+    """The analyst console's case; customers get `for_customer()`."""
+
+    def for_customer(self) -> CustomerCaseView:
+        return CustomerCaseView.model_validate(self.model_dump(include=set(CustomerCaseView.model_fields)))
+
+
+class CustomerCaseSummary(_Contract):
+    case_id: str = Field(pattern=PATTERN["case"])
+    status_label: str
+    credit_deadline: Optional[dt.date] = None
+    ruling_deadline: Optional[dt.date] = None
+    product_last4: Optional[str] = Field(None, pattern=LAST4)
+    related_case_id: Optional[str] = Field(None, pattern=PATTERN["case"])
+    updated_at: dt.datetime
+
+
+class ProductView(_Contract):
+    product_id: str
+    type: str
+    last4: str = Field(pattern=LAST4)
+    status: str
+    verification_id: Optional[str] = Field(None, pattern=PATTERN["verification"])
+    read_at: dt.datetime
