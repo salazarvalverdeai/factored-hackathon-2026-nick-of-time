@@ -115,8 +115,13 @@ the normal approximation to the binomial and a 2,000-resample bootstrap on 5 bal
 ```python
 nlu = load_nlu(arm="B1", path="models/intent-b1-v1.joblib")   # arm from the run config
 r = nlu.parse(text, language_hint=None, today=clock.today(mode))   # mode from the session (ADR 0020)
-# r: intent, confidence, slots {amount, currency, date, merchant}, language, injection_flagged, arm, version
+# r: intent, confidence, slots {amount, currency, date, merchant}, language, injection_flagged, dispute_detected,
+#    arm, version
 ```
+`dispute_detected` is true when dispute words are present even if `human_request` or `status_inquiry` wins. Spec 04
+`connect` then opens the case (a ticket is always opened, POL-TICKET-ALWAYS) and attaches the call to it, so a
+person request inside a dispute never skips the regulatory clock. `status_inquiry` wins over a dispute only when the
+dispute words are absent or in a past "already reported" form (reporté, reclamé, registrei, já reclamei) (D-020).
 
 ## 7. Data model touched
 Reads the sentence set of spec 09 (`eval/classifier/*.jsonl`). Writes `models/intent-*.joblib`, `models/injection-*.joblib`,
@@ -129,6 +134,13 @@ Reads the sentence set of spec 09 (`eval/classifier/*.jsonl`). Writes `models/in
 - **Q2 — B3 cascade:** **Decided (lead, 2026-10-04):** P1 as a separate B1 arm; it is what S1 runs, so B2 measures it.
 - **Q3 — τ rule:** **Decided (lead, 2026-10-04):** precision ≥ 0.95 on accepted messages, chosen on validation.
 - **Q4 — intent set:** **Decided (lead, 2026-10-04):** five intents. Spec 09 (Diego) relabels and adds sentences.
+- **Intent order (B0) `[assumption]`:** `human_request` > `status_inquiry` > `wrongful_charge` > `unrecognized_charge`
+  > `out_of_scope`, with the status rule above applied. Spec 02 rule 3a and spec 04 `connect` follow **D-020**
+  (`dispute_detected` opens the case; pending the lead's confirmation); those files are not changed by this spec.
+- **B0 confidence `[assumption]`:** fixed at 0.9 for a match and 0.5 for none, so it stays above
+  `clarify.intent_confidence_min` (0.80) on a match. Being constant, ECE and coverage at τ say nothing for B0; the T6
+  report states it.
+- **Currency `[assumption]`:** a bare "$" or "pesos" leaves `currency` null; the country comes from the session.
 - Assumption: spec 09 delivers about 800 sentences (ES and PT, with author ids) written by the team and paraphrased
   with an LLM whose name is recorded; results from a candidate of the same family as the generator are flagged.
 
@@ -137,10 +149,10 @@ Fine-tuning; embeddings + LR (P2); Jev (benchmarked in spec 15); the agent's use
 
 ## 10. Plan, tasks and verification
 - [ ] T1 — `eval/PROTOCOL.md` with the floors and rule of §4.1; review by Diego; seal · AC-01, AC-06
-- [x] T2 — B0 rules + date parser (`nick_of_time.nlu`; priority human > status > wrongful > unrecognized, so a person request wins inside a dispute message `[assumption]`) · AC-08, AC-09
+- [x] T2 — B0 rules + date parser (`nick_of_time.nlu`; intent order in §8) · AC-08, AC-09
 - [ ] T3 — B1 training with calibration; τ on validation · AC-02, AC-07
 - [ ] T4 — B2 structured-output prompt (Haiku 4.5) · AC-02
-- [x] T5 — injection detector, both arms · AC-04 (rules arm done in 11a, `nlu.injection`; the rules + LR arm waits for spec 09 and T3)
+- [ ] T5 — injection detector, both arms · AC-04 (rules arm done in 11a, `nlu.injection`; LR arm and AC-04 numbers pending spec 09)
 - [ ] T6 — evaluation script, report, export, ADR "model selection" (with spec 15) · AC-03, AC-05
 
 ## 11. Sources

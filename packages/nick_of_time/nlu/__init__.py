@@ -7,9 +7,9 @@ from __future__ import annotations
 from datetime import date
 from typing import Literal, Optional
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
-from ..contracts import Intent
+from ..contracts import DECIMAL, Intent, Language
 from .dates import parse_date
 from .injection import injection_flagged
 from .rules import parse_rules
@@ -19,8 +19,10 @@ __all__ = ["NLU", "NLUResult", "Slots", "load_nlu", "parse_date", "injection_fla
 
 class Slots(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    amount: Optional[str] = None          # decimal string, as in the contracts
-    currency: Optional[str] = None
+    amount: Optional[str] = Field(default=None, pattern=DECIMAL)      # decimal string, as in the contracts
+    # None for a bare "$" or "pesos": the NLU has no session; the country comes from the session and MX gold amounts
+    # are USD, so retrieve/search_transaction resolves the currency against the customer's own transactions.
+    currency: Optional[str] = Field(default=None, pattern=r"^[A-Z]{3}$")
     date: Optional[str] = None            # YYYY-MM-DD
     merchant: Optional[str] = None
 
@@ -30,9 +32,10 @@ class NLUResult(BaseModel):
     intent: Intent
     confidence: float
     slots: Slots
-    language: Literal["es", "pt"]
+    language: Language
     injection_flagged: bool
-    arm: str
+    dispute_detected: bool = False        # dispute words present even when human_request or status_inquiry wins (D-020)
+    arm: Literal["B0", "B1", "B2", "B3"]
     version: str
 
 
