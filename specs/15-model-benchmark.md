@@ -45,7 +45,32 @@ Same numbers as issue #17.
 
 - **Prices:** `eval/bench/prices.yaml` with the on-demand price per 1M input and output tokens for each model, the source
   URL and the date `[external]`. Cost = tokens × price; Platform and infrastructure costs are reported apart.
-- **Jev access:** through its own provider client behind `LLM_PROVIDER`; if no key or no ES/PT support, AC-06 applies.
+- **Jev access** (researched 2026-10-04 `[external]`): TypeSafe AI's "System One" decision model — it returns typed
+  answers (choice, score, yes/no) with probabilities, not free text, so it fits **B1** (intent as a choice question)
+  and, in B2, only as the classifier inside S1 (free text still needs an LLM). API `https://api.typesafe.ai/v1/systemone`,
+  `Authorization: Bearer`, key in `TYPESAFE_API_KEY` (SSM `/nickoftime/prod/TYPESAFE_API_KEY`), pinned model
+  `jev-1.13.0`. Access is early access (console invite; new sign-ups were paused on 2026-09-22). Price reported by a
+  gateway: 0.042 USD per 1M input tokens, output free. English is its primary language; ES/PT must be measured. Without a
+  key, AC-06 applies.
+
+### 4.1 Third-party model gate (applies to every model arm)
+A model can be **benchmarked** with synthetic data if it passes the "benchmark" column; it can be **chosen for
+production** only if it also passes the "production" column. The result is recorded per arm in the ADR.
+
+| Criterion | Benchmark | Production | Bedrock (Haiku 4.5 / Sonnet 4.6) | Jev (TypeSafe) | Anthropic API (fallback) |
+|---|---|---|---|---|---|
+| Data sent is synthetic only (ADR 0009) | required | — | ✅ | ✅ | ✅ |
+| Provider does not train on our requests | required | required | ✅ (AWS) | ✅ (privacy policy) | ✅ (API terms) |
+| Retention documented / zero retention available | — | required | ✅ | DPA; zero retention for enterprise only | ✅ |
+| Processing region documented | — | required | ✅ `us-east-2` (+ US cross-region profile) | ❌ not documented | US |
+| Security certification public (SOC 2 / ISO 27001) | — | required | ✅ | ❌ not public | ✅ |
+| Credentials outside the repo, least privilege | required | required | IAM role / user | API key in SSM | API key in SSM |
+| Version pinning | required | required | model id | `jev-1.13.0` | model id |
+| Availability: GA, SLA or status page | — | required | ✅ | ❌ early access, `529 Overloaded` documented | ✅ |
+| ES/PT quality measured on our data | required | required | B1/B2 | B1 | B1/B2 |
+
+**Consequence:** Jev can be benchmarked; even if it wins B1, it is **not eligible for production** until its region,
+certification and availability are documented. The ADR then records "best measured" and "best eligible" separately.
 - **Outputs:** `eval/results/bench_b1.csv`, `eval/results/bench_b2.csv`, `apps/web/public/data/benchmark.json`
   (spec 01 §6.2) and `docs/assets/benchmark_cost_quality.svg`.
 - **Commands:** `make bench` (B1), `make bench-agent` (B2, uses the harness and the eval hooks of spec 01 §6.8).
@@ -59,7 +84,8 @@ Same numbers as issue #17.
 Reads the frozen sentence split and the dev agent cases; writes only result files.
 
 ## 8. Assumptions and open questions (gate 1)
-- **Q1 — Jev:** how do we reach it (provider, key, region)? Without access it is reported as unavailable.
+- **Q1 — Jev:** request access (waitlist → console invite → key in SSM). Without a key by the benchmark run it is
+  reported as unavailable. Approve the gate in §4.1?
 - **Q2 — budget:** 20 USD per full benchmark run as the stop limit. OK?
 - **Q3 — where to choose:** choose on dev (B2) and confirm on the held-out in spec 10 — never choose on the held-out. OK?
 - **Q4 — Sonnet 4.5:** add it as an extra point on the chart (it is available on Bedrock), or keep only Haiku 4.5 and
@@ -69,7 +95,7 @@ Reads the frozen sentence split and the dev agent cases; writes only result file
 Public third-party benchmarks; fine-tuning; latency of Platform itself (reported, not optimized).
 
 ## 10. Plan, tasks and verification
-- [ ] T1 — `eval/bench/prices.yaml` with sources; budget guard · AC-05, AC-08
+- [ ] T1 — `eval/bench/prices.yaml` with sources; budget guard; third-party gate table per arm · AC-05, AC-08
 - [ ] T2 — B1 runner over spec 11 arms + LLM arms · AC-01, AC-06
 - [ ] T3 — B2 runner on top of the harness (spec 10) with arms S0/S1/S2/Jev · AC-02
 - [ ] T4 — table, JSON for `/evaluation`, cost-vs-quality chart · AC-03, AC-04
