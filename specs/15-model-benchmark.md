@@ -153,9 +153,10 @@ Reads the frozen sentence split and the dev agent cases; writes only result file
 - **Q3 — where to choose:** choose on dev (B2) and confirm on the held-out in spec 10 — never choose on the held-out. OK?
 - **Q4 — lean rule (§4.4):** per task: hard limits, then "not significantly worse than the best", then the cheapest,
   then the production gate. OK?
-- Assumption: Claude Sonnet 5.5 had an on-demand quota of 0 tokens per minute on 2026-10-04 (Service Quotas
-  `L-94A31E46` cross-region, `L-31AB82D0` global; both adjustable). It enters only if an increase is granted before the
-  run; otherwise it is recorded unavailable (AC-06) and Sonnet 4.6 is the ceiling.
+- Claude Sonnet 5.5 is **not available to the team account** on 2026-10-04: the applied quota is 0 tokens per minute
+  (`L-94A31E46`, `L-31AB82D0`; AWS default 6,000,000), a quota request below the default is rejected, and a test call
+  returns `AccessDeniedException` ("not available for this account … contact AWS Sales"). Access goes through AWS
+  Sales; until then it is recorded unavailable (AC-06) and Sonnet 4.6 is the ceiling.
 
 ## 9. Out of scope
 Public third-party leaderboards; fine-tuning; batch or provisioned throughput pricing; latency of Platform itself
