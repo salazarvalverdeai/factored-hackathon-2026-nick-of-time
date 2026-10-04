@@ -7,7 +7,7 @@
 - **Owner:** @salazarvalverdeai (protocol reviewed by @vldiego) · **Priority:** P0 · **Size:** M
 - **Challenge dimension:** Machine Learning
 - **Depends on:** 09 (labeled sentence set) · **Enables:** 04 (understand node), 15 (benchmark B1) · **ADRs:** 0015,
-  0016, 0020 (proposed)
+  0016, 0020
 - **Issue:** #13
 
 > Full profile: the comparison against a baseline is a challenge requirement (organizers, 2026-09-29).
@@ -159,5 +159,5 @@ External sources checked on 2026-10-04.
 - McNemar's test for comparing classifiers: Dietterich, *Approximate Statistical Tests for Comparing Supervised
   Classification Learning Algorithms*, Neural Computation 10(7), 1998: https://doi.org/10.1162/089976698300017197
 - Internal: `contracts/policies.yaml` (`intent_confidence_min`, G-IN-04), ADR 0015 (pre-registration), ADR 0020
-  (proposed, two modes), spec 04 §4.2 (routes).
+  (two modes), spec 04 §4.2 (routes).
 - Thresholds marked `[assumption]` have no external source; they are fixed in `eval/PROTOCOL.md` before sealing.
