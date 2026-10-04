@@ -137,10 +137,10 @@ Fine-tuning; embeddings + LR (P2); Jev (benchmarked in spec 15); the agent's use
 
 ## 10. Plan, tasks and verification
 - [ ] T1 — `eval/PROTOCOL.md` with the floors and rule of §4.1; review by Diego; seal · AC-01, AC-06
-- [ ] T2 — B0 rules + date parser · AC-08, AC-09
+- [x] T2 — B0 rules + date parser (`nick_of_time.nlu`; priority human > status > wrongful > unrecognized, so a person request wins inside a dispute message `[assumption]`) · AC-08, AC-09
 - [ ] T3 — B1 training with calibration; τ on validation · AC-02, AC-07
 - [ ] T4 — B2 structured-output prompt (Haiku 4.5) · AC-02
-- [ ] T5 — injection detector, both arms · AC-04
+- [x] T5 — injection detector, both arms · AC-04 (rules arm done in 11a, `nlu.injection`; the rules + LR arm waits for spec 09 and T3)
 - [ ] T6 — evaluation script, report, export, ADR "model selection" (with spec 15) · AC-03, AC-05
 
 ## 11. Sources
