@@ -139,12 +139,12 @@ training window only, and is calibrated on the validation window.
 | Neural | `MLPClassifier` (small) | checks whether a non-linear model beyond trees adds anything |
 | Stacked | the best supervised arm + the bank's score | whether our model adds to the score rather than replacing it |
 
-Stacked base `[assumption, pending the lead]`: the best supervised arm by validation PR-AUC; when none exceeds twice the
-validation base rate, the balanced `HistGradientBoostingClassifier` (a base with no signal would only add noise to the
-bank score; on gold v1 a linear base gave stacked PR-AUC 0.460 against 0.589 for the bank score alone). The 2x
-threshold is a heuristic `[assumption]`, pending the protocol seal (T3b): at this prevalence one fraud ranked near the
-top can lift a no-signal arm above it, and the alternatives are to always stack on the balanced HGB or to require the
-bootstrap lower bound of the arm's PR-AUC to be above the base rate.
+Stacked base (D-017a, decided by the lead on 2026-10-04): the best supervised arm by validation PR-AUC; when none
+exceeds twice the validation base rate, the balanced `HistGradientBoostingClassifier` (a base with no signal would only
+add noise to the bank score; on gold v1 a linear base gave stacked PR-AUC 0.460 against 0.589 for the bank score alone
+`[data]`). The 2x threshold is a heuristic `[assumption]`: at this prevalence one fraud ranked near the top can lift a
+no-signal arm above it. The alternatives weighed before D-017a were to always stack on the balanced HGB or to require
+the bootstrap lower bound of the arm's PR-AUC to be above the base rate.
 
 Kernel SVMs and k-nearest neighbours are left out: scikit-learn documents that `SVC` fit time grows at least
 quadratically with the number of samples and is impractical beyond tens of thousands of rows.
@@ -152,20 +152,26 @@ quadratically with the number of samples and is impractical beyond tens of thous
 ### 4.4 Decision rule (pre-registered, lean)
 1. **Hard limits:** at the bank's precision levels (0.80 and 0.95), recall is at least the bank's; no country or segment
    has a recall below 80% of the overall recall `[assumption]`; scoring p95 ≤ 50 ms and model size ≤ 200 MB
-   `[assumption]`. The per-country and per-segment recall is measured at the 1% alert budget (the top 1% of the window
-   by score) `[assumption, pending the lead]`. `customer_segment` is not a feature (D-010) but is still a reporting
-   slice. Each slice records its fraud count (`n_fraud`); a minimum fraud count per slice before the floor applies is
-   `[assumption]` pending the lead: on validation, S-bank itself misses the floor in the Plus segment (recall 0.463 on
-   54 frauds against 0.588 overall, 0.79x), and Premium and Student have 9 and 10 frauds `[data]`
-   (`scripts/ml/fraud_screen.py` on gold v1).
+   `[assumption]`. The overall, per-country and per-segment recall of this floor are measured at the 1% alert budget (the
+   top 1% of the window by score) `[assumption]` (D-017b). The floor applies only to country and segment slices with at
+   least 20 frauds in the window; smaller slices are reported with their fraud count and not enforced `[assumption]`
+   (D-017c).
 2. **Value:** the arm beats S-bank — PR-AUC higher with the 95% bootstrap CI of the difference above zero — **or** it
    catches at least 30% of the frauds with no bank score at an alert budget of 1% of those transactions (AC-04)
-   `[assumption]`.
+   `[assumption]` (D-017d).
 3. **Quality bar:** keep the arms whose PR-AUC is not significantly worse than the best arm (paired bootstrap on the
    same test transactions).
 4. **Lean choice:** among those, the cheapest to run — lowest scoring p95, then smallest model, then shortest training;
    a tie goes to the simpler family (linear < tree < ensemble < neural < stacked).
 5. If no arm passes, the bank's score stays alone and the benchmark is reported as is.
+
+Rules 1-2 are judged on all products; the card subset is reported with its CI and does not gate `[assumption]` (D-022);
+country is `customer_country`.
+
+Note on rule 1 (validation evidence behind D-017c, `scripts/ml/fraud_screen.py` on gold v1) `[data]`: at the 1% window
+budget S-bank itself misses the 80% floor in the Plus segment (recall 0.463 on 54 frauds against 0.588 overall, 0.79x),
+and Premium and Student have 9 and 10 frauds. `customer_segment` is not a feature (D-010) but is still a reporting
+slice, and each slice records its fraud count (`n_fraud`).
 
 ### 4.5 Scope for the submission
 | Phase | What | Criteria |
@@ -206,6 +212,17 @@ versioned queries under `queries/fraud/`.
   `customer_segment` is not a feature, because gold holds one snapshot taken at the cut (§4.2).
 - **D-015 — signal search before the test window (2026-10-04, lead):** look for transaction-time signal beyond §4.2 on
   train and validation only, before task 17c scores the test window; outcome in §4.2.
+- **D-017a — stacked base (2026-10-04, lead):** best supervised arm by validation PR-AUC, else the balanced HGB when
+  none exceeds twice the validation base rate `[assumption]` (§4.3).
+- **D-017b — operating point (2026-10-04, lead):** overall, per-country and per-segment recall of the rule-1 floor at
+  the 1% alert budget of the window `[assumption]` (§4.4).
+- **D-017c — slice minimum (2026-10-04, lead):** the floor applies only to slices with at least 20 frauds; smaller
+  slices are reported with their fraud count `[assumption]` (§4.4).
+- **D-017d — rule-2 wording (2026-10-04, lead):** "at an alert budget of 1% of those transactions (AC-04)" (§4.4).
+- **D-017e — split shares (2026-10-04, lead):** within 3 points of 60/15/25 `[assumption]`; it applies to spec 11 and
+  is listed here because it was decided with D-017a–d.
+- **D-022 — scope of the rule (2026-10-04, lead):** rules 1-2 judged on all products; the card subset reported with its
+  CI and not gating; country is `customer_country` `[assumption]` (§4.4).
 
 ## 9. Out of scope
 Deep learning or graph features; streaming features; using the model for automation in the submission; scheduled
@@ -218,8 +235,8 @@ retraining (ADR 0021, P2).
       fraud in train only, plus class weights where available `[assumption]`), cost and efficiency harness
       (`scripts/ml/fraud_screen.py`; models and outputs outside the repo, the protocol seal forbids results inside it);
       train and validation only, so the test-window part of AC-03 is task 17c · AC-03 (screen), AC-05
-- [ ] T3b [P0] — lean rule in `eval/PROTOCOL.md` · AC-06 · #47 (merged); sync PROTOCOL §3.1 and §3.3 rules 1–2 with
-      spec §4.3–4.4 before the seal (task PROT2, decision D-017)
+- [x] T3b [P0] — lean rule in `eval/PROTOCOL.md` · AC-06 · #47 (merged); PROTOCOL §3.1 and §3.3 synced with §4.3–4.4
+      by PR #60 (task PROT2; D-017a–e, D-022), and §4.4 rules 1–2 copied back from PROTOCOL §3.3
 - [x] T3c [P0] — signal search beyond §4.2 on train and validation (`scripts/ml/fraud_signal_search.py`, D-015): no
       candidate passes, the feature list is unchanged · AC-02, AC-05
 - [ ] T4 [P0] — test-window evaluation, report, `fraud_benchmark.json` for `/evaluation` · AC-04
