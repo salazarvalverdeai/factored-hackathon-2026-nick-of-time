@@ -9,7 +9,7 @@
 - **Challenge dimension:** AI Engineering (verification and guardrails), Technical Judgment (where an LLM is and is not used)
 - **Depends on:** 01 (records, `CaseView`), 02 (engine, clock), 03 (tool results), 04 (`TurnResult`, trace), 10
   (harness), 15 (judge model) · **Enables:** the console case view, `ops_kpis` (ADR 0018), `/evaluation`
-- **ADRs:** 0007, 0016, 0018, 0021 (proposed) · **Issue:** to open after approval
+- **ADRs:** 0007, 0016, 0018, 0021 (proposed) · **Issue:** #29
 
 ---
 
