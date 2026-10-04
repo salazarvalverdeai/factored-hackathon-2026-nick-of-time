@@ -4,7 +4,7 @@
   chart and an eligibility verdict per model, so each role (understanding, the agent) gets the **cheapest model that is
   good enough**, chosen from evidence.
 - **Status:** Draft (updated 2026-10-04: broad Bedrock screen, one model per task, lean rule, eligibility as an output;
-  Q1–Q2 decided by the lead)
+  Q1–Q4 decided by the lead)
 - **Owner:** @salazarvalverdeai (B2 runs on @vldiego's harness) · **Priority:** P0 · **Size:** M
 - **Challenge dimension:** Machine Learning, Technical Judgment (explicit trade-offs of accuracy, latency and cost)
 - **Depends on:** 09 (data), 11 (arms B0–B3), 10 (harness for B2), 04 (graph arms) · **Enables:** the model-selection
@@ -81,13 +81,15 @@ called with their `us.` profile id. All LLM arms get the same prompt, the same s
 0; differences come only from the model.
 
 ### 4.2 Tasks — one model per task
-The rules decide and the tools act, so the agent needs an LLM for only two tasks (spec 04). Each task is screened and
+The rules decide and the tools act, so the agent needs an LLM for only two tasks (spec 04); the analyst's console adds a
+third, the judge (spec 18). Each task is screened and
 chosen on its own, and may end with **no LLM** if no model beats the no-LLM option — the leanest outcome.
 
 | Task | Where (spec 04) | What the model does | B1 metric | No-LLM option |
 |---|---|---|---|---|
 | `understand` | `understand` node, only when the classifier is below τ (cascade, spec 11 B3) | intent + slots as structured output | macro-F1 per language, recall of disputes and of `human_request`, slot accuracy (spec 11 §4.1) | B0 rules or B1 TF-IDF + LR |
 | `word` | `respond` and `clarify` in S1/S2 | rewords an approved ES/PT template without changing any fact | grounding pass rate, language and length checks, blind preference against the template on 20 samples rated by two team members | templates only |
+| `judge` | the analyst's second opinion (spec 18) | verdict on the engine's proposal with reasons tied to evidence | agreement with the expected proposals of the dev cases; share of reasons kept after grounding | no second opinion |
 
 The result is a **model map** (for example `understand → model A`, `word → templates`) loaded by
 `nick_of_time.config.resolve(arm)`; it becomes arm S1.
@@ -145,14 +147,15 @@ The gate is evaluated **per arm when the benchmark runs**, from the provider's p
 ## 7. Data model touched
 Reads the frozen sentence split and the dev agent cases; writes only result files.
 
-## 8. Assumptions and open questions (gate 1)
+## 8. Decisions (gate 1, lead, 2026-10-04)
 - **Q1 — candidates (§4.1):** **Decided (lead, 2026-10-04):** the ~20 Bedrock models, Jev, and Sonnet 5.5 as the
   preferred ceiling because it is cheaper than Sonnet 4.6.
 - **Q2 — budget:** **Decided (lead, 2026-10-04):** 20 USD per full run, and one model per task (§4.2) so each task
   pays only for what it needs.
-- **Q3 — where to choose:** choose on dev (B2) and confirm on the held-out in spec 10 — never choose on the held-out. OK?
-- **Q4 — lean rule (§4.4):** per task: hard limits, then "not significantly worse than the best", then the cheapest,
-  then the production gate. OK?
+- **Q3 — where to choose:** **Decided (lead, 2026-10-04):** choose on dev (B2) and confirm on the held-out in spec 10;
+  never choose on the held-out.
+- **Q4 — lean rule (§4.4):** **Decided (lead, 2026-10-04):** per task: hard limits, then "not significantly worse than
+  the best", then the cheapest, then the production gate. The `judge` task joins in P2; until then it runs on Haiku 4.5.
 - Claude Sonnet 5.5 is **not available to the team account** on 2026-10-04: the applied quota is 0 tokens per minute
   (`L-94A31E46`, `L-31AB82D0`; AWS default 6,000,000), a quota request below the default is rejected, and a test call
   returns `AccessDeniedException` ("not available for this account … contact AWS Sales"). Access goes through AWS
