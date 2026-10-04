@@ -73,7 +73,7 @@ approval:                                # approval mode per action: auto | huma
   close: human_only                        # no case is closed without a person, automatic ones included
 
 actions:
-  ticket:             {zones: [high, medium, human], verify: get_case_status}         # always; the mode comes from approval.per_action.open_case
+  ticket:             {zones: [high, medium, human], verify: get_case}       # always; the mode comes from approval.per_action.open_case
   block_card:         {zones: [high, medium], verify: get_product_status, expect: Blocked, medium_requires: customer_confirmation}
   provisional_credit: {zones: [], decided_by: human, note: "country obligation; never the model"}
 
@@ -180,7 +180,7 @@ guardrails:                              # each lives in code; every DENY cites 
   - {id: G-TOOL-02, layer: tools, name: "controlled writes", impl: "approval mode per action; idempotency key; mandatory post-condition; credit never auto", test: tool_failure}
   - {id: G-POL-01, layer: policy, name: "default deny and logging", impl: "versioned policies.yaml; every denial is a row in policy_denials", test: all}
   - {id: G-OUT-01, layer: output, name: "grounding", impl: "every number, date, ID or status in the answer exists in a tool result or in the policy; otherwise it is dropped and logged", test: missing_data}
-  - {id: G-OUT-02, layer: output, name: "verified only", impl: "'blocked' only when get_product_status == Blocked; 'case #' only when get_case_status == Open", test: tool_failure}
+  - {id: G-OUT-02, layer: output, name: "verified only", impl: "'blocked' only when get_product_status == Blocked; 'case #' only when get_case == Open", test: tool_failure}
   - {id: G-OUT-03, layer: output, name: "leaks of other customers' data and secrets", impl: "output filter rejects IDs/amounts that are not from the session; never YAML or keys", test: unauthorized_access}
   - {id: G-OUT-04, layer: output, name: "tone and abstention", impl: "no promises of money or deadlines the policy did not give; explicit abstention", test: missing_data}
   - {id: G-OPS-01, layer: operations, name: "budget and retries", impl: "token cap per conversation and per day, checked before calling; 2 retries; 800 ms timeout", test: cap}
