@@ -223,8 +223,9 @@ messages.
 - [ ] T7a — Shared LLM client `nick_of_time.llm` (`fake`, `bedrock`, `anthropic`) and `nick_of_time.config.resolve(arm)`:
       forced tool use with the tool → any → auto ladder (D-011), temperature 0 or provider default recorded per arm
       (D-016), usage, latency and cost from a price table, `ProviderUnavailable` for provider errors (graph degrades to
-      S0, section 5), `NoStructuredOutput` when the accepted mode returns no or schema-invalid input (caller decides);
-      timeouts connect 2 s, read 15 s, 2 attempts (Bedrock) and 15 s, 1 retry (Anthropic) `[assumption]`; Anthropic is
+      S0, section 5), `NoStructuredOutput` when the accepted mode returns no or schema-invalid input (caller decides;
+      it carries the billed call's usage); timeouts connect 2 s, read 15 s, 2 attempts in total (Bedrock
+      `total_max_attempts`) and 15 s, 1 retry (Anthropic) `[assumption]`; Anthropic is
       an operator switch (`LLM_PROVIDER=anthropic`), not a runtime failover; a per-task arm config (spec 15 section
       4.2) is planned for spec 15 T6 · supports AC-14; tests `tests/test_spec04_llm.py` (lead decision D-003)
 - [ ] T8 — Platform deployment; `/agent` content · AC-07, AC-08

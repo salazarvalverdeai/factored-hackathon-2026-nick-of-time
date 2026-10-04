@@ -6,7 +6,7 @@ import pytest
 from botocore.exceptions import ClientError, EndpointConnectionError, ParamValidationError
 
 from nick_of_time.config import HAIKU, SONNET, resolve
-from nick_of_time.llm import FakeClient, NoStructuredOutput, ProviderUnavailable, make_client
+from nick_of_time.llm import FakeClient, NoStructuredOutput, ProviderUnavailable, ToolChoiceUnsupported, make_client
 from nick_of_time.llm.bedrock import BedrockClient
 
 SCHEMA = {"type": "object", "properties": {"intent": {"type": "string"}}}
@@ -68,28 +68,44 @@ def test_ladder_steps_down_and_records_mode_d011():
     assert stub.requests[2]["toolConfig"]["toolChoice"] == {"any": {}}
 
 
-def test_ladder_exhausted_is_no_structured_output_d011():
+def test_ladder_exhausted_is_tool_choice_unsupported_d011():
     rej = client_error("ValidationException", "toolChoice is not supported")
     c, stub = bedrock(rej, rej, rej)
-    with pytest.raises(ProviderUnavailable):   # the graph degrades to S0 (spec 04 section 5)
+    with pytest.raises(ToolChoiceUnsupported) as e:
         c.complete("s", "u", schema=SCHEMA)
+    assert isinstance(e.value, ProviderUnavailable)   # the graph degrades to S0 (spec 04 section 5)
     assert [r["toolConfig"]["toolChoice"] for r in stub.requests] == [{"tool": {"name": "record_output"}},
                                                                       {"any": {}}, {"auto": {}}]
 
 
-def test_latency_ms_is_measured():
-    c, _ = bedrock(OK_TOOL)
-    assert c.complete("s", "u", schema=SCHEMA).latency_ms >= 0
+def test_latency_ms_covers_every_attempt(monkeypatch):
+    """AC-14 support: one clock around the whole complete(), temperature and ladder retries included."""
+    from types import SimpleNamespace as NS
+    import nick_of_time.llm.base as base
+    clock = [0.0]
+    monkeypatch.setattr(base, "time", NS(perf_counter=lambda: clock[0]))
+    c, stub = bedrock(client_error("ValidationException", "temperature is not supported"),
+                      client_error("ValidationException", "toolChoice tool is not supported"), OK_TOOL)
+    converse = stub.converse
+
+    def slow(**req):
+        clock[0] += 0.1   # each provider call takes 100 ms
+        return converse(**req)
+    stub.converse = slow
+    assert c.complete("s", "u", schema=SCHEMA).latency_ms == 300
 
 
 @pytest.mark.parametrize("reply", [
-    {"output": {"message": {"content": [{"text": "no tool"}]}}, "stopReason": "end_turn"},
+    {"output": {"message": {"content": [{"text": "no tool"}]}}, "stopReason": "end_turn",
+     "usage": {"inputTokens": 1000, "outputTokens": 200}},
     {**OK_TOOL, "output": {"message": {"content": [{"toolUse": {"name": "record_output", "input": {"intent": 3}}}]}}}])
 def test_no_or_invalid_tool_input_is_no_structured_output(reply):
+    """The error keeps the billed call so T7 can log its usage (ADR 0009, spec 01 section 6.5 llm_calls)."""
     c, _ = bedrock(reply)
     with pytest.raises(NoStructuredOutput) as e:
         c.complete("s", "u", schema=SCHEMA)
     assert not isinstance(e.value, ProviderUnavailable)
+    assert e.value.result.tokens_in == 1000 and e.value.result.cost_usd > 0
 
 
 def test_bedrock_error_message_is_truncated():
@@ -152,8 +168,27 @@ def test_fake_is_scripted_and_deterministic():
     assert r.tool_input == {"intent": "x"} and r.cost_usd is None and f.calls[1]["mode"] == "tool"
     with pytest.raises(ProviderUnavailable):
         f.complete("s", "u")
-    with pytest.raises(ProviderUnavailable):   # exhausted script degrades like an unconfigured provider
+    with pytest.raises(AssertionError):   # an under-scripted test fails loudly instead of degrading to S0
         f.complete("s", "u")
+    with pytest.raises(ProviderUnavailable):   # no script: an unconfigured deployment degrades to S0
+        make_client(resolve("S1", {})).complete("s", "u")
+
+
+def test_client_timeouts_and_retries_are_pinned(monkeypatch):
+    """Spec 04 T7a [assumption]: Bedrock connect 2 s, read 15 s, 2 attempts in total; Anthropic 15 s, 1 retry.
+    Construction only: dummy credentials, and the no_network fixture blocks any socket."""
+    import boto3
+    from nick_of_time.llm.anthropic import AnthropicClient
+    for k, v in {"AWS_ACCESS_KEY_ID": "x", "AWS_SECRET_ACCESS_KEY": "x", "AWS_CONFIG_FILE": os.devnull,
+                 "AWS_SHARED_CREDENTIALS_FILE": os.devnull, "ANTHROPIC_API_KEY": "test"}.items():
+        monkeypatch.setenv(k, v)
+    monkeypatch.delenv("AWS_PROFILE", raising=False)
+    monkeypatch.setattr(boto3, "DEFAULT_SESSION", None)
+    cfg = BedrockClient(HAIKU)._client.meta.config
+    assert (cfg.region_name, cfg.connect_timeout, cfg.read_timeout) == ("us-east-2", 2, 15)
+    assert cfg.retries == {"mode": "standard", "total_max_attempts": 2}
+    sdk = AnthropicClient("claude-x")._client
+    assert (sdk.timeout, sdk.max_retries) == (15.0, 1)
 
 
 def test_resolve_arms_and_env_names():

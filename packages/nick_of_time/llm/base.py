@@ -7,6 +7,8 @@ Provider errors become `ProviderUnavailable` (the graph falls back to S0); our o
 With a schema, the accepted mode must return a tool input that validates against it; otherwise `NoStructuredOutput`
 (not a `ProviderUnavailable`: the caller decides). `latency_ms` covers the whole `complete()`, ladder and temperature
 retries included (spec 01 section 6.5 `llm_calls.latency_ms`, spec 04 section 6 usage row, ADR 0009).
+D-011 "no structured output" maps to both: exhausted ladder -> `ToolChoiceUnsupported` (a `ProviderUnavailable`),
+schema failure -> `NoStructuredOutput`.
 """
 from __future__ import annotations
 
@@ -35,7 +37,12 @@ class ToolChoiceUnsupported(ProviderUnavailable):
 
 class NoStructuredOutput(LLMError):
     """The accepted mode returned no tool input, or one that does not match the schema (for example `auto` answered
-    in text, or `max_tokens` cut the input). Not a provider outage: the caller decides (retry, repair or S0)."""
+    in text, or `max_tokens` cut the input). Not a provider outage: the caller decides (retry, repair or S0).
+    `result` is the billed call, so its usage, cost and latency are still logged (ADR 0009, spec 01 section 6.5)."""
+
+    def __init__(self, message: str, *, result: LLMResult) -> None:
+        super().__init__(message)
+        self.result = result
 
 
 class TemperatureUnsupported(RuntimeError):
@@ -116,20 +123,23 @@ class LLMClient:
                     break
                 if mode:
                     self.mode = mode
+                result = LLMResult(text=raw["text"], tool_input=raw["tool_input"], stop_reason=raw["stop_reason"],
+                                   tokens_in=raw["tokens_in"], tokens_out=raw["tokens_out"],
+                                   cost_usd=cost_usd(self.prices, raw["tokens_in"], raw["tokens_out"]),
+                                   provider=self.provider, model=self.model, mode=mode, temperature=self.temperature,
+                                   latency_ms=round((time.perf_counter() - t0) * 1000))
                 if schema:
-                    self._check_tool_input(raw["tool_input"], schema, mode, raw["stop_reason"])
-                return LLMResult(text=raw["text"], tool_input=raw["tool_input"], stop_reason=raw["stop_reason"],
-                                 tokens_in=raw["tokens_in"], tokens_out=raw["tokens_out"],
-                                 cost_usd=cost_usd(self.prices, raw["tokens_in"], raw["tokens_out"]),
-                                 provider=self.provider, model=self.model, mode=mode, temperature=self.temperature,
-                                 latency_ms=round((time.perf_counter() - t0) * 1000))
+                    self._check_tool_input(result, schema)
+                return result
         raise ToolChoiceUnsupported("; ".join(rejected))
 
     @staticmethod
-    def _check_tool_input(tool_input: Any, schema: dict, mode: str | None, stop_reason: str) -> None:
-        if not isinstance(tool_input, dict):
-            raise NoStructuredOutput(f"mode {mode} returned no tool input (stop_reason {stop_reason!r})")
+    def _check_tool_input(result: LLMResult, schema: dict) -> None:
+        if not isinstance(result.tool_input, dict):
+            raise NoStructuredOutput(f"mode {result.mode} returned no tool input (stop_reason {result.stop_reason!r})",
+                                     result=result)
         try:
-            validate(tool_input, schema)
+            validate(result.tool_input, schema)
         except ValidationError as exc:
-            raise NoStructuredOutput(f"mode {mode} tool input does not match the schema: {exc.message}"[:300]) from exc
+            raise NoStructuredOutput(f"mode {result.mode} tool input does not match the schema: {exc.message}"[:300],
+                                     result=result) from exc

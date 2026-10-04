@@ -4,7 +4,8 @@ from __future__ import annotations
 from .base import LLMClient, ProviderUnavailable, classify_validation
 
 REGION = "us-east-2"
-# [assumption] short enough for spec 04 section 5 (degrade to S0, turn p95 <= 6 s): 2 attempts of at most 15 s
+# [assumption] short enough for spec 04 section 5 (degrade to S0, turn p95 <= 6 s): 2 attempts of at most 15 s.
+# botocore `total_max_attempts` counts the first try; its `max_attempts` counts retries (2 would mean 3 attempts).
 CONNECT_TIMEOUT_S, READ_TIMEOUT_S, MAX_ATTEMPTS = 2, 15, 2
 TOOL_CHOICES = {"tool": lambda name: {"tool": {"name": name}}, "any": lambda name: {"any": {}},
                 "auto": lambda name: {"auto": {}}}
@@ -33,7 +34,7 @@ class BedrockClient(LLMClient):
             from botocore.config import Config
             boto_client = boto3.client("bedrock-runtime", region_name=region, config=Config(
                 connect_timeout=CONNECT_TIMEOUT_S, read_timeout=READ_TIMEOUT_S,
-                retries={"max_attempts": MAX_ATTEMPTS, "mode": "standard"}))
+                retries={"total_max_attempts": MAX_ATTEMPTS, "mode": "standard"}))
         self._client = boto_client
 
     def request(self, system, user, schema, tool_name, max_tokens, mode, temperature) -> dict:
