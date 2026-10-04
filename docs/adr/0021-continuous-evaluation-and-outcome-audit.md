@@ -15,13 +15,24 @@
   their own practices; NIST AI RMF asks that AI systems be monitored in production (MEASURE 2.4, MANAGE 4.1).
 - The classifier's test split is small, so a measurement is only comparable over time if the split never changes
   (spec 11 §4.1).
-- The system now has several models: the bank's score (a vendor model), our fraud model (spec 17), the intent
-  classifier and the injection detector (spec 11), an LLM per task (spec 15) and the judge (spec 18). SR 26-2 calls a
-  model inventory common industry practice.
+- The system now has several models and decision engines: the policy engine and the regulatory clock (rules), the
+  bank's score (a vendor model), our fraud model (spec 17), the intent classifier and the injection detector (spec 11),
+  an LLM per task (spec 15) and the judge (spec 18). SR 26-2 calls a model inventory common industry practice.
 
 ## Decision
-0. **Model inventory.** `docs/models.md` lists every model in use: purpose, owner, version, data window, metrics, gate
-   and monitoring. The release gate and the monitoring below apply to every model in it, the bank's score included.
+0. **Inventory of models and decision engines.** `docs/models.md` lists everything that decides or scores: purpose,
+   owner, version, data window, metrics, gate and monitoring. Monitoring and continuous improvement cover **all** of
+   them, not only the learned models:
+
+   | Engine | What is watched (outcomes analysis) | Improvement path |
+   |---|---|---|
+   | Policy engine (`policies.yaml`: zones, approval modes, amount gates) | precision per zone against the analysts' decisions; override rate; cases reopened | threshold change = policy PR + ADR |
+   | Regulatory clock | deadlines met; sources re-verified (ADR 0019) | regulatory change = policy PR + ADR |
+   | Bank's fraud score (vendor) | precision and recall per zone over time | report to the bank; our model as a second signal |
+   | Our fraud model (spec 17) | PR-AUC, recall without a bank score, fairness by country and segment | retrain on a new time window |
+   | Intent classifier and injection detector (spec 11) | intent and language mix, share below τ, recall of disputes and of `human_request` | refresh the set; re-run the protocol |
+   | LLM per task and the judge (specs 15, 18) | grounding drops, `coherence_rate`, judge–analyst agreement, cost per case | re-run the benchmark; champion / challenger |
+   | Auditor (spec 18) | findings per 100 runs by check | fix the check or the engine it caught |
 1. **Auditor = deterministic pipeline (second line).** `nick_of_time.audit` re-derives each run's decision, deadline,
    verified actions and facts from its records and stores findings in `audit_findings`. The same functions compute the
    harness's final-state checks (spec 18).
@@ -38,8 +49,8 @@
    to models that passed that gate.
 7. **Phasing.** P0: this ADR, the model inventory, spec 18's shared library used by the harness and the judge in the
    console, spec 17's benchmark of our fraud model against the bank's score. P1: the online auditor and its console
-   panel. P2: the release gate for every model in the inventory as a nightly CI job, drift monitors, champion /
-   challenger, the v2 set.
+   panel. P2 (nice to have): monitoring and continuous improvement for every engine in the inventory — the release gate as a
+   nightly CI job, drift monitors, outcomes analysis per engine, champion / challenger, the v2 set.
 
 ```
  1st line (operates)                  2nd line (independent)                         3rd line (assures)
