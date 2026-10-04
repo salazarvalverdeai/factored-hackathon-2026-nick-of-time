@@ -7,7 +7,7 @@
 - **Owner:** @salazarvalverdeai · **Priority:** P0 · **Size:** M
 - **Challenge dimension:** Technical Judgment (deterministic logic where AI is not appropriate)
 - **Depends on:** `contracts/policies.yaml` · **Enables:** 03 (tools re-check permissions), 04 (decide node), 05 (queue
-  transitions, supervised mode) · **ADRs:** 0005, 0006, 0019, 0020 (proposed; supersedes 0012)
+  transitions, supervised mode) · **ADRs:** 0005, 0006, 0019, 0020 (supersedes 0012)
 - **Issue:** #4
 
 > Full profile: money and compliance decisions. The engine never calls a network, a database or an LLM.
@@ -131,7 +131,7 @@ test, no code change.** A country without a verified entry falls back to `POL-CL
 | any other LATAM country | — | — | `POL-CLOCK-UNKNOWN`: case opened, routed to a person, no deadline invented |
 
 - "Opened" = `clock.today(mode, country)`: `DEMO_TODAY = 2026-06-01` in `replay`, the real date in the country's time
-  zone in `live` (ADR 0020, proposed). Example: a MX debit notice on Monday 2026-06-01 about a charge on 2026-05-31 →
+  zone in `live` (ADR 0020). Example: a MX debit notice on Monday 2026-06-01 about a charge on 2026-05-31 →
   credit by Wednesday 2026-06-03.
 - **Coverage note:** the dataset only has MX, CO and AR customers, so PE, CL and BR are exercised by unit tests and
   fixtures; the demo runs on MX, CO and AR (BR in Portuguese with a fixture). The README states it.
@@ -247,6 +247,6 @@ sources in the table of §4.4.
   https://www.consumerfinance.gov/data-research/research-reports/chatbots-in-consumer-finance/chatbots-in-consumer-finance/
 - IANA time zone database (zone names of §4.4): https://www.iana.org/time-zones
 - Internal: `contracts/policies.yaml` (`amount_gate`, `approval`, `case_queue`, `regulatory_clock`),
-  `contracts/gold_contract.md` R1 (gold ends 2026-05-31), ADR 0019 (official sources), ADR 0020 (proposed, two modes),
+  `contracts/gold_contract.md` R1 (gold ends 2026-05-31), ADR 0019 (official sources), ADR 0020 (two modes),
   `queries/pitch/p08_fraud_score_thresholds.csv` and ADR 0006 (79.6% precision at score ≥ 30 `[data]`).
 - Values marked `[assumption]` (MXN and BRL tier rates, the 30-day re-evaluation window) have no external source.
