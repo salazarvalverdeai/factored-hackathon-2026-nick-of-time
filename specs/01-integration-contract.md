@@ -197,7 +197,7 @@ shape of `data` is fixed in the producing spec.
 {
   "reply": "string — customer-facing, ES or PT",
   "language": "es | pt",
-  "decision": "block_and_open_case | confirm | ask | handoff | deny | reauthenticate | escalate_unconfirmed_action | null",
+  "decision": "block_and_open_case | confirm | ask | handoff | answer_status | connect_person | deny | reauthenticate | escalate_unconfirmed_action | null",
   "zone": "high | medium | human | null",
   "intent": "unrecognized_charge | wrongful_charge | status_inquiry | human_request | out_of_scope | null",
   "intent_confidence": 0.0,
@@ -219,8 +219,8 @@ shape of `data` is fixed in the producing spec.
 ```
 - `receipt` is present whenever a case was opened; `handoff` whenever the case goes to `review`. Both are built by
   `nick_of_time.receipt` from the same verified facts (ADR 0016).
-- `progress` items are also streamed as custom events while the run is in progress (spec 04 AC-17); `decision` is null
-  for status replies. The four action states are the only vocabulary for an action, in every surface.
+- `progress` items are also streamed as custom events while the run is in progress (spec 04 AC-17);
+  `answer_status` and `connect_person` come from spec 02 rules 3a–3b. The four action states are the only vocabulary for an action, in every surface.
 
 ### 6.5 Postgres schema (owned by `apps/api/migrations`, used through `nick_of_time.store`)
 Append-only tables are marked **AO** (no `UPDATE`/`DELETE`; enforced by grants and a test).
