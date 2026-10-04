@@ -100,8 +100,9 @@ Implementation choices (`scripts/ml/fraud_features.py`) `[assumption]`:
   closest strictly earlier transaction of any kind.
 - Cold start: gold begins on 2025-06-01, so early rows have no history. Share of Approved/Pending transactions with no
   earlier transaction of the customer `[data]`: 61.5% in 2025-06, 23.9% in 2025-07, 10.7% in 2025-08, 0.8% in 2026-01
-  (computed with `build_features` on gold v1). Whether to burn in the first months is decided in task 17b; the
-  training window is not changed here.
+  (computed with `build_features` on gold v1). The windows and counts are not changed. Task 17b adds one feature,
+  `n_prev` (count of strictly earlier transactions of the entity, any status), so the models can tell a thin history
+  from a quiet customer `[assumption]`; validation metrics are reported by month so the effect is visible.
 
 ### 4.3 Arms — a lean scikit-learn screen
 The dataset is large enough for all of these (about 1.39 million Approved/Pending transactions, 896 frauds to train).
@@ -179,8 +180,11 @@ retraining (ADR 0021, P2).
 ## 10. Plan, tasks and verification
 - [x] T1 [P0] — versioned queries for the monthly label counts and the time split; split hash · AC-01
 - [x] T2 [P0] — feature builder from earlier transactions only + leakage test · AC-02
-- [ ] T3 [P0] — the arms of §4.3 with calibration on validation; cost and efficiency harness; lean rule in
-      `eval/PROTOCOL.md` · AC-03, AC-05, AC-06
+- [x] T3 [P0] — the arms of §4.3 with calibration on validation (Platt scaling; legitimate rows down-sampled 100 per
+      fraud in train only, plus class weights where available `[assumption]`), cost and efficiency harness
+      (`scripts/ml/fraud_screen.py`; models and outputs outside the repo, the protocol seal forbids results inside it);
+      train and validation only, so the test-window part of AC-03 is task 17c · AC-03 (screen), AC-05
+- [x] T3b [P0] — lean rule in `eval/PROTOCOL.md` · AC-06 (PR #37)
 - [ ] T4 [P0] — test-window evaluation, report, `fraud_benchmark.json` for `/evaluation` · AC-04
 - [ ] T5 [P1] — `model_score` in `get_fraud_score` and the handoff card; inventory entry · AC-07, AC-08
 
