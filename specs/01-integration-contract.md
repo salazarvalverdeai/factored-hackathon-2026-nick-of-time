@@ -281,10 +281,15 @@ Queue statuses (from `policies.yaml`): `new → verification | review → resolv
 Required: `receipt_id, case_id, language, issued_at, verified_facts, actions, deadline, what_ai_did,
 what_a_person_does`. Never contains score, policy ids or transcript (`notifications.never_send`). `amount.display` is
 an approximation from `convert_amount` and is omitted when no verified rate exists (ADR 0019); `deadline` is null for a
-country without a verified clock entry (`POL-CLOCK-UNKNOWN`).
+country without a verified clock entry (`POL-CLOCK-UNKNOWN`). Optional fields may be null or absent. The schema's
+`examples[0]` is the sample receipt `[simulated]` that stubs and the echo graph return
+(`nick_of_time.contracts.sample_receipt()`); `nick_of_time.contracts.CustomerReceipt` mirrors the schema and a test
+keeps them equal.
 
 **Identifiers** (`nick_of_time.ids`): case `K-` + 6 digits · action `A-` · verification `V-` · event `E-` ·
-receipt `RC-` · notification `N-` · session `S-` + 16 url-safe chars · transaction `T-` and product `P-` come from gold.
+receipt `RC-` · notification `N-` · session `S-` + 16 url-safe chars. `[assumption]` `A-`, `V-`, `E-`, `RC-` and `N-`
+take 12 upper-case hex characters; a case id has only 10^6 values, so the store retries on a primary-key conflict.
+Transaction and product ids come from gold unchanged (`TRX-…`, `PRD-…`; gold `transactions` and `products`).
 
 ### 6.8 Evaluation hooks (`EVAL_MODE=true` only)
 | Method | Path | Request | Response |
@@ -334,6 +339,9 @@ against `expected`.
 
 **Schema change (`eval/eval_case.schema.json`, minor):** add `"customer_returns"` to `type`; add
 `expected.receipt: {"issued": bool, "has_deadline": bool}` and `initial_state.case_id` (for returning customers).
+`expected.decision` and `expected.intent` use the `TurnResult` vocabulary of §6.4, so `answer_status` and
+`connect_person` are added and `status_inquiry` replaces `inquiry` (spec 11 Q4), plus `human_request`. The example
+cases use charge dates inside the gold window, since eval sessions are always `replay` (`DEMO_TODAY`).
 
 ### 6.9 Configuration names
 `DEMO_TODAY` · `DATABASE_URL` · `GOLD_PATH` / `GOLD_S3_URI` · `MCP_URL` · `MCP_API_KEY` · `LANGGRAPH_API_URL` ·
@@ -370,16 +378,17 @@ only their seams and stubs.
 ## 10. Plan, tasks and verification
 Implementation goes in `feat/01-integration-contract` after this spec is approved.
 - [ ] T1 — `packages/nick_of_time` skeleton: `contracts.py` (re-export + `TurnResult`, `CustomerReceipt`, `FinalState`,
-      view models), `ids.py` · covers AC-01
-- [ ] T2 — `contracts/customer_receipt.schema.json` + `eval_case.schema.json` minor change + example cases updated ·
-      covers AC-01, AC-04
+      view models), `ids.py` · covers AC-01 · in progress: skeleton, `ids.py`, re-export, shared vocabularies and
+      `CustomerReceipt` done (`tests/test_spec01_contracts.py`); `TurnResult`, `FinalState` and view models next
+- [x] T2 — `contracts/customer_receipt.schema.json` + `eval_case.schema.json` minor change + example cases updated ·
+      covers AC-01, AC-04 (receipt half; the echo graph is T5) · `tests/test_spec01_contracts.py`
 - [ ] T3 — api stub: every route of §6.2 and §6.8 returning fixtures validated by the models; `mode` on sessions ·
       covers AC-02, AC-06, AC-07
 - [ ] T4 — `contracts/tools.py` v1.1 and `policies.yaml` `actors.customer.tools` with the 16 tools; fake MCP server
       returning fixtures from those models, `synthetic` rows in `live` · covers AC-03, AC-08
 - [ ] T5 — echo graph `dispute_intake` returning a `TurnResult` with a sample receipt · covers AC-04
 - [ ] T6 — `infra/compose.dev.yml` (api stub, mcp stub, postgres) and `.env.example` names of §6.9 · covers AC-02
-- [ ] T7 — remove the empty `apps/api/{audit,classifier,graph,policy,tools}` folders
+- [x] T7 — remove the empty `apps/api/{audit,classifier,graph,policy,tools}` folders
 - [ ] T8 — tests `tests/test_spec01_*.py` citing AC-02, AC-03, AC-04, AC-06, AC-07, AC-08
 
 **Closing checklist:** every AC has a passing test or check · status → Implemented · contract version recorded in
