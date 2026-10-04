@@ -10,7 +10,7 @@ Free plan: 3,000 e-mails/month, 100/day, 3 domains, 30-day log retention. Use th
 
 ## 2. Sending domain
 - Domain: **`notify.nickoftime.salazarvalverdeai.com`** (Resend recommends a subdomain to isolate reputation).
-- Sender: `avisos@notify.nickoftime.salazarvalverdeai.com`.
+- Sender: `updates@notify.nickoftime.salazarvalverdeai.com`.
 - Region: **North Virginia (`us-east-1`)**; alternatives: Ireland, São Paulo, Tokyo.
 - Resend → Domains → Add Domain → copy the **Records** tab exactly. The lead's agent creates them in Hostinger (dry
   run, backup, apply, verify on public DNS). Verification usually takes ~15 minutes; up to 72 h. DMARC is optional.
@@ -27,26 +27,32 @@ the `salazarvalverdeai.com` zone:
 
 MX, SPF and the CNAME verified within minutes; DKIM took about 2 hours although the published value already matched on
 every public resolver. If DKIM stays `pending`, wait (Resend allows up to 72 h) instead of re-creating the record. The
-domain was verified the same day and `make check-resend` passed from `avisos@notify.nickoftime.salazarvalverdeai.com`.
+domain was verified the same day and `make check-resend` passed from `updates@notify.nickoftime.salazarvalverdeai.com`.
 
 ## 3. API key and values
 Resend → API Keys → Create: **Sending access**, restricted to the domain above.
 
-Production (SSM):
+**Done on 2026-10-04:** `/nickoftime/prod/RESEND_API_KEY` holds the key `nickoftime-prod-sending` (sending access,
+`notify.nickoftime…` only). It sends from that domain, gets `401` on domain management and `403` from any other
+domain. The parameter was deleted and re-created instead of overwritten, so its history does not keep the earlier
+full-access key. Only the lead's local `.env` keeps a full-access key, for domain administration; teammates get the
+sending key with `make env-pull`.
+
+To replace it (see "If the key leaks"):
 ```bash
-aws ssm put-parameter --profile nickoftime --region us-east-2 --type SecureString \
-  --name /nickoftime/prod/RESEND_API_KEY --value '<key>' --tags Key=Project,Value=nickoftime
+aws ssm put-parameter --profile nickoftime --region us-east-2 --type SecureString --overwrite \
+  --name /nickoftime/prod/RESEND_API_KEY --value '<key>'
 ```
 Local `.env`:
 ```
 RESEND_API_KEY=<key>
-RESEND_FROM=Nick of Time <avisos@notify.nickoftime.salazarvalverdeai.com>
+RESEND_FROM=Nick of Time <updates@notify.nickoftime.salazarvalverdeai.com>
 ```
 
 ## 4. Access check
 ```bash
 make check-resend ARGS="--to you@example.com"     # an address you own
-# OK    accepted by Resend (email id …) from Nick of Time <avisos@notify…> — check the inbox
+# OK    accepted by Resend (email id …) from Nick of Time <updates@notify…> — check the inbox
 ```
 `HTTP 403` with a domain error → the domain is not verified yet; `HTTP 401` → wrong key.
 

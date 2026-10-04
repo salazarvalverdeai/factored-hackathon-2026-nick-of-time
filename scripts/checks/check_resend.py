@@ -14,7 +14,7 @@ import urllib.request
 from _common import fail, masked, ok, setting
 
 KEY = setting("RESEND_API_KEY")
-SENDER = setting("RESEND_FROM", "Nick of Time <avisos@notify.nickoftime.salazarvalverdeai.com>")
+SENDER = setting("RESEND_FROM", "Nick of Time <updates@notify.nickoftime.salazarvalverdeai.com>")
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--to", required=True, help="an address you own")

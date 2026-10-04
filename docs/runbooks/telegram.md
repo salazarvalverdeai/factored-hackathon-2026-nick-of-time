@@ -65,7 +65,7 @@ After the webhook is registered, `getUpdates` is disabled: use `make check-teleg
 ## How the product uses it (spec 13)
 - **Linking:** one-time token (TTL 15 min) → `https://t.me/<bot>?start=<token>`; the parameter allows up to 64
   characters of `A-Z a-z 0-9 _ -`; the bot receives `/start <token>` and stores the `chat_id` (`telegram_linked`).
-- **Webhook:** `setWebhook` to `https://nickoftime.salazarvalverdeai.com/api/telegram/webhook` with `secret_token`;
+- **Webhook** (pending; owner GianMarco, registered when spec 13 deploys `/api/telegram/webhook`): `setWebhook` to `https://nickoftime.salazarvalverdeai.com/api/telegram/webhook` with `secret_token`;
   Telegram sends it in `X-Telegram-Bot-Api-Secret-Token`; a mismatch returns 401. HTTPS only, ports 443/80/88/8443.
 - **Unlinking:** `/stop` revokes the `chat_id`. Messages never include the score, policy ids or the transcript.
 
