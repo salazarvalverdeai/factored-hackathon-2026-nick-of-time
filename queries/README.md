@@ -23,3 +23,8 @@ The column names and group labels in these `.sql` files and CSVs were translated
 (`factored-2026-eda-freddy` still uses the Spanish names, e.g. `grupo`, `Todo el banco`).
 
 The EDA queries are in `docs/eda/queries/`, where the documents reference them.
+
+## `policy/`: sources of `contracts/policies.yaml` values
+| Query | Value |
+|---|---|
+| `implied_usd_rate.sql` | `amount_gate.by_country` `usd_rate` for CO (4,000) and AR (350) `[data]`; runs on this repo's gold, output in the file |

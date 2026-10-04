@@ -1,5 +1,5 @@
 # policies.yaml — policy engine outside the model. Version every change (git). The LLM never reads or edits this file.
-version: 2               # 2: rules, approval.money_actions, amount_gate usd_rate (spec 02 FR-07)
+version: 2               # 2: rules, scoring.deciding_sources, approval.money_actions, amount_gate usd_rate (spec 02 FR-07)
 default: deny            # nothing runs unless a rule allows it
 
 rules:                   # stable ids every decision cites (spec 02 §4.1, AC-12); the engine refuses to start if one it emits is missing
@@ -13,11 +13,13 @@ rules:                   # stable ids every decision cites (spec 02 §4.1, AC-12
   POL-CLARIFY-EXHAUSTED: {text: "still unclear after clarify.max_clarification_turns -> handoff (clarification_exhausted)", guardrail: G-IN-03}
   POL-SCORE-NULL:        {text: "no fraud score -> zone human; the case is still opened"}
   POL-SCORE-LLM:         {text: "score from the llm provider -> zone human; an LLM score never decides a block"}
+  POL-SCORE-SOURCE:      {text: "score from a source not in scoring.deciding_sources (e.g. synthetic) -> zone human"}
   POL-ZONE-HIGH:         {text: "score in zones.high -> block_and_open_case, or handoff when the block needs a person"}
   POL-ZONE-MEDIUM:       {text: "score in zones.medium -> confirm with the customer, then open the case and hand off proposing approve_block"}
   POL-ZONE-HUMAN:        {text: "score in zones.human -> open the case and hand off (zone_human); no block"}
   POL-TICKET-ALWAYS:     {text: "open_case runs with mode auto in every zone; registering is not a money decision"}
   POL-AMOUNT-GATE:       {text: "the amount tier made a money action's approval mode stricter; it never changes a deadline", guardrail: G-TOOL-02}
+  POL-AMOUNT-UNKNOWN:    {text: "no tier applies (country without a gate, amount missing, negative or not finite, other currency) -> human_required", guardrail: G-TOOL-02}
   POL-SUPERVISED:        {text: "supervised_mode forced human_required on a money action", guardrail: G-TOOL-02}
   POL-DEFAULT-DENY:      {text: "no rule allows the action -> deny", guardrail: G-POL-01}
   POL-CLOCK-UNKNOWN:     {text: "no verified regulatory_clock entry for the country -> case opened, no deadline, routed to a person"}
@@ -41,6 +43,7 @@ scoring:                                 # where the fraud_score read by the zon
     rules:   {note: "heuristic: amount vs the customer's p95, channel, hour, different country; no training", version: "rules-v0"}
     model:   {note: "plan B: GBM/LR on transactions features against is_fraud, temporal held-out; only if Slack says the score is not available in real time", version: "model-v0"}
     llm:     {note: "demo illustration only; NEVER decides a block (zone forced to human when it is the source)", version: "llm-v0"}
+  deciding_sources: [dataset, rules, model]   # only these place a score in a zone; any other source → zone human (spec 02 rule 6)
   record_source_in_audit: true           # source and version go to the audit log and the handoff card
   null_score_zone: human
 
@@ -54,11 +57,12 @@ amount_gate:                             # [assumption] pending Q-AMT calibratio
   # The stricter of approval.per_action and the amount tier wins (auto < manual_check < human_required).
   amount: transactions.amount            # local currency; USD transactions (MX is 100% USD in the dataset) are converted first
   tiers: {up_to_low: auto, up_to_high: manual_check, above_high: human_required}
+  # usd_rate only converts a USD amount for these thresholds; it is never shown to a customer (spec 02 §4.2).
   # A country without an entry, a missing amount or a currency other than the entry's or USD → human_required [assumption].
   by_country:                            # provisional values: low ≈ 1,000 USD, high ≈ 5,000 USD; usd_rate converts USD amounts
     MX: {currency: MXN, usd_rate: 18.0, low: 18000, high: 90000}        # 18.0 MXN/USD [assumption]: the dataset has no MXN; confirm with Diego (Q-AMT)
-    CO: {currency: COP, usd_rate: 4000, low: 4000000, high: 20000000}   # 4,000 COP/USD [data], the dataset's fixed implied rate
-    AR: {currency: ARS, usd_rate: 350, low: 350000, high: 1750000}      # 350 ARS/USD [data], the dataset's fixed implied rate
+    CO: {currency: COP, usd_rate: 4000, low: 4000000, high: 20000000}   # 4,000 COP/USD [data]: queries/policy/implied_usd_rate.sql
+    AR: {currency: ARS, usd_rate: 350, low: 350000, high: 1750000}      # 350 ARS/USD [data]: queries/policy/implied_usd_rate.sql
     BR: {currency: BRL, usd_rate: 5.5, low: 5500, high: 27500}          # 5.5 BRL/USD [assumption]: the dataset has no BR; confirm with Diego (Q-AMT)
 
 approval:                                # approval mode per action: auto | human_required | manual_check
@@ -92,7 +96,7 @@ contact:                                 # callback promise for request_call (D-
   callback_within_business_days: 1
 
 handoff:
-  triggers: [zone_human, amount_over_case_gate, identity_unverified, clarification_exhausted, tool_failure, language_low_confidence]
+  triggers: [zone_human, zone_medium, supervised_mode, amount_over_case_gate, identity_unverified, clarification_exhausted, tool_failure, language_low_confidence]
   payload_schema: contracts/handoff.schema.json
   never_include_raw_transcript: true
 
@@ -180,7 +184,7 @@ guardrails:                              # each lives in code; every DENY cites 
   - {id: G-TOOL-02, layer: tools, name: "controlled writes", impl: "approval mode per action; idempotency key; mandatory post-condition; credit never auto", test: tool_failure}
   - {id: G-POL-01, layer: policy, name: "default deny and logging", impl: "versioned policies.yaml; every denial is a row in policy_denials", test: all}
   - {id: G-OUT-01, layer: output, name: "grounding", impl: "every number, date, ID or status in the answer exists in a tool result or in the policy; otherwise it is dropped and logged", test: missing_data}
-  - {id: G-OUT-02, layer: output, name: "verified only", impl: "'blocked' only when get_product_status == Blocked; 'case #' only when get_case == Open", test: tool_failure}
+  - {id: G-OUT-02, layer: output, name: "verified only", impl: "'blocked' only when get_product_status == Blocked; 'case #' only when get_case returns the case_id with read_at", test: tool_failure}
   - {id: G-OUT-03, layer: output, name: "leaks of other customers' data and secrets", impl: "output filter rejects IDs/amounts that are not from the session; never YAML or keys", test: unauthorized_access}
   - {id: G-OUT-04, layer: output, name: "tone and abstention", impl: "no promises of money or deadlines the policy did not give; explicit abstention", test: missing_data}
   - {id: G-OPS-01, layer: operations, name: "budget and retries", impl: "token cap per conversation and per day, checked before calling; 2 retries; 800 ms timeout", test: cap}

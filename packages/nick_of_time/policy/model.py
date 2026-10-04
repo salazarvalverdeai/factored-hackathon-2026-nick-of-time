@@ -1,12 +1,14 @@
 """Pydantic model of contracts/policies.yaml (spec 02 FR-01, FR-07).
 
-Loaded and validated once: an invalid file fails at startup, never at decision time. Sections the engine does not read
-yet stay untyped (`dict`) until the task that uses them types them (clock: 02b, queue: 02c).
+Loaded and validated once: an invalid file fails at startup, never at decision time. The loaded model is deeply frozen
+(mappings are read-only proxies, lists are tuples), so no caller can loosen a rule at runtime. Sections the engine does
+not read yet stay untyped until the task that uses them types them (clock: 02b, queue: 02c).
 """
 from __future__ import annotations
 
 from functools import cache
 from pathlib import Path
+from types import MappingProxyType
 from typing import Any, Literal, Optional
 
 import yaml
@@ -19,8 +21,28 @@ MODES: tuple[ApprovalMode, ...] = ("auto", "manual_check", "human_required")    
 POLICIES_PATH = CONTRACTS_DIR / "policies.yaml"
 
 
+def _freeze(value: Any) -> Any:
+    if isinstance(value, dict):
+        return MappingProxyType({key: _freeze(item) for key, item in value.items()})
+    return tuple(_freeze(item) for item in value) if isinstance(value, list) else value
+
+
 class _Strict(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
+
+    @model_validator(mode="after")
+    def _deep_freeze(self) -> _Strict:
+        for name in list(self.__dict__):
+            object.__setattr__(self, name, _freeze(self.__dict__[name]))
+        return self
+
+
+class Scoring(_Strict):
+    provider: str
+    providers: dict[str, dict[str, str]]
+    deciding_sources: list[str] = Field(min_length=1)   # any other source puts the case in zone human (rule 6)
+    record_source_in_audit: Literal[True]
+    null_score_zone: Literal["human"]
 
 
 class Rule(_Strict):
@@ -80,7 +102,7 @@ class Policies(_Strict):
     rules: dict[str, Rule]
     identity: dict[str, Any]
     scope: dict[str, Any]
-    scoring: dict[str, Any]
+    scoring: Scoring
     zones: dict[Zone, ZoneBand]
     amount_gate: AmountGate
     approval: Approval
@@ -103,6 +125,8 @@ class Policies(_Strict):
         problems = [f"rule id {r} must start with POL-" for r in self.rules if not r.startswith("POL-")]
         problems += [f"rule {r} cites unknown guardrail {v.guardrail}" for r, v in self.rules.items()
                      if v.guardrail and v.guardrail not in guardrails]
+        if "llm" in self.scoring.deciding_sources:
+            problems.append("an llm score never decides a zone (POL-SCORE-LLM)")
         z = self.zones
         if set(z) != {"high", "medium", "human"} or not (
                 z["human"].score_min == 0 and z["human"].score_max + 1 == z["medium"].score_min

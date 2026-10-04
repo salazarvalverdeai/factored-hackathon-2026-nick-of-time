@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import copy
+import json
 import re
 from pathlib import Path
 
@@ -26,10 +27,15 @@ def edited(path: str, value) -> dict:
     return raw
 
 
+def ids_in(path: Path) -> set[str]:
+    return set(re.findall(r"POL-[A-Z]+(?:-[A-Z]+)*", path.read_text()))
+
+
 def test_ac_12_version_2_declares_every_rule_id_the_spec_cites():
     assert load_policies().version == RAW["version"] == 2
-    spec_ids = set(re.findall(r"POL-[A-Z]+(?:-[A-Z]+)*", (ROOT / "specs/02-policy-engine.md").read_text()))
-    assert spec_ids == set(RAW["rules"])               # no undocumented id, no id the file lacks
+    assert ids_in(ROOT / "specs/02-policy-engine.md") <= set(RAW["rules"])
+    cited = set().union(*(ids_in(spec) for spec in (ROOT / "specs").glob("*.md")))
+    assert set(RAW["rules"]) <= cited                  # every id in the file is documented by some spec
     guardrails = {g["id"] for g in RAW["guardrails"]}
     assert all(r["text"] and r.get("guardrail", "G-POL-01") in guardrails for r in RAW["rules"].values())
 
@@ -39,6 +45,24 @@ def test_ac_15_money_actions_are_the_three_the_spec_names_and_load_is_cached():
     assert RAW["approval"]["money_actions"] == ["block_card", "unblock_card", "provisional_credit"]
     assert RAW["approval"]["supervised_mode"] is False
     assert load_policies(POLICIES_PATH) is load_policies(POLICIES_PATH)
+
+
+def test_ac_12_handoff_reasons_match_the_handoff_schema():
+    schema = json.loads((ROOT / "contracts/handoff.schema.json").read_text())
+    assert RAW["handoff"]["triggers"] == schema["properties"]["handoff_reason"]["enum"]
+
+
+def test_ac_05_the_loaded_policies_are_frozen_all_the_way_down():
+    """AC-05 and §5 security: no caller can loosen a rule at runtime, at any depth."""
+    policies = load_policies()
+    with pytest.raises(TypeError):
+        policies.approval.per_action["block_card"]["high"] = "auto"
+    with pytest.raises(TypeError):
+        policies.rules["POL-NEW"] = policies.rules["POL-SESSION"]
+    with pytest.raises(AttributeError):
+        policies.approval.money_actions.remove("block_card")
+    with pytest.raises(ValidationError):
+        policies.approval.supervised_mode = False
 
 
 INVALID = [
@@ -51,9 +75,13 @@ INVALID = [
     ("AC-04 unknown mode", "approval.per_action.block_card.high", "maybe"),
     ("AC-01 gap between bands", "zones.medium.score_min", 31),
     ("AC-01 null outside human", "zones.human.include_null", False),
+    ("AC-01 high band stops at 99", "zones.high.score_max", 99),
+    ("AC-02 llm score decides", "scoring.deciding_sources", ["dataset", "llm"]),
+    ("AC-02 no deciding source", "scoring.deciding_sources", []),
     ("AC-06 clock key in the gate", "amount_gate.deadline_days", 10),
     ("AC-06 tiers loosen", "amount_gate.tiers.above_high", "auto"),
     ("AC-06 low above high", "amount_gate.by_country.CO.low", 30_000_000),
+    ("AC-06 low equals high", "amount_gate.by_country.CO.low", 20_000_000),
     ("AC-06 no usd rate", "amount_gate.by_country.MX.usd_rate", 0),
     ("AC-12 unknown guardrail", "rules.POL-SESSION.guardrail", "G-XX-99"),
     ("AC-12 id without POL-", "rules.SESSION", {"text": "session"}),
@@ -64,6 +92,6 @@ INVALID = [
 
 @pytest.mark.parametrize("ac, path, value", INVALID, ids=[case[0] for case in INVALID])
 def test_ac_12_an_invalid_policies_file_fails_at_startup(ac, path, value):
-    """FR-01 with AC-01, 04, 05, 06, 09, 10, 12 and 15: a broken file never reaches a decision."""
+    """FR-01 with AC-01, 02, 04, 05, 06, 09, 10, 12 and 15: a broken file never reaches a decision."""
     with pytest.raises(ValidationError):
         Policies.model_validate(edited(path, value))

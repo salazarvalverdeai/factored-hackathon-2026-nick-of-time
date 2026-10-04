@@ -34,6 +34,8 @@
     "handoff_reason": {
       "enum": [
         "zone_human",
+        "zone_medium",
+        "supervised_mode",
         "amount_over_case_gate",
         "identity_unverified",
         "clarification_exhausted",

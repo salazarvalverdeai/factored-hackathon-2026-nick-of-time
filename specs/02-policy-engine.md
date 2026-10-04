@@ -110,7 +110,9 @@ a money decision).
 
 Amount tiers per country (`amount_gate.by_country`, local currency): `≤ low` → `auto`, `≤ high` → `manual_check`,
 `> high` → `human_required`. MX transactions are in USD in the dataset and are converted at 18.0 MXN/USD
-`[assumption]` before comparing.
+`[assumption]` before comparing. Each entry's `usd_rate` is a threshold-conversion parameter, never shown to a customer
+(customer-facing amounts use §4.4): COP 4,000 and ARS 350 are the gold's implied rates `[data]`
+(`queries/policy/implied_usd_rate.sql`); MXN 18.0 and BRL 5.5 stay `[assumption]` (the gold has no MXN or BRL amounts).
 
 ### 4.3 Regulatory clock (LATAM, data-driven)
 The clock is a **table of verified country entries** in `policies.yaml`, not code. Each entry carries the regulator, the
@@ -201,14 +203,17 @@ fx.convert(amount=1250.0, from_currency="USD", to_currency="MXN") -> {amount, ra
 
 ## 7. Data model touched
 - `contracts/policies.yaml`: adds `rules:` (every id this spec names, each with its text and guardrail: those of §4.1,
-  `POL-AMOUNT-GATE` and `POL-SUPERVISED` for a stricter mode in §4.2, `POL-CLOCK-UNKNOWN`, `POL-QUEUE-TRANSITION`,
-  `POL-CLOSE-HUMAN` and `POL-REEVAL-WINDOW`), `approval.money_actions` (AC-15), `usd_rate` per
-  `amount_gate.by_country` entry (the tier rates of §4.2, until now only in comments), per-country `time_zone`,
+  `POL-SCORE-SOURCE` for a score from a source that does not decide, `POL-AMOUNT-GATE`, `POL-AMOUNT-UNKNOWN` and
+  `POL-SUPERVISED` for a stricter mode in §4.2, `POL-CLOCK-UNKNOWN`, `POL-QUEUE-TRANSITION`, `POL-CLOSE-HUMAN` and
+  `POL-REEVAL-WINDOW`), `scoring.deciding_sources` (the sources whose score places a zone; never `llm`),
+  `approval.money_actions` (AC-15), `usd_rate` per `amount_gate.by_country` entry (§4.2), the handoff reasons
+  `zone_medium` and `supervised_mode` (also in `contracts/handoff.schema.json`), per-country `time_zone`,
   `display_currency` and `fx_reference`, the `reevaluation` section, and `version: 2`; validates
   `contact.callback_within_business_days` (D-008, task 02b). No threshold changes.
 - The loader (FR-01) also refuses a file that breaks a firm rule: `default` other than `deny`, `open_case` not `auto`
   or `provisional_credit` not `human_required` in every zone, `close` not `human_only`, zone bands with gaps, tiers
-  that loosen as the amount grows, or a rule citing an unknown guardrail.
+  that loosen as the amount grows, a rule citing an unknown guardrail, or `llm` among the deciding sources. The loaded
+  model is deeply frozen (read-only mappings, tuples), so no caller can loosen a rule at runtime.
 - New data files: `packages/nick_of_time/policy/holidays/*_2026.yaml`.
 - No database access.
 
