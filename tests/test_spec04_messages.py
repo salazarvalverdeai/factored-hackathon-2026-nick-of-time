@@ -1,7 +1,7 @@
 """Spec 04 — contracts/messages.yaml (offline, no network).
 
-These tests support AC-06, AC-10, AC-11, AC-15, AC-16, AC-19, AC-21, AC-25, AC-26, AC-28, AC-29, AC-31, AC-32
-by checking the contract file only; the behavior itself is tested in T2-T6.
+These tests support AC-06, AC-10, AC-11, AC-15, AC-16, AC-18, AC-19, AC-21, AC-25, AC-26, AC-28, AC-29, AC-31,
+AC-32 by checking the contract file only; the behavior itself is tested in T2-T6.
 """
 import re
 from pathlib import Path
@@ -12,7 +12,7 @@ import yaml
 PATH = Path(__file__).resolve().parents[1] / "contracts" / "messages.yaml"
 PLACEHOLDER = re.compile(r"\{([a-z_0-9]+)\}")
 ALLOWED = {
-    "first_name", "case_id", "deadline_date", "deadline_ruling", "deadline_credit", "deadline_source",
+    "first_name", "case_id", "ruling_deadline", "credit_deadline", "deadline_source",
     "source_url", "verified_on", "amount", "currency", "merchant", "display_amount", "display_currency",
     "rate", "rate_source", "as_of", "last4", "verification_id", "verified_at", "read_at", "status_label",
     "card_label", "action_label", "step_n", "case_url", "receipt_id", "channel",
@@ -22,16 +22,26 @@ FORBIDDEN = re.compile(
     r"riesgo|risco|transcript|transcrip|transcri", re.I)
 PROMISE = re.compile(
     r"cr[eé]dito provisional|cr[eé]dito provis|abono|devolver|devolvemos|devolveremos|reembols|estorno|"
-    r"a tu favor|a seu favor", re.I)
-SPEC_CHIPS_ES = {  # spec 04 §4.5 table
-    "report_unrecognized": "No reconozco un cargo", "report_duplicate": "Me cobraron dos veces",
-    "check_case": "¿Cómo va mi caso?", "none_of_these": "Ninguno de estos",
-    "show_recent": "Muéstrame mis últimos cargos", "dont_remember_amount": "No recuerdo el monto",
-    "talk_to_person": "Hablar con una persona", "confirm_yes": "Sí, continúa",
-    "confirm_no": "No es ese cargo", "view_case": "Ver mi caso", "send_summary": "Enviarme el comprobante",
-    "request_call": "Que me llame una persona", "add_info": "Agregar información",
-    "request_reevaluation": "Pedir reevaluación", "report_another": "Reportar otro cargo",
-    "reauthenticate": "Verificar de nuevo",
+    r"a tu favor|a seu favor|devolu[cç]|reintegr|ressarc|acredit(amos|aremos)|\bcreditar(emos)?\b|"
+    r"recibir[aá]s (el|los|tu) (dinero|fondos|monto)|receber[aá] (o|os|seu) (dinheiro|valor)", re.I)
+DELIVERY = re.compile(r"\benvi[eé]\b|\benviei\b|\benviamos\b|(fue|foi) enviad|entregad|entregue", re.I)
+SPEC_CHIPS = {  # spec 04 §4.5 table: id -> (kind, ES label, PT label)
+    "report_unrecognized": ("text", "No reconozco un cargo", "Não reconheço uma cobrança"),
+    "report_duplicate": ("text", "Me cobraron dos veces", "Me cobraram duas vezes"),
+    "check_case": ("text", "¿Cómo va mi caso?", "Como está meu caso?"),
+    "none_of_these": ("action", "Ninguno de estos", "Nenhuma dessas"),
+    "show_recent": ("text", "Muéstrame mis últimos cargos", "Mostre minhas últimas cobranças"),
+    "dont_remember_amount": ("text", "No recuerdo el monto", "Não lembro o valor"),
+    "talk_to_person": ("action", "Hablar con una persona", "Falar com uma pessoa"),
+    "confirm_yes": ("action", "Sí, continúa", "Sim, continue"),
+    "confirm_no": ("action", "No es ese cargo", "Não é essa cobrança"),
+    "view_case": ("link", "Ver mi caso", "Ver meu caso"),
+    "send_summary": ("action", "Enviarme el comprobante", "Me envie o comprovante"),
+    "request_call": ("action", "Que me llame una persona", "Quero que me liguem"),
+    "add_info": ("text", "Agregar información", "Adicionar informações"),
+    "request_reevaluation": ("action", "Pedir reevaluación", "Pedir reavaliação"),
+    "report_another": ("text", "Reportar otro cargo", "Informar outra cobrança"),
+    "reauthenticate": ("link", "Verificar de nuevo", "Verificar novamente"),
 }
 
 
@@ -44,12 +54,15 @@ def load():
 
 
 def leaves(node, path=()):
-    if isinstance(node, dict) and "es" in node:
+    """A leaf is a dict with es or pt; a scalar outside a leaf is yielded empty so the ES/PT test fails."""
+    if isinstance(node, dict) and ("es" in node or "pt" in node):
         yield ".".join(path), node
     elif isinstance(node, dict):
         for k, v in node.items():
             if k != "version":
                 yield from leaves(v, path + (k,))
+    else:
+        yield ".".join(path), {}
 
 
 def test_ac_10_yaml_loads_with_version_and_one_placeholder_syntax():
@@ -57,7 +70,7 @@ def test_ac_10_yaml_loads_with_version_and_one_placeholder_syntax():
     assert re.fullmatch(r"\d+\.\d+\.\d+", data["version"])
     for _, leaf in leaves(data):
         for lang in ("es", "pt"):
-            assert "{{" not in leaf[lang] and "%(" not in leaf[lang]
+            assert "{{" not in leaf.get(lang, "") and "%(" not in leaf.get(lang, "")
 
 
 def test_ac_10_every_template_has_es_and_pt():
@@ -78,7 +91,7 @@ def test_ac_10_es_and_pt_texts_differ():
         assert leaf["es"] != leaf["pt"], key
 
 
-def test_ac_25_every_placeholder_is_allowed_and_documented_in_header():
+def test_adr_0016_every_placeholder_is_allowed_and_documented_in_header():
     header = text().split("version:")[0]
     for key, leaf in leaves(load()):
         names = set(PLACEHOLDER.findall(leaf["es"]))
@@ -122,13 +135,25 @@ def test_ac_06_ac_19_status_labels_match_spec_03_and_map_queue_states():
     assert [label[k]["from"] for k in keys] == [["new"], ["verification", "review"], ["resolved"], ["closed"]]
 
 
+def test_ac_06_case_status_has_one_line_per_stored_deadline_and_a_null_variant():
+    status = load()["status"]
+    assert not {"ruling_deadline", "credit_deadline"} & set(PLACEHOLDER.findall(status["case_read"]["es"]))
+    for key in ("ruling_deadline", "credit_deadline"):
+        for lang in ("es", "pt"):
+            assert {key, "deadline_source"} <= set(PLACEHOLDER.findall(status[key][lang]))
+    assert not PLACEHOLDER.search(status["deadline_unknown"]["es"] + status["deadline_unknown"]["pt"])
+    assert not re.search(r"deadline_date|deadline_ruling|deadline_credit", text())
+
+
 def test_ac_19_status_reads_state_the_reading_time_and_failure_has_no_facts():
     status = load()["status"]
     for key in ("card_read", "case_read"):
         for lang in ("es", "pt"):
             assert "{read_at}" in status[key][lang]
+    labels = [v[lang] for group in ("label", "card_label") for v in status[group].values() for lang in ("es", "pt")]
     for lang in ("es", "pt"):
         assert not PLACEHOLDER.search(status["read_failed"][lang])
+        assert not any(label.lower() in status["read_failed"][lang].lower() for label in labels)
 
 
 def test_ac_19_card_and_action_labels_are_localized_lookups():
@@ -138,12 +163,20 @@ def test_ac_19_card_and_action_labels_are_localized_lookups():
     assert status["card_label"]["blocked"] == {"es": "bloqueada", "pt": "bloqueado"}
 
 
-def test_ac_29_ac_31_ac_32_chip_labels_equal_spec_table_with_kinds():
+def test_ac_18_four_action_states_and_only_verified_carries_a_time():
+    status = load()["status"]
+    states = ("action_in_progress", "action_requested", "action_verified", "action_not_confirmed")
+    for key in states:
+        for lang in ("es", "pt"):
+            assert "{action_label}" in status[key][lang]
+            assert ("{verified_at}" in status[key][lang]) == (key == "action_verified"), (key, lang)
+    assert "SIN CONFIRMAR" in status["action_not_confirmed"]["es"]
+    assert "SEM CONFIRMAÇÃO" in status["action_not_confirmed"]["pt"]
+
+
+def test_ac_29_ac_31_ac_32_chip_labels_and_kinds_equal_spec_table():
     suggest = load()["suggest"]
-    assert {k: v["es"] for k, v in suggest.items()} == SPEC_CHIPS_ES
-    assert {k for k, v in suggest.items() if v["kind"] == "link"} == {"view_case", "reauthenticate"}
-    assert suggest["send_summary"]["kind"] == "action"
-    assert all(v["kind"] in ("text", "action", "link") for v in suggest.values())
+    assert {k: (v["kind"], v["es"], v["pt"]) for k, v in suggest.items()} == SPEC_CHIPS
 
 
 def test_ac_28_connect_keys_exist_and_promise_no_time():
@@ -156,19 +189,26 @@ def test_ac_28_connect_keys_exist_and_promise_no_time():
 def test_ac_21_ac_25_receipt_has_required_facts():
     receipt = load()["receipt"]
     joined = " ".join(v["es"] for v in receipt.values())
-    for name in ("last4", "verification_id", "verified_at", "case_id", "deadline_ruling", "deadline_credit",
+    for name in ("last4", "verification_id", "verified_at", "case_id", "ruling_deadline", "credit_deadline",
                  "deadline_source", "source_url", "verified_on", "display_amount", "rate_source"):
         assert "{%s}" % name in joined, name
+    assert "verificada" in receipt["card_blocked"]["es"] and "verificado" in receipt["card_blocked"]["pt"]
     assert {"deadline_unknown", "what_a_person_does", "what_ai_did_blocked", "what_ai_did_case_only",
             "what_ai_did_block_unconfirmed", "transaction_no_merchant"} <= set(receipt)
     assert "sent_to" not in receipt
 
 
 def test_ac_26_send_requested_is_not_delivery():
-    notify = load()["notify"]
-    assert {"send_requested", "send_delivered"} <= set(notify)
+    """accepted != verified (rule 4): only notify.send_delivered may state a delivery."""
+    data = load()
+    assert {"send_requested", "send_delivered"} <= set(data["notify"])
+    claims = [(f"receipt.{k}", v) for k, v in leaves(data["receipt"])]
+    claims.append(("notify.send_requested", data["notify"]["send_requested"]))
+    for key, leaf in claims:
+        for lang in ("es", "pt"):
+            assert not DELIVERY.search(leaf[lang]), f"{key}.{lang}"
     for lang in ("es", "pt"):
-        assert "{channel}" in notify["send_requested"][lang]
+        assert "{channel}" in data["notify"]["send_requested"][lang]
 
 
 def test_never_send_no_internal_terms_in_customer_text():

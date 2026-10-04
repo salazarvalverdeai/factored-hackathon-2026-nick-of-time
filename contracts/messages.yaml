@@ -6,13 +6,13 @@
 #   carry `kind` (text | action | link), which the server sets, never the model (spec 04 AC-29, AC-32).
 # - Placeholders use ONE syntax: {name}. The es and pt texts of a leaf use exactly the same set of names.
 # - Placeholders are filled only with facts returned by tools (ADR 0016, grounding). Allowed names:
-#   first_name (get_customer_profile) · case_id · deadline_date (get_case) · deadline_ruling · deadline_credit ·
-#   deadline_source · source_url · verified_on (spec 01 §6.7 deadline object) · amount · currency · merchant ·
+#   first_name (get_customer_profile) · case_id · ruling_deadline · credit_deadline · deadline_source (open_case,
+#   get_case) · source_url · verified_on (spec 01 §6.7 deadline object) · amount · currency · merchant ·
 #   display_amount · display_currency · rate · rate_source · as_of (convert_amount) · last4 · verification_id ·
 #   verified_at · read_at · status_label · card_label · action_label (localized lookups of status.* below) ·
 #   step_n · case_url · receipt_id · channel (masked, from the confirmed channels)
 # - Optional facts: a template that needs a fact the tool did not return is not rendered (null merchant uses the
-#   *_no_merchant variants; a null deadline uses receipt.deadline_unknown).
+#   *_no_merchant variants; a null deadline uses the deadline_unknown lines).
 # - Tasks T2-T7 of spec 04 extend this file (clarify, refuse, progress labels AC-17, duplicate case AC-23,
 #   re-evaluation AC-24, reversed charge); each extension is a contract change approved by the lead.
 # - Chips: `kind` is static here; the action payload ({type}, spec 01 §6.4) is set by the server code.
@@ -70,7 +70,7 @@ plan:
 connect:
   # AC-28 and node `connect`: register a call request; never refuse, never promise an outcome.
   requested:
-    # [assumption] request_call returns only event_id (no expected contact time), so no window is promised.
+    # [assumption] request_call returns only event_id, so no contact window is promised (lead decision D-008).
     es: "Listo, registré tu solicitud para que una persona te llame."
     pt: "Pronto, registrei seu pedido para que uma pessoa ligue para você."
   requested_case:
@@ -101,7 +101,6 @@ status:
       from: [closed]   # case queue states (CLAUDE.md) that map to this label
       es: "Cerrado"
       pt: "Encerrado"
-  # AC-19: re-read in the same turn and state the time of the reading; never state a status if the read failed.
   # get_product_status values -> localized, with gender agreement (tarjeta f / cartão m).
   card_label:
     active:
@@ -111,8 +110,8 @@ status:
       es: "bloqueada"
       pt: "bloqueado"
     closed:
-      es: "cerrada"
-      pt: "encerrado"
+      es: "cancelada"
+      pt: "cancelado"
     suspended:
       es: "suspendida"
       pt: "suspenso"
@@ -129,12 +128,24 @@ status:
     send_case_summary:
       es: "Envío del comprobante"
       pt: "Envio do comprovante"
+  # AC-19: re-read in the same turn and state the time of the reading; never state a status if the read failed.
   card_read:
     es: "Tu tarjeta terminada en {last4}: {card_label} (consultado el {read_at})."
     pt: "Seu cartão com final {last4}: {card_label} (consultado em {read_at})."
+  # AC-06: followed by get_case's stored deadlines, each line only when present (MX debit has both);
+  # deadline_unknown when both are null.
   case_read:
-    es: "Estado de tu caso {case_id}: {status_label} (consultado el {read_at}). Fecha límite: {deadline_date} ({deadline_source})."
-    pt: "Situação do seu caso {case_id}: {status_label} (consultado em {read_at}). Prazo: {deadline_date} ({deadline_source})."
+    es: "Estado de tu caso {case_id}: {status_label} (consultado el {read_at})."
+    pt: "Situação do seu caso {case_id}: {status_label} (consultado em {read_at})."
+  ruling_deadline:
+    es: "Plazo legal del banco para resolver tu caso: {ruling_deadline}. Fuente: {deadline_source}."
+    pt: "Prazo legal do banco para resolver seu caso: {ruling_deadline}. Fonte: {deadline_source}."
+  credit_deadline:
+    es: "Plazo legal del banco para pronunciarse sobre los fondos en disputa: {credit_deadline}. Fuente: {deadline_source}."
+    pt: "Prazo legal do banco para se pronunciar sobre os valores contestados: {credit_deadline}. Fonte: {deadline_source}."
+  deadline_unknown:
+    es: "Aún no hay un plazo legal verificado para tu caso; una persona lo confirmará."
+    pt: "Ainda não há um prazo legal verificado para o seu caso; uma pessoa vai confirmá-lo."
   read_failed:
     es: "No pude verificarlo ahora, así que prefiero no darte un estado que no confirmé. Intenta de nuevo en un momento."
     pt: "Não consegui verificar agora, então prefiro não informar uma situação que não confirmei. Tente novamente em instantes."
@@ -149,8 +160,8 @@ status:
     es: "{action_label}: verificación confirmada ({verified_at})."
     pt: "{action_label}: verificação confirmada ({verified_at})."
   action_not_confirmed:
-    es: "{action_label}: NO confirmado. Una persona lo revisará."
-    pt: "{action_label}: NÃO confirmado. Uma pessoa vai revisar."
+    es: "{action_label}: SIN CONFIRMAR. Una persona lo revisará."
+    pt: "{action_label}: SEM CONFIRMAÇÃO. Uma pessoa vai revisar."
 
 suggest:
   # Chips of spec 04 §4.5. Labels are the exact text sent for text chips (AC-32).
@@ -243,12 +254,12 @@ receipt:
     pt: "Cartão com final {last4}: bloqueado e verificado (verificação {verification_id}, {verified_at})."
   # Deadlines (spec 01 §6.7): each rendered only when present. They are the bank's legal deadlines to respond,
   # never a promise of credit or of any outcome.
-  deadline_ruling:
-    es: "Plazo legal del banco para resolver tu caso: {deadline_ruling}. Fuente: {deadline_source} ({source_url}, verificado el {verified_on})."
-    pt: "Prazo legal do banco para resolver seu caso: {deadline_ruling}. Fonte: {deadline_source} ({source_url}, verificado em {verified_on})."
-  deadline_credit:
-    es: "Plazo legal del banco para pronunciarse sobre los fondos en disputa: {deadline_credit}. Fuente: {deadline_source} ({source_url}, verificado el {verified_on})."
-    pt: "Prazo legal do banco para se pronunciar sobre os valores contestados: {deadline_credit}. Fonte: {deadline_source} ({source_url}, verificado em {verified_on})."
+  ruling_deadline:
+    es: "Plazo legal del banco para resolver tu caso: {ruling_deadline}. Fuente: {deadline_source} ({source_url}, verificada el {verified_on})."
+    pt: "Prazo legal do banco para resolver seu caso: {ruling_deadline}. Fonte: {deadline_source} ({source_url}, verificada em {verified_on})."
+  credit_deadline:
+    es: "Plazo legal del banco para pronunciarse sobre los fondos en disputa: {credit_deadline}. Fuente: {deadline_source} ({source_url}, verificada el {verified_on})."
+    pt: "Prazo legal do banco para se pronunciar sobre os valores contestados: {credit_deadline}. Fonte: {deadline_source} ({source_url}, verificada em {verified_on})."
   # Country without a verified clock entry (deadline is null).
   deadline_unknown:
     es: "Aún no hay un plazo legal verificado para tu caso; una persona lo confirmará."
@@ -274,8 +285,8 @@ notify:
   # Chat replies about send_case_summary (not part of the rendered receipt). accepted != verified:
   # delivered only when list_my_notifications shows sent/delivered (AC-26).
   send_requested:
-    es: "Pedí el envío del comprobante a {channel}. Te confirmo cuando figure como enviado."
-    pt: "Pedi o envio do comprovante para {channel}. Aviso quando constar como enviado."
+    es: "Pedí el envío del comprobante a {channel}. Aún no figura como enviado; pregúntame en un momento y lo reviso."
+    pt: "Pedi o envio do comprovante para {channel}. Ainda não consta como enviado; me pergunte daqui a pouco que eu verifico."
   send_delivered:
     es: "El comprobante figura como enviado a {channel}."
     pt: "O comprovante consta como enviado para {channel}."
