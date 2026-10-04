@@ -63,10 +63,10 @@ AC-01 to AC-06 come from issue #5 with the same numbers; AC-07 onward are added 
   customer-facing status label, the customer-visible timeline, `taken_by_person` and `related_case_id`. · [T]
 - **AC-17** — `add_case_info` shall accept text only for an active case, at most 1,000 characters, and shall reject card
   numbers, CVV and passwords with `G-IN-04`; the stored text is marked as customer data. · [T]
-- **AC-18** — `request_call` shall keep one open request per case; a second request returns the existing one; the result carries `expected_contact_by` (`YYYY-MM-DD` or `null`),
-  computed from `contact.callback_within_business_days` counted from `clock.today(mode, country)` (replay: notice
-  2026-06-01 → 2026-06-02), stored in the `call_requested` event payload and never recomputed; `null` when the policy
-  has none (D-008). · [T]
+- **AC-18** — `request_call` shall keep one open request per case; a second request returns the existing one; the
+  result carries `expected_contact_by` (`YYYY-MM-DD` or `null`), computed from `contact.callback_within_business_days`
+  counted from `clock.today(mode, country)` (replay: notice 2026-06-01 → 2026-06-02), stored in the `call_requested`
+  event payload and never recomputed; `null` when the policy has none (D-008). · [T]
 - **AC-19** — `request_reevaluation` shall: move a resolved case within the window back to `review` with
   `reevaluation_requested` and the reason; deny a resolved case outside the window with `POL-REEVAL-WINDOW`; open a new
   case with `related_case_id` for a closed case; and return an active case unchanged with `already_in_progress`. · [T]

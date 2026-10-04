@@ -7,19 +7,19 @@ ROOT = Path(__file__).resolve().parents[1]
 KEY = "callback_within_business_days"
 
 
-def test_d008_policy_key_exists_and_is_positive_number():
-    policies = yaml.safe_load((ROOT / "contracts/policies.yaml").read_text())
-    assert policies["contact"][KEY] > 0
+def test_ac_18_policy_key_exists_and_is_a_positive_integer():
+    v = yaml.safe_load((ROOT / "contracts/policies.yaml").read_text())["contact"][KEY]
+    assert type(v) is int and v >= 1
 
 
-def test_d008_spec_03_and_04_use_the_policy_key_and_field():
+def test_ac_18_spec_03_and_04_use_the_policy_key_and_field():
     spec03 = (ROOT / "specs/03-mcp-tools.md").read_text()
     spec04 = (ROOT / "specs/04-agent-graph.md").read_text()
     assert f"contact.{KEY}" in spec03 and "expected_contact_by" in spec03
     assert "expected_contact_by" in spec04 and "D-008" in spec04
 
 
-def test_d008_messages_allow_the_placeholder():
+def test_ac_18_messages_allow_the_placeholder():
     from tests.test_spec04_messages import ALLOWED
 
     assert "expected_contact_by" in ALLOWED

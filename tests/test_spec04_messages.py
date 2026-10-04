@@ -179,15 +179,22 @@ def test_ac_29_ac_31_ac_32_chip_labels_and_kinds_equal_spec_table():
     assert {k: (v["kind"], v["es"], v["pt"]) for k, v in suggest.items()} == SPEC_CHIPS
 
 
-def test_ac_28_d008_connect_keys_exist_and_null_variant_promises_no_time():
+GREETING = {"es": r"^Listo,", "pt": r"^Pronto,"}  # approved greetings; ES "Pronto" means "soon" and is rejected
+TIME_WORDS = re.compile(r"\d|pronto|breve|hoy|hoje|mañana|amanhã|hora|minut|d[ií]a|logo|luego|semana|tarde|"
+                        r"momento|enseguida|ahorita|cedo", re.I)
+
+
+def test_ac_28_d008_connect_keys_exist_and_null_variants_promise_no_time():
     connect = load()["connect"]
-    assert {"requested", "requested_no_window", "requested_case", "general_contact"} <= set(connect)
-    for lang in ("es", "pt"):
-        assert "{expected_contact_by}" in connect["requested"][lang]
-        text = connect["requested_no_window"][lang]
-        assert not PLACEHOLDER.search(text)
-        body = re.sub(r"^(Listo|Pronto),", "", text)  # the approved greeting is not a time word
-        assert not re.search(r"\d|pronto|breve|hoy|hoje|mañana|amanhã|hora|minut|d[ií]a", body, re.I)
+    assert {"requested", "requested_no_window", "requested_case", "requested_case_no_window",
+            "general_contact"} <= set(connect)
+    for dated in ("requested", "requested_case"):
+        for lang in ("es", "pt"):
+            assert "{expected_contact_by}" in connect[dated][lang], (dated, lang)
+            text = connect[f"{dated}_no_window"][lang]
+            assert "expected_contact_by" not in text, (dated, lang)
+            body = PLACEHOLDER.sub("", re.sub(GREETING[lang], "", text))
+            assert not TIME_WORDS.search(body), (dated, lang, body)
 
 
 def test_ac_21_ac_25_receipt_has_required_facts():
