@@ -7,7 +7,7 @@
 - **Owner:** @salazarvalverdeai · **Priority:** P0 · **Size:** L
 - **Challenge dimension:** AI Engineering, Technical Judgment
 - **Depends on:** 01 (graph I/O, arms, modes), 02 (engine, clock), 03 (tools v1.1), 11 (classifier; rules arm until it
-  lands), Bedrock · **Enables:** 07, 10, 15 · **ADRs:** 0005, 0008, 0009, 0013, 0016, 0019, 0020 (proposed)
+  lands), Bedrock · **Enables:** 07, 10, 15 · **ADRs:** 0005, 0008, 0009, 0013, 0016, 0019, 0020
 - **Issue:** #6
 
 > Full profile: this is the core of the product and the place where AI and rules meet.
@@ -152,7 +152,7 @@ policy. Anything unmatched is removed, the template version is used instead, and
 Arms: `S0` rules + templates, no LLM · `S1` chosen classifier + the LLM chosen by spec 15 (Haiku 4.5 until the
 benchmark runs) · `S2` Sonnet 4.6 · benchmark arms (spec 15).
 The arm comes from `configurable.arm`; the production default is the arm chosen by the model-selection ADR (spec 15).
-Modes (ADR 0020, proposed): `replay` (dataset, "today" = `DEMO_TODAY`) for evaluation and processed sample cases;
+Modes (ADR 0020): `replay` (dataset, "today" = `DEMO_TODAY`) for evaluation and processed sample cases;
 `live` (real today, recent synthetic transactions for demo customers) for the public demo.
 
 ### 4.5 Suggestion chips
