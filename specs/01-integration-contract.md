@@ -89,7 +89,7 @@ packages/
   nick_of_time/           shared package — @salazarvalverdeai
     contracts.py          re-exports contracts/tools.py models + TurnResult + receipt models
     policy/               policy engine + regulatory clock (spec 02)
-    store/                Postgres access used by api and mcp (tables of §6.5)
+    store/                `Store` interface used by api and mcp and its in-memory backend (tables of §6.5)
     receipt.py            deterministic receipt and handoff builders (ADR 0016)
     ids.py                identifier generation (§6.7)
 contracts/                policies.yaml · tools.py · *.schema.json — source of truth (lead approves)
@@ -273,7 +273,10 @@ Append-only tables are marked **AO** (no `UPDATE`/`DELETE`; enforced by grants a
 `block_verified` ✓ · `status_changed` ✓ · `handoff_emitted` · `assigned` ✓ (a person took the case) ·
 `analyst_action` · `customer_info_added` ✓ · `call_requested` ✓ · `reevaluation_requested` ✓ · `related_case_opened` ✓ ·
 `notification_sent` ✓ · `receipt_issued` ✓ · `telegram_linked` ✓ · `email_confirmed` ✓.
-Queue statuses (from `policies.yaml`): `new → verification | review → resolved → closed`.
+Queue statuses (from `policies.yaml`): `new → verification | review → resolved → closed`. A case's status is the `to`
+of its last `status_changed` event (payload `{from, to, reason?}`), `new` before the first one; `analyst_action`
+carries `{action, reason}` with actor `analyst:<sub>`. The store writes `closed` only for an analyst action and never
+changes a closed case's status `[assumption]` (task 01c).
 
 ### 6.6 View models (api)
 - `CaseSummary`: `{case_id, customer_id, country, zone, queue_status, credit_deadline, ruling_deadline, sla_due_at,
@@ -341,10 +344,11 @@ Transaction and product ids come from gold, or from `demo_transactions` in `live
 `[assumption]` (D-019, pending the lead) The harness sends the seeded `session_id` as the `not_session` cookie, the same way as a browser; there is no header alternative.
 
 **Isolation between runs (pass^4).** Every row written while serving a seeded session carries its `run_id`
-(`sessions`, `cases`, `case_events` through their case, `product_overrides`, `idempotency`, `notifications`,
-`policy_denials`, `llm_calls`), and every read of mutable state filters by the session's `run_id` (product status =
-latest override for the same `run_id`, else gold). Rows are never reset or deleted, so the append-only rule holds and
-each of the four runs starts from the same gold state. The harness uses `run_id = <case_id>:<arm>:<k>` (k = 1…4).
+(`sessions`, `cases`, `case_events` and `notifications` through their case `[assumption]`, `product_overrides`,
+`idempotency`, `policy_denials`, `llm_calls`), and every read of mutable state filters by the session's `run_id`
+(product status = latest override for the same `run_id`, else gold). Rows are never reset or deleted, so the
+append-only rule holds and each of the four runs starts from the same gold state. The harness uses
+`run_id = <case_id>:<arm>:<k>` (k = 1…4).
 
 **Arms (system configurations).** One deployment serves every arm: `seed` stores `arm` in the session and the api
 injects it as `configurable.arm`; the graph resolves it with `nick_of_time.config.resolve(arm)`.
@@ -440,8 +444,11 @@ Implementation goes in one `feat/01-*` branch per task (for example `feat/01-pac
 - [x] T6 — `infra/compose.dev.yml` (api stub, mcp stub, postgres) and `.env.example` names of §6.9 · covers AC-02
 - [x] T7 — remove the empty `apps/api/{audit,classifier,graph,policy,tools}` folders
 - [ ] T8 — tests `tests/test_spec01_*.py` citing AC-02, AC-03, AC-04, AC-06, AC-07, AC-08
-- [ ] T9 — the store's case insert retries with a fresh `ids.new_id("case")` on a `case_id` primary-key conflict
-      (§6.5); a test forces one collision · lands with the store's first insert
+- [x] T9 — `nick_of_time.store`: `Store` interface and in-memory backend for cases, events, queue status, analyst
+      actions and notifications, scoped by `run_id` (D-002, D-003); the case insert retries with a fresh
+      `ids.new_id("case")` on a `case_id` primary-key conflict and a test forces one collision · covers AC-01 ·
+      `tests/test_spec01_store.py`. The other tables' accessors and the Postgres backend land with the tasks that use
+      them (03, 05 `[assumption]`)
 
 **Closing checklist:** every AC has a passing test or check · status → Implemented · contract version recorded in
 `/api/health` · lessons added to `CLAUDE.md`.
