@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import hashlib
+import re
 from pathlib import Path
 from typing import Callable
 
@@ -12,15 +13,40 @@ BUDGET_USD = 20.0  # [assumption] per full benchmark, decided by the lead 2026-1
 
 
 class ProviderUnavailable(RuntimeError):
-    """A provider error (no access, no quota, outage) that makes one arm unavailable (AC-06)."""
+    """A provider error (no access, no quota, outage, wrong model id) that makes one arm unavailable (AC-06)."""
 
 
-def _provider_errors() -> tuple[type[BaseException], ...]:
+class ToolChoiceUnsupported(RuntimeError):
+    """Bedrock rejected the toolChoice mode or tool use itself for this model (a ValidationException)."""
+
+
+_CONFIG_MSG = re.compile(r"model identifier is invalid|inference profile|on-demand throughput", re.I)
+_TOOL_USE_MSG = re.compile(r"tool_?choice|tool ?use|tool calling", re.I)
+
+
+def provider_error(exc: BaseException) -> Exception | None:
+    """What a provider exception means for the arm, or None when it is a bug in our request (re-raise it).
+    ValidationException: invalid id or "use an inference profile" -> ProviderUnavailable("config: ..."); about tool
+    use or toolChoice -> ToolChoiceUnsupported; any other -> None. Any other ClientError (access, quota, throttling,
+    outage) and BotoCoreError (connection, timeout) -> ProviderUnavailable. ParamValidationError is raised by
+    botocore on our malformed request before any call -> None."""
+    if isinstance(exc, (ProviderUnavailable, ToolChoiceUnsupported)):
+        return exc
     try:
-        from botocore.exceptions import BotoCoreError, ClientError
-        return (ProviderUnavailable, ClientError, BotoCoreError)
+        from botocore.exceptions import BotoCoreError, ClientError, ParamValidationError
     except ImportError:  # pragma: no cover
-        return (ProviderUnavailable,)
+        return None
+    if isinstance(exc, ClientError):
+        err = exc.response.get("Error", {})
+        code, msg = err.get("Code", ""), err.get("Message", "")
+        if code != "ValidationException":
+            return ProviderUnavailable(f"{code}: {msg}")
+        if _CONFIG_MSG.search(msg):
+            return ProviderUnavailable(f"config: {msg}")
+        return ToolChoiceUnsupported(msg) if _TOOL_USE_MSG.search(msg) else None
+    if isinstance(exc, BotoCoreError) and not isinstance(exc, ParamValidationError):
+        return ProviderUnavailable(f"{type(exc).__name__}: {exc}")
+    return None
 
 
 def is_billable(arm: dict) -> bool:
@@ -79,15 +105,18 @@ def make_row(arm: dict, prices: dict, prompt: str, run_date: str) -> dict:
 def run_arms(arms: list[dict], prices: dict, prompt: str, run_date: str, evaluate: Callable[[dict], dict],
              *, n_messages: int, in_tokens: int, out_tokens: int, budget: float = BUDGET_USD) -> list[dict]:
     """Run `evaluate(arm)` on each arm. The budget is checked first, before any call (AC-08). An arm that fails
-    with a provider error is recorded unavailable with its reason and the run continues (AC-06); any other
-    exception is a bug in the harness and propagates."""
+    with a provider error (`provider_error` gives ProviderUnavailable) is recorded unavailable with its reason and
+    the run continues (AC-06); any other exception is a bug in the harness and propagates."""
     check_budget(projected_spend(arms, prices, n_messages, in_tokens, out_tokens), budget)
     rows = []
     for arm in arms:
         row = make_row(arm, prices, prompt, run_date)
         try:
             row.update(evaluate(arm))
-        except _provider_errors() as exc:
-            row.update(status="unavailable", reason=f"{type(exc).__name__}: {exc}"[:300])
+        except Exception as exc:
+            unavailable = provider_error(exc)
+            if not isinstance(unavailable, ProviderUnavailable):
+                raise
+            row.update(status="unavailable", reason=str(unavailable)[:300])
         rows.append(row)
     return rows

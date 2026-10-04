@@ -1,9 +1,12 @@
-"""Spec 15 (model benchmark): arms, prices, budget guard, smoke test and gate. Fake provider only, no network."""
+"""Spec 15 (model benchmark): arms, prices, budget guard, smoke test and gate. Fake provider or stubbed boto3 client
+only, no network."""
 from __future__ import annotations
 
 import re
 
+import boto3
 import pytest
+from botocore.exceptions import ClientError, ParamValidationError
 
 from eval.bench import core, gate, smoke
 
@@ -25,6 +28,10 @@ def test_arms_and_prices_cover_each_other():
         assert p["status"] in ("confirmed", "assumption")
         assert p["label"] == ("[external]" if p["status"] == "confirmed" else "[assumption]")
     assert {i for i, p in PRICES.items() if p["status"] == "assumption"} == {"jev"}
+    for a in LLM:  # lifecycle from each model card; Legacy arms may come back unavailable (AC-06)
+        assert a["lifecycle"]["model_card"].startswith("https://docs.aws.amazon.com/bedrock/latest/userguide/")
+    assert {a["id"] for a in LLM if a["lifecycle"]["state"] == "legacy"} == {
+        "gemma-3-12b", "gemma-3-27b", "llama-3-3-70b", "llama-4-scout", "llama-4-maverick"}
 
 
 def test_ac_05_prices_match_the_price_list():
@@ -94,7 +101,32 @@ def test_ac_06_harness_bug_is_not_recorded_as_unavailable():
         core.run_arms(ARMS, PRICES, "p", "2026-10-04", evaluate, **KW)
 
 
-def fake_provider(model_id, system, user, schema):
+def client_error(code, message):
+    return ClientError({"Error": {"Code": code, "Message": message}}, "Converse")
+
+
+@pytest.mark.parametrize("exc, unavailable", [
+    (client_error("AccessDeniedException", "not available for this account"), "AccessDeniedException"),
+    (client_error("ValidationException", "The provided model identifier is invalid."), "config:"),
+    (client_error("ValidationException", "Invocation of model ID x with on-demand throughput isn't supported. "
+                  "Retry your request with the ID or ARN of an inference profile."), "config:"),
+    (client_error("ValidationException", "The value at maxTokens exceeds the model limit"), None),
+    (ParamValidationError(report="Unknown parameter in toolConfig: \"toolChoise\""), None),
+])
+def test_ac_06_only_provider_errors_make_an_arm_unavailable(exc, unavailable):
+    """AC-06: access, quota and a wrong model id (config) are unavailable; our malformed or invalid request
+    (ParamValidationError, any other ValidationException) is a harness bug and propagates."""
+    def evaluate(arm):
+        raise exc
+    if unavailable is None:
+        with pytest.raises(type(exc)):
+            core.run_arms(ARMS, PRICES, "p", "2026-10-04", evaluate, **KW)
+    else:
+        rows = core.run_arms(ARMS, PRICES, "p", "2026-10-04", evaluate, **KW)
+        assert all(r["status"] == "unavailable" and unavailable in r["reason"] for r in rows)
+
+
+def fake_provider(model_id, system, user, schema, mode):
     ok = {"tool_input": {"intent": "unrecognized_charge", "language": "es"}, "text": "", "stop_reason": "tool_use"}
     if "nova-micro" in model_id:
         return {"tool_input": None, "text": "Claro! Es una disputa.", "stop_reason": "end_turn"}
@@ -111,12 +143,75 @@ def test_ac_11_smoke_test_classifies_each_llm_arm():
     assert res["nova-micro"]["result"] == "no structured output" and "end_turn" in res["nova-micro"]["reason"]
     assert res["nova-lite"]["result"] == "no structured output"
     assert res["sonnet-5-5"]["result"] == "unavailable" and "AccessDenied" in res["sonnet-5-5"]["reason"]
-    assert res["haiku-4-5"]["result"] == "pass"
+    assert res["haiku-4-5"]["result"] == "pass" and res["haiku-4-5"]["tool_choice_mode"] == "tool"
     assert "nova-micro" not in smoke.eligible(res) and "haiku-4-5" in smoke.eligible(res)
 
 
-def test_ac_11_smoke_uses_forced_tool_use_and_enough_tokens():
-    assert smoke.MAX_TOKENS >= 512 and smoke.TOOL_NAME == "record_intent"
+TOOL_REPLY = {"output": {"message": {"content": [{"toolUse": {"toolUseId": "t1", "name": smoke.TOOL_NAME,
+                                                               "input": {"intent": "dispute", "language": "es"}}}]}},
+              "stopReason": "tool_use"}
+
+
+def stub_bedrock(monkeypatch, reply):
+    """Stub boto3.client: `reply(request)` returns a Converse response or raises; the requests are captured."""
+    sent = []
+
+    class Client:
+        def converse(self, **request):
+            sent.append(request)
+            return reply(request)
+    monkeypatch.setattr(boto3, "client", lambda *a, **k: Client())
+    return smoke.bedrock_provider(), sent
+
+
+def test_ac_11_bedrock_request_forces_the_tool_with_the_schema_and_enough_tokens(monkeypatch):
+    provider, sent = stub_bedrock(monkeypatch, lambda request: TOOL_REPLY)
+    res = smoke.smoke_arm("us.anthropic.claude-haiku-4-5-20251001-v1:0", provider)
+    assert res["result"] == "pass" and res["tool_choice_mode"] == "tool" and len(sent) == 1
+    assert sent[0]["toolConfig"]["toolChoice"] == {"tool": {"name": smoke.TOOL_NAME}}
+    assert sent[0]["toolConfig"]["tools"][0]["toolSpec"]["inputSchema"] == {"json": smoke.INTENT_SCHEMA}
+    assert sent[0]["inferenceConfig"]["maxTokens"] >= 512
+
+
+def test_ac_11_rejected_tool_choice_steps_down_the_ladder(monkeypatch):
+    """AC-11: toolChoice `tool` is documented for Claude and Nova only; an arm that rejects it is retried with `any`
+    and records the mode B1 reuses, instead of being dropped by a request parameter."""
+    def reply(request):
+        if "tool" in request["toolConfig"]["toolChoice"]:
+            raise client_error("ValidationException", "This model doesn't support the toolConfig.toolChoice.tool "
+                                                      "field. Remove toolConfig.toolChoice.tool and try again.")
+        return TOOL_REPLY
+    provider, sent = stub_bedrock(monkeypatch, reply)
+    res = smoke.smoke_arm("openai.gpt-oss-20b-1:0", provider)
+    assert res["result"] == "pass" and res["tool_choice_mode"] == "any"
+    assert [list(r["toolConfig"]["toolChoice"]) for r in sent] == [["tool"], ["any"]]
+
+
+@pytest.mark.parametrize("message, result", [
+    ("This model doesn't support tool use.", "no structured output"),  # after the whole ladder
+    ("The provided model identifier is invalid.", "unavailable"),
+])
+def test_ac_11_validation_errors_are_classified(monkeypatch, message, result):
+    def reply(request):
+        raise client_error("ValidationException", message)
+    provider, sent = stub_bedrock(monkeypatch, reply)
+    res = smoke.smoke_arm("google.gemma-3-12b-it", provider)
+    assert res["result"] == result and res["tool_choice_mode"] is None
+    assert len(sent) == (3 if result == "no structured output" else 1)
+    assert result != "unavailable" or res["reason"].startswith("config:")
+
+
+@pytest.mark.parametrize("exc", [
+    client_error("ValidationException", "The value at toolConfig.tools.0.toolSpec.inputSchema.json is invalid"),
+    ParamValidationError(report="Invalid type for parameter inferenceConfig.maxTokens"),
+])
+def test_ac_11_our_request_errors_propagate(monkeypatch, exc):
+    """AC-11: an invalid or malformed request is our bug, never "no structured output" or "unavailable"."""
+    def reply(request):
+        raise exc
+    provider, _ = stub_bedrock(monkeypatch, reply)
+    with pytest.raises(type(exc)):
+        smoke.smoke_arm("us.amazon.nova-micro-v1:0", provider)
 
 
 def test_ac_10_gate_has_both_verdicts_per_arm_and_criterion():
@@ -136,13 +231,19 @@ def test_ac_10_fully_evidenced_arm_may_benchmark_but_not_yet_run_in_production()
     summ = gate.summary(gate.gate_rows(ARMS, gate.load_evidence()))
     assert summ["haiku-4-5"]["benchmark"] is True
     assert summ["haiku-4-5"]["production"] is False  # availability and es_pt_quality still open
-    assert summ["ministral-3-8b"]["benchmark"] is False  # unversioned id fails version pinning
+    # Bedrock ids are fixed versions by its lifecycle policy, with or without a version suffix (the S2 ceiling too)
+    assert summ["sonnet-4-6"]["benchmark"] is True and summ["ministral-3-8b"]["benchmark"] is True
 
 
-def test_ac_10_version_pinning_is_derived_from_the_model_id():
-    assert gate.version_pinned("us.anthropic.claude-haiku-4-5-20251001-v1:0")
-    assert gate.version_pinned("amazon.nova-micro-v1:0") and gate.version_pinned("jev-1.13.0")
-    assert not gate.version_pinned("us.anthropic.claude-sonnet-5-5") and not gate.version_pinned(None)
+def test_ac_10_version_pinning_comes_from_provider_evidence_and_the_id_only_as_fallback():
+    rows = gate.gate_rows(ARMS, gate.load_evidence())
+    pin = {r["arm"]: r for r in rows if r["criterion"] == "version_pinning"}
+    assert pin["sonnet-4-6"]["verdict"] == "pass" and "model-lifecycle" in pin["sonnet-4-6"]["evidence_url"]
+    fallback = {r["arm"]: r["verdict"] for r in gate.gate_rows(ARMS, {"providers": {}})
+                if r["criterion"] == "version_pinning"}
+    assert fallback["haiku-4-5"] == fallback["jev"] == "pass"  # version in the id
+    assert fallback["sonnet-4-6"] == "not documented"  # an unversioned id is not evidence of a failure
+    assert "fail" not in fallback.values()
 
 
 def test_ac_10_every_row_has_url_and_iso_date(tmp_path):

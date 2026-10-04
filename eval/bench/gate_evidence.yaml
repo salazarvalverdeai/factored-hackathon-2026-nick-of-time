@@ -1,6 +1,7 @@
 # Evidence for the third-party gate (spec 15 section 4.5), by provider, read on 2026-10-04 on the cited pages.
 # A criterion with no entry here is "not documented" (which fails a production criterion), stamped with the run date.
-# version_pinning is derived from each arm's model_id by gate.py. Overrides are per arm.
+# version_pinning comes from the provider's lifecycle policy; gate.py falls back to the id format only for a provider
+# without evidence here (an id without a version is then "not documented"). Overrides are per arm.
 # Verdicts are written by gate.py from this file; nothing is pre-registered before the run.
 providers:
   bedrock:
@@ -30,8 +31,13 @@ providers:
       checked_on: "2026-10-04"
     credentials:
       verdict: pass
-      evidence_url: "CLAUDE.md constraint 10 and section Secrets (internal: no secrets in the repo; Platform deployment secrets for svc-nickoftime-langgraph)"
-      note: "outside the repo is evidenced; least privilege of the service principal was not audited"
+      evidence_url: "docs/infrastructure.md section IAM (internal: svc-nickoftime-langgraph, Bedrock invoke only; its key lives in the Platform deployment secrets) and CLAUDE.md constraint 10"
+      note: "outside the repo and least privilege: the only Bedrock service principal is limited to invoke"
+      checked_on: "2026-10-04"
+    version_pinning:
+      verdict: pass
+      evidence_url: https://docs.aws.amazon.com/bedrock/latest/userguide/model-lifecycle-legacy.html
+      note: "a Bedrock model id is one fixed version: each model card (model-card-*.html, linked per arm in arms.yaml) gives that id a launch date, an EOL date and a lifecycle state, and 'Migration will not happen automatically'"
       checked_on: "2026-10-04"
   typesafe:
     synthetic_only:
