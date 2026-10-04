@@ -24,4 +24,4 @@ deleted: a new ADR supersedes them. How and when to write one: [`CONTRIBUTING.md
 | [0016](0016-guardrails-injection-detector-and-exact-grounding.md) | Guardrails: injection detector with rules + LR, exact-match output grounding | Accepted | 2026-09-29 |
 | [0017](0017-identity-mock-otp-customers-cognito-analysts.md) | Identity: mock session + OTP for customers, Cognito for analysts | Accepted | 2026-10-03 |
 | [0018](0018-data-and-model-lifecycle.md) | Data and model lifecycle: an operational medallion that feeds evaluation | Accepted | 2026-10-03 |
-| [0021](0021-continuous-evaluation-and-outcome-audit.md) | Continuous evaluation and outcome audit: inventory of models and decision engines, deterministic auditor, advisory judge, sealed regression sets | Proposed | 2026-10-04 |
+| [0021](0021-continuous-evaluation-and-outcome-audit.md) | Continuous evaluation and outcome audit: inventory of models and decision engines, deterministic auditor, advisory judge, sealed regression sets | Accepted | 2026-10-04 |
