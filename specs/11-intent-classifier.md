@@ -3,7 +3,7 @@
 - **Feature:** the learned components the challenge asks to compare against a baseline — the ES/PT intent and slot
   classifier and the injection detector — plus the pre-registered protocol that decides which arm ships.
 - **Status:** Draft (updated 2026-10-04: status and human intents, mode-aware dates, thresholds checked against the test
-  size; Q2–Q4 decided by the lead)
+  size; Q1–Q4 decided by the lead)
 - **Owner:** @salazarvalverdeai (protocol reviewed by @vldiego) · **Priority:** P0 · **Size:** M
 - **Challenge dimension:** Machine Learning
 - **Depends on:** 09 (labeled sentence set) · **Enables:** 04 (understand node), 15 (benchmark B1) · **ADRs:** 0015,
@@ -92,7 +92,7 @@ the normal approximation to the binomial and a 2,000-resample bootstrap on 5 bal
   with the same clock. Missing a dispute, or missing a request for a person, is the costly error — the two risks the
   CFPB names for chatbots in consumer finance. Those get their own recall floors.
 
-**Proposed floors (lead to confirm, then sealed in `eval/PROTOCOL.md`):**
+**Floors (decided by the lead, sealed in `eval/PROTOCOL.md`):**
 - macro-F1 ≥ 0.90 in ES and in PT `[assumption]`;
 - recall ≥ 0.95 per language for "is a dispute" (the two dispute intents merged) and for `human_request` `[assumption]`;
 - precision ≥ 0.95 on the messages accepted at τ (AC-07, unchanged);
@@ -123,10 +123,9 @@ Reads the sentence set of spec 09 (`eval/classifier/*.jsonl`). Writes `models/in
 `eval/results/classifier.csv` and `apps/web/public/data/classifier.json` (spec 01 §6.2).
 
 ## 8. Assumptions and open questions (gate 1)
-- **Q1 — thresholds:** the lead approved them subject to a check; the check (§4.1) shows 0.80 and "within 2 points"
-  cannot be measured at the planned size. **Proposal:** the floors of §4.1, a test split of ≥ 100 sentences per
-  language, paired McNemar instead of a point gap; p95 ≤ 1.5 s, ≤ 1 USD per 1,000 messages and ≤ 2% false positives for
-  injections unchanged. Lead to confirm before sealing.
+- **Q1 — thresholds:** **Decided (lead, 2026-10-04, after the check of §4.1):** the floors of §4.1, a test split of
+  ≥ 100 sentences per language, paired McNemar instead of a point gap; p95 ≤ 1.5 s, ≤ 1 USD per 1,000 messages and
+  ≤ 2% false positives for injections unchanged. The frozen splits are also the regression suite for later releases.
 - **Q2 — B3 cascade:** **Decided (lead, 2026-10-04):** P1 as a separate B1 arm; it is what S1 runs, so B2 measures it.
 - **Q3 — τ rule:** **Decided (lead, 2026-10-04):** precision ≥ 0.95 on accepted messages, chosen on validation.
 - **Q4 — intent set:** **Decided (lead, 2026-10-04):** five intents. Spec 09 (Diego) relabels and adds sentences.
