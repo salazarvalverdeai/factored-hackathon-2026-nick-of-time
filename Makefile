@@ -6,7 +6,7 @@ PYTHON ?= python3
 PY := .venv/bin/python
 SOURCE ?= s3
 
-.PHONY: setup deps pipeline fixture report test hooks check-bedrock check-telegram check-resend check-jev check-all
+.PHONY: setup deps pipeline fixture report test hooks check-bedrock check-telegram check-resend check-jev check-all env-pull
 
 setup: deps pipeline fixture report
 
@@ -46,3 +46,7 @@ check-jev:
 	cd scripts/checks && ../../$(PY) check_jev.py $(ARGS)
 
 check-all: check-bedrock check-telegram check-jev
+
+# Fill the local .env from SSM (/nickoftime/prod/*) without printing values. ARGS=--force overwrites existing values.
+env-pull:
+	$(PY) scripts/env_pull.py $(ARGS)
