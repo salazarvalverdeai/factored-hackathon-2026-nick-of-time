@@ -1,5 +1,8 @@
 # Nick of Time — build guide (detail for the team)
 
+> **Historical (2026-09-28).** Kept for context. Current decisions live in [`docs/adr/`](adr/README.md), the work
+> plan in [`specs/`](../specs/README.md) and GitHub issues, and how we work in [`CONTRIBUTING.md`](../CONTRIBUTING.md).
+
 September 28, 2026 · Freddy
 
 ## What we build
@@ -67,7 +70,7 @@ On top, the six steps a case goes through; below, the piece each person contribu
 | David | Gold v1 and v2 with contracts, manifest, demo and late-arrivals fixtures, `/data` | Retrieve (what the tools read) and the data engineering evidence | David |
 | Diego | Pitch queries, business and deadlines, view specification, ES/PT evaluation set, dashboard | The problem in numbers, the cases that test the system, the results table | Diego |
 
-Repo: `factored-hackathon-2026-nick-of-time`. Per-person detail in `docs/team/`; stack, contracts, numbers and open items in `docs/appendix.md`; differentiators in `docs/differentiators.md`; contracts in `contracts/`; schemas in `eval/`.
+Repo: `factored-hackathon-2026-nick-of-time`. Per-person detail was in `docs/team/` (removed 2026-10-03, now specs and issues); stack, contracts, numbers and open items in `docs/appendix.md`; differentiators in `docs/differentiators.md`; contracts in `contracts/`; schemas in `eval/`.
 
 ## Guardrails, by layer
 

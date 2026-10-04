@@ -1,5 +1,8 @@
 # Closed stack and full-stack setup — W3 Nick of Time
 
+> **Historical (2026-09-28).** Kept for context. Current decisions live in [`docs/adr/`](adr/README.md), the work
+> plan in [`specs/`](../specs/README.md) and GitHub issues, and how we work in [`CONTRIBUTING.md`](../CONTRIBUTING.md).
+
 > Monday Sep 28, 2026. Decisions so we don't discuss them again. Label `[opinion]` where it is my own judgment.
 
 ---
