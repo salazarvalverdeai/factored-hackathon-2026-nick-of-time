@@ -4,6 +4,8 @@ from __future__ import annotations
 from .base import LLMClient, ProviderUnavailable, classify_validation
 
 REGION = "us-east-2"
+# [assumption] short enough for spec 04 section 5 (degrade to S0, turn p95 <= 6 s): 2 attempts of at most 15 s
+CONNECT_TIMEOUT_S, READ_TIMEOUT_S, MAX_ATTEMPTS = 2, 15, 2
 TOOL_CHOICES = {"tool": lambda name: {"tool": {"name": name}}, "any": lambda name: {"any": {}},
                 "auto": lambda name: {"auto": {}}}
 
@@ -14,10 +16,10 @@ def provider_error(exc: BaseException) -> Exception | None:
     if isinstance(exc, ClientError):
         err = exc.response.get("Error", {})
         if err.get("Code") != "ValidationException":
-            return ProviderUnavailable(f"{err.get('Code', '')}: {err.get('Message', '')}")
+            return ProviderUnavailable(f"{err.get('Code', '')}: {err.get('Message', '')}"[:300])   # may carry IAM ARNs
         return classify_validation(err.get("Message", ""))
     if isinstance(exc, BotoCoreError) and not isinstance(exc, ParamValidationError):
-        return ProviderUnavailable(f"{type(exc).__name__}: {exc}")
+        return ProviderUnavailable(f"{type(exc).__name__}: {exc}"[:300])
     return None
 
 
@@ -28,7 +30,10 @@ class BedrockClient(LLMClient):
         super().__init__(model, **kw)
         if boto_client is None:
             import boto3
-            boto_client = boto3.client("bedrock-runtime", region_name=region)
+            from botocore.config import Config
+            boto_client = boto3.client("bedrock-runtime", region_name=region, config=Config(
+                connect_timeout=CONNECT_TIMEOUT_S, read_timeout=READ_TIMEOUT_S,
+                retries={"max_attempts": MAX_ATTEMPTS, "mode": "standard"}))
         self._client = boto_client
 
     def request(self, system, user, schema, tool_name, max_tokens, mode, temperature) -> dict:

@@ -1,26 +1,41 @@
-"""Shared LLM client contract (spec 04 T-LLM; spec 15 section 4.1, decisions D-011 and D-016).
+"""Shared LLM client contract (spec 04 T7a; spec 15 section 4.1, decisions D-011 and D-016).
 
 Structured output is a forced tool call. The ladder tool -> any -> auto steps down only when the provider rejects a
 toolChoice mode, and the accepted mode is kept on the client (`mode`) so a run records it per arm (D-011).
 Temperature 0 is sent first; a provider that rejects it gets no temperature, recorded as `temperature=None` (D-016).
 Provider errors become `ProviderUnavailable` (the graph falls back to S0); our own malformed requests re-raise.
+With a schema, the accepted mode must return a tool input that validates against it; otherwise `NoStructuredOutput`
+(not a `ProviderUnavailable`: the caller decides). `latency_ms` covers the whole `complete()`, ladder and temperature
+retries included (spec 01 section 6.5 `llm_calls.latency_ms`, spec 04 section 6 usage row, ADR 0009).
 """
 from __future__ import annotations
 
 import re
+import time
 from dataclasses import dataclass
 from typing import Any
+
+from jsonschema import ValidationError, validate
 
 LADDER = ("tool", "any", "auto")
 DEFAULT_TOOL = "record_output"
 
 
-class ProviderUnavailable(RuntimeError):
+class LLMError(RuntimeError):
+    """Base of the errors this module raises on purpose."""
+
+
+class ProviderUnavailable(LLMError):
     """No access, quota, throttling, outage or wrong model id: the arm cannot answer (graph falls back to S0)."""
 
 
 class ToolChoiceUnsupported(ProviderUnavailable):
     """Every toolChoice mode of the ladder was rejected, so the model has no structured output."""
+
+
+class NoStructuredOutput(LLMError):
+    """The accepted mode returned no tool input, or one that does not match the schema (for example `auto` answered
+    in text, or `max_tokens` cut the input). Not a provider outage: the caller decides (retry, repair or S0)."""
 
 
 class TemperatureUnsupported(RuntimeError):
@@ -39,6 +54,7 @@ class LLMResult:
     model: str
     mode: str | None            # toolChoice mode that was accepted; None without a schema
     temperature: float | None   # what was sent; None = provider default
+    latency_ms: int             # perf_counter around the whole complete(): ladder and temperature retries included
 
 
 def cost_usd(prices: dict | None, tokens_in: int, tokens_out: int) -> float | None:
@@ -56,7 +72,7 @@ _TEMP_MSG = re.compile(r"temperature", re.I)
 def classify_validation(message: str) -> Exception | None:
     """What a validation (HTTP 400) message means; None = our request is malformed (the caller re-raises)."""
     if _CONFIG_MSG.search(message):
-        return ProviderUnavailable(f"config: {message}")
+        return ProviderUnavailable(f"config: {message}"[:300])
     if _TEMP_MSG.search(message):
         return TemperatureUnsupported(message)
     if _TOOL_MSG.search(message):
@@ -83,6 +99,7 @@ class LLMClient:
 
     def complete(self, system: str, user: str, *, schema: dict | None = None, tool_name: str = DEFAULT_TOOL,
                  max_tokens: int = 512) -> LLMResult:
+        t0 = time.perf_counter()
         modes = LADDER[LADDER.index(self.mode):] if schema else (None,)
         rejected: list[str] = []
         for mode in modes:
@@ -99,8 +116,20 @@ class LLMClient:
                     break
                 if mode:
                     self.mode = mode
+                if schema:
+                    self._check_tool_input(raw["tool_input"], schema, mode, raw["stop_reason"])
                 return LLMResult(text=raw["text"], tool_input=raw["tool_input"], stop_reason=raw["stop_reason"],
                                  tokens_in=raw["tokens_in"], tokens_out=raw["tokens_out"],
                                  cost_usd=cost_usd(self.prices, raw["tokens_in"], raw["tokens_out"]),
-                                 provider=self.provider, model=self.model, mode=mode, temperature=self.temperature)
+                                 provider=self.provider, model=self.model, mode=mode, temperature=self.temperature,
+                                 latency_ms=round((time.perf_counter() - t0) * 1000))
         raise ToolChoiceUnsupported("; ".join(rejected))
+
+    @staticmethod
+    def _check_tool_input(tool_input: Any, schema: dict, mode: str | None, stop_reason: str) -> None:
+        if not isinstance(tool_input, dict):
+            raise NoStructuredOutput(f"mode {mode} returned no tool input (stop_reason {stop_reason!r})")
+        try:
+            validate(tool_input, schema)
+        except ValidationError as exc:
+            raise NoStructuredOutput(f"mode {mode} tool input does not match the schema: {exc.message}"[:300]) from exc

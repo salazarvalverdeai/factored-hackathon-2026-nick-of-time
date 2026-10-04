@@ -1,11 +1,11 @@
-"""Shared LLM client: `fake`, `bedrock`, `anthropic` behind one `complete()` (spec 04 T-LLM)."""
+"""Shared LLM client: `fake`, `bedrock`, `anthropic` behind one `complete()` (spec 04 T7a)."""
 from __future__ import annotations
 
-from .base import (LADDER, LLMClient, LLMResult, ProviderUnavailable, TemperatureUnsupported, ToolChoiceUnsupported,
+from .base import (LADDER, LLMClient, LLMError, LLMResult, NoStructuredOutput, ProviderUnavailable, TemperatureUnsupported, ToolChoiceUnsupported,
                    cost_usd)
 from .fake import FakeClient
 
-__all__ = ["LADDER", "LLMClient", "LLMResult", "ProviderUnavailable", "TemperatureUnsupported",
+__all__ = ["LADDER", "LLMClient", "LLMError", "LLMResult", "NoStructuredOutput", "ProviderUnavailable", "TemperatureUnsupported",
            "ToolChoiceUnsupported", "FakeClient", "cost_usd", "make_client"]
 
 

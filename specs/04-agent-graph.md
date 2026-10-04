@@ -222,8 +222,11 @@ messages.
 - [ ] T7 — progress stream; S1/S2 wiring (Bedrock, structured output); usage; graceful degradation to S0 · AC-14, AC-17
 - [ ] T7a — Shared LLM client `nick_of_time.llm` (`fake`, `bedrock`, `anthropic`) and `nick_of_time.config.resolve(arm)`:
       forced tool use with the tool → any → auto ladder (D-011), temperature 0 or provider default recorded per arm
-      (D-016), usage and cost from a price table, `ProviderUnavailable` for provider errors · supports AC-14, AC-17;
-      tests `tests/test_spec04_llm.py` (lead decision D-003)
+      (D-016), usage, latency and cost from a price table, `ProviderUnavailable` for provider errors (graph degrades to
+      S0, section 5), `NoStructuredOutput` when the accepted mode returns no or schema-invalid input (caller decides);
+      timeouts connect 2 s, read 15 s, 2 attempts (Bedrock) and 15 s, 1 retry (Anthropic) `[assumption]`; Anthropic is
+      an operator switch (`LLM_PROVIDER=anthropic`), not a runtime failover; a per-task arm config (spec 15 section
+      4.2) is planned for spec 15 T6 · supports AC-14; tests `tests/test_spec04_llm.py` (lead decision D-003)
 - [ ] T8 — Platform deployment; `/agent` content · AC-07, AC-08
 - [ ] Tests `tests/test_spec04_*.py` with the `fake` LLM and the fake MCP; EV-0001 end to end in historical mode
 

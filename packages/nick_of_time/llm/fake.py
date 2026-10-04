@@ -1,12 +1,12 @@
 """Deterministic `fake` provider: scripted replies, no network. The only provider tests and CI use (CLAUDE.md)."""
 from __future__ import annotations
 
-from .base import LLMClient
+from .base import LLMClient, ProviderUnavailable
 
 
 class FakeClient(LLMClient):
     """`script` items, consumed in order: a str (text reply), a dict (tool input) or an Exception (raised).
-    Every request is kept in `calls`. An empty script is a test bug, so it raises instead of inventing a reply."""
+    Every request is kept in `calls`. An empty script raises ProviderUnavailable (the graph degrades to S0, like an unconfigured provider)."""
 
     provider = "fake"
 
@@ -18,7 +18,7 @@ class FakeClient(LLMClient):
         self.calls.append({"system": system, "user": user, "schema": schema, "tool_name": tool_name,
                            "max_tokens": max_tokens, "mode": mode, "temperature": temperature})
         if not self.script:
-            raise AssertionError("FakeClient script exhausted")
+            raise ProviderUnavailable("FakeClient script exhausted")
         item = self.script.pop(0)
         if isinstance(item, Exception):
             raise item

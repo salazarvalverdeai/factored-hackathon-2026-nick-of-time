@@ -1,4 +1,4 @@
-"""Shared LLM client and config.resolve (spec 04 T-LLM, supports AC-14; decisions D-011 and D-016).
+"""Shared LLM client and config.resolve (spec 04 T7a, supports AC-14; decisions D-011 and D-016).
 Offline: a stubbed boto3 client asserts the Converse request shape. No test calls a real model."""
 import os
 
@@ -6,7 +6,7 @@ import pytest
 from botocore.exceptions import ClientError, EndpointConnectionError, ParamValidationError
 
 from nick_of_time.config import HAIKU, SONNET, resolve
-from nick_of_time.llm import FakeClient, ProviderUnavailable, ToolChoiceUnsupported, make_client
+from nick_of_time.llm import FakeClient, NoStructuredOutput, ProviderUnavailable, make_client
 from nick_of_time.llm.bedrock import BedrockClient
 
 SCHEMA = {"type": "object", "properties": {"intent": {"type": "string"}}}
@@ -41,7 +41,7 @@ def bedrock(*script, **kw):
 
 
 def test_request_shape_tool_mode_temperature_zero_and_usage():
-    """T-LLM / D-011 / D-016: forced tool use, maxTokens, temperature 0, tokens and cost from the price table."""
+    """T7a / D-011 / D-016: forced tool use, maxTokens, temperature 0, tokens and cost from the price table."""
     c, stub = bedrock(OK_TOOL)
     r = c.complete("sys", "hola", schema=SCHEMA, max_tokens=300)
     req = stub.requests[0]
@@ -70,9 +70,46 @@ def test_ladder_steps_down_and_records_mode_d011():
 
 def test_ladder_exhausted_is_no_structured_output_d011():
     rej = client_error("ValidationException", "toolChoice is not supported")
-    c, _ = bedrock(rej, rej, rej)
-    with pytest.raises(ToolChoiceUnsupported):
+    c, stub = bedrock(rej, rej, rej)
+    with pytest.raises(ProviderUnavailable):   # the graph degrades to S0 (spec 04 section 5)
         c.complete("s", "u", schema=SCHEMA)
+    assert [r["toolConfig"]["toolChoice"] for r in stub.requests] == [{"tool": {"name": "record_output"}},
+                                                                      {"any": {}}, {"auto": {}}]
+
+
+def test_latency_ms_is_measured():
+    c, _ = bedrock(OK_TOOL)
+    assert c.complete("s", "u", schema=SCHEMA).latency_ms >= 0
+
+
+@pytest.mark.parametrize("reply", [
+    {"output": {"message": {"content": [{"text": "no tool"}]}}, "stopReason": "end_turn"},
+    {**OK_TOOL, "output": {"message": {"content": [{"toolUse": {"name": "record_output", "input": {"intent": 3}}}]}}}])
+def test_no_or_invalid_tool_input_is_no_structured_output(reply):
+    c, _ = bedrock(reply)
+    with pytest.raises(NoStructuredOutput) as e:
+        c.complete("s", "u", schema=SCHEMA)
+    assert not isinstance(e.value, ProviderUnavailable)
+
+
+def test_bedrock_error_message_is_truncated():
+    c, _ = bedrock(client_error("AccessDeniedException", "arn:aws:iam::123456789012:user/x " * 50))
+    with pytest.raises(ProviderUnavailable) as e:
+        c.complete("s", "u")
+    assert len(str(e.value)) <= 300
+
+
+def test_botocore_stubber_validates_request_shape():
+    import boto3
+    from botocore.stub import Stubber
+    client = boto3.client("bedrock-runtime", region_name="us-east-2", aws_access_key_id="x", aws_secret_access_key="x")
+    with Stubber(client) as st:
+        st.add_response("converse", {"output": {"message": {"role": "assistant", "content": [
+            {"toolUse": {"toolUseId": "t", "name": "record_output", "input": {"intent": "d"}}}]}},
+            "stopReason": "tool_use", "usage": {"inputTokens": 1, "outputTokens": 1, "totalTokens": 2},
+            "metrics": {"latencyMs": 1}})
+        r = BedrockClient("us.anthropic.claude-sonnet-4-6", boto_client=client).complete("s", "u", schema=SCHEMA)
+    assert r.tool_input == {"intent": "d"}
 
 
 def test_temperature_rejected_retries_without_it_d016():
@@ -115,7 +152,7 @@ def test_fake_is_scripted_and_deterministic():
     assert r.tool_input == {"intent": "x"} and r.cost_usd is None and f.calls[1]["mode"] == "tool"
     with pytest.raises(ProviderUnavailable):
         f.complete("s", "u")
-    with pytest.raises(AssertionError):
+    with pytest.raises(ProviderUnavailable):   # exhausted script degrades like an unconfigured provider
         f.complete("s", "u")
 
 
@@ -144,11 +181,15 @@ def test_make_client_by_provider(monkeypatch):
 
 def test_anthropic_fallback_request_and_errors():
     import anthropic
-    import httpx
+    import httpx2 as httpx   # the httpx the SDK actually uses
     from types import SimpleNamespace as NS
     from nick_of_time.llm.anthropic import AnthropicClient, api_model_id
 
     assert api_model_id(HAIKU) == "claude-haiku-4-5-20251001" and api_model_id(SONNET) == "claude-sonnet-4-6"
+    assert api_model_id("global.anthropic.claude-sonnet-4-6") == "claude-sonnet-4-6"
+    assert api_model_id("anthropic.claude-haiku-4-5-20251001-v1:0") == "claude-haiku-4-5-20251001"
+    with pytest.raises(ValueError):
+        api_model_id("us.meta.llama3-1-70b-instruct-v1:0")
     seen = []
     msg = NS(content=[NS(type="tool_use", input={"intent": "d"})], stop_reason="tool_use",
              usage=NS(input_tokens=5, output_tokens=2))
@@ -168,5 +209,5 @@ def test_anthropic_fallback_request_and_errors():
 
 @pytest.mark.skipif(not os.environ.get("LIVE_LLM"), reason="opt-in live call (manual step M11); never in CI")
 def test_live_bedrock_smoke():
-    r = make_client(resolve("S1", {"LLM_PROVIDER": "bedrock", **os.environ})).complete("Reply briefly.", "hola")
+    r = make_client(resolve("S1", {**os.environ, "LLM_PROVIDER": "bedrock"})).complete("Reply briefly.", "hola")
     assert r.text
