@@ -7,7 +7,7 @@
 - **Owner:** @salazarvalverdeai · **Priority:** P0 · **Size:** M
 - **Challenge dimension:** AI Engineering (tools used safely; permissions in the service layer)
 - **Depends on:** spec 01 (contract §6.3, store, ids), spec 02 (engine, clock, fx) · **Enables:** 04 · **ADRs:** 0005,
-  0006, 0008, 0010, 0016, 0019, 0020 (proposed)
+  0006, 0008, 0010, 0016, 0019, 0020
 - **Issue:** #5
 
 > Minimal profile plus §7 and §8, because the search rules decide which transaction the customer disputes and the
@@ -157,7 +157,7 @@ Implementation goes in `feat/03-mcp-tools` once this spec, spec 01 and spec 02 a
 ## 11. Sources
 - Internal: `contracts/tools.py` (models), `contracts/policies.yaml` (`actors.customer.tools`, `case_queue.transitions`,
   `amount_gate` rates, `reliability.tool_timeout_ms`, guardrail ids), `contracts/gold_contract.md` (gold tables), ADR
-  0006 (score provider), ADR 0016 (guardrails), ADR 0019 (official sources), ADR 0020 (proposed, two modes), spec 02
+  0006 (score provider), ADR 0016 (guardrails), ADR 0019 (official sources), ADR 0020 (two modes), spec 02
   §4.3–4.4 (clock, reference rates, re-evaluation window), improvement drafts #13 and #13b (tool catalog).
 - MCP streamable HTTP transport: https://modelcontextprotocol.io/specification/2025-06-18/basic/transports
 - The ARS 350 and COP 4,000 rates are the dataset's fixed implied rates (`contracts/policies.yaml` comments); MXN 18.0
