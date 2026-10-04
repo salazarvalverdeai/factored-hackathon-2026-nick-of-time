@@ -36,7 +36,8 @@
         "missing_data",
         "late_arrival",
         "out_of_scope",
-        "cap"
+        "cap",
+        "customer_returns"
       ]
     },
     "origin": {
@@ -95,6 +96,11 @@
               "search_transaction"
             ]
           }
+        },
+        "case_id": {
+          "type": "string",
+          "pattern": "^K-[0-9]{6}$",
+          "description": "returning customer (customer_returns): the case they already have"
         }
       }
     },
@@ -133,6 +139,8 @@
             "confirm",
             "ask",
             "handoff",
+            "answer_status",
+            "connect_person",
             "deny",
             "reauthenticate",
             "escalate_unconfirmed_action"
@@ -150,9 +158,26 @@
           "enum": [
             "unrecognized_charge",
             "wrongful_charge",
-            "inquiry",
+            "status_inquiry",
+            "human_request",
             "out_of_scope"
           ]
+        },
+        "receipt": {
+          "type": "object",
+          "required": [
+            "issued",
+            "has_deadline"
+          ],
+          "properties": {
+            "issued": {
+              "type": "boolean"
+            },
+            "has_deadline": {
+              "type": "boolean"
+            }
+          },
+          "additionalProperties": false
         },
         "final_state": {
           "type": "object",
