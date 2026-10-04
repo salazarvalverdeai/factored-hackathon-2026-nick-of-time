@@ -7,6 +7,7 @@ import hashlib
 import json
 import re
 import subprocess
+from itertools import combinations
 from pathlib import Path
 
 import pytest
@@ -17,7 +18,21 @@ SPEC11 = ROOT / "specs" / "11-intent-classifier.md"
 BEGIN = b"<!-- SEAL:BEGIN -->"
 END = b"<!-- SEAL:END -->"
 HEX64 = re.compile(r"[0-9a-f]{64}")
+SPLIT_FIELD = "Classifier split manifest sha256"
+HELDOUT_FIELD = "Agent held-out sha256 (eval/heldout.sha256, ADR 0007)"
+FRAUD_FIELD = "Fraud split hash (spec 17 T1)"
+SPLITS = {"train": 0.60, "validation": 0.15, "test": 0.25}
+SHARE_TOLERANCE = 0.03  # a by-author split cannot hit the shares exactly
+LANGS = ("es", "pt")
+INTENTS = ("unrecognized_charge", "wrongful_charge", "status_inquiry", "human_request", "out_of_scope")
+RESULT_GLOBS = (
+    "eval/results/*", "models/intent-*", "models/injection-*", "models/fraud-*",
+    "apps/web/public/data/classifier.json", "apps/web/public/data/benchmark.json",
+    "apps/web/public/data/fraud_benchmark.json",
+)
 
+# TODO(after merge): once specs/15-model-benchmark.md and specs/17-fraud-model.md are on this branch, read §4.4 from
+# them as _spec11_block does for spec 11, and drop these two copies.
 # Verbatim from specs/15-model-benchmark.md §4.4 and specs/17-fraud-model.md §4.4 (2026-10-04).
 SPEC15_RULE = """
 1. **Hard limits** — `understand`: the floors of spec 11 §4.1 (macro-F1 per language, dispute and `human_request`
@@ -81,16 +96,16 @@ def _spec11_block(start: str, stop: str) -> str:
     return spec[spec.index(start): spec.index(stop, spec.index(start))]
 
 
-def _split_files():
-    d = ROOT / "eval" / "classifier"
-    files = sorted(d.glob("*.jsonl"), key=lambda p: p.relative_to(ROOT).as_posix().encode()) if d.exists() else []
+def _split_files(root=ROOT):
+    d = root / "eval" / "classifier"
+    files = sorted(d.glob("*.jsonl"), key=lambda p: p.relative_to(root).as_posix().encode()) if d.exists() else []
     return files
 
 
-def _manifest_hash(files) -> str:
+def _manifest_hash(files, root=ROOT) -> str:
     """Same as the documented command: sha256 of 'file-sha256  path' lines in C-locale path order."""
     lines = "".join(
-        f"{hashlib.sha256(f.read_bytes()).hexdigest()}  {f.relative_to(ROOT).as_posix()}\n" for f in files
+        f"{hashlib.sha256(f.read_bytes()).hexdigest()}  {f.relative_to(root).as_posix()}\n" for f in files
     )
     return hashlib.sha256(lines.encode()).hexdigest()
 
@@ -114,6 +129,8 @@ def test_ac_01_floors_and_decision_rule_match_spec11_verbatim():
     for line in floors.strip().splitlines() + rule.strip().splitlines():
         if line.strip():
             assert _norm(line) in protocol, line
+    assert _norm(floors) in protocol, "spec 11 floors not copied as one block"
+    assert _norm(rule) in protocol, "spec 11 decision rule not copied as one block"
     # thresholds travel with their labels
     for needle in (
         "macro-F1 ≥ 0.90 in ES and in PT `[assumption]`",
@@ -130,23 +147,31 @@ def test_ac_06_split_by_author_60_15_25_and_test_minimums():
     for row in ("| Train | 60% |", "| Validation | 15% |", "| Test | 25% |"):
         assert row in text
     assert "**100 test sentences per language** and **20 per intent per language** `[assumption]`" in text
+    for intent in INTENTS:
+        assert f"`{intent}`" in text, intent
 
 
 def test_ac_06_split_files_by_author_when_spec09_delivers():
     files = _split_files()
     if not files:
         pytest.skip("eval/classifier not delivered yet (spec 09); layout is an [assumption]")
-    rows = {f.stem: [json.loads(x) for x in f.read_text().splitlines() if x.strip()] for f in files}
-    authors = {k: {r["author"] for r in v} for k, v in rows.items()}
-    names = list(rows)
-    for i, a in enumerate(names):
-        for b in names[i + 1:]:
-            assert not authors[a] & authors[b], f"author in both {a} and {b}"
-    test = next((v for k, v in rows.items() if k.startswith("test")), [])
-    for lang in {r["language"] for r in test}:
+    rows = {s: [] for s in SPLITS}
+    for f in files:
+        split = next((s for s in SPLITS if f.stem.startswith(s)), None)
+        assert split, f"not a train/validation/test file: {f.name}"
+        rows[split] += [json.loads(x) for x in f.read_text().splitlines() if x.strip()]
+    test = rows["test"]
+    assert test, "empty test split"
+    authors = {s: {r["author"] for r in v} for s, v in rows.items()}
+    for a, b in combinations(SPLITS, 2):
+        assert not authors[a] & authors[b], f"author in both {a} and {b}"
+    total = sum(len(v) for v in rows.values())
+    for split, share in SPLITS.items():
+        assert abs(len(rows[split]) / total - share) <= SHARE_TOLERANCE, (split, len(rows[split]) / total)
+    for lang in LANGS:
         sub = [r for r in test if r["language"] == lang]
         assert len(sub) >= 100, lang
-        for intent in {r["intent"] for r in test}:
+        for intent in INTENTS:
             assert sum(r["intent"] == intent for r in sub) >= 20, (lang, intent)
 
 
@@ -171,6 +196,7 @@ def test_spec15_ac_07_and_spec17_ac_06_rules_present():
     assert "never used to choose" in protocol
     assert "best supervised arm + the bank's score" in protocol
     assert "scoring p95 per transaction" in protocol
+    assert "cost and efficiency on the same machine" in protocol
 
 
 def test_ac_01_every_assumption_threshold_keeps_its_label():
@@ -186,7 +212,7 @@ def test_ac_01_every_assumption_threshold_keeps_its_label():
         "depth ≤ 6 `[assumption]`",
     ):
         assert needle in protocol, needle
-    assert "label missing in the spec; to be added to specs 11/15 by the lead" in protocol
+    assert "label missing in the spec; to be added to specs 11, 15 and 17 by the lead" in protocol
     assert "aggregate counts computed by the lead on 2026-10-04" in protocol
 
 
@@ -194,9 +220,9 @@ def test_ac_01_seal_block_has_all_fields_and_status():
     _, block = _split_seal(PROTOCOL.read_bytes())
     for name in (
         "Protocol sha256",
-        "Classifier test split sha256",
-        "Agent held-out sha256 (eval/heldout.sha256, ADR 0007)",
-        "Fraud split hash (spec 17 T1)",
+        SPLIT_FIELD,
+        HELDOUT_FIELD,
+        FRAUD_FIELD,
         "Sealed by",
         "Sealed on",
     ):
@@ -204,12 +230,18 @@ def test_ac_01_seal_block_has_all_fields_and_status():
     assert _field(block, "Status") in {"UNSEALED", "SEALED"}
 
 
-def _results_exist() -> list:
-    found = [p for p in (ROOT / "eval" / "results").glob("*") if p.name != ".gitkeep"] if (ROOT / "eval" / "results").exists() else []
-    models = ROOT / "models"
-    if models.exists():
-        found += list(models.glob("intent-*")) + list(models.glob("fraud-*"))
-    return found
+def _results_exist(root=ROOT) -> list:
+    return [p for g in RESULT_GLOBS for p in root.glob(g) if p.name != ".gitkeep"]
+
+
+@pytest.mark.parametrize("pattern", RESULT_GLOBS)
+def test_ac_01_every_result_path_of_the_seal_procedure_blocks_unsealed(tmp_path, pattern):
+    assert f"`{pattern}`" in _text(), pattern
+    assert not _results_exist(tmp_path)
+    path = tmp_path / pattern.replace("*", "x")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("")
+    assert _results_exist(tmp_path) == [path]
 
 
 def test_ac_01_unsealed_is_illegal_once_a_result_exists():
@@ -217,13 +249,17 @@ def test_ac_01_unsealed_is_illegal_once_a_result_exists():
     if _field(block, "Status") == "UNSEALED":
         assert not _results_exist(), "results exist but the protocol is UNSEALED"
     else:
-        assert _field(block, "Sealed by") != "pending" and _field(block, "Sealed on") != "pending"
+        for name in ("Sealed by", "Sealed on", HELDOUT_FIELD, FRAUD_FIELD):
+            assert _field(block, name) != "pending", f"sealed but {name} is pending"
+        heldout = ROOT / "eval" / "heldout.sha256"
+        if heldout.exists():
+            assert _field(block, HELDOUT_FIELD) == (heldout.read_text().split() or [""])[0], "held-out hash differs"
 
 
 def test_ac_01_seal_matches_hashing_method_or_is_unsealed():
     body, block = _split_seal(PROTOCOL.read_bytes())
     if _field(block, "Status") == "UNSEALED":
-        for name in ("Protocol sha256", "Classifier test split sha256"):
+        for name in ("Protocol sha256", SPLIT_FIELD):
             assert _field(block, name) == "pending"
         return
     protocol_hash = _field(block, "Protocol sha256")
@@ -231,7 +267,7 @@ def test_ac_01_seal_matches_hashing_method_or_is_unsealed():
     assert hashlib.sha256(body).hexdigest() == protocol_hash, "protocol changed after sealing"
     files = _split_files()
     assert files, "sealed but no eval/classifier/*.jsonl file matches"
-    recorded = _field(block, "Classifier test split sha256")
+    recorded = _field(block, SPLIT_FIELD)
     assert HEX64.fullmatch(recorded)
     assert _manifest_hash(files) == recorded, "classifier split files changed after sealing"
 
@@ -243,3 +279,18 @@ def test_ac_01_documented_sed_command_agrees_with_python_split():
         capture_output=True, check=True,
     ).stdout
     assert out == body
+
+
+def test_ac_01_documented_manifest_command_agrees_with_python(tmp_path):
+    command = re.search(r"^files=\$\(find eval/classifier .*$", _text(), re.M).group(0)
+    d = tmp_path / "eval" / "classifier"
+    (d / "injection").mkdir(parents=True)
+    (d / "train.jsonl").write_text('{"text": "a"}\n')
+    (d / "test.jsonl").write_text('{"text": "b"}\n')
+    (d / "injection" / "attacks.jsonl").write_text('{"text": "c"}\n')  # nested: not a split file
+    out = subprocess.run(["sh", "-c", command], cwd=tmp_path, capture_output=True, text=True, check=True).stdout
+    assert out.split()[0] == _manifest_hash(_split_files(tmp_path), tmp_path)
+    for f in d.glob("*.jsonl"):
+        f.unlink()
+    empty = subprocess.run(["sh", "-c", command], cwd=tmp_path, capture_output=True, text=True)
+    assert empty.returncode != 0 and not empty.stdout, "the command must fail when no split file matches"

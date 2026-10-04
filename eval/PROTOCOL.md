@@ -11,8 +11,8 @@ new, dated protocol version and a new seal, and the earlier results stay labeled
 - **Labels:** `[data]` measured on the dataset, `[external]` public source, `[assumption]` our choice without a source,
   `[simulated]` computed on generated data, `[projected]` extrapolated.
 - **Figures whose label is missing in the spec** are marked `[assumption]` here, with the note "label missing in the
-  spec; to be added to specs 11/15 by the lead": the 60/15/25 split, the minimums of 100 and 20 test sentences, the
-  1.5 s and 6 s p95 limits, 20 blind samples, 20 dev cases x 4 runs, tree depth <= 6.
+  spec; to be added to specs 11, 15 and 17 by the lead": the 60/15/25 split, the minimums of 100 and 20 test
+  sentences, the 1.5 s and 6 s p95 limits, 20 blind samples, 20 dev cases x 4 runs, tree depth <= 6.
 - **Not done here:** nothing is scored, no held-out sentence is read, no label of `data/gold_eval/` is read.
 
 ## 0. Common rules
@@ -201,7 +201,9 @@ that passes is only a second signal for the analyst (spec 17 §8, Q4).
 Procedure (manual step M02, Diego): review this file, approve it, then fill the block below **before** any test-split
 or test-window score exists, and pin it with a git tag `protocol-v1` on the sealing commit. The spec 09 sentences are
 not delivered yet, so the split hash cannot be computed today. Once any result exists (`eval/results/*`,
-`models/intent-*`, `models/fraud-*`), the status can no longer be UNSEALED: the test fails.
+`models/intent-*`, `models/injection-*`, `models/fraud-*`, `apps/web/public/data/classifier.json`,
+`apps/web/public/data/benchmark.json`, `apps/web/public/data/fraud_benchmark.json`), the status can no longer be
+UNSEALED: the test fails.
 
 **What is hashed.** (a) Protocol: the sha256 of the bytes of this file with the seal block removed (every line from the
 line that is exactly the begin marker through the line that is exactly the end marker, inclusive; only the trailing
@@ -212,22 +214,23 @@ sed '/^<!-- SEAL:BEGIN -->$/,/^<!-- SEAL:END -->$/d' eval/PROTOCOL.md | shasum -
 ```
 
 (b) Classifier splits: the sha256 of a manifest with one line `<sha256 of file>␣␣<path>` per split file (train,
-validation and test) of `eval/classifier/*.jsonl`, in C-locale path order; it fails when no file matches. The layout
-of spec 09 is `[assumption]` and must be confirmed before M02:
+validation and test) of `eval/classifier/*.jsonl` (top level only; subfolders are not split files), in C-locale path
+order; it fails when no file matches. The layout of spec 09 is `[assumption]` and must be confirmed before M02:
 
 ```
-files=$(find eval/classifier -name '*.jsonl' | LC_ALL=C sort); test -n "$files" && echo "$files" | xargs shasum -a 256 | shasum -a 256
+files=$(find eval/classifier -maxdepth 1 -name '*.jsonl' | LC_ALL=C sort); test -n "$files" && echo "$files" | xargs shasum -a 256 | shasum -a 256
 ```
 
 (c) Two references recorded at M02, not recomputed by the test: the agent held-out hash in `eval/heldout.sha256` (ADR
-0007) and the fraud split hash (spec 17 T1).
+0007) and the fraud split hash (spec 17 T1). When SEALED, both must be filled, and the first must equal the hash in
+`eval/heldout.sha256` when that file exists.
 
 `tests/test_spec11_protocol.py` recomputes (a) and (b) with exactly these methods and fails on any mismatch.
 
 <!-- SEAL:BEGIN -->
 - Status: UNSEALED
 - Protocol sha256: pending
-- Classifier test split sha256: pending
+- Classifier split manifest sha256: pending
 - Agent held-out sha256 (eval/heldout.sha256, ADR 0007): pending
 - Fraud split hash (spec 17 T1): pending
 - Sealed by: pending
