@@ -93,7 +93,7 @@ The empty `apps/api/{audit,classifier,graph,policy,tools}/` folders from the sca
 
 ### 6.2 REST API (`apps/api`, prefix `/api`)
 OpenAPI is generated from the code at `/api/docs`; this table is the agreed contract. Errors always use
-`{"code": "DENY|NOT_FOUND|SESSION_EXPIRED|UNAVAILABLE|INVALID", "policy_id": str|null, "message": str}`.
+`{"code": "DENY|NOT_FOUND|SESSION_EXPIRED|UNAUTHENTICATED|UNAVAILABLE|INVALID", "policy_id": str|null, "message": str}`.
 
 **Public and customer routes** (customer routes need the `not_session` cookie)
 
@@ -103,17 +103,18 @@ OpenAPI is generated from the code at `/api/docs`; this table is the agreed cont
 | GET | `/api/demo/customers` | — | `[{customer_id, display_name, country, segment, scenario, language}]` (6 demo customers, spec 09) | 200 |
 | POST | `/api/sessions` | `{customer_id}` | `{session_id, otp_demo, expires_at}` — the OTP is shown on screen (mock, ADR 0017) | 201 / 404 |
 | POST | `/api/sessions/{session_id}/verify` | `{otp}` | `{verified, expires_at}` + sets `not_session` cookie | 200 / 401 / 410 |
-| * | `/api/agent/...` | LangGraph Server protocol subset: `POST threads`, `POST threads/{id}/runs/stream`, `GET threads/{id}/state` | proxied to Platform; `configurable.session_id` injected from the cookie; any client `session_id`/`customer_id` is dropped (AC-06) | 200 / 401 / 440 |
-| GET | `/api/notifications` | — | `[{notification_id, case_id, event, channel, text, created_at}]` for the session's customer ("My notifications") | 200 / 440 |
-| GET | `/api/cases/{case_id}` | — | `CaseView` (§6.6) if the case belongs to the session's customer | 200 / 403 / 404 / 440 |
-| POST | `/api/cases/{case_id}/info` | `{text}` | `{event_id}` → event `customer_info_added` | 201 / 403 / 440 |
-| POST | `/api/cases/{case_id}/call-request` | `{preferred_time?}` | `{event_id}` → event `call_requested` | 201 / 403 / 440 |
-| POST | `/api/cases/{case_id}/channels/telegram` | — | `{deep_link, expires_at}` (one-time token, TTL 15 min) | 201 / 403 / 440 |
-| POST | `/api/cases/{case_id}/channels/email` | `{email}` | `{confirmation_sent: true}` — confirmation link to that address | 202 / 400 / 403 / 440 |
+| * | `/api/agent/...` | LangGraph Server protocol subset: `POST threads`, `POST threads/{id}/runs/stream`, `GET threads/{id}/state` | proxied to Platform; `configurable.session_id` injected from the cookie; any client `session_id`/`customer_id` is dropped (AC-06) | 200 / 401 |
+| GET | `/api/notifications` | — | `[{notification_id, case_id, event, channel, text, created_at}]` for the session's customer ("My notifications") | 200 / 401 |
+| GET | `/api/cases/{case_id}` | — | `CaseView` (§6.6) if the case belongs to the session's customer | 200 / 403 / 404 / 401 |
+| POST | `/api/cases/{case_id}/info` | `{text}` | `{event_id}` → event `customer_info_added` | 201 / 403 / 401 |
+| POST | `/api/cases/{case_id}/call-request` | `{preferred_time?}` | `{event_id}` → event `call_requested` | 201 / 403 / 401 |
+| POST | `/api/cases/{case_id}/channels/telegram` | — | `{deep_link, expires_at}` (one-time token, TTL 15 min) | 201 / 403 / 401 |
+| POST | `/api/cases/{case_id}/channels/email` | `{email}` | `{confirmation_sent: true}` — confirmation link to that address | 202 / 400 / 403 / 401 |
 | GET | `/api/channels/email/confirm` | `?token=` | redirect to `/case/{id}` with a confirmed banner | 302 / 410 |
 | POST | `/api/telegram/webhook` | Telegram update; header `X-Telegram-Bot-Api-Secret-Token` | `{ok: true}` | 200 / 401 |
 
-`440` = session expired (`SESSION_EXPIRED`), distinct from `401` (no session) so the UI can show "verify again".
+An expired session returns the standard `401` with `code: "SESSION_EXPIRED"` in the error body; a missing session returns
+`401` with `code: "UNAUTHENTICATED"`. The UI reads `code` to show "verify again" instead of a login screen.
 
 **Analyst routes** (Cognito JWT in `Authorization: Bearer`; `actor_id` = token `sub`)
 
@@ -287,14 +288,15 @@ Creates the Postgres schema of §6.5 and the receipt schema of §6.7; reads gold
 `data/gold/`) read-only; never reads `gold_eval`.
 
 ## 8. Assumptions and open questions (gate 1 — to close in this PR)
-- **Q1 (all):** shared package name `nick_of_time` under `packages/` — OK?
+- **Q1 (all):** shared package name `nick_of_time` under `packages/` — OK? (Diego: OK)
 - **Q2 (@gianzk):** `/chat` uses agent-chat-ui against the `/api/agent/...` proxy (LangGraph Server protocol), so the
   session is injected server-side — OK, or do you prefer a single `POST /api/chat/runs` SSE route?
 - **Q3 (@gianzk):** Alembic for migrations under `apps/api/migrations` — OK?
 - **Q4 (@vldiego):** ~~`FinalState` and the seed hook are enough?~~ **Answered in review:** added run isolation by
   `run_id`, `transaction_id`/`product_id` acted on, `run_meta` (models, prompt hash, versions), arms S0/S1/S2 selected
   through `seed`, per-turn latency and cost, and the `session: "none"` behavior (§6.8).
-- **Q5 (all):** `440` for an expired session (vs `401` without session) — OK?
+- **Q5 (all):** ~~`440` for an expired session?~~ **Decided (lead):** standard `401` with `code: SESSION_EXPIRED`
+  in the body (§6.2).
 - Assumption: analysts and customers use the same origin (`nickoftime.salazarvalverdeai.com`); no CORS.
 - Assumption: Platform reaches the MCP over the internet with the API key; locally `langgraph dev` + local MCP.
 
