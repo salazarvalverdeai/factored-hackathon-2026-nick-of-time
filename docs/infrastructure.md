@@ -16,10 +16,10 @@ up after judging (2026-10-16).
 | EC2 | `nickoftime-app` | t3.medium, Ubuntu 24.04, 30 GB encrypted, IMDSv2, **no SSH** (access through SSM), Docker + Compose, Elastic IP |
 | Instance role | `nickoftime-ec2-role` | Bedrock invoke, S3 and DynamoDB on `nickoftime-*`, SSM parameters under `/nickoftime/*`, SSM managed instance |
 | Security group | `nickoftime-web-sg` | Inbound 80 and 443 only |
-| S3 bucket | `nickoftime-gold-061039767206` | Private, versioned. Gold snapshot and Postgres backups. `gold_eval` (labels) is **not** uploaded |
+| S3 bucket | `nickoftime-gold-061039767206` | Private, versioned. Gold v1 at `gold/v1/` (verified against the manifest sha256, uploaded 2026-10-03); Postgres backups. `gold_eval` (labels) is **not** uploaded, so runtime roles cannot read `is_fraud` |
 | Bedrock | Claude Sonnet 4.6 · Sonnet 4.5 · Haiku 4.5 | Anthropic use-case form submitted 2026-10-03. Claude 5 family quota is 0 |
 | Budget | `nickoftime-hackathon` | 100 USD/month filtered by the project tag; alerts at 50% and 80% actual, 100% forecast. Bedrock usage is untagged and counted in the account-wide budget |
-| GitHub OIDC | provider `token.actions.githubusercontent.com` | Deploy role `nickoftime-gha-deploy` (repo `main` only) |
+| GitHub OIDC | provider `token.actions.githubusercontent.com` (account-wide, shared) | Deploy role `nickoftime-gha-deploy`: trusted only for this repo's `main`; may only run `AWS-RunShellScript` through SSM on `nickoftime-app` (validated with Access Analyzer) |
 | Cognito | user pool for analysts | Created in spec 05 |
 
 ### IAM
