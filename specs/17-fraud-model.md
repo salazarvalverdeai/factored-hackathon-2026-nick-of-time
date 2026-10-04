@@ -8,7 +8,7 @@
 - **Challenge dimension:** Machine Learning (a learned model against a baseline), Technical Judgment
 - **Depends on:** gold v1 and `gold_eval/transaction_labels`, ADR 0022 (proposed) · **Enables:** a second signal in the
   handoff card (specs 03, 04, console), the model inventory (ADR 0021), `/evaluation`
-- **ADRs:** 0006, 0007, 0015, 0021 (proposed), 0022 (proposed) · **Issue:** to open after approval
+- **ADRs:** 0006, 0007, 0015, 0021 (proposed), 0022 (proposed) · **Issue:** #28
 
 ---
 
