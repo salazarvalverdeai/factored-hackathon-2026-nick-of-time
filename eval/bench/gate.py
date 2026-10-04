@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import csv
+import re
+from datetime import date
 from pathlib import Path
 
 import yaml
@@ -17,7 +19,7 @@ CRITERIA = {
     "credentials": (True, True),
     "version_pinning": (True, True),
     "availability": (False, True),
-    "es_pt_quality": (True, True),  # measured by the run itself: no verdict before it
+    "es_pt_quality": (False, True),  # the benchmark measures it, so it cannot gate benchmarking (D-012)
 }
 NOT_DOCUMENTED = "not documented"
 FIELDS = ["arm", "criterion", "needed_benchmark", "needed_production", "verdict", "evidence_url", "checked_on"]
@@ -31,8 +33,18 @@ def _provider(arm: dict) -> str | None:
     return arm["provider"] if arm.get("llm") or arm["provider"] == "typesafe" else None
 
 
-def gate_rows(arms: list[dict], evidence: dict) -> list[dict]:
-    """One row per arm and criterion; no evidence means "not documented"."""
+_PINNED = re.compile(r"(\d{8}|-v\d+(:\d+)?$|-\d+:\d+$|\d+\.\d+\.\d+$)")
+
+
+def version_pinned(model_id: str | None) -> bool:
+    """A model id is pinned when it carries a date, a -vN[:M] suffix or a x.y.z version."""
+    return bool(model_id and _PINNED.search(model_id))
+
+
+def gate_rows(arms: list[dict], evidence: dict, checked_on: str | None = None) -> list[dict]:
+    """One row per arm and criterion; no evidence means "not documented", stamped with the evaluation date.
+    version_pinning is derived from the arm's model id (an unversioned id fails)."""
+    today = checked_on or date.today().isoformat()
     rows = []
     for arm in arms:
         prov = _provider(arm)
@@ -41,9 +53,13 @@ def gate_rows(arms: list[dict], evidence: dict) -> list[dict]:
         for crit, (b, p) in CRITERIA.items():
             ev = (evidence.get("arms", {}).get(arm["id"], {}).get(crit)
                   or evidence.get("providers", {}).get(prov, {}).get(crit) or {})
+            if crit == "version_pinning" and not ev:
+                ok = version_pinned(arm.get("model_id"))
+                ev = {"verdict": "pass" if ok else "fail",
+                      "evidence_url": f'eval/bench/arms.yaml (model_id {arm.get("model_id")})'}
             rows.append({"arm": arm["id"], "criterion": crit, "needed_benchmark": b, "needed_production": p,
                          "verdict": ev.get("verdict", NOT_DOCUMENTED), "evidence_url": ev.get("evidence_url", ""),
-                         "checked_on": ev.get("checked_on", "")})
+                         "checked_on": ev.get("checked_on") or today})
     return rows
 
 

@@ -1,171 +1,158 @@
-# Price per 1M tokens, USD, on-demand standard tier, US East (Ohio) (spec 15 section 4.5, ADR 0019).
-# Checked 2026-10-04 against https://aws.amazon.com/bedrock/pricing/ (page text fetched that day).
-# status: confirmed = the figure appears on the official page; assumption = could not be confirmed there.
-# Label: confirmed -> [external]; assumption -> [assumption] (value from spec 15 section 4.1, not verified).
-# B0 and B1 (no LLM) cost nothing per token and are not listed.
+# Price per 1M tokens, USD, on-demand standard tier, US East (Ohio) (spec 15 section 4.1 and 4.5, ADR 0019).
+# Source: AWS Price List offer files, region us-east-2, read on 2026-10-04 (publicationDate 2026-10-03 for
+# AmazonBedrock, 2026-09-30 for AmazonBedrockFoundationModels). The files label some units '1K tokens'; the values
+# match the per-1M figures here. Anthropic rows are the regional (non-global) token prices, which is what the
+# us. inference profiles pay (global profiles are about 10% cheaper per AWS cross-region-inference docs).
+# status: confirmed -> label [external]; assumption -> label [assumption] (could not be confirmed).
+# B0 and B1 (no LLM) cost nothing per token and are not listed. Any safety margin belongs in the budget, not here.
 prices:
   nova-micro:
-    input_per_1m: 0.075
-    output_per_1m: 0.3
+    input_per_1m: 0.035
+    output_per_1m: 0.14
     status: confirmed
     label: "[external]"
-    source_url: https://aws.amazon.com/bedrock/pricing/
+    source_url: https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonBedrock/current/us-east-2/index.json
     checked_on: "2026-10-04"
-    note: "pricing page shows 0.075/0.30; spec 4.1 (Price List API) said 0.035/0.14 - page figure used (higher, conservative); conflict to resolve"
   nova-lite:
-    input_per_1m: 0.18
-    output_per_1m: 0.72
+    input_per_1m: 0.06
+    output_per_1m: 0.24
     status: confirmed
     label: "[external]"
-    source_url: https://aws.amazon.com/bedrock/pricing/
+    source_url: https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonBedrock/current/us-east-2/index.json
     checked_on: "2026-10-04"
-    note: "pricing page shows 0.18/0.72; spec 4.1 said 0.06/0.24 - page figure used (higher); conflict to resolve"
   nova-2-lite:
     input_per_1m: 0.33
     output_per_1m: 2.75
-    status: assumption
-    label: "[assumption]"
-    source_url: https://aws.amazon.com/bedrock/pricing/
+    status: confirmed
+    label: "[external]"
+    source_url: https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonBedrock/current/us-east-2/index.json
     checked_on: "2026-10-04"
-    note: "not on pricing page text fetched 2026-10-04; value from spec 4.1 (Price List API)"
   nova-pro:
     input_per_1m: 0.8
     output_per_1m: 3.2
     status: confirmed
     label: "[external]"
-    source_url: https://aws.amazon.com/bedrock/pricing/
+    source_url: https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonBedrock/current/us-east-2/index.json
     checked_on: "2026-10-04"
   gpt-oss-20b:
     input_per_1m: 0.07
     output_per_1m: 0.3
-    status: assumption
-    label: "[assumption]"
-    source_url: https://aws.amazon.com/bedrock/pricing/
+    status: confirmed
+    label: "[external]"
+    source_url: https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonBedrock/current/us-east-2/index.json
     checked_on: "2026-10-04"
-    note: "page lists 0.07/0.20 for Sydney only; Ohio value from spec 4.1 (output 0.30) kept, unconfirmed"
   gpt-oss-120b:
     input_per_1m: 0.15
     output_per_1m: 0.6
-    status: assumption
-    label: "[assumption]"
-    source_url: https://aws.amazon.com/bedrock/pricing/
+    status: confirmed
+    label: "[external]"
+    source_url: https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonBedrock/current/us-east-2/index.json
     checked_on: "2026-10-04"
-    note: "page lists 0.15/0.60 for Sydney only; Ohio not confirmed"
   ministral-3-8b:
     input_per_1m: 0.15
     output_per_1m: 0.15
     status: confirmed
     label: "[external]"
-    source_url: https://aws.amazon.com/bedrock/pricing/
+    source_url: https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonBedrock/current/us-east-2/index.json
     checked_on: "2026-10-04"
   ministral-3-14b:
     input_per_1m: 0.2
     output_per_1m: 0.2
     status: confirmed
     label: "[external]"
-    source_url: https://aws.amazon.com/bedrock/pricing/
+    source_url: https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonBedrock/current/us-east-2/index.json
     checked_on: "2026-10-04"
   mistral-large-3:
     input_per_1m: 0.5
     output_per_1m: 1.5
     status: confirmed
     label: "[external]"
-    source_url: https://aws.amazon.com/bedrock/pricing/
+    source_url: https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonBedrock/current/us-east-2/index.json
     checked_on: "2026-10-04"
   gemma-3-12b:
     input_per_1m: 0.09
     output_per_1m: 0.29
     status: confirmed
     label: "[external]"
-    source_url: https://aws.amazon.com/bedrock/pricing/
+    source_url: https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonBedrock/current/us-east-2/index.json
     checked_on: "2026-10-04"
   gemma-3-27b:
     input_per_1m: 0.23
     output_per_1m: 0.38
     status: confirmed
     label: "[external]"
-    source_url: https://aws.amazon.com/bedrock/pricing/
+    source_url: https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonBedrock/current/us-east-2/index.json
     checked_on: "2026-10-04"
   llama-3-3-70b:
     input_per_1m: 0.72
     output_per_1m: 0.72
-    status: assumption
-    label: "[assumption]"
-    source_url: https://aws.amazon.com/bedrock/pricing/
+    status: confirmed
+    label: "[external]"
+    source_url: https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonBedrock/current/us-east-2/index.json
     checked_on: "2026-10-04"
-    note: "not listed on page text fetched; spec 4.1 value"
   llama-4-scout:
     input_per_1m: 0.17
     output_per_1m: 0.66
-    status: assumption
-    label: "[assumption]"
-    source_url: https://aws.amazon.com/bedrock/pricing/
+    status: confirmed
+    label: "[external]"
+    source_url: https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonBedrock/current/us-east-2/index.json
     checked_on: "2026-10-04"
-    note: "not listed on page text fetched; spec 4.1 value"
   llama-4-maverick:
     input_per_1m: 0.24
     output_per_1m: 0.97
-    status: assumption
-    label: "[assumption]"
-    source_url: https://aws.amazon.com/bedrock/pricing/
+    status: confirmed
+    label: "[external]"
+    source_url: https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonBedrock/current/us-east-2/index.json
     checked_on: "2026-10-04"
-    note: "not listed on page text fetched; spec 4.1 value"
   qwen3-32b:
     input_per_1m: 0.15
     output_per_1m: 0.6
-    status: assumption
-    label: "[assumption]"
-    source_url: https://aws.amazon.com/bedrock/pricing/
+    status: confirmed
+    label: "[external]"
+    source_url: https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonBedrock/current/us-east-2/index.json
     checked_on: "2026-10-04"
-    note: "not listed on page text fetched; spec 4.1 value"
   qwen3-235b:
     input_per_1m: 0.22
     output_per_1m: 0.88
-    status: assumption
-    label: "[assumption]"
-    source_url: https://aws.amazon.com/bedrock/pricing/
+    status: confirmed
+    label: "[external]"
+    source_url: https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonBedrock/current/us-east-2/index.json
     checked_on: "2026-10-04"
-    note: "not listed on page text fetched; spec 4.1 value"
   nemotron-nano-3:
     input_per_1m: 0.06
     output_per_1m: 0.24
-    status: assumption
-    label: "[assumption]"
-    source_url: https://aws.amazon.com/bedrock/pricing/
+    status: confirmed
+    label: "[external]"
+    source_url: https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonBedrock/current/us-east-2/index.json
     checked_on: "2026-10-04"
-    note: "not listed on page text fetched; spec 4.1 value"
   deepseek-v3-2:
     input_per_1m: 0.62
     output_per_1m: 1.85
-    status: assumption
-    label: "[assumption]"
-    source_url: https://aws.amazon.com/bedrock/pricing/
+    status: confirmed
+    label: "[external]"
+    source_url: https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonBedrock/current/us-east-2/index.json
     checked_on: "2026-10-04"
-    note: "not listed on page text fetched; spec 4.1 value"
   haiku-4-5:
     input_per_1m: 1.1
     output_per_1m: 5.5
-    status: assumption
-    label: "[assumption]"
-    source_url: https://aws.amazon.com/bedrock/pricing/
+    status: confirmed
+    label: "[external]"
+    source_url: https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonBedrockFoundationModels/current/us-east-2/index.json
     checked_on: "2026-10-04"
-    note: "Anthropic prices not extractable from the page; spec 4.1 value (regional profile)"
   sonnet-5-5:
     input_per_1m: 2.2
     output_per_1m: 11.0
-    status: assumption
-    label: "[assumption]"
-    source_url: https://aws.amazon.com/bedrock/pricing/
+    status: confirmed
+    label: "[external]"
+    source_url: https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonBedrockFoundationModels/current/us-east-2/index.json
     checked_on: "2026-10-04"
-    note: "spec 4.1 value; arm expected unavailable"
   sonnet-4-6:
     input_per_1m: 3.3
     output_per_1m: 16.5
-    status: assumption
-    label: "[assumption]"
-    source_url: https://aws.amazon.com/bedrock/pricing/
+    status: confirmed
+    label: "[external]"
+    source_url: https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonBedrockFoundationModels/current/us-east-2/index.json
     checked_on: "2026-10-04"
-    note: "spec 4.1 value (regional profile)"
   jev:
     input_per_1m: 0.042
     output_per_1m: 0.0
@@ -173,4 +160,4 @@ prices:
     label: "[assumption]"
     source_url: https://opper.ai/typesafe/jev-1-13-0
     checked_on: "2026-10-04"
-    note: "gateway listing https://opper.ai/typesafe/jev-1-13-0 (not TypeSafe); output free per spec 4.1"
+    note: "third-party gateway listing, not TypeSafe; output free per spec 15 section 4.1; not confirmed with TypeSafe"

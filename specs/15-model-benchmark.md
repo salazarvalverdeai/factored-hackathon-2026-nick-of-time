@@ -80,6 +80,13 @@ Models offered only through inference profiles in `us-east-2` (Nova Micro, Nova 
 called with their `us.` profile id. All LLM arms get the same prompt, the same structured-output schema and temperature
 0; differences come only from the model.
 
+**Structured-output method (D-011):** forced Converse tool use (`toolConfig` with the intent schema and a `toolChoice`
+that forces the tool); the smoke test and B1 use the same path, with `maxTokens` of at least 512. A model that cannot do
+it is "no structured output". **Prices (`eval/bench/prices.yaml`):** all but Jev were read on 2026-10-04 from the AWS
+Price List offer files for `us-east-2` (AmazonBedrock, publicationDate 2026-10-03; AmazonBedrockFoundationModels,
+2026-09-30) and match the table above; the Anthropic rows are the regional, non-global prices that the `us.` profiles
+pay `[external]`. Only Jev stays `[assumption]` (third-party gateway listing).
+
 ### 4.2 Tasks — one model per task
 The rules decide and the tools act, so the agent needs an LLM for only two tasks (spec 04); the analyst's console adds a
 third, the judge (spec 18). Each task is screened and
@@ -121,9 +128,9 @@ The gate is evaluated **per arm when the benchmark runs**, from the provider's p
 "Not documented" fails a production criterion. No arm is excluded or chosen in this spec.
 Implementation (`eval/bench/gate.py`): the CSV also carries `needed_benchmark` and `needed_production`; the evidence
 lives in `eval/bench/gate_evidence.yaml` (by provider, with per-arm overrides); a criterion without evidence is "not
-documented"; `es_pt_quality` stays "not documented" until the run measures it. Prices in `prices.yaml` carry
-`status: confirmed|assumption`; on 2026-10-04 the pricing page text confirmed only Nova Micro/Lite/Pro, Ministral,
-Mistral Large 3 and Gemma, and for Nova Micro and Lite it differs from the Price List figures above (page used).
+documented" and is stamped with the evaluation date; `version_pinning` is derived from the arm's model id (an
+unversioned id fails it); `es_pt_quality` stays "not documented" until the run measures it, and is a production-only
+criterion because the benchmark itself measures it (D-012).
 
 | Criterion | Needed to benchmark | Needed for production |
 |---|---|---|
@@ -135,7 +142,7 @@ Mistral Large 3 and Gemma, and for Nova Micro and Lite it differs from the Price
 | Credentials outside the repo, least privilege | yes | yes |
 | Version pinning | yes | yes |
 | Availability: GA, SLA or status page | — | yes |
-| ES/PT quality measured on our data | yes | yes |
+| ES/PT quality measured on our data | — (the benchmark measures it) | yes |
 
 - **Prices:** `eval/bench/prices.yaml` with the price per 1M input and output tokens per model, the source URL and the
   date checked (ADR 0019). Cost = tokens × price; Platform and infrastructure costs are reported apart.
@@ -174,8 +181,9 @@ Public third-party leaderboards; fine-tuning; batch or provisioned throughput pr
 - [x] T1 — `eval/bench/arms.yaml` and `prices.yaml` (each price confirmed on the pricing page, with date); budget guard ·
       AC-05, AC-08
 - [ ] T2 — B1 runner over spec 11 arms + the LLM candidates + Jev; unavailable arms recorded · AC-01, AC-06
-- [ ] T3 — (smoke test done in PR 15a: `eval/bench/smoke.py`, AC-11; `word` task set pending spec 09) structured-output smoke test; `word` task set (40 template instances from dev cases) and blind preference
-      sheet · AC-11, AC-12
+- [ ] T3 — structured-output smoke test (done, `eval/bench/smoke.py`, AC-11; live run pending Bedrock invoke
+      rights); `word` task set (40 template instances from dev cases) and blind preference sheet (pending spec 09) ·
+      AC-11, AC-12
 - [ ] T3b — short list and B2 runner on the harness (spec 10), historical mode only, `coherence_rate` · AC-02, AC-09
 - [x] T4 — gate evaluation per arm with evidence and date · AC-10
 - [ ] T5 — table, Pareto chart, JSON for `/evaluation` · AC-03, AC-04
