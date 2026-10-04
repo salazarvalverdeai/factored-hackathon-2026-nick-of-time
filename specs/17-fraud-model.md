@@ -106,6 +106,23 @@ Implementation choices (`scripts/ml/fraud_features.py`) `[assumption]`:
   recorded and pending the lead: `n_prev` grows with calendar time, so it can encode the period rather than the
   customer (|ROC-AUC| 0.522 on train+validation `[data]`, probably from the extra frauds of 2025-06).
 
+Signal search before the test window (D-015, `scripts/ml/fraud_signal_search.py`; reproduce with `python -m
+scripts.ml.fraud_signal_search --gold $GOLD --eval $GOLD_EVAL --out <dir outside the repo>`). 32 more candidates, built
+only from fields known at transaction time and from strictly earlier rows (DuckDB RANGE frames that end 1 µs before the
+row), in eleven families: customer and card velocity; declines before; novelty (first country, city, channel or
+merchant category; time since the last visit to the merchant); geo jumps (km and km/h from the previous located
+transaction, km from the customer's mean location); amount against the customer's history; hour and weekday habit;
+product age, customer tenure and age; merchant and city load in the last hour; complaints created and processed in the
+90 days before; and smoothed fraud rates of merchant, city, branch and merchant category × country learned on train
+labels only. A candidate counts as signal only if its train and validation 95% bootstrap CIs (stratified, 2,000
+replicates) exclude 0.5 on the same side and its validation ROC-AUC is at least 0.02 from 0.5 `[assumption]`.
+Result on gold v1 `[data]`: **none passes**. Validation ROC-AUC spans 0.465–0.547; the largest deviation, time since
+the card's previous transaction (0.547 [0.505, 0.590]), has train AUC 0.494 [0.475, 0.514], and every deviation is
+below 0.062, the 95th percentile of the largest deviation under permuted validation labels. The bank score, as a
+positive control, gives 0.728 [0.673, 0.780]. Reversals before the transaction are not candidates: gold keeps each
+row's final status with no reversal time, so a reversal is not known at transaction time (D-009). The features above
+stay as they are; §4.4 rule 5 covers the outcome.
+
 ### 4.3 Arms — a lean scikit-learn screen
 The dataset is large enough for all of these (about 1.39 million Approved/Pending transactions, 896 frauds to train).
 Each supervised arm handles the imbalance with class weights or by down-sampling legitimate transactions in the
@@ -187,6 +204,8 @@ versioned queries under `queries/fraud/`.
   (§4.2).
 - **D-010 — customer segment (2026-10-04; default applied by the orchestrator, pending lead confirmation):**
   `customer_segment` is not a feature, because gold holds one snapshot taken at the cut (§4.2).
+- **D-015 — signal search before the test window (2026-10-04, lead):** look for transaction-time signal beyond §4.2 on
+  train and validation only, before task 17c scores the test window; outcome in §4.2.
 
 ## 9. Out of scope
 Deep learning or graph features; streaming features; using the model for automation in the submission; scheduled
@@ -201,6 +220,8 @@ retraining (ADR 0021, P2).
       train and validation only, so the test-window part of AC-03 is task 17c · AC-03 (screen), AC-05
 - [ ] T3b [P0] — lean rule in `eval/PROTOCOL.md` · AC-06 · #47 (merged); sync PROTOCOL §3.1 and §3.3 rules 1–2 with
       spec §4.3–4.4 before the seal (task PROT2, decision D-017)
+- [x] T3c [P0] — signal search beyond §4.2 on train and validation (`scripts/ml/fraud_signal_search.py`, D-015): no
+      candidate passes, the feature list is unchanged · AC-02, AC-05
 - [ ] T4 [P0] — test-window evaluation, report, `fraud_benchmark.json` for `/evaluation` · AC-04
 - [ ] T5 [P1] — `model_score` in `get_fraud_score` and the handoff card; inventory entry · AC-07, AC-08
 
