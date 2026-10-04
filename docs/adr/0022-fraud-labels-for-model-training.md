@@ -2,7 +2,7 @@
 
 - **Status:** Proposed (draft — local review)
 - **Date:** 2026-10-04
-- **Deciders:** Freddy · **Owner:** @vldiego (proposed)
+- **Deciders:** Freddy · **Owner:** @salazarvalverdeai
 - **Related:** spec 17 · ADRs 0006, 0007, 0021 · constitution rule 7 in `CLAUDE.md`
 
 ## Context
@@ -20,7 +20,8 @@
 3. No transaction of the agent's evaluation cases is in the training window, so the agent's held-out stays clean.
 4. The agent, the MCP server, the api, the web and every LLM **never** read labels; the model file holds no label and
    no transaction id.
-5. The pipeline runs where the label access already is (Diego or the lead), never in the deployed services.
+5. The pipeline runs where the label access already is (the lead, or Diego for the harness), never in the deployed
+   services.
 6. Rule 7 of the constitution becomes: "`is_fraud` lives only in `data/gold_eval/`; it is read by the evaluation
    harness and, by time window, by the fraud-model training pipeline (ADR 0022)."
 
