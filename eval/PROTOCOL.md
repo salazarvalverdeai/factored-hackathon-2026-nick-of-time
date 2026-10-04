@@ -12,8 +12,9 @@ new, dated protocol version and a new seal, and the earlier results stay labeled
   `[simulated]` computed on generated data, `[projected]` extrapolated.
 - **Figures whose label is missing in the spec** are marked `[assumption]` here, with the note "label missing in the
   spec; to be added to specs 11, 15 and 17 by the lead": the 60/15/25 split, the minimums of 100 and 20 test
-  sentences, the 1.5 s and 6 s p95 limits, 20 blind samples, 20 dev cases x 4 runs, tree depth <= 6, the 20-fraud floor for a
-  slice and the 2x base-rate test of the stacked arm.
+  sentences, the 1.5 s and 6 s p95 limits, 20 blind samples, 20 dev cases x 4 runs, tree depth <= 6.
+- **Decided by the lead on 2026-10-04 and not yet in the specs:** the 20-fraud slice floor (D-017c, spec 17) and the
+  3-point share tolerance (D-017e, spec 11).
 - **Not done here:** nothing is scored, no held-out sentence is read, no label of `data/gold_eval/` is read.
 
 ## 0. Common rules
@@ -44,13 +45,15 @@ Sentence set of spec 09 (`eval/classifier/*.jsonl`), about 800 sentences in ES a
 | Test | 25% | the final score of every arm, once, after the arms are frozen | any tuning, prompt edit, threshold or rule change |
 
 - The split is **by author**, never by sentence: all sentences of one author are in one split (AC-06). The realized
-  shares of train, validation and test must each be within 3 points of 60/15/25 `[assumption]`, the same tolerance
-  `tests/test_spec11_protocol.py` checks on the files.
+  shares of train, validation and test must each be within 3 points of 60/15/25 `[assumption]` (D-017e, decided by the
+  lead on 2026-10-04), the same tolerance `tests/test_spec11_protocol.py` checks on the files.
 - At least **100 test sentences per language** and **20 per intent per language** `[assumption]` (AC-06). The [C]
   check of the split waits for spec 09; `tests/test_spec11_protocol.py` skips it until `eval/classifier` exists.
 - The split files are hashed before training starts (see "Seal"). The injection sentences live **inside the split
-  files**, each with the field `label: injection` and its own author, so the author rule and the manifest hash cover
-  them; they are not in a separate folder `[assumption, spec 11 does not say; confirmed by Diego at M02]`.
+  files**, each with the field `label: injection` and the `author` who wrote it, so the author rule and the manifest
+  hash cover them; they are not in a separate folder `[assumption, spec 11 does not say; to be confirmed at M02]`.
+- Rows with `label: injection` follow the author rule, the shares and the manifest hash, and are scored only by the
+  injection detector (AC-04); the test minimums and the intent metrics count only the other rows `[assumption]` (D-022).
 - B2 (LLM) gets the label definitions and no example from the test split (spec 11 §4).
 - Results from a candidate of the same family as the LLM that paraphrased the sentences are flagged (spec 11 §8).
 
@@ -104,11 +107,13 @@ Historical mode only (`replay`, fixed `DEMO_TODAY`); live mode is refused (spec 
 structured-output schema for every LLM arm (spec 15 §4.1).
 
 - **Structured output (D-011, decided by the lead on 2026-10-04):** Converse tool use with the schema, forced with
-  `toolChoice`. Each arm walks the ladder `tool` → `any` → `auto` and steps down only when Bedrock rejects the mode; the
+  `toolChoice`. Each LLM arm walks the ladder `tool` → `any` → `auto` and steps down only when Bedrock rejects the mode; the
   first accepted mode decides, and the mode that worked is recorded per arm (`tool_choice_mode`) and reused in B1
   (spec 15 §4.1).
 - **Temperature (D-016, decided by the lead on 2026-10-04):** 0 where the model accepts it, otherwise the provider
-  default; the value used is recorded per arm. This replaces "temperature 0 for every LLM arm".
+  default; the value used is recorded per arm (spec 15 §4.1).
+- **Missing tool call in B1:** a reply with no tool call, or whose tool input fails the schema, is scored as a wrong
+  prediction for that message and stays in the denominator; the count is reported per arm `[assumption]` (D-022).
 
 ### 2.2 Tasks and metrics (spec 15 §4.2, AC-03, AC-12)
 | Task | B1 metric | No-LLM option |
@@ -197,9 +202,10 @@ per transaction, throughput, model size and peak memory; every metric on all pro
 ### 3.3 Decision rule (copied from spec 17 §4.4)
 1. **Hard limits:** at the bank's precision levels (0.80 and 0.95), recall is at least the bank's; no country or segment
    has a recall below 80% of the overall recall `[assumption]`; scoring p95 ≤ 50 ms and model size ≤ 200 MB
-   `[assumption]`. The per-country and per-segment recall is measured at the 1% alert budget (the top 1% of the window
-   by score) `[assumption]` (D-017b). The segment floor applies only to slices with at least 20 frauds `[assumption]`
-   (D-017c; `customer_segment` is not a feature but is a reporting slice, and each slice records its fraud count).
+   `[assumption]`. The overall, per-country and per-segment recall of this floor are measured at the 1% alert budget (the
+   top 1% of the window by score) `[assumption]` (D-017b). The floor applies only to country and segment slices with at
+   least 20 frauds in the window; smaller slices are reported with their fraud count and not enforced `[assumption]`
+   (D-017c).
 2. **Value:** the arm beats S-bank — PR-AUC higher with the 95% bootstrap CI of the difference above zero — **or** it
    catches at least 30% of the frauds with no bank score at an alert budget of 1% of those transactions (AC-04)
    `[assumption]` (D-017d).
@@ -208,6 +214,9 @@ per transaction, throughput, model size and peak memory; every metric on all pro
 4. **Lean choice:** among those, the cheapest to run — lowest scoring p95, then smallest model, then shortest training;
    a tie goes to the simpler family (linear < tree < ensemble < neural < stacked).
 5. If no arm passes, the bank's score stays alone and the benchmark is reported as is.
+
+Rules 1-2 are judged on all products; the card subset is reported with its CI and does not gate `[assumption]` (D-022);
+country is `customer_country`.
 
 ### 3.4 Pre-registered (cannot change after sealing)
 Window boundaries, arm list, metrics, thresholds and the rule above. The bank's score keeps deciding the zones; a model
@@ -221,7 +230,8 @@ Procedure (manual step M02, Diego): review this file, approve it, then fill the 
 or test-window score exists, and pin it with a git tag `protocol-v1` on the sealing commit. The spec 09 sentences are
 not delivered yet, so the split hash cannot be computed today. Diego confirms at M02 that the spec 09 layout matches
 (b) below; until then it stays `[assumption]`. `eval/heldout.sha256` holds exactly one sha256 (64 lowercase hex
-characters); SEALED requires 64-hex values in both reference fields of (c) and the test fails otherwise. Once any result exists (`eval/results/*`,
+characters); SEALED requires 64-hex values in both reference fields of (c) and the test fails otherwise. Once any
+result exists (`eval/results/*`,
 `models/intent-*`, `models/injection-*`, `models/fraud-*`, `apps/web/public/data/classifier.json`,
 `apps/web/public/data/benchmark.json`, `apps/web/public/data/fraud_benchmark.json`), the status can no longer be
 UNSEALED: the test fails.
@@ -236,8 +246,8 @@ sed '/^<!-- SEAL:BEGIN -->$/,/^<!-- SEAL:END -->$/d' eval/PROTOCOL.md | shasum -
 
 (b) Classifier splits: the sha256 of a manifest with one line `<sha256 of file>␣␣<path>` per split file (train,
 validation and test) of `eval/classifier/*.jsonl` (top level only; subfolders are not split files), in C-locale path
-order; it fails when no file matches. The layout of spec 09 is `[assumption]`: top-level files whose names start with `train`, `validation` and `test`,
-each row with `author`, `language` and `intent` (injection rows carry `label: injection`); Diego confirms it at M02:
+order; it fails when no file matches. The layout of spec 09 is `[assumption]`: top-level files whose names start with `train`, `validation` and
+`test`, each row with `author`, `language` and `intent` (injection rows carry `label: injection`); confirmed at M02 as above:
 
 ```
 files=$(find eval/classifier -maxdepth 1 -name '*.jsonl' | LC_ALL=C sort); test -n "$files" && echo "$files" | xargs shasum -a 256 | shasum -a 256
