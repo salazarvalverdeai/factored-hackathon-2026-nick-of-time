@@ -82,7 +82,7 @@ card CIs are wide; that is reported, not hidden.
 
 ### 4.2 Features (only what is known at transaction time)
 Amount in USD and its log; currency; channel; transaction type and category; merchant category; abroad
-(`transaction_country` ≠ `customer_country`); hour and weekday; card type; customer segment. From the customer's
+(`transaction_country` ≠ `customer_country`); hour and weekday; product type. From the customer's
 **earlier** transactions only: count and amount in the previous 1 h, 24 h and 7 days; amount against the customer's
 median; first time at this merchant; distance and time from the previous transaction's location. Excluded:
 `product_status` (a snapshot taken after the fact), the `qc_*` columns, `process_date` and the labels.
@@ -94,8 +94,8 @@ Implementation choices (`scripts/ml/fraud_features.py`) `[assumption]`:
   USD; the bank's `fraud_score` and `response_code` are not features (the score is the baseline arm and enters only the
   stacked arm).
 - `customer_segment` is **not** a feature: gold holds one snapshot taken at the cut, so it can rewrite history
-  (`contracts/gold_contract.md`, `docs/data_quality.md` §A1) (D-010). `customer_country` and `product_type` are kept,
-  assuming they are stable at transaction time.
+  (`contracts/gold_contract.md`, `docs/eda/data_quality.md` §A1) (D-010). `customer_country` and `product_type` are
+  kept, assuming they are stable at transaction time.
 - `km_from_prev` uses the closest strictly earlier transaction **with a known location**; `secs_since_prev` uses the
   closest strictly earlier transaction of any kind.
 - Cold start: gold begins on 2025-06-01, so early rows have no history. Share of Approved/Pending transactions with no
@@ -166,6 +166,11 @@ versioned queries under `queries/fraud/`.
 - **Q3 — rule thresholds:** 30% of the frauds with no score at a 1% alert budget; fairness at 80% of the overall recall.
 - **Q4 — use:** in the submission only as a second signal for the analyst; zones stay with the bank's score.
 - **Q5 — algorithms:** the lean scikit-learn screen of §4.3, with cost and efficiency measured for each arm.
+- **D-009 — feature history (2026-10-04; default applied by the orchestrator, pending lead confirmation):** history
+  is every strictly earlier transaction of the customer, whatever its status; feature rows only for Approved/Pending
+  (§4.2).
+- **D-010 — customer segment (2026-10-04; default applied by the orchestrator, pending lead confirmation):**
+  `customer_segment` is not a feature, because gold holds one snapshot taken at the cut (§4.2).
 
 ## 9. Out of scope
 Deep learning or graph features; streaming features; using the model for automation in the submission; scheduled
