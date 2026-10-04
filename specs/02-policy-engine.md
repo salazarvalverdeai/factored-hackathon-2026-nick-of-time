@@ -32,8 +32,9 @@ AC-01 to AC-06 come from issue #4 with the same numbers; AC-07 onward are added 
 - **AC-01** — When the score is ≥ 50, 30–49 or < 30, the zone shall be `high`, `medium` or `human`. · [T]
 - **AC-02** — If the score is null or its source is `llm`, then the zone shall be `human` with its own policy id
   (`POL-SCORE-NULL` / `POL-SCORE-LLM`), and the decision shall still open a case. · [T]
-- **AC-03** — When a MX debit dispute is opened on 2026-06-03, `credit_deadline` shall be 2026-06-05 with source
-  "Banxico Circular 3/2012, art. 19 Bis 3"; an AR dispute shall get +10 business days and a CO dispute +15 business days,
+- **AC-03** — When a MX debit dispute is opened for a charge made within the 48 hours before the notice, `credit_deadline`
+  shall be the second business day after opening (opened 2026-06-01 → 2026-06-03) with its Banxico source; for an older
+  MX debit charge it shall be a ruling deadline instead; an AR dispute shall get +10 business days and a CO dispute +15 business days,
   skipping weekends and the country's 2026 holidays; a PE dispute shall get +15 business days (SBS) and a CL dispute
   a refund deadline of +10 business days (+15 for cash advances and ATM withdrawals) and +7 more for the part above
   35 UF (Ley 20.009). · [T]
@@ -105,21 +106,24 @@ legal basis, what the deadline is (refund / provisional credit or ruling / respo
 calendar, the official source URL and the date it was verified. **Adding a LATAM country is a PR with a source and a
 test, no code change.** A country without a verified entry falls back to `POL-CLOCK-UNKNOWN` (AC-14).
 
-| Country · product | `credit_deadline` | `ruling_deadline` | Source (`policies.yaml`) |
-|---|---|---|---|
-| MX · debit | opened + **2 business days** | — | Banxico Circular 3/2012, art. 19 Bis 3 |
-| MX · credit | — | opened + **45 calendar days** (180 if the charge was abroad) | LTOSF art. 23 |
-| AR · any card | opened + 10 business days (resolve and reimburse) | same date | BCRA |
-| CO · any card | — | opened + **15 business days** `[external, to verify]` | SFC |
-| BR · any card (PT demo only) | — | opened + 10 business days, one extension | Resolução CMN 4.860 |
-| **PE** · any card | — | opened + **15 business days** (extendable only when a third party must rule) | Resolución SBS N.° 04036-2022, Reglamento de Gestión de Reclamos y Requerimientos `[external, verified 2026-10-04]` |
-| **CL** · any card | opened + **10 business days** up to 35 UF (15 for cash advances and ATM withdrawals); +7 more days for the part above 35 UF | — | Ley 20.009 (as summarized by SERNAC) `[external, verified 2026-10-04]` |
+| Country · product | `credit_deadline` | `ruling_deadline` | Legal basis | Official public source | Verified |
+|---|---|---|---|---|---|
+| MX · debit, charge within the **48 h** before the notice | opened + **2 business days** (provisional credit) | — | Banxico Circular 3/2012, as amended by Circular 14/2018 (in force since 2019-09-26) | [CONDUSEF](https://www.gob.mx/condusef/prensa/cargos-no-reconocidos-en-tarjeta-de-debito-se-restituiran-en-dos-dias-habiles-bancarios?idiom=es) · [DOF, Circular 14/2018](https://www.dof.gob.mx/nota_detalle.php?codigo=5539863&fecha=03%2F10%2F2018) | 2026-10-04 |
+| MX · debit, older charge (claim within 90 days of the charge) | — | opened + **45 calendar days** `[external, to verify in T3]` | LTOSF art. 23 (clarifications) | [CONDUSEF](https://www.gob.mx/condusef/prensa/cargos-no-reconocidos-en-tarjeta-de-debito-se-restituiran-en-dos-dias-habiles-bancarios?idiom=es) | 2026-10-04 (90-day window) |
+| MX · credit | — | opened + **45 calendar days** (180 if the charge was abroad) | LTOSF art. 23 | `[external, to verify in T3]` | — |
+| AR · any card | opened + **10 business days** (reimbursement) | same date (resolution) | BCRA, Protección de los Usuarios de Servicios Financieros (texto ordenado) | [BCRA t-pusf](https://www.bcra.gob.ar/archivos/Pdfs/texord/t-pusf.pdf) | 2026-10-04 |
+| CO · any card | — | opened + **15 business days** | SFC: petitions to supervised entities | [SFC FAQ](https://www.superfinanciera.gov.co/preguntas-frecuentes/3/3-derechos-de-peticion-ante-entidades-vigiladas/) | 2026-10-04 |
+| BR · any card (PT demo only) | — | opened + **10 business days**, extendable once by an equal period | Resolução CMN 4.860/2020 (ouvidoria) | [BCB · Ouvidoria](https://www3.bcb.gov.br/sisorf_externo/manual/06-01-030-160.htm) | 2026-10-04 |
+| PE · any card | — | opened + **15 business days** (extendable only when a third party must rule) | Resolución SBS N.° 04036-2022 | [El Peruano](https://busquedas.elperuano.pe/normaslegales/aprueban-el-reglamento-de-gestion-de-reclamos-y-requerimient-resolucion-sbs-no-04036-2022-2138687-1) | 2026-10-04 |
+| CL · any card | opened + **10 business days** up to 35 UF (15 for cash advances and ATM withdrawals); +7 more days for the part above 35 UF | — | Ley 20.009 | [SERNAC](https://www.sernac.cl/portal/604/w3-propertyname-791.html) | 2026-10-04 |
 | any other LATAM country | — | — | `POL-CLOCK-UNKNOWN`: case opened, routed to a person, no deadline invented |
 
 - "Opened" = `DEMO_TODAY` in the demo (ADR 0012).
 - **Coverage note:** the dataset only has MX, CO and AR customers, so PE, CL and BR are exercised by unit tests and
   fixtures; the demo runs on MX, CO and AR (BR in Portuguese with a fixture). The README states it.
-- MX, AR, CO and BR entries are re-verified against their official sources in T3 (`[external, to verify]` until then).
+- **Every entry cites its official public source and the date it was verified** (ADR 0019); `policies.yaml` stores them as
+  `source_url` and `verified_on` fields plus a comment, and a test fails if an entry lacks them. Rows marked
+  `[external, to verify]` are re-checked in T3.
 - Business days = Monday–Friday minus the country's bank holidays.
 - Holiday lists live in `packages/nick_of_time/policy/holidays/{mx,ar,co,br,pe,cl}_2026.yaml`, each with the official source
   URL; they are `[external]` data, not code.
@@ -162,7 +166,7 @@ engine.sla(case) -> {priority, sla_due_at, alert_due_at}
 - New data files: `packages/nick_of_time/policy/holidays/*_2026.yaml`.
 - No database access.
 
-## 8. Decisions (gate 1 closed by the lead, 2026-10-04)
+## 8. Decisions (gate 1 closed by the lead, 2026-10-04; Q7 open)
 - **Q1 — medium zone:** follow `policies.yaml`: after the customer confirms, the case is opened and an analyst approves
   the block (safer at 79.6% precision `[data]`); `three_zone_flow.svg` is updated in spec 13.
 - **Q2 — CO:** 15 **business** days, labeled `[external, to verify]` until T3.
@@ -171,6 +175,9 @@ engine.sla(case) -> {priority, sla_due_at, alert_due_at}
 - **Q5 — supervised mode vs "the ticket is always opened":** supervised mode applies only to money actions (AC-15).
 - **Q6 — LATAM coverage:** data-driven clock table; PE and CL added with verified sources; any other country falls
   back to `POL-CLOCK-UNKNOWN` (AC-14).
+- **Q7 — demo date (open, lead):** the MX 2-business-day credit applies only to charges from the 48 h before the notice.
+  Gold ends on 2026-05-31, so with `DEMO_TODAY=2026-06-03` no MX debit charge qualifies. Proposal: move `DEMO_TODAY` to
+  **2026-06-01 (Monday)**, so charges of May 30–31 qualify and the credit deadline is 2026-06-03 (supersedes ADR 0012).
 - Assumption: MXN 18.0 per USD for MX amounts (`[assumption]`, already in `policies.yaml`).
 - Assumption: holiday lists are verified against official sources while implementing; each file cites its URL.
 
