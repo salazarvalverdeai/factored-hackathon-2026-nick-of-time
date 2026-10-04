@@ -6,7 +6,7 @@ PYTHON ?= python3
 PY := .venv/bin/python
 SOURCE ?= s3
 
-.PHONY: setup deps pipeline fixture report test hooks check-bedrock check-telegram check-resend check-jev check-all env-pull gold-pull labels-pull
+.PHONY: setup deps pipeline fixture report test hooks check-bedrock check-telegram check-resend check-jev check-all telegram-profile env-pull gold-pull labels-pull
 
 setup: deps pipeline fixture report
 
@@ -46,6 +46,10 @@ check-jev:
 	cd scripts/checks && ../../$(PY) check_jev.py $(ARGS)
 
 check-all: check-bedrock check-telegram check-jev
+
+# Telegram bot profile: English name; description, short description and commands in EN (default), ES and PT.
+telegram-profile:
+	$(PY) scripts/telegram_profile.py
 
 # Fill the local .env from SSM (/nickoftime/prod/*) without printing values. ARGS=--force overwrites existing values.
 env-pull:

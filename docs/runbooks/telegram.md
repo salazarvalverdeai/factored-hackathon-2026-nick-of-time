@@ -6,11 +6,29 @@ Facts verified against the official [Bot API](https://core.telegram.org/bots/api
 
 ## 1. Create the bot (owner: lead)
 1. In Telegram, open **@BotFather** (verified) → `/newbot`.
-2. Display name, e.g. `Nick of Time · Avisos`. Username: 5–32 characters, **must end in `bot`**
-   (e.g. `nickoftime_avisos_bot`).
+2. Name: **`Nick of Time · Case Updates`**. Username: **`NickOfTimeBot`**; fallbacks `NickOfTimeCasesBot`,
+   `NickOfTimeUpdatesBot` (5–32 characters, must end in `bot`, case-insensitive). On 2026-10-04 none of the three had a
+   public t.me page; BotFather has the final word.
 3. BotFather returns the **token**. Do not paste it anywhere except step 2.
-4. Configure: `/setdescription` (≤ 512 characters, ES), `/setabouttext`, `/setcommands`
-   (`start - Vincular tus avisos`, `stop - Dejar de recibir avisos`), `/setprivacy` → Enable.
+4. In BotFather: `/setprivacy` → Enable (private chats only) and `/setuserpic` → `telegram-avatar-640.png` from the
+   brand kit. The rest of the profile is set by `make telegram-profile` (step 3).
+
+### Names and texts
+The name is English for everyone. Description, short description ("About") and command texts are English by default,
+with Spanish and Portuguese versions that Telegram shows according to the user's app language
+([`language_code`](https://core.telegram.org/bots/api#setmydescription)). The texts live in
+[`scripts/telegram_profile.py`](../../scripts/telegram_profile.py).
+
+| Field (limit) | Default (EN) |
+|---|---|
+| Name (64) | Nick of Time · Case Updates |
+| Short description (120) | Status updates for your card dispute case · Nick of Time (hackathon demo) |
+| Description (512) | Get a message every time your card dispute case changes status. Turn it on from your case page. This bot only sends updates: it never asks for your card number, passwords or codes. Nick of Time is a hackathon demo with synthetic data. |
+| `/start` | Get updates for your case |
+| `/stop` | Stop case updates |
+
+The description tells customers the bot never asks for card data: a bank bot that people learn to trust is also what
+phishing copies, so the one rule they need is stated up front.
 
 ## 2. Store the values
 Production (SSM):
@@ -23,16 +41,23 @@ aws ssm put-parameter --profile nickoftime --region us-east-2 --type SecureStrin
 Local `.env`:
 ```
 TELEGRAM_BOT_TOKEN=<token>
-TELEGRAM_BOT_USERNAME=nickoftime_avisos_bot
+TELEGRAM_BOT_USERNAME=NickOfTimeBot
 TELEGRAM_WEBHOOK_SECRET=<value from SSM>
 ```
 
-## 3. Access check
+## 3. Profile and access check
+```bash
+make telegram-profile
+# OK    token valid: bot @NickOfTimeBot
+# OK    [default] name 'Nick of Time · Case Updates' · short description set · commands /start /stop
+# OK    [es] …   OK    [pt] …
+```
+Then:
 1. Open `https://t.me/<bot_username>` and send `/start` (a bot cannot message a user who has not started it).
 2. Run:
 ```bash
 make check-telegram ARGS=--send-test
-# OK    token valid: bot @nickoftime_avisos_bot (id …)
+# OK    token valid: bot @NickOfTimeBot (id …)
 # WARN  no webhook set yet (expected until spec 13 deploys /api/telegram/webhook)
 # OK    test message delivered (message id …)
 ```

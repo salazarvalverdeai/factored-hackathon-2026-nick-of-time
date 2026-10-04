@@ -62,5 +62,5 @@ if args.send_test:
         if not starts:
             fail(f"no /start found: open https://t.me/{me['username']} and send /start, then retry")
         chat_id = starts[-1]
-    sent = call("sendMessage", {"chat_id": chat_id, "text": "Nick of Time · prueba de acceso OK ✅"})
+    sent = call("sendMessage", {"chat_id": chat_id, "text": "Nick of Time · access check OK ✅"})
     ok(f"test message delivered (message id {sent['message_id']})")
