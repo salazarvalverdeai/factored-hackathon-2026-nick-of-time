@@ -123,6 +123,7 @@ AC-01 to AC-05 are copied from issue #9 with the same numbers. None is dropped o
 - [ ] Task 4 — call the live agent proxy (`/api/agent/...`, spec 05 M05) · covers AC-01 to AC-04 · done when: same flow on the public URL
 - [ ] Task 5 — demo-mode start screen (D-068, the contract in §8) · covers AC-01 · done when: a visitor opens a demo
   session by scenario and picks a recent transaction on the public URL
+
 - [x] Task 6 — production walkthrough fixes (2026-10-05): one greeting with the gold name, line breaks kept, trace
   filled on live turns with named guardrails · covers AC-07 to AC-09 · done when: the tests citing them pass
 - [ ] Task 7 — voice (D-072, the contract in §8): mic, push-to-talk, draft, read-aloud and mute · covers AC-10 · done
