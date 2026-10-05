@@ -46,6 +46,11 @@ def test_ac_06_export_is_blind_and_labels_are_empty(tmp_path):
     assert set(rows[0]) == set(sl.COLUMNS)
 
 
+def test_ac_06_sheet_has_no_type_column(tmp_path):
+    rows = list(csv.DictReader(_export(tmp_path).open(encoding="utf-8", newline="")))
+    assert "type" not in rows[0] and "type" not in sl.COLUMNS
+
+
 def test_ac_06_export_state_summary_has_what_a_labeler_needs(tmp_path):
     rows = {r["id"]: r for r in csv.DictReader(_export(tmp_path).open(encoding="utf-8", newline=""))}
     assert "fraud_score" in rows["EV-0101"]["state"] and "session verified" in rows["EV-0101"]["state"]

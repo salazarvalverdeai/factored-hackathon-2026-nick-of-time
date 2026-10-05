@@ -135,7 +135,9 @@ python -m eval.second_label agreement    # writes eval/labeling/agreement.json a
 ```
 
 - **Blind:** the sheet has the messages and the state (country, segment, session, candidate transactions with the
-  bank's `fraud_score`, any existing case, tool faults), and no `expected` and no first-labeler intent.
+  bank's `fraud_score`, any existing case, tool faults), and no `expected`, no first-labeler intent and no case `type`
+  (it nearly gives away the decision). `labeler` is the GitHub handle of the second labeler (`salazarvalverdeai`).
+  `agreement.json` lists the `type` of each disagreeing case for analysis.
 - **Vocabulary:** `intent` is one of the five intents of spec 11 or `none` when the case is refused before an intent
   matters; `decision` is one of the nine decisions of spec 09 §7.5; `handoff` and `case_open` are `yes` or `no`.
 - **Agreement:** per field, n, agreements, percent agreement, Cohen's kappa and the disagreeing case ids, against

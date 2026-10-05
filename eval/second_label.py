@@ -5,7 +5,9 @@
 
 The sample is the whole dev set and never the held-out: the second labeler develops the agent and the classifier, so
 they must not read the held-out cases before the seal. This module never opens ``cases/heldout.jsonl``, gold or
-``data/gold_eval/``. The exported sheet is blind: it carries no ``expected`` and no first-labeler intent.
+``data/gold_eval/``. The exported sheet is blind: it carries no ``expected``, no first-labeler intent
+and no case ``type`` (which nearly gives away the decision). The ``labeler`` column holds the GitHub handle of the
+second labeler (``salazarvalverdeai``).
 """
 from __future__ import annotations
 
@@ -29,7 +31,7 @@ DECISIONS = ("block_and_open_case", "confirm", "ask", "answer_status", "connect_
 YES_NO = ("yes", "no")
 FIELDS = ("intent", "decision", "handoff", "case_open")
 ALLOWED = {"intent": INTENTS + (NO_INTENT,), "decision": DECISIONS, "handoff": YES_NO, "case_open": YES_NO}
-COLUMNS = ["id", "language", "type", "messages", "state", "intent", "decision", "handoff", "case_open", "labeler", "note"]
+COLUMNS = ["id", "language", "messages", "state", "intent", "decision", "handoff", "case_open", "labeler", "note"]
 
 
 def _read(path: Path) -> list[dict]:
@@ -63,7 +65,7 @@ def _messages(case: dict) -> str:
 def export_rows() -> list[dict]:
     rows = []
     for case in _read(DEV):
-        rows.append({"id": case["id"], "language": case["language"], "type": case["type"],
+        rows.append({"id": case["id"], "language": case["language"],
                      "messages": _messages(case), "state": _state_summary(case),
                      "intent": "", "decision": "", "handoff": "", "case_open": "", "labeler": "", "note": ""})
     return rows
@@ -131,6 +133,7 @@ def agreement(sheet: Path = SHEET, report: Path | None = REPORT) -> dict:
     second = read_sheet(sheet)
     first = first_labels()
     ids = sorted(first)
+    types = {c["id"]: c["type"] for c in _read(DEV)}
     out = {"sample": "dev", "n_cases": len(ids), "labelers": sorted({v["labeler"] for v in second.values()}),
            "fields": {}}
     for f in FIELDS:
@@ -139,7 +142,8 @@ def agreement(sheet: Path = SHEET, report: Path | None = REPORT) -> dict:
         agree = sum(x == y for x, y in zip(a, b))
         out["fields"][f] = {"n": len(ids), "agreements": agree, "percent_agreement": round(100 * agree / len(ids), 1),
                             "kappa": round(cohen_kappa(a, b), 3),
-                            "disagreements": [i for i, x, y in zip(ids, a, b) if x != y]}
+                            "disagreements": [i for i, x, y in zip(ids, a, b) if x != y],
+                            "disagreement_types": {i: types[i] for i, x, y in zip(ids, a, b) if x != y}}
     if report is not None:
         report.parent.mkdir(parents=True, exist_ok=True)
         report.write_text(json.dumps(out, indent=2) + "\n", encoding="utf-8")
