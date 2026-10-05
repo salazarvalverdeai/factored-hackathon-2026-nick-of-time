@@ -210,7 +210,10 @@ Implementation goes in `feat/10-…` branches once this spec is approved. T1–T
 - [x] T2 — comparison and metrics of §4.1 with `nick_of_time.audit` · covers AC-02, AC-08, AC-10 · done when: unit tests
       on recorded `FinalState` fixtures give the expected numerators and denominators
 - [x] T3 — `summary.csv`, `meta.json`, `report` command and `evaluation_summary.json` · covers AC-05, AC-11
-- [x] T4 — held-out guard (seal and hash) · covers AC-07
+- [x] T4 — held-out guard (seal and hash) · covers AC-07. The one-time runs (this held-out, the spec 15 test split,
+      the spec 17 test window) also share `eval/harness/seal_guard.py`: tag `protocol-v1` on the sealing commit and
+      an ancestor of HEAD, the protocol unchanged since the tag, the sealed inputs clean and equal to their sealed
+      hashes, and a run-once start marker under `eval/results/` (`tests/test_spec10_seal_guard.py`)
 - [x] T5 — `labels.py` and the blocks-against-label report · covers AC-04 (tested on a fixture; not run on the real labels yet: they need the dataset AWS profile)
 - [x] T6 — `make eval`; dev set on S0 and S1 against the real graph (after spec 04) · covers AC-03. `make eval-local`
       serves the real stack on one machine (`eval/local`: the store-backed api with the §6.8 hooks added locally, the
