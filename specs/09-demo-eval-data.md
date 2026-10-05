@@ -239,6 +239,8 @@ holds by construction. Model-generated sentences are `[simulated]`.
 - **Q7 — paraphrase model.** **Decided by ADR 0025 (lead, 2026-10-05):** each split's generator writes its own seeds
   and paraphrases; results of a candidate of the same family as the generator of the split being scored are flagged
   (spec 11 §8), and the Llama and Gemma arms already fail the structured-output smoke test (F-013).
+- **Test review (ADR 0028, lead, 2026-10-05):** no person other than the classifier's developer could review the
+  test split before the seal, so it is decided by the fixed rules `rules-v1`; every test result says so.
 - Assumption: the agent-case messages are drafted with an AI assistant and reviewed line by line by their labeler;
   their `origin` stays `team-generated` and `eval/README.md` says so. The classifier sentences are written by the
   generator models of ADR 0025 (`origin` = the model id) and reviewed line by line before promotion. `[assumption]`
@@ -258,9 +260,10 @@ Implementation goes in `feat/09-…` branches once this spec is approved.
 - [x] T3 — `eval/derive_expected.py` + `eval/cases/plan/dev.jsonl` + `eval/cases/dev.jsonl` · covers AC-03, AC-09 · done when: 20 cases validate
 - [x] T4 — `eval/cases/plan/heldout.jsonl` + `eval/cases/heldout.jsonl` + `eval/heldout.sha256` · covers AC-03, AC-05, AC-07 · done when: 80 cases
       validate with the counts of §7.4
-- [ ] T5 — `eval/classifier/*.jsonl` from the generators of ADR 0025, reviewed line by line · covers AC-04, AC-10 ·
-      done when: `tests/test_spec11_protocol.py` runs its split checks instead of skipping them, and passes (drafts,
-      generator and review tools done, `tests/test_spec09_classifier_set.py`; review and promotion pending)
+- [x] T5 — `eval/classifier/*.jsonl` from the generators of ADR 0025, reviewed line by line · covers AC-04, AC-10 ·
+      done when: `tests/test_spec11_protocol.py` runs its split checks instead of skipping them, and passes (train
+      612 and validation 162 rows reviewed by the lead; test 258 rows decided by the fixed rules `rules-v1` of ADR
+      0028; promoted 2026-10-05, shares 59.3/15.7/25.0)
 - [ ] T6 — second labeling of 20 cases + agreement in `eval/README.md` · covers AC-06
 - [x] T7 — `tests/test_spec09_eval_data.py` citing AC-03, AC-05, AC-07, AC-08, AC-09 (done, offline, no gold needed); AC-10 comes with T5
 - [ ] M02 — review and seal `eval/PROTOCOL.md`, tag `protocol-v1` (manual, after T4 and T5)
