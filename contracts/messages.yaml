@@ -67,6 +67,11 @@ plan:
   confirm_ask:
     es: "¿Quieres que continúe con estos pasos?"
     pt: "Quer que eu continue com estes passos?"
+  declined:
+    # Decision D-039 (default, pending the lead): the customer declined in the confirm state (the confirm_no chip or a
+    # typed "no"). Nothing was opened or executed; one text covers both cases.
+    es: "Entendido, no hice ningún cambio. Si es otro cargo, cuéntame cuál es."
+    pt: "Tudo bem, não fiz nenhuma alteração. Se for outra cobrança, me conte qual é."
 
 connect:
   # AC-28 and node `connect`: register a call request; never refuse, never promise an outcome.
@@ -300,3 +305,15 @@ notify:
   send_delivered:
     es: "El comprobante figura como enviado a {channel}."
     pt: "O comprovante consta como enviado para {channel}."
+
+refuse:
+  # Supports AC-03: injection or another customer's data. Never says why in policy terms; offers only the customer's own account.
+  deny:
+    es: "No puedo ayudarte con eso. Si quieres, cuéntame qué cargo de tu cuenta no reconoces."
+    pt: "Não posso ajudar com isso. Se quiser, me conte qual cobrança da sua conta você não reconhece."
+
+clarify:
+  # Intent unclear: one question, no tool called yet.
+  ask_what:
+    es: "¿Qué cargo quieres reportar? Cuéntame el comercio, el monto y la fecha aproximada."
+    pt: "Qual cobrança você quer informar? Me conte o estabelecimento, o valor e a data aproximada."
