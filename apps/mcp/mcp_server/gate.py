@@ -209,7 +209,7 @@ class Gate:
             return self._deny(Deny(result.policy_id or DEFAULT_DENY, "G-POL-01", result.message, {}), session, trace_id,
                               tool)
         if isinstance(result, ToolError) and result.code == "NOT_FOUND" and result.policy_id:
-            # a refusal answered as not found (a cross-customer probe, D-052 pending): logged as a denial with its
+            # a refusal answered as not found (a cross-customer probe, D-052): logged as a denial with its
             # rule's guardrail, its policy id never shown; best-effort, since UNAVAILABLE here would be an oracle
             try:
                 self._deny(Deny(result.policy_id, self._guardrails.get(result.policy_id, "G-POL-01"), result.message,

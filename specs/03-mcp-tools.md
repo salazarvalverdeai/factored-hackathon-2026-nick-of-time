@@ -89,7 +89,7 @@ graph's run id). Kind: R read · W write · N notification.
 |---|---|---|
 | `get_customer_profile` | R | First name, language, country, `display_currency` (session preference, else the country's from `policies.yaml`: `amount_gate.by_country.<CC>.currency` until spec 02 FR-09 adds `display_currency` `[assumption]`), confirmed channels with masked addresses (`a···@domain`, Telegram `···` + last 4 `[assumption]`) from the store's `customer_channels` accessor (task 01g, PR #87; none listed until T8 wires it). A customer missing from gold or a country outside the policy answers `UNAVAILABLE`. |
 | `search_transaction` | R | Loads the session's customer; filters gold `transactions_enriched` to that customer's cards (`Tarjeta Débito`, `Tarjeta Crédito`), status `Approved`/`Pending`, `approx_date ± window_days` (default 7; if no date, the last 30 days) and `≤ clock.today(mode)`; in `live` also the customer's `demo_transactions` (AC-14). Optional filters: **amount** (±2%, compared in the transaction currency and in the customer's local currency through the policy rates MXN 18.0, ARS 350, COP 4,000), **merchant** (case- and accent-insensitive token match; null merchants still match on amount and date). Ranks by amount match, then date distance, then merchant similarity; returns ≤ 4 `Transaction` with `synthetic`, without `fraud_score` or `split` (D-026). Ties break on `transaction_id`; a null `amount_usd` is the amount for USD and amount ÷ the policy rate (2 decimals) for ARS/COP `[assumption]`; `amount_usd` is internal (matching only) and never rendered to the customer. Until `clock.today(mode, country)` (spec 02 T7, PR #67) and AC-14 land, replay uses `DEMO_TODAY` 2026-06-01 and a `live` session answers `UNAVAILABLE` `[assumption]`. |
-| `get_fraud_score` | R | Provider `dataset` (ADR 0006): `transactions.fraud_score` for a transaction of the session's customer, `source: "dataset"`, `version: "gold-v1"`; for a synthetic transaction, its generated score with `source: "synthetic"`. Another customer's transaction answers the same `NOT_FOUND` as an unknown id (no existence oracle; D-052, pending with the lead); the probe is still written to `policy_denials` with `POL-CROSS-CUSTOMER` (`scope.cross_customer_request: deny_and_log`), its rule's guardrail (G-SES-02) and best-effort (a failed write still answers `NOT_FOUND`), its policy id never shown. |
+| `get_fraud_score` | R | Provider `dataset` (ADR 0006): `transactions.fraud_score` for a transaction of the session's customer, `source: "dataset"`, `version: "gold-v1"`; for a synthetic transaction, its generated score with `source: "synthetic"`. Another customer's transaction answers the same `NOT_FOUND` as an unknown id (no existence oracle; D-052, confirmed by the lead 2026-10-05; contract wording in PR #107); the probe is still written to `policy_denials` with `POL-CROSS-CUSTOMER` (`scope.cross_customer_request: deny_and_log`), its rule's guardrail (G-SES-02) and best-effort (a failed write still answers `NOT_FOUND`), its policy id never shown. |
 | `compute_deadline` | R | Country from the customer (`México`→MX, `Argentina`→AR, `Colombia`→CO), product from the card type, opened on `clock.today(mode, country)`, `abroad` when `transaction_country` ≠ customer country; delegates to `clock.deadline()` (spec 02); returns `source_url` and `verified_on`. |
 | `open_case` | W | Duplicate check first (AC-15); recomputes the zone from the score (mismatch → AC-09); idempotent on `idempotency_key` (prefixed with `run_id`); writes `cases` (with `mode`, `related_case_id` when given) and `case_events(case_opened)`; returns `case_id`, deadlines and `duplicate_of`. |
 | `block_card` | W | Requires an open case for that product in the session and run; asks `engine.check("block_card", zone, supervised_mode=…, amount=…, currency=…, country=…)` (spec 02 §6); on allow, writes `product_overrides(Blocked)` and `case_events(card_blocked)`, returns `state: "requested"` (not yet verified). |
@@ -129,7 +129,7 @@ LLM (G-IN-01). Every call is audited as one JSON line on stdout (D-040) with `tr
 `mcp-` id), actor `agent` and hashes of the input and the session id, never either one; every `DENY` is a
 `policy_denials` row (AC-12); a handler's `DENY` cites G-POL-01 until T4 maps its rule's guardrail. A handler's
 `NOT_FOUND` that carries a policy id (a cross-customer probe) is written as a denial too, best-effort and with the
-rule's own guardrail, and answered without it (D-052, pending with the lead).
+rule's own guardrail, and answered without it (D-052, confirmed 2026-10-05).
 The analysts' actions never appear in this server.
 
 **Verification, call requests and score sources** `[assumption]` (defaults pending the lead):
@@ -180,8 +180,8 @@ Implementation goes in one `feat/03-*` branch per task (T1: `feat/03-mcp-server`
       `search_transaction` ranking · AC-01, 07, 08, 11, 14 · `apps/mcp/mcp_server/{gold,reads}.py`,
       `tests/test_spec03_reads.py`. AC-14 (`demo_transactions` in `live`) is P1 and stays open
 - [ ] T3 — `get_customer_profile`, `get_fraud_score`, `compute_deadline`, `convert_amount` · AC-11, AC-20. Done
-      (task 03b part 1): profile, score and convert in `reads.py`. Open: `compute_deadline`, which needs
-      `clock.deadline()` from PR #67
+      (task 03b part 1, PR #106): profile, score and convert in `reads.py`, tests in `tests/test_spec03_reads.py`.
+      Open: `compute_deadline`, which lands after PR #67 (`clock.deadline()`) merges
 - [ ] T4 — `open_case` (duplicates, related case), `block_card` with idempotency, engine re-check and denials · AC-03,
       04, 09, 10, 12, 15
 - [ ] T5 — read tools (`get_product_status`, `list_my_cards`, `get_case`, `list_my_cases`) + latency benchmark on
