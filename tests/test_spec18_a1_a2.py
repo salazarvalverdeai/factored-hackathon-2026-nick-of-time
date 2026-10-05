@@ -1,12 +1,11 @@
 """Spec 18 AC-01 — checks A1 (decision) and A2 (deadline) re-derive with the engine and the clock and fail on drift.
 
-`decision_deadline.json` holds a recorded decision with its inputs and the stored deadlines of three countries (MX
-with its charge date, AR with a holiday skipped, ZZ unknown), all produced by the code under test at policies v2.
+`decision_deadline.json` holds a recorded decision with its inputs, and the case rows exactly as the store writes
+them (`NewCase.model_dump`) with their transactions for MX (charge date), AR (holiday skipped) and ZZ (unknown).
 """
 from __future__ import annotations
 
 import copy
-import datetime as dt
 import json
 from pathlib import Path
 
@@ -18,11 +17,9 @@ FX = json.loads((Path(__file__).parent / "fixtures" / "audit" / "decision_deadli
 DEC, DL = FX["decision"], FX["deadlines"]
 
 
-def a2(country: str, **stored_edits):
-    case = copy.deepcopy(DL[country])
-    case["stored"].update(stored_edits)
-    charged = dt.datetime.fromisoformat(case["charged_at"]) if "charged_at" in case else None
-    return check_deadline(case["stored"], charged_at=charged)
+def a2(country: str, **case_edits):
+    row = copy.deepcopy(DL[country])
+    return check_deadline({**row["case"], **case_edits}, row["transaction"])
 
 
 def test_ac01_a1_passes_on_the_recorded_decision():
@@ -47,19 +44,22 @@ def test_ac01_a1_fails_when_the_inputs_change_the_outcome():
     assert f.status == "finding" and "zone" in f.observed
 
 
-def test_ac01_a1_fails_closed_on_inputs_the_engine_rejects():
+def test_ac01_a1_fails_closed_on_inputs_or_a_decision_the_models_reject():
     assert check_decision({**DEC["inputs"], "intent": "invented"}, DEC["recorded"]).status == "finding"
+    assert check_decision(DEC["inputs"], {"decision": "nonsense"}).status == "finding"
 
 
 @pytest.mark.parametrize("country", ["MX", "AR", "ZZ"])
-def test_ac01_a2_passes_on_the_stored_deadlines(country):
+def test_ac01_a2_passes_on_the_deadlines_a_case_row_stores(country):
     f = a2(country)
     assert (f.check_id, f.severity, f.status, f.observed) == ("A2", "critical", "passed", {})
 
 
 @pytest.mark.parametrize("field,value", [("credit_deadline", "2026-06-04"), ("ruling_deadline", "2026-06-17"),
-                                         ("policies_version", 1), ("holidays_skipped", [])])
-def test_ac01_a2_fails_when_any_stored_deadline_differs(field, value):
+                                         ("deadline_source", "Another rule"),
+                                         ("deadline_source_url", "https://example.com/"),
+                                         ("deadline_verified_on", "2026-01-01")])
+def test_ac01_a2_fails_when_any_stored_field_differs(field, value):
     f = a2("AR", **{field: value})
     assert f.status == "finding" and list(f.observed) == [field]
 
@@ -70,14 +70,17 @@ def test_ac01_a2_fails_when_the_mx_credit_date_is_moved():
 
 
 def test_ac01_a2_fails_on_an_invented_date_for_an_unknown_country():
-    f = a2("ZZ", ruling_deadline="2026-06-16", rule_ids=[])
-    assert f.status == "finding" and {"ruling_deadline", "rule_ids"} <= set(f.observed)
+    f = a2("ZZ", ruling_deadline="2026-06-16", deadline_source="Invented",
+           deadline_source_url="https://example.com/", deadline_verified_on="2026-10-04")
+    assert f.status == "finding" and "ruling_deadline" in f.observed
 
 
-def test_ac01_a2_unknown_country_dropping_the_unknown_marker_is_a_finding():
-    assert a2("ZZ", rule_ids=[]).status == "finding"
+def test_ac01_a2_mx_charge_outside_the_window_changes_the_expected_deadline():
+    row = copy.deepcopy(DL["MX"])
+    row["transaction"]["transaction_date"] = "2026-01-01"
+    assert check_deadline(row["case"], row["transaction"]).status == "finding"
 
 
-def test_ac01_a2_mx_without_the_charge_date_is_a_finding_not_a_crash():
-    f = check_deadline(DL["MX"]["stored"])   # the charge date is a recorded input; without it the clock cannot match
-    assert f.status == "finding" and "charged_at" in f.observed["inputs"]
+def test_ac01_a2_fails_closed_on_a_row_the_store_model_rejects():
+    row = DL["AR"]
+    assert check_deadline({**row["case"], "deadline_source_url": "ftp://x"}, row["transaction"]).status == "finding"

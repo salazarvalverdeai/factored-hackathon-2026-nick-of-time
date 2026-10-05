@@ -6,14 +6,16 @@ nothing reads the system clock (ADR 0020).
 """
 from __future__ import annotations
 
-import datetime as dt
 from typing import Any, Mapping, Optional, Union
 
 from pydantic import ValidationError
 
+from contracts.tools import Transaction
+
 from nick_of_time.audit.checks import Finding, _finding
 from nick_of_time.policy import DecisionInput, Policies, PolicyDecision, PolicyEngine
-from nick_of_time.policy.clock import Deadline, deadline
+from nick_of_time.policy.clock import deadline
+from nick_of_time.store import NewCase
 
 
 def _diff(expected: Mapping[str, Any], observed: Mapping[str, Any]) -> dict[str, dict[str, Any]]:
@@ -25,33 +27,47 @@ def check_decision(inputs: Union[DecisionInput, Mapping[str, Any]], recorded: Un
     """A1: `decide()` on the recorded inputs gives the recorded decision, with the same `policies_version`.
 
     Every field of the decision is compared (rule ids, zone, modes, allowed actions, queue status), so a recorded
-    decision that is merely similar is a finding. Inputs the engine rejects are a finding too: a run cannot record
-    a decision from inputs the engine would not accept (fail closed).
+    decision that is merely similar is a finding. Inputs or a decision the models reject are a finding too, never an
+    exception (fail closed). Audits against the policies.yaml in force now (spec 18 §6).
     """
     expected = "decide(recorded inputs) equals the recorded decision and policies_version"
     engine = engine or PolicyEngine.load()
-    observed = PolicyDecision.model_validate(recorded).model_dump(mode="json")
     try:
+        observed = PolicyDecision.model_validate(recorded).model_dump(mode="json")
         got = engine.decide(DecisionInput.model_validate(inputs)).model_dump(mode="json")
     except ValidationError as e:
-        return _finding("A1", "critical", {"inputs": f"rejected by the engine: {e.error_count()} error(s)"}, expected)
+        return _finding("A1", "critical", {"inputs": f"rejected: {e.error_count()} error(s)"}, expected)
     return _finding("A1", "critical", _diff(got, observed), expected)
 
 
-def check_deadline(stored: Union[Deadline, Mapping[str, Any]], *, abroad: bool = False,
-                   charged_at: Union[dt.date, dt.datetime, None] = None, noticed_at: Optional[dt.datetime] = None,
+def check_deadline(case: Union[NewCase, Mapping[str, Any]], transaction: Union[Transaction, Mapping[str, Any]], *,
                    policies: Optional[Policies] = None) -> Finding:
-    """A2: `clock.deadline()` on the case's country, product and opening date equals every stored deadline field.
+    """A2: `clock.deadline()` on the case's country, product and opening date equals the deadlines the case stores.
 
-    `abroad`, `charged_at` and `noticed_at` are the case's recorded inputs to the clock (MX needs the charge date).
-    A country without a verified entry must be stored as POL-CLOCK-UNKNOWN with no dates: an invented date differs
-    from the recomputed null and is a finding; the recorded unknown passes.
+    Compares only what a case row holds: both dates, `deadline_source` (vs the entry's `source`), `deadline_source_url`
+    and `deadline_verified_on`. `charged_at` is the transaction's `transaction_date`. [assumption] `abroad` is False
+    (no field records it) and `noticed_at` is not passed (a case holds a date, not a time): an entry with an hours
+    window cannot be re-derived and is a finding. A country with no verified entry (POL-CLOCK-UNKNOWN) must store
+    both dates and the provenance as null: an invented date is a finding. Audits against the policies.yaml in force now.
     """
-    stored_d = Deadline.model_validate(stored)
+    expected = "clock.deadline() on the case's country, product and opening date equals the stored deadlines"
     try:
-        got = deadline(stored_d.country, stored_d.product, stored_d.opened_on, abroad=abroad, charged_at=charged_at,
-                       noticed_at=noticed_at, policies=policies)
-    except ValueError as e:   # [assumption] a record that lacks the clock's input (MX charge date) is a finding, not a crash
-        return _finding("A2", "critical", {"inputs": str(e)}, "a recorded case the clock can re-derive")
-    return _finding("A2", "critical", _diff(got.model_dump(mode="json"), stored_d.model_dump(mode="json")),
-                    "clock.deadline() on the case's country, product and opening date equals the stored deadlines")
+        c = NewCase.model_validate({k: v for k, v in dict(case if isinstance(case, Mapping) else case.model_dump())
+                                    .items() if k in NewCase.model_fields})
+        tx = Transaction.model_validate(transaction) if isinstance(transaction, Mapping) else transaction
+    except ValidationError as e:
+        return _finding("A2", "critical", {"recorded": f"rejected: {e.error_count()} error(s)"}, expected)
+    try:
+        got = deadline(c.country, c.product_type, c.opened_on, charged_at=tx.transaction_date, policies=policies)
+    except ValueError as e:   # [assumption] a record that lacks a clock input is a finding, not a crash
+        return _finding("A2", "critical", {"inputs": str(e)}, expected)
+    want = {"credit_deadline": got.credit_deadline, "ruling_deadline": got.ruling_deadline,
+            "deadline_source": got.deadline_source, "deadline_source_url": got.source_url,
+            "deadline_verified_on": got.verified_on}
+    have = {k: getattr(c, k) for k in want}
+    return _finding("A2", "critical", _diff({k: _j(v) for k, v in want.items()}, {k: _j(v) for k, v in have.items()}),
+                    expected)
+
+
+def _j(v: Any) -> Any:
+    return v.isoformat() if hasattr(v, "isoformat") else v
