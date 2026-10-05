@@ -12,7 +12,7 @@ from types import MappingProxyType
 from typing import Any, Literal, Optional
 
 import yaml
-from pydantic import BaseModel, ConfigDict, Field, field_serializer, model_validator
+from pydantic import BaseModel, ConfigDict, Field, StrictInt, field_serializer, model_validator
 
 from nick_of_time.contracts import CONTRACTS_DIR, Zone
 
@@ -107,6 +107,10 @@ class Handoff(_Strict):
     never_include_raw_transcript: Literal[True]
 
 
+class Contact(_Strict):                   # D-008: request_call's expected_contact_by; null promises no date
+    callback_within_business_days: Optional[StrictInt] = Field(None, ge=1)
+
+
 class Policies(_Strict):
     version: int = Field(ge=1)
     default: Literal["deny"]               # nothing runs unless a rule allows it (AC-05)
@@ -121,6 +125,7 @@ class Policies(_Strict):
     actors: dict[str, Any]
     clarify: Clarify
     handoff: Handoff
+    contact: Optional[Contact] = None
     regulatory_clock: dict[str, Any]
     reliability: dict[str, Any]
     security: dict[str, Any]
@@ -154,6 +159,12 @@ class Policies(_Strict):
             problems.append("open_case must be auto in every zone (POL-TICKET-ALWAYS)")
         if set(per_action.get("provisional_credit", {}).values()) != {"human_required"}:
             problems.append("provisional_credit must be human_required in every zone (AC-09)")
+        block = per_action.get("block_card", {})
+        if (block.get("medium"), block.get("human")) != ("human_required", "human_required") or \
+                block.get("high") in (None, "human_required"):
+            problems.append("block_card must be human_required in the medium and human zones and not in the high zone")
+        if set(per_action.get("unblock_card", {}).values()) != {"human_required"}:
+            problems.append("unblock_card must be human_required in every zone")
         if money != set(per_action) - {"open_case"}:
             problems.append("money_actions must be every action in per_action except open_case (AC-15)")
         tiers = self.amount_gate.tiers

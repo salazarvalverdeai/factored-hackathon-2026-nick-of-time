@@ -209,6 +209,20 @@
         "null"
       ]
     },
+    "score_source": {
+      "enum": [
+        "dataset",
+        "rules",
+        "model",
+        "llm",
+        "synthetic"
+      ],
+      "description": "GetFraudScoreOut.source; the console and the card show a synthetic score as [simulated]"
+    },
+    "score_version": {
+      "type": "string",
+      "description": "GetFraudScoreOut.version, e.g. gold-v1"
+    },
     "intent_confidence": {
       "type": "number"
     },

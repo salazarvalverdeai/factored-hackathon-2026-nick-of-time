@@ -212,17 +212,23 @@ fx.convert(amount=1250.0, from_currency="USD", to_currency="MXN") -> {amount, ra
   `zone_medium` and `supervised_mode` (also in `contracts/handoff.schema.json`), per-country `time_zone`,
   `display_currency` and `fx_reference`, the `reevaluation` section, and `version: 2`; validates
   `contact.callback_within_business_days` (D-008, task 02b). No threshold changes.
+- `contracts/handoff.schema.json` also gains the optional `score_source` (the `GetFraudScoreOut.source` values) and
+  `score_version` (D-033, default pending the lead), so `record_source_in_audit` reaches the analyst's card.
 - The loader (FR-01) also refuses a file that breaks a firm rule: `default` other than `deny`, `open_case` not `auto`
-  or `provisional_credit` not `human_required` in every zone, `close` not `human_only`, zone bands with gaps, tiers
-  that loosen as the amount grows, a rule citing an unknown guardrail, `llm` among the deciding sources, or a
-  `scoring.provider` or deciding source without a `scoring.providers` entry (the audit needs its version). The loaded
-  model is deeply frozen (read-only mappings, tuples), so no caller can loosen a rule at runtime; `model_dump()` and
-  `model_dump_json()` still return plain dicts and lists, and without defaults they give back the file.
+  or `provisional_credit` not `human_required` in every zone, `block_card` not `human_required` in the medium and
+  human zones or `human_required` in the high zone (the high zone blocks), `unblock_card` not `human_required` in every
+  zone, `close` not `human_only`, zone bands with gaps, tiers that loosen as the amount grows, a rule citing an unknown
+  guardrail, `llm` among the deciding sources, or a `scoring.provider` or deciding source without a `scoring.providers`
+  entry (the audit needs its version). It types the `contact` section (D-008, added by #50), so the file loads with
+  or without it. The loaded model is deeply frozen (read-only mappings, tuples), so no caller can loosen a rule at
+  runtime; `model_dump()` and `model_dump_json()` still return plain dicts and lists, and without defaults they give
+  back the file.
 - **`synthetic` decides (D-027, default pending the lead):** a live-mode synthetic transaction (ADR 0020) carries the
   score generated with it, `get_fraud_score` returns it with `source: "synthetic"` (spec 03 §6), and it places a zone
   like the dataset score. It never reaches `replay`, the evaluation or a pitch number (ADR 0020 rule 2), and the receipt,
-  the handoff card and the console label it `[simulated]` (constitution #8). `tools.py` v1.1 `GetFraudScoreOut.source`
-  must list `"synthetic"` (#59). Any other source still goes to zone human with `POL-SCORE-SOURCE`.
+  the handoff card (`score_source`, D-033) and the console label it `[simulated]` (constitution #8). `tools.py` v1.1
+  `GetFraudScoreOut.source` must list `"synthetic"` (#59). Any other source still goes to zone human with
+  `POL-SCORE-SOURCE`.
 - New data files: `packages/nick_of_time/policy/holidays/*_2026.yaml`.
 - No database access.
 

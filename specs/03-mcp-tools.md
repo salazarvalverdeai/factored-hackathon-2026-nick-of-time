@@ -103,6 +103,10 @@ graph's run id). Kind: R read · W write · N notification.
 | `send_case_summary` | N | AC-21; renders `messages.yaml receipt.*` with the case's verified facts, writes `notifications(trigger=on_request)` + `case_events(notification_sent)`, hands delivery to the api's sender (Telegram or Resend); returns `notification_id` and `state: "requested"`. |
 | `list_my_notifications` | R | AC-22. |
 
+`get_fraud_score` never returns `source: "synthetic"` in `replay`: synthetic transactions exist only in `live` (ADR 0020
+rule 2), and only a live synthetic score decides as `[simulated]` (spec 02 D-027; the handoff card carries it as
+`score_source`, D-033). A T3 test pins it.
+
 **Case lifecycle** (with `case_queue.transitions` of `policies.yaml`):
 
 | Situation | What happens | Who decides |

@@ -6,16 +6,16 @@ rules:                   # stable ids every decision cites (spec 02 §4.1, AC-12
   POL-SESSION:           {text: "session expired or unverified -> reauthenticate, before any other rule", guardrail: G-SES-01}
   POL-INJECTION:         {text: "input flagged by the injection detector (spec 11) -> deny", guardrail: G-IN-01}
   POL-CROSS-CUSTOMER:    {text: "request targets another customer's data -> deny", guardrail: G-SES-02}
-  POL-HUMAN-REQUEST:     {text: "intent human_request -> connect_person with a call request; never refused. If it also reports a charge on one card transaction the customer did not reject, the call goes on that transaction's case, opened as the zone decides: the high zone blocks unless the block needs a person; otherwise the case goes to review with the zone's handoff reason"}
-  POL-STATUS:            {text: "intent status_inquiry -> answer_status; read-only, no case opened"}
-  POL-OUT-OF-SCOPE:      {text: "intent out_of_scope, or the identified transaction's product is not a card -> deny (polite abstention)", guardrail: G-IN-04}
-  POL-CLARIFY:           {text: "intent confidence below clarify.intent_confidence_min, or not exactly one candidate -> ask", guardrail: G-IN-03}
+  POL-HUMAN-REQUEST:     {text: "intent human_request -> connect_person with a call request; never refused. If it also reports a charge on one card transaction the customer did not reject, and the intent confidence is at least clarify.intent_confidence_min, the call goes on that transaction's case, opened as the zone decides: the high zone blocks unless the block needs a person; otherwise the case goes to review with the zone's handoff reason. Below that confidence, only the call"}
+  POL-STATUS:            {text: "intent status_inquiry -> answer_status; read-only, no case opened. If it also reports a charge and the customer has no active case, the turn goes on like a dispute (rules 4-9)"}
+  POL-OUT-OF-SCOPE:      {text: "intent out_of_scope with no reported charge, or the identified transaction's product is not a card -> deny (polite abstention)", guardrail: G-IN-04}
+  POL-CLARIFY:           {text: "intent confidence below clarify.intent_confidence_min, not exactly one candidate, or an out_of_scope intent that reports a charge -> ask", guardrail: G-IN-03}
   POL-CLARIFY-EXHAUSTED: {text: "still unclear after clarify.max_clarification_turns -> handoff (clarification_exhausted)", guardrail: G-IN-03}
   POL-SCORE-NULL:        {text: "no fraud score -> zone human; the case is still opened"}
   POL-SCORE-LLM:         {text: "score from the llm provider -> zone human; an LLM score never decides a block"}
   POL-SCORE-SOURCE:      {text: "score from a source not in scoring.deciding_sources -> zone human"}
-  POL-ZONE-HIGH:         {text: "score in zones.high -> block_and_open_case, or handoff when the block needs a person"}
-  POL-ZONE-MEDIUM:       {text: "score in zones.medium -> confirm with the customer, then open the case and hand off proposing approve_block"}
+  POL-ZONE-HIGH:         {text: "score in zones.high -> block_and_open_case, or a handoff (connect_person on a call request) when the block needs a person"}
+  POL-ZONE-MEDIUM:       {text: "score in zones.medium -> confirm with the customer, then open the case and hand off proposing approve_block; a call request opens the case without asking; never a block"}
   POL-ZONE-HUMAN:        {text: "score in zones.human -> open the case and hand off (zone_human); no block"}
   POL-TICKET-ALWAYS:     {text: "open_case runs with mode auto in every zone; registering is not a money decision"}
   POL-AMOUNT-GATE:       {text: "the amount tier made a money action's approval mode stricter; it never changes a deadline", guardrail: G-TOOL-02}
@@ -44,9 +44,9 @@ scoring:                                 # where the fraud_score read by the zon
     model:   {note: "plan B: GBM/LR on transactions features against is_fraud, temporal held-out; only if Slack says the score is not available in real time", version: "model-v0"}
     llm:     {note: "demo illustration only; NEVER decides a block (zone forced to human when it is the source)", version: "llm-v0"}
     synthetic: {note: "live mode only: the score generated with a labeled synthetic transaction in demo_transactions (ADR 0020); never in replay, eval or a pitch number; shown as [simulated] on the receipt, handoff and console", version: "synthetic-v0"}
-  deciding_sources: [dataset, rules, model, synthetic]   # only these place a score in a zone; any other source → zone human (spec 02 rule 6)
   record_source_in_audit: true           # source and version go to the audit log and the handoff card
   null_score_zone: human
+  deciding_sources: [dataset, rules, model, synthetic]   # only these place a score in a zone; any other source → zone human (spec 02 rule 6)
 
 zones:                                   # on the score returned by scoring.provider (0–100). Thresholds: EDA Sep 26 [data]
   high:   {score_min: 50, score_max: 100, note: "precision 100%, recall 48.8% on frauds with a score (38.7% of all); property of the synthetic generator"}
