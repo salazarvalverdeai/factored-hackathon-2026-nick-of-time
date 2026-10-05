@@ -186,7 +186,8 @@ generator model id), `source` (`written` for a generator's seed, `paraphrase`), 
 versioned prompt), `persona` (formality, country, mood, typos, length, code switch), `review_status`.
 
 - **Drafts** add `checks` (the generator's hints for the reviewer: a planned slot or card wording missing, an
-  unplanned amount, date, merchant or card type, language or English drift, duplicates) and have
+  unplanned amount, date, merchant or card type, language or English drift, and the deterministic text hints `same_as_seed`, `duplicate`, `near_duplicate`,
+  `language_leak`, `too_short`, `injection_without_marker`, `cross_split_duplicate`; a hint is not a decision) and have
   `review_status: pending`.
 - **Promoted rows** drop `checks` and carry `review_status` `kept` or `fixed`, `reviewer` (GitHub handle) and, on
   fixed rows only, `original` (the draft values the reviewer replaced). Dropped rows are not written.
