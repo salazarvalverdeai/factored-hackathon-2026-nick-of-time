@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 290" width="720" height="290" font-family='system-ui, -apple-system, "Segoe UI", sans-serif' role="img" aria-label="Where the 4,316 labeled frauds fall in the three zones">
+<rect x="0.5" y="0.5" width="719" height="289" rx="8" fill="#fcfcfb" stroke="#e1e0d9"/>
+<text x="32.0" y="36.0" font-size="16" fill="#0b0b0b" text-anchor="start" font-weight="600">Where the 4,316 labeled frauds fall in the three zones</text>
+<text x="32.0" y="56.0" font-size="12" fill="#52514e" text-anchor="start" font-weight="normal">Share of all transactions labeled as fraud, by the score the bank gave them</text>
+<rect x="32.0" y="84" width="251.8" height="24" rx="2" fill="#184f95"/>
+<text x="157.9" y="100.0" font-size="12" fill="#ffffff" text-anchor="middle" font-weight="600">38.7%</text>
+<rect x="285.8" y="84" width="104.9" height="24" rx="2" fill="#2a78d6"/>
+<text x="338.3" y="100.0" font-size="12" fill="#ffffff" text-anchor="middle" font-weight="600">16.3%</text>
+<rect x="392.7" y="84" width="157.9" height="24" rx="2" fill="#86b6ef"/>
+<text x="471.6" y="100.0" font-size="12" fill="#0b0b0b" text-anchor="middle" font-weight="600">24.4%</text>
+<rect x="552.6" y="84" width="135.4" height="24" rx="2" fill="#c3c2b7"/>
+<text x="620.3" y="100.0" font-size="12" fill="#0b0b0b" text-anchor="middle" font-weight="600">20.6%</text>
+<text x="50.0" y="142.0" font-size="11" fill="#898781" text-anchor="start" font-weight="normal">Zone (contracts/policies.yaml)</text>
+<text x="236.0" y="142.0" font-size="11" fill="#898781" text-anchor="start" font-weight="normal">What the system does</text>
+<text x="604.0" y="142.0" font-size="11" fill="#898781" text-anchor="end" font-weight="normal">Frauds</text>
+<text x="688.0" y="142.0" font-size="11" fill="#898781" text-anchor="end" font-weight="normal">Share</text>
+<line x1="32" y1="150" x2="688" y2="150" stroke="#e1e0d9"/>
+<rect x="32" y="163" width="10" height="10" rx="2" fill="#184f95"/>
+<text x="50.0" y="172.0" font-size="12" fill="#0b0b0b" text-anchor="start" font-weight="normal">High zone · score ≥ 50</text>
+<text x="236.0" y="172.0" font-size="12" fill="#52514e" text-anchor="start" font-weight="normal">block the card, verify, open the case</text>
+<text x="604.0" y="172.0" font-size="12" fill="#0b0b0b" text-anchor="end" font-weight="normal">1,670</text>
+<text x="688.0" y="172.0" font-size="12" fill="#0b0b0b" text-anchor="end" font-weight="normal">38.7%</text>
+<rect x="32" y="187" width="10" height="10" rx="2" fill="#2a78d6"/>
+<text x="50.0" y="196.0" font-size="12" fill="#0b0b0b" text-anchor="start" font-weight="normal">Medium zone · score 30–49</text>
+<text x="236.0" y="196.0" font-size="12" fill="#52514e" text-anchor="start" font-weight="normal">customer confirms; analyst approves the block</text>
+<text x="604.0" y="196.0" font-size="12" fill="#0b0b0b" text-anchor="end" font-weight="normal">703</text>
+<text x="688.0" y="196.0" font-size="12" fill="#0b0b0b" text-anchor="end" font-weight="normal">16.3%</text>
+<rect x="32" y="211" width="10" height="10" rx="2" fill="#86b6ef"/>
+<text x="50.0" y="220.0" font-size="12" fill="#0b0b0b" text-anchor="start" font-weight="normal">Human zone · score &lt; 30</text>
+<text x="236.0" y="220.0" font-size="12" fill="#52514e" text-anchor="start" font-weight="normal">open the case and hand off to an analyst</text>
+<text x="604.0" y="220.0" font-size="12" fill="#0b0b0b" text-anchor="end" font-weight="normal">1,052</text>
+<text x="688.0" y="220.0" font-size="12" fill="#0b0b0b" text-anchor="end" font-weight="normal">24.4%</text>
+<rect x="32" y="235" width="10" height="10" rx="2" fill="#c3c2b7"/>
+<text x="50.0" y="244.0" font-size="12" fill="#0b0b0b" text-anchor="start" font-weight="normal">Human zone · no score</text>
+<text x="236.0" y="244.0" font-size="12" fill="#52514e" text-anchor="start" font-weight="normal">open the case and hand off to an analyst</text>
+<text x="604.0" y="244.0" font-size="12" fill="#0b0b0b" text-anchor="end" font-weight="normal">891</text>
+<text x="688.0" y="244.0" font-size="12" fill="#0b0b0b" text-anchor="end" font-weight="normal">20.6%</text>
+<text x="32.0" y="274.0" font-size="11" fill="#898781" text-anchor="start" font-weight="normal">[data] p08 · p07</text>
+</svg>

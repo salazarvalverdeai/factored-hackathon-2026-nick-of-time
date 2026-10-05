@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 404" width="720" height="404" font-family='system-ui, -apple-system, "Segoe UI", sans-serif' role="img" aria-label="At a score of 50 or more every flagged transaction was fraud">
+<rect x="0.5" y="0.5" width="719" height="403" rx="8" fill="#fcfcfb" stroke="#e1e0d9"/>
+<text x="32.0" y="36.0" font-size="16" fill="#0b0b0b" text-anchor="start" font-weight="600">At a score of 50 or more every flagged transaction was fraud</text>
+<text x="32.0" y="56.0" font-size="12" fill="#52514e" text-anchor="start" font-weight="normal">Historical precision and recall of the bank&#x27;s fraud_score, by threshold</text>
+<line x1="68" y1="80" x2="88" y2="80" stroke="#2a78d6" stroke-width="2"/>
+<text x="94.0" y="84.0" font-size="12" fill="#52514e" text-anchor="start" font-weight="normal">Precision: flagged transactions that are fraud</text>
+<line x1="348" y1="80" x2="368" y2="80" stroke="#eb6834" stroke-width="2"/>
+<text x="374.0" y="84.0" font-size="12" fill="#52514e" text-anchor="start" font-weight="normal">Recall: frauds with a score that are flagged</text>
+<line x1="64" y1="332.0" x2="600" y2="332.0" stroke="#e1e0d9"/>
+<text x="56.0" y="336.0" font-size="11" fill="#898781" text-anchor="end" font-weight="normal">0%</text>
+<line x1="64" y1="277.0" x2="600" y2="277.0" stroke="#e1e0d9"/>
+<text x="56.0" y="281.0" font-size="11" fill="#898781" text-anchor="end" font-weight="normal">25%</text>
+<line x1="64" y1="222.0" x2="600" y2="222.0" stroke="#e1e0d9"/>
+<text x="56.0" y="226.0" font-size="11" fill="#898781" text-anchor="end" font-weight="normal">50%</text>
+<line x1="64" y1="167.0" x2="600" y2="167.0" stroke="#e1e0d9"/>
+<text x="56.0" y="171.0" font-size="11" fill="#898781" text-anchor="end" font-weight="normal">75%</text>
+<line x1="64" y1="112.0" x2="600" y2="112.0" stroke="#e1e0d9"/>
+<text x="56.0" y="116.0" font-size="11" fill="#898781" text-anchor="end" font-weight="normal">100%</text>
+<line x1="135.5" y1="112" x2="135.5" y2="332" stroke="#c3c2b7"/>
+<line x1="278.4" y1="112" x2="278.4" y2="332" stroke="#c3c2b7"/>
+<text x="99.7" y="324.0" font-size="11" fill="#898781" text-anchor="middle" font-weight="normal">human</text>
+<text x="206.9" y="324.0" font-size="11" fill="#898781" text-anchor="middle" font-weight="normal">medium zone</text>
+<text x="439.2" y="324.0" font-size="11" fill="#898781" text-anchor="middle" font-weight="normal">high zone</text>
+<line x1="64" y1="332" x2="600" y2="332" stroke="#c3c2b7"/>
+<text x="135.5" y="348.0" font-size="11" fill="#898781" text-anchor="middle" font-weight="normal">30</text>
+<text x="278.4" y="348.0" font-size="11" fill="#898781" text-anchor="middle" font-weight="normal">50</text>
+<text x="349.9" y="348.0" font-size="11" fill="#898781" text-anchor="middle" font-weight="normal">60</text>
+<text x="421.3" y="348.0" font-size="11" fill="#898781" text-anchor="middle" font-weight="normal">70</text>
+<text x="492.8" y="348.0" font-size="11" fill="#898781" text-anchor="middle" font-weight="normal">80</text>
+<text x="564.3" y="348.0" font-size="11" fill="#898781" text-anchor="middle" font-weight="normal">90</text>
+<text x="600.0" y="348.0" font-size="11" fill="#898781" text-anchor="middle" font-weight="normal">95</text>
+<text x="332.0" y="368.0" font-size="11" fill="#898781" text-anchor="middle" font-weight="normal">fraud_score threshold (flag transactions at or above)</text>
+<polyline points="135.5,156.9 278.4,112.0 349.9,112.0 421.3,112.0 492.8,112.0 564.3,112.0 600.0,112.0" fill="none" stroke="#2a78d6" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+<circle cx="135.5" cy="156.9" r="4" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"/>
+<circle cx="278.4" cy="112.0" r="4" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"/>
+<circle cx="349.9" cy="112.0" r="4" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"/>
+<circle cx="421.3" cy="112.0" r="4" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"/>
+<circle cx="492.8" cy="112.0" r="4" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"/>
+<circle cx="564.3" cy="112.0" r="4" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"/>
+<circle cx="600.0" cy="112.0" r="4" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"/>
+<text x="610.0" y="116.0" font-size="12" fill="#0b0b0b" text-anchor="start" font-weight="normal">Precision</text>
+<polyline points="135.5,179.6 278.4,224.7 349.9,245.7 421.3,267.8 492.8,288.8 564.3,310.2 600.0,320.6" fill="none" stroke="#eb6834" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+<circle cx="135.5" cy="179.6" r="4" fill="#eb6834" stroke="#fcfcfb" stroke-width="2"/>
+<circle cx="278.4" cy="224.7" r="4" fill="#eb6834" stroke="#fcfcfb" stroke-width="2"/>
+<circle cx="349.9" cy="245.7" r="4" fill="#eb6834" stroke="#fcfcfb" stroke-width="2"/>
+<circle cx="421.3" cy="267.8" r="4" fill="#eb6834" stroke="#fcfcfb" stroke-width="2"/>
+<circle cx="492.8" cy="288.8" r="4" fill="#eb6834" stroke="#fcfcfb" stroke-width="2"/>
+<circle cx="564.3" cy="310.2" r="4" fill="#eb6834" stroke="#fcfcfb" stroke-width="2"/>
+<circle cx="600.0" cy="320.6" r="4" fill="#eb6834" stroke="#fcfcfb" stroke-width="2"/>
+<text x="610.0" y="324.6" font-size="12" fill="#0b0b0b" text-anchor="start" font-weight="normal">Recall</text>
+<text x="125.5" y="160.9" font-size="12" fill="#0b0b0b" text-anchor="end" font-weight="normal">79.6%</text>
+<text x="125.5" y="183.6" font-size="12" fill="#0b0b0b" text-anchor="end" font-weight="normal">69.3%</text>
+<text x="278.4" y="102.0" font-size="12" fill="#0b0b0b" text-anchor="middle" font-weight="normal">100%</text>
+<text x="288.4" y="218.7" font-size="12" fill="#0b0b0b" text-anchor="start" font-weight="normal">48.8%</text>
+<text x="32.0" y="388.0" font-size="11" fill="#898781" text-anchor="start" font-weight="normal">[data] p08 · synthetic dataset, whole window, not a held-out set</text>
+</svg>
