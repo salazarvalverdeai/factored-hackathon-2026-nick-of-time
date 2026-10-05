@@ -431,34 +431,66 @@ def test_language_without_a_hint(text, lang):
 
 
 # ---------- task 11c: person requests, dispute nouns, negations, "mil" amounts, PT ordinals ----------
-# Hand-written; no sentence comes from eval/classifier or the spec 09 held-out set.
+# Hand-written; no sentence comes from eval/classifier or the spec 09 held-out set. Each rule only adds a reading that
+# main missed or drops one that main got wrong; the review probes that main got right are kept as regression cases.
 @pytest.mark.parametrize("text", [
     "Pásame con el supervisor", "Hablar con el asesor", "Me pasa con el gerente?", "Comunícame con la gerente",
-    "quiero hablar con la persona encargada", "Me passa pra um atendente", "Agente", "Un asesor", "Representante",
-    "Supervisor", "Humano por favor", "Atendente, por favor",
+    "quiero hablar con la persona encargada", "Me passa pra um atendente", "Me pasas con la gerente?",
+    "Nos pasan con el supervisor?", "Quiero que me pase con el supervisor", "Quiero que me comunique con el gerente",
+    "¿Me comunica con el asesor?", "Comuníquenme con la persona encargada", "Pode me passar pro gerente?",
+    "Passa pro gerente", "Vocês me passam pro atendente?", "Se não me passarem pro atendente vou cancelar o cartão",
+    "Agente", "Un asesor", "Representante", "Supervisor", "Humano por favor", "Atendente, por favor", "Agente humano",
+    "Pessoa real",
 ])
 def test_ac_10_person_request_with_article_or_a_bare_person_word(text):
     assert _parse(text).intent == "human_request"
 
 
+@pytest.mark.parametrize("text", ["Alguien", "Alguém"])
+def test_ac_10_a_bare_someone_is_not_a_request(text):
+    """"Alguien" alone can answer "who made the purchase?"; it stays as on main."""
+    assert _parse(text).intent != "human_request"
+
+
+@pytest.mark.parametrize("text", [
+    "Quiero que me pase con un supervisor", "Me pase con un supervisor por favor", "¿Me comunica con un asesor?",
+    "¿Me comunicas con un supervisor?", "Comuníqueme con un supervisor", "Vocês me passam para um atendente?",
+    "Se não me passarem para um atendente vou cancelar o cartão",
+])
+def test_ac_10_request_forms_that_main_reads_stay_requests(text):
+    assert _parse(text).intent == "human_request"
+
+
 @pytest.mark.parametrize("text", [
     "El supervisor del banco me cobró de más", "Hablé con el asesor ayer", "Agente de seguros", "Un asesor me llamó antes",
-    "Quiero saber el estado de la tarjeta",
+    "Quiero saber el estado de la tarjeta", "Ayer me pasé con el asesor y no me ayudó", "Ya me comuniqué con la gerente y nada",
+    "Mi hijo pasa con el gerente todos los días", "Pasé a la persona el dinero", "Quiero saber por qué el asesor me cobró",
+    "Ya intenté hablar con el gerente de la tienda y no me devolvieron el dinero", "Já passei pro atendente e nada",
+    "La cajera me pasa la cuenta a la persona de al lado", "Persona de la tienda",
 ])
 def test_ac_10_person_word_inside_a_statement_is_not_a_request(text):
     assert _parse(text).intent != "human_request"
 
 
-def test_ac_10_person_request_inside_a_dispute_keeps_the_flag():
-    for text in ("No reconozco un cargo, pásame con el supervisor", "Alguien usó mi tarjeta, quiero hablar con el gerente"):
-        r = _parse(text)
-        assert (r.intent, r.dispute_detected) == ("human_request", True)
+@pytest.mark.parametrize("text", [
+    "No reconozco un cargo, pásame con el supervisor", "Alguien usó mi tarjeta, quiero hablar con el gerente",
+    "Não reconheço uma compra, me passa pra um atendente", "Me cobraron dos veces, ¿me comunica con el asesor?",
+    "No reconozco este cargo, ¿por qué no me pasan con un asesor?",
+    "Não reconheço essa compra, vocês me passam para um atendente?",
+])
+def test_ac_10_person_request_inside_a_dispute_keeps_the_flag(text):
+    r = _parse(text)
+    assert (r.intent, r.dispute_detected) == ("human_request", True)
 
 
 @pytest.mark.parametrize("text", [
     "No quiero hablar con una persona", "Não preciso falar com um atendente", "No necesito hablar con un asesor",
     "Não quero falar com um atendente", "No quiero que me pasen con el supervisor",
-    "Não quero que me passem para um atendente", "Sin hablar con un asesor, por favor",
+    "Não quero que me passem para um atendente", "Sin hablar con un asesor, por favor", "Sem falar com um atendente",
+    "Não precisa me passar para um atendente", "No hace falta que me pasen con un asesor",
+    "No me hace falta hablar con un asesor", "No es necesario hablar con una persona",
+    "Não é necessário falar com um atendente", "No deseo hablar con un asesor", "Não desejo falar com um atendente",
+    "Ya no necesito que me pasen con un asesor, gracias", "No tengo que hablar con un asesor, ya lo resolví",
 ])
 def test_ac_10_negated_person_request_is_not_a_request(text):
     assert _parse(text).intent != "human_request"
@@ -471,79 +503,32 @@ def test_ac_10_refused_person_inside_a_dispute_keeps_the_dispute_and_loses_the_r
     assert (r.intent, r.dispute_detected) == ("unrecognized_charge", True)
 
 
-def test_ac_10_a_far_negation_does_not_cancel_the_request():
-    r = _parse("No reconozco un cargo y quiero hablar con una persona")
+@pytest.mark.parametrize("text", [
+    "No reconozco un cargo y quiero hablar con una persona", "Não reconheço uma compra e quero falar com uma pessoa",
+])
+def test_ac_10_a_far_negation_does_not_cancel_the_request(text):
+    r = _parse(text)
     assert (r.intent, r.dispute_detected) == ("human_request", True)
 
 
 @pytest.mark.parametrize("text", [
-    "Quiero abrir una disputa por un cargo", "Quiero presentar un reclamo por un cargo de Amazon",
-    "Quiero un contracargo por un cargo", "Quiero hacer una aclaración de un cargo",
-    "Quero abrir uma contestação de uma compra", "Quero fazer uma reclamação de uma compra",
-    "Quero pedir o estorno de uma compra", "Esos cargos no son míos", "Essas compras não são minhas",
-    "Alguien usó mi tarjeta", "Alguém usou meu cartão", "Creo que alguien usó mi tarjeta",
-    "Quiero desconocer una transacción", "Quiero desconocer un consumo",
-])
-def test_ac_09_dispute_nouns_plurals_and_someone_used_my_card(text):
-    r = _parse(text)
-    assert (r.intent, r.dispute_detected) == ("unrecognized_charge", True)
-
-
-@pytest.mark.parametrize("text", [
-    "¿Cómo va mi disputa del cargo?", "Quiero ver el reclamo del cargo", "Quiero saber de mi reclamo por un cargo",
-    "Quero acompanhar a contestação da compra", "Mis cargos son míos y están bien", "Alguien me ayudó con mi tarjeta",
-    "Quiero cambiar mi tarjeta",
-])
-def test_ac_09_dispute_noun_without_an_opening_is_not_a_new_dispute(text):
-    assert _parse(text).dispute_detected is False
-
-
-def _amount_of(text):
-    s = _parse(text).slots
-    return s.amount, s.currency
-
-
-@pytest.mark.parametrize("text,amount,currency", [
-    ("un cargo de dos mil pesos", "2000", None), ("cobraram R$ 1 mil", "1000", "BRL"),
-    ("cobraram dois mil reais", "2000", "BRL"), ("me cobraron mil pesos", "1000", None),
-    ("compra de tres mil dólares", "3000", "USD"),
-])
-def test_ac_09_mil_amounts(text, amount, currency):
-    assert _amount_of(text) == (amount, currency)
-
-
-@pytest.mark.parametrize("text", [
-    "una compra de 3 mil 200 pesos", "compra de 15 mil 500 reais", "R$ 2 mil 300", "cargo de 2 mil e quinhentos reais",
-    "cargo de 7 mil quinientos pesos", "cargo de 3 mil y 200 pesos", "dos mil veinte pesos", "2 mil millones",
-])
-def test_ac_09_mil_followed_by_a_second_figure_gives_no_amount(text):
-    assert _amount_of(text) == (None, None)
-
-
-def test_ac_09_mil_without_a_currency_word_is_not_an_amount():
-    assert _amount_of("mil gracias, no reconozco un cargo") == (None, None)
-    assert _amount_of("muito obrigado, mil vezes, não reconheço a compra") == (None, None)
-
-
-@pytest.mark.parametrize("text", [
-    "na segunda semana de maio", "na segunda quinzena", "na segunda viagem", "na segunda loja", "na segunda linha do extrato",
-    "na segunda página da fatura", "na quinta vezes", "comprei a segunda",
-])
-def test_ac_08_pt_ordinal_before_a_noun_is_not_a_weekday(text):
-    assert parse_date(text, TODAY) is None
-
-
-def test_ac_08_pt_weekday_next_to_other_words_still_resolves():
-    assert parse_date("na segunda cobraram duas vezes", TODAY) == date(2026, 5, 25)
-
-
-@pytest.mark.parametrize("text", [
-    "¿No me pueden pasar con un asesor?", "No entiendo, quiero hablar con una persona", "No entiendo quiero hablar con una persona",
-    "Não tem como falar com um atendente?", "não obrigado quero falar com um atendente",
-    "Não entendi, quero falar com uma pessoa", "No me ayudan, pásame con un supervisor",
+    "¿No me pueden pasar con un asesor?", "No entiendo, quiero hablar con una persona",
+    "No entiendo quiero hablar con una persona", "Não tem como falar com um atendente?",
+    "não obrigado quero falar com um atendente", "Não entendi, quero falar com uma pessoa",
+    "No me ayudan, pásame con un supervisor", "¿No me pasa con un asesor?", "¿No me pasa con el gerente?",
+    "¿Por qué no me pasan con un asesor?", "Si no me pasan con un asesor voy a cancelar la tarjeta",
+    "Não me passa para um atendente?", "Por que não me passa para um atendente?", "¿Por qué no me atiende una persona?",
+    "Sin que me pasen con un asesor no voy a poder resolver esto",
+    "No quiero hablar con un asesor sino con un supervisor", "No necesito un asesor sino una persona real",
+    "Não quero falar com o atendente, mas sim com o gerente",
 ])
 def test_ac_10_a_negation_that_is_not_a_refusal_keeps_the_request(text):
     assert _parse(text).intent == "human_request"
+
+
+def test_ac_09_the_refusal_guard_only_applies_to_person_requests():
+    r = _parse("Não quero cobrança em duplicidade")
+    assert (r.intent, r.dispute_detected) == ("wrongful_charge", True)
 
 
 def test_ac_10_negation_before_a_request_inside_a_dispute_keeps_both():
@@ -553,23 +538,24 @@ def test_ac_10_negation_before_a_request_inside_a_dispute_keeps_both():
 
 
 @pytest.mark.parametrize("text", [
-    "veinte mil pesos", "once mil pesos", "quince mil pesos", "cien mil pesos", "doscientos mil pesos", "vinte mil reais",
-    "quinze mil reais", "cem mil reais", "treinta y dos mil pesos", "cuarenta y cinco mil pesos", "cargo de 2 mil millones",
-    "uma compra de 3 mil milhões",
+    "Quiero abrir una disputa por un cargo", "Quiero presentar un reclamo por un cargo de Amazon",
+    "Quiero un contracargo por un cargo", "Quiero hacer una aclaración de un cargo",
+    "Quero abrir uma contestação de uma compra", "Quero fazer uma reclamação de uma compra",
+    "Quero pedir o estorno de uma compra", "Esos cargos no son míos", "Essas compras não são minhas",
+    "No son mías estas compras", "Esses lançamentos não são meus", "Alguien usó mi tarjeta", "Alguém usou meu cartão",
+    "Creo que alguien usó mi tarjeta", "Alguien ha usado mi tarjeta", "Alguém está usando meu cartão",
+    "Quiero desconocer una transacción", "Quiero desconocer un consumo", "Quiero reportar un consumo",
 ])
-def test_ac_09_mil_compounds_with_a_number_word_give_no_amount(text):
-    assert _amount_of(text) == (None, None)
-
-
-@pytest.mark.parametrize("text,amount", [("dos mil pesos", "2000"), ("mil pesos", "1000"), ("15 mil pesos", "15000"),
-                                         ("1,5 mil pesos", "1500")])
-def test_ac_09_simple_mil_amounts_still_read(text, amount):
-    assert _amount_of(text) == (amount, None)
+def test_ac_09_dispute_nouns_plurals_and_someone_used_my_card(text):
+    r = _parse(text)
+    assert (r.intent, r.dispute_detected) == ("unrecognized_charge", True)
 
 
 @pytest.mark.parametrize("text", [
     "Quiero abrir una disputa", "Quero abrir uma contestação", "Quero pedir o estorno", "Quiero hacer un contracargo",
-    "Quero fazer um chargeback", "Quiero presentar una disputa",
+    "Quero fazer um chargeback", "Quiero presentar una disputa", "Gostaria de abrir uma contestação",
+    "Preciso de um estorno", "Necesito un contracargo", "Abrir una disputa", "Deseo presentar una disputa",
+    "Desejo abrir uma contestação",
 ])
 def test_ac_09_strong_dispute_noun_needs_no_charge_noun(text):
     r = _parse(text)
@@ -582,11 +568,89 @@ def test_ac_09_weak_dispute_noun_still_needs_a_charge_noun(text):
 
 
 @pytest.mark.parametrize("text", [
+    "¿Cómo va mi disputa del cargo?", "Quiero ver el reclamo del cargo", "Quiero saber de mi reclamo por un cargo",
+    "Quero acompanhar a contestação da compra", "Mis cargos son míos y están bien", "Alguien me ayudó con mi tarjeta",
+    "Quiero cambiar mi tarjeta", "Ya no quiero la disputa", "Não quero mais a contestação",
+    "No quiero abrir una disputa, solo es una consulta", "Não quero abrir uma contestação", "Quiero que cancelen la disputa",
+    "Quando vão fazer o estorno?", "¿Cuándo me van a hacer el contracargo?", "Quiero hacer seguimiento a la disputa",
+    "Quiero preguntar por la disputa", "Quero informações sobre o estorno", "Quiero que mi disputa se resuelva",
     "Quiero cancelar la disputa de un cargo", "Quero cancelar a contestação de uma compra",
-    "Quiero cerrar el reclamo de un cargo", "Quero desistir do estorno de uma compra",
+    "Quiero cerrar el reclamo de un cargo", "Quiero desistir de la disputa", "Esos hijos no son míos",
+    "Não são meus problemas", "Quiero informar un consumo que voy a hacer en el exterior",
 ])
-def test_ac_09_cancelling_a_dispute_is_not_a_new_dispute(text):
+def test_ac_09_dispute_noun_without_an_opening_is_not_a_new_dispute(text):
     assert _parse(text).dispute_detected is False
+
+
+@pytest.mark.parametrize("text", ["Necesito noticias de la disputa que abrí el lunes", "Quero novidades sobre a contestação"])
+def test_d020_a_status_question_about_a_dispute_stays_status(text):
+    r = _parse(text)
+    assert (r.intent, r.dispute_detected) == ("status_inquiry", False)
+
+
+def _amount_of(text):
+    s = _parse(text).slots
+    return s.amount, s.currency
+
+
+@pytest.mark.parametrize("text,amount,currency", [
+    ("un cargo de dos mil pesos", "2000", None), ("cobraram R$ 1 mil", "1000", "BRL"),
+    ("cobraram dois mil reais", "2000", "BRL"), ("me cobraron mil pesos", "1000", None),
+    ("compra de tres mil dólares", "3000", "USD"), ("cargo de diez mil pesos", "10000", None),
+    ("compra de dez mil reais", "10000", "BRL"), ("Paguei mil reais e não recebi o produto", "1000", "BRL"),
+    ("dos mil pesos", "2000", None), ("mil pesos", "1000", None), ("15 mil pesos", "15000", None),
+    ("1,5 mil pesos", "1500", None),
+])
+def test_ac_09_mil_amounts(text, amount, currency):
+    assert _amount_of(text) == (amount, currency)
+
+
+@pytest.mark.parametrize("text", [
+    "una compra de 3 mil 200 pesos", "compra de 15 mil 500 reais", "R$ 2 mil 300", "cargo de 2 mil e quinhentos reais",
+    "cargo de 7 mil quinientos pesos", "cargo de 3 mil y 200 pesos", "cargo de dos mil veinte pesos",
+    "cargo de 2 mil, 300 pesos", "un cargo de dos mil cinco pesos", "cargo de 2 mil cien pesos",
+    "compra de mil e duzentos reais", "cargo de 2 mil millones", "uma compra de 3 mil milhões", "cargo de 7mil 500",
+])
+def test_ac_09_mil_followed_by_a_second_figure_gives_no_amount(text):
+    assert _amount_of(text) == (None, None)
+
+
+@pytest.mark.parametrize("text", [
+    "cargo de veinte mil pesos", "cargo de once mil pesos", "cargo de cien mil pesos", "cargo de doscientos mil pesos",
+    "compra de vinte mil reais", "compra de cem mil reais", "cargo de treinta y dos mil pesos",
+    "cargo de cuarenta y cinco mil pesos", "cargo de veinticinco mil pesos", "cargo de dieciséis mil pesos",
+    "cargo de quinientos mil pesos", "compra de duzentos mil reais", "compra de quinhentos mil reais",
+    "compra de dezoito mil reais", "compra de catorze mil reais", "un cargo de ciento dos mil pesos",
+    "un cargo de un millón dos mil pesos", "un cargo de menos de mil pesos", "Más de mil pesos me cobraron",
+    "una compra de Mil Sabores que no reconozco", "mil gracias, no reconozco un cargo",
+    "muito obrigado, mil vezes, não reconheço a compra",
+])
+def test_ac_09_mil_after_a_number_word_or_without_a_lead_gives_no_amount(text):
+    assert _amount_of(text) == (None, None)
+
+
+@pytest.mark.parametrize("text,amount", [
+    ("Tengo un cargo de 300 pesos y otro de 7 mil quinientos", "300"), ("cargo de 500 pesos y otro de 3 mil millones", "500"),
+    ("Tengo un cargo de 500 pesos y otro de veinte mil que no reconozco", "500"), ("Un cargo de 5 mil 2 veces", "5000"),
+    ("cargo de 500 pesos, mil gracias", "500"),
+])
+def test_ac_09_an_unsafe_mil_span_does_not_hide_another_amount(text, amount):
+    assert _amount_of(text)[0] == amount
+
+
+@pytest.mark.parametrize("text", [
+    "na segunda semana de maio", "na segunda quinzena", "na segunda viagem", "na segunda loja", "na segunda linha do extrato",
+    "na segunda página da fatura", "na segunda metade do mês", "comprei a segunda",
+])
+def test_ac_08_pt_ordinal_before_a_noun_is_not_a_weekday(text):
+    assert parse_date(text, TODAY) is None
+
+
+@pytest.mark.parametrize("text,expected", [
+    ("na segunda cobraram duas vezes", date(2026, 5, 25)), ("comprei na sexta semana passada", date(2026, 5, 29)),
+])
+def test_ac_08_pt_weekday_next_to_other_words_still_resolves(text, expected):
+    assert parse_date(text, TODAY) == expected
 
 
 def test_ac_10_handing_over_a_card_is_not_a_person_request_and_the_charge_is_read():
@@ -607,14 +671,10 @@ def test_ac_09_not_my_charge_in_both_languages(text):
     assert (r.intent, r.dispute_detected) == ("unrecognized_charge", True)
 
 
-@pytest.mark.parametrize("text", ["Alguien utilizó mi tarjeta", "Alguém usou o meu cartão", "Alguém utilizou minha tarjeta"])
+@pytest.mark.parametrize("text", ["Alguien utilizó mi tarjeta", "Alguém usou o meu cartão", "Alguém utilizou meu cartão"])
 def test_ac_09_someone_used_my_card_variants(text):
     assert _parse(text).dispute_detected is True
 
 
 def test_ac_09_someone_used_the_wifi_is_not_a_dispute():
     assert _parse("Alguien usó mi wifi").dispute_detected is False
-
-
-def test_ac_08_pt_half_ordinal_noun():
-    assert parse_date("na segunda metade do mês", TODAY) is None

@@ -29,9 +29,10 @@ _DAY_MONTH = re.compile(r"\b(\d{1,2}) de (" + "|".join(_MONTHS) + r")(?: de (\d{
 _AGO = re.compile(r"\b(?:hace|ha) (\d{1,3}) dias?\b")
 _WEEKDAY = re.compile(r"(?:\b(na|no|nesta|neste|desta|deste|dessa|desse|ultima|ultimo) )?\b(" + "|".join(_WEEKDAYS)
                       + r")(-feira| passad[ao])?\b")
-# nouns that follow an ordinal: "a quinta compra", "na segunda vez", "na segunda semana", "na segunda fatura"
-_NOT_A_DAY = re.compile(r" (?:vez|vezes|compra|parcela|cobranca|transacao|tentativa|fatura|via|mensalidade|assinatura|etapa"
-                        r"|opcao|semana|quinzena|viagem|loja|linha|pagina|metade)\b")
+# nouns that follow an ordinal: "a quinta compra", "na segunda vez", "na segunda semana", "na segunda fatura";
+# "na sexta semana passada" is still a weekday
+_NOT_A_DAY = re.compile(r" (?:vez|compra|parcela|cobranca|transacao|tentativa|fatura|via|mensalidade|assinatura|etapa"
+                        r"|opcao|semana(?! passad)|quinzena|viagem|loja|linha|pagina|metade)\b")
 
 
 def _safe(year: int, month: int, day: int) -> Optional[date]:

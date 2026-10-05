@@ -20,20 +20,35 @@ from .text import fold
 
 ARM, VERSION = "B0", "b0-v1"
 
-_PERSON = r"(?:persona|humano|agente|asesor|ejecutivo|operador|atendente|pessoa|alguem|alguien|representante|gerente|supervisor)"
-_OPEN = (r"\b(?:abrir|presentar|registrar|hacer|levantar|iniciar|fazer|pedir|solicitar|quiero|quero|necesito|preciso|"
-         r"gostaria) (?:(?!ver |saber |consultar |revisar |checar |conferir |acompanhar |cancelar |cerrar |retirar |"
-         r"anular |encerrar |desistir )\w+ ){0,2}")
+_STAFF = r"(?:persona|humano|agente|asesor|ejecutivo|operador|atendente|pessoa|representante|gerente|supervisor)"
+_PERSON = r"(?:alguem|alguien|" + _STAFF + ")"
+# a request form of pasar/passar/comunicar: with the pronoun attached ("pásame") or right before it ("me pasa",
+# "que me pase", "me passa"), or an imperative that opens the message; past forms ("me pasé", "me comuniqué",
+# "passei") and third persons ("mi hijo pasa con el gerente") stay out
+_ASK = (r"(?:\b(?:pas(?:ame|eme|enme|arme|arnos)|comuni(?:came|carme|carnos|queme|quenme))"
+        r"|(?:(?<=\bme )|(?<=\bnos ))(?:pas(?:a|as|an|en|ar)|comuni(?:ca|cas|can|car|quen)|pass(?:a|am|ar|arem|e|em))"
+        r"|(?<=\bque me )(?:pase|comunique)|^(?:pasa|pasen|passa|passe|passem|comunica|comuniquen))")
+_CHARGE = r"(?:cargo|compra|cobro|cobranca|debito|transacao|transaccion|movimiento|consumo)"
+_CHARGES = (r"(?:cargos?|compras?|cobros?|cobrancas?|debitos?|consumos?|movimientos?|transaccion(?:es)?|transacao|transacoes"
+            r"|lancamentos?)")
+# [assumption] a dispute noun opens a dispute only after a first-person want that is not negated ("quiero", not
+# "ya no quiero"), or at the start of the message, then up to two opening verbs and an article: "quiero abrir una
+# disputa" opens one; "necesito noticias de la disputa" or "¿cuándo me van a hacer el contracargo?" do not
+_OPEN_VERB = r"(?:abrir|presentar|registrar|hacer|levantar|iniciar|fazer|pedir|solicitar|interponer|realizar|efetuar)"
+_OPEN = (r"(?:(?<!\bno )(?<!\bnao )\b(?:quiero|quero|necesito|preciso|gostaria|deseo|desejo) (?:(?:de|" + _OPEN_VERB
+         + r") ){0,2}|^" + _OPEN_VERB + r" (?:" + _OPEN_VERB + r" )?)(?:un|una|um|uma|o|el|a|la) ")
 _INTENT_RULES: list[tuple[str, list[str]]] = [
     ("human_request", [
         # "comuni-" needs a person after it: "me comunico con ustedes por un cargo" is an opener, not a request
-        r"\b(?:hablar|conversar|comuni(?:c(?:ame|arme|arnos|ar|an)|quenme|quen|quem)|pas(?:a|as|an|en|ame|eme|enme|ar|arme|arnos)|falar"
-        r"|pass(?:a|e|em|ar)) (?:\w+ ){0,2}(?:con|com|para|pra|pro|a) "
-        r"(?:un |una |um |uma |o |a |el |la )?" + _PERSON,
-        r"\b(?:quiero|necesito|quero|preciso|prefiero|prefiro) (?:(?!si |se |saber )\w+ ){0,3}"
-        r"(?:un |una |um |uma |o |a |el |la )?" + _PERSON,
+        r"\b(?!passei\b)(?:hablar|conversar|comuni\w*|pas\w*|falar|passar) (?:\w+ ){0,2}(?:con|com|para|a) "
+        r"(?:un |una |um |uma |o |a )?" + _PERSON,
+        # ES "el/la" and PT "pra/pro" only after a request form, and not "el gerente de la tienda"
+        _ASK + r" (?:\w+ ){0,2}(?:con|com|para|pra|pro|a) (?:un |una |um |uma |o |a |el |la )?" + _PERSON
+        + r"(?! (?:de|del|da|do)\b)",
+        r"^(?:hablar|conversar|falar) (?:con|com|pra|pro) (?:el |la |o |a )?" + _PERSON + r"(?! (?:de|del|da|do)\b)",
+        r"\b(?:quiero|necesito|quero|preciso|prefiero|prefiro) (?:(?!si |se )\w+ ){0,3}(?:un |una |um |uma |o |a )?" + _PERSON,
         # a message that is only the person word ("Supervisor", "Un asesor", "Humano por favor", "Atendente, por favor")
-        r"^(?:un |una |um |uma |o |a |el |la )?" + _PERSON + r"(?: humano| real)?(?:,? por favor)?[.!? ]*$",
+        r"^(?:un |una |um |uma |o |a |el |la )?" + _STAFF + r"(?: humano| real)?(?:,? por favor)?[.!? ]*$",
         r"\b(?:atienda|atiende|atenda|atendid[oa] por) (?:\w+ )?" + _PERSON,
         r"\b(?:atencion|atendimento) (?:humana|humano|personal)\b",
     ]),
@@ -61,18 +76,19 @@ _INTENT_RULES: list[tuple[str, list[str]]] = [
         r"\b(?:raro|extrano|sospechos\w*|suspeit\w*|estranh\w*|fraud\w*|indebid\w*|no autorizad\w*|nao autorizad\w*)\b",
         r"\b(?:fraude|fraudulent\w*|clonaron|clonaram|clonado|robaron mi tarjeta|roubaram meu cartao)\b",
         r"\b(?:disputar|desconocer|contestar|impugnar|reportar|informar|reclamar) (?:\w+ ){0,2}"
-        r"(?:cargo|compra|cobro|cobranca|debito|transacao|transaccion|movimiento|consumo)\b",
+        r"(?:cargo|compra|cobro|cobranca|debito|transacao|movimiento)\b",
+        # not "informar": "quiero informar un consumo que voy a hacer en el exterior" is a travel notice
+        r"\b(?:disputar|desconocer|contestar|impugnar|reportar|reclamar) (?:\w+ ){0,2}(?:transaccion|consumo)\b",
         r"\b(?:no es mi[oa]|nao e (?:meu|minha))\b",
-        r"\b(?:no son mi[oa]s|nao sao (?:meus|minhas))\b",
-        r"\bno (?:es|son) mis? (?:cargos?|compras?|cobros?|consumos?|transaccion(?:es)?|movimientos?|debitos?)\b",
+        # plurals only next to a charge noun: "esos cargos no son míos", not "esos problemas no son míos"
+        r"\b" + _CHARGES + r"(?: \w+){0,3} (?:no son mi[oa]s|nao sao (?:meus|minhas))\b",
+        r"\b(?:no son mi[oa]s|nao sao (?:meus|minhas))(?: \w+){0,2} " + _CHARGES + r"\b",
+        r"\bno (?:es|son) mis? " + _CHARGES + r"\b",
         r"\b(?:alguien|alguem) (?:uso|usou|ha usado|esta usando|utilizo|utilizou|ha utilizado|esta utilizando) "
         r"(?:(?:o|a) )?(?:mi|meu|minha) (?:tarjeta|cartao)\b",
-        # [assumption] a dispute noun counts only after an opening verb and an article ("quiero abrir una disputa");
-        # "como va mi disputa del cargo" or "quiero ver el reclamo del cargo" stay status questions. The 4 strong
-        # nouns need no charge noun; reclamo, reclamacao and aclaracion do.
-        _OPEN + r"(?:un|una|um|uma|o|el|a|la) (?:disputa|contracargo|chargeback|contestacao|estorno)\b",
-        _OPEN + r"(?:un|una|um|uma|o|el|a|la) (?:reclamo|reclamacao|aclaracion|disputa|contracargo|chargeback|contestacao|estorno)"
-        r" (?:\w+ ){0,2}(?:cargo|compra|cobro|cobranca|debito|transacao|transaccion|movimiento|consumo)\b",
+        # the strong nouns need no charge noun; reclamo, reclamacao and aclaracion (also generic words) do
+        _OPEN + r"(?:disputa|contracargo|chargeback|contestacao|estorno)\b",
+        _OPEN + r"(?:reclamo|reclamacao|aclaracion) (?:\w+ ){0,2}" + _CHARGE + r"\b",
     ]),
 ]
 _COMPILED = [(intent, [re.compile(p) for p in pats]) for intent, pats in _INTENT_RULES]
@@ -81,10 +97,12 @@ _CALL = re.compile(r"\b(?:que me llamen?|llamenme|llamame|me llamen|me liguem?|m
                    r"|\b(?:me|nos) (?:pueden|puede|podrian|podria) llamar\b|\bpodem? me ligar\b"
                    r"|\b(?:quiero|necesito|pido|solicito|quero|preciso|peco) (?:\w+ ){0,2}(?:llamada|ligacao)\b")
 _NEGATED = re.compile(r"\b(?:no|nao|sin|sem)(?: \w+){0,2} $")
-# [assumption] a person request is refused only when a negation is followed by this closed list and nothing else:
-# "no quiero que me pasen con un asesor" is a refusal, "no me pueden pasar con un asesor" is a request
-_REFUSAL = re.compile(r"\b(?:no|nao|sin|sem) (?:(?:me|te|le|nos|que|quiero|quero|necesito|preciso|precisa|precisam|deseo|"
-                      r"desejo|hace falta|es necesario|e necessario|hay que|tengo que|tenho que) )*$")
+# [assumption] a person request is refused only right after "sin/sem", or after "no/não" plus this closed list and
+# nothing else; a pronoun counts only after a listed word: "no quiero que me pasen con un asesor" and "não precisa me
+# passar" are refusals, "¿no me pasa con un asesor?" and "sin que me pasen con un asesor no puedo" are requests
+_REFUSAL = re.compile(r"\b(?:(?:no|nao) (?:(?:quiero|quero|necesito|preciso|precisa|precisam|deseo|desejo|(?:me )?hace falta"
+                      r"|es necesario|e necessario|tengo que|tenho que|que)(?: me| te| le| nos)? )*|(?:sin|sem) )$")
+_BUT = re.compile(r"\b(?:sino|mas sim|e sim)\b")        # "no quiero un asesor sino un supervisor": still a request
 # "already reported": the ES past tense differs from the noun "reporte" and the command "registre" only by its accent,
 # so it is read before folding; an unaccented form counts only after ya/lo/la. PT -ei forms are unambiguous.
 _REPORTED_ES = re.compile(r"\b(?:report|reclam|registr|denunci)é\b")
@@ -113,20 +131,27 @@ _AMOUNT_AFTER = re.compile(rf"(?<![\w/-])({_NUM})\s*({_CUR})(?!\w)")
 _AMOUNT_CUE = re.compile(rf"\b(?:cargo|compra|cobro|cobranca|monto|importe|valor|por|de|pagos?)\s+({_NUM})(?![\d/-])")
 _DATE_NOISE = re.compile(r"\d{4}-\d{2}-\d{2}|\d{1,2}/\d{1,2}/\d{4}|\d{1,2} de [a-zç]+(?: de \d{4})?", re.I)
 _MERCHANT = re.compile(r"\b(?:en|em|de|do|da)\s+((?:[A-ZÁÉÍÓÚÑÃÕÇ][\w&'.-]*)(?:\s+[A-ZÁÉÍÓÚÑÃÕÇ][\w&'.-]*){0,3})(?![\w$])")
-_THOUSANDS = re.compile(r"(\d+(?:[.,]\d{1,2})?) ?mil\b(?! ?(?:millon|milhao))")
-# "2,500 mil", "15 mil e 500", "3 mil 200", "7 mil quinientos": a second figure after "mil" is unsafe
-_MIL_COMPOUND = re.compile(r"\d[.,]\d{3}(?:[.,]\d+)? ?mil\b|\bmil (?:millon|milhao|milho)\w*|"
-                           r"\b(?:(?:y|e) (?:un|uno|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|um|dois|duas|quatro|sete|oito|nove)"
-                           r"|once|doce|trece|catorce|quince|veinte|treinta|cuarenta|cincuenta|sesenta|setenta|ochenta|noventa"
-                           r"|cien|ciento|\w*cientos|onze|doze|treze|quatorze|quinze|vinte|trinta|quarenta|cinquenta|sessenta"
-                           r"|oitenta|cem|\w*centos) mil\b|\bmil,? (?:(?:e|y) )?(?:\d|cien|cem|"
-                           r"\w*(?:cient|quinient|zent|cent|hent)\w*|(?:vein|trein|cuaren|cincuen|sesen|seten|ochen|noven|vint|"
-                           r"trinta|quarent|cinquent|sessent|setent|oitent|novent)\w*)")
-# "dos mil pesos", "mil reais": number words 1-10 (and a bare "mil" before a currency word) become digits first
+_THOUSANDS = re.compile(r"(\d+(?:[.,]\d{1,2})?) ?mil\b")
+_MIL_COMPOUND = re.compile(r"\d[.,]\d{3}(?:[.,]\d+)? ?mil\b|\bmil (?:e|y) \d")   # "2,500 mil", "15 mil e 500": unsafe
+# [assumption] a second figure after "mil" ("7 mil 500", "dos mil quinientos", "2 mil cinco pesos") or "mil millones"
+# reads as no amount. Only that span is blanked, so another amount in the same message still reads.
+_MIL_CUR = r"(?:pesos?|reais|real|dolares|dolar|usd|brl|mxn|ars|cop|eur)"
+_HUNDREDS = (r"(?:cien|ciento|cem|cento|(?:dos|tres|cuatro|seis|sete|ocho|nove)cient[oa]s|quinient[oa]s|(?:du|tre)zent[oa]s"
+             r"|(?:quatro|seis|sete|oito|nove)cent[oa]s|quinhent[oa]s)")
+_TENS = (r"(?:once|doce|trece|catorce|quince|dieci\w+|veinte|veinti\w+|treinta|cuarenta|cincuenta|sesenta|setenta|ochenta"
+         r"|noventa|onze|doze|treze|catorze|quatorze|quinze|dez[ea]sseis|dez[ea]ssete|dezoito|dez[ea]nove|vinte|trinta"
+         r"|quarenta|cinquenta|sessenta|oitenta)")
+_MIL_UNSAFE = re.compile(r"(?:\d+(?:[.,]\d+)? ?|\S+ )?(?<![a-z])mil(?: (?:millon|milhao|milho)\w*|,? (?:(?:e|y) )?(?:"
+                         + _HUNDREDS + "|" + _TENS + r")\b|,? (?:(?:e|y) )?(?:\d{1,3}|dos|dois|duas|tres|cuatro|quatro"
+                         r"|cinco|seis|siete|sete|ocho|oito|nueve|nove)(?=\s*(?:" + _MIL_CUR + r"\b|\$|[.,;!?)]|$)))")
+# [assumption] "dos mil pesos" and a bare "mil pesos" read as 2000 and 1000 only after a word that can come before an
+# amount (de, por, cobraron, pagué...) or at the start: "veinte mil", "ciento dos mil" or "más de mil" give no amount
 _WORD_NUM = {"un": 1, "uno": 1, "um": 1, "dos": 2, "dois": 2, "duas": 2, "tres": 3, "cuatro": 4, "quatro": 4, "cinco": 5,
              "seis": 6, "siete": 7, "sete": 7, "ocho": 8, "oito": 8, "nueve": 9, "nove": 9, "diez": 10, "dez": 10}
-_WORD_MIL = re.compile(r"\b(" + "|".join(_WORD_NUM) + r") mil\b")
-_BARE_MIL = re.compile(r"(?<![\w-])(?<!\d )mil(?= ?(?:pesos?|reais|real|dolares|dolar|usd|brl|mxn|ars|cop|eur)\b|\$)")
+_LEAD = (r"(^|(?<!menos )(?<!mas )(?<!mais )(?<!cerca )(?<!perto )(?<!alrededor )(?<!acima )(?<!arriba )\b(?:de|por|son"
+         r"|fueron|foram|era|eran|cobraron|cobraram|cobrou|cobro|debitaron|debitaram|pague|paguei|gaste|gastei|los|las|os) )")
+_WORD_MIL = re.compile(_LEAD + r"(" + "|".join(_WORD_NUM) + r") mil\b")
+_BARE_MIL = re.compile(_LEAD + r"mil(?= ?(?:" + _MIL_CUR + r")\b|\$)")
 _MILLIONS = re.compile(r"\d+(?:[.,]\d+)? ?(?:millon|millones|milhao|milhoes)\b")
 _NOT_MERCHANT = {"Hola", "Oi", "Ola", "Mexico", "Brasil", "Argentina", "Colombia", "Ayer", "Ontem"}
 
@@ -152,9 +177,10 @@ def _amount(text: str) -> tuple[Optional[str], Optional[str]]:
     t = _DATE_NOISE.sub(" ", fold(text))
     if _MIL_COMPOUND.search(t):
         return None, None                                    # never guess a multiplier: no amount beats a wrong one
+    t = _MIL_UNSAFE.sub(" ", t)
     t = _MILLIONS.sub(" ", t)
-    t = _WORD_MIL.sub(lambda m: f"{_WORD_NUM[m[1]]} mil", t)
-    t = _BARE_MIL.sub("1 mil", t)                            # [assumption] a bare "mil pesos" is 1000
+    t = _WORD_MIL.sub(lambda m: f"{m[1]}{_WORD_NUM[m[2]]} mil", t)
+    t = _BARE_MIL.sub(lambda m: f"{m[1]}1 mil", t)
     t = _THOUSANDS.sub(lambda m: format((Decimal(_to_decimal(m[1]) or "0") * 1000).normalize(), "f"), t)
     for pattern, num_idx, cur_idx in ((_AMOUNT_BEFORE, 2, 1), (_AMOUNT_AFTER, 1, 2)):
         if m := pattern.search(t):
@@ -183,9 +209,9 @@ def classify_intent(text: str) -> tuple[str, float, bool]:
     """(intent, confidence, dispute_detected). The confidence is fixed: 0.9 for a match (above the policy floor
     `clarify.intent_confidence_min`), 0.5 for no match."""
     t = fold(text)
-    # a negated person request ("no quiero hablar con un asesor") is no request; other intents ignore negation
+    # a refused person request ("no quiero hablar con un asesor") is no request; other intents ignore negation
     hits = {intent for intent, patterns in _COMPILED
-            if any(not (intent == "human_request" and _REFUSAL.search(t[:m.start()]))
+            if any(not (intent == "human_request" and _REFUSAL.search(t[:m.start()]) and not _BUT.search(t, m.start()))
                    for p in patterns for m in p.finditer(t))}
     if any(not _NEGATED.search(t[:m.start()]) for m in _CALL.finditer(t)):
         hits.add("human_request")
