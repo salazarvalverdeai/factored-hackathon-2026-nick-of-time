@@ -234,7 +234,8 @@ shape of `data` is fixed in the producing spec.
   — `action` carries a button or chip press and skips the classifier (`confirm` takes `yes|no`, `choose_option` takes a
   transaction id or `none`). **Config** (injected by the api, never by the client):
   `configurable.session_id` (required), `configurable.session_state`, `configurable.mode`, `configurable.arm` and
-  `configurable.case_id` (optional, for a returning customer).
+  `configurable.case_id` (optional, for a returning customer); `configurable.llm_day_spent_usd` and
+  `configurable.llm_day_cap_usd` (optional: the day's `llm_calls` spend and the G-OPS-01 daily cap, spec 05 AC-18).
 - **Output state** (`TurnResult`, also the last item of a streamed run):
 
 ```json
@@ -530,7 +531,8 @@ Implementation goes in one `feat/01-*` branch per task (for example `feat/01-pac
       (concurrent writers and first reads, the unique-index backstop). Owners of the other §6.5 accessors: `sessions`
       (read), `policy_denials` (insert), `customer_channels` and `idempotency` → task 01g's second PR
       (`feat/01-store-accessors`); `llm_calls` → task 01h (`add_llm_call` and
-      `list_llm_calls(run_id, trace_id?)` on both backends, `store/accounts.py`, `tests/test_spec01_store_llm_calls.py`:
+      `list_llm_calls(run_id, trace_id?)` on both backends, plus `llm_spend_since(since)`, the summed `cost_usd` of
+      every run's rows created at or after `since`, which the api reads for the G-OPS-01 daily cap (spec 05 AC-18), `store/accounts.py`, `tests/test_spec01_store_llm_calls.py`:
       a store-made `LC-` id `[assumption]`, non-negative integer counts, a finite `cost_usd` in [0, 10^6] per call
       `[assumption]` with a scale Postgres `numeric` holds, kept as a decimal (`-0` stored as `0`), `run_id` required
       with no default so `None` (production) is passed on purpose (D-023), no update or delete, oldest first; the api

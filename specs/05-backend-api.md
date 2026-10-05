@@ -21,7 +21,7 @@ nothing about a dispute: transitions go through `policy.transition`, deadlines w
 closes. `customer_id` and `mode` come only from the session row; the analyst's identity is the verified Cognito `sub`.
 
 ## 3. Acceptance criteria (EARS)
-AC-01 to AC-08 are copied from issue #7 with the same numbers. AC-09 to AC-13 are added by the owner; AC-03 was amended by the lead (review of PR #111). None is dropped or weakened.
+AC-01 to AC-08 are copied from issue #7 with the same numbers. AC-09 to AC-13 are added by the owner, AC-18 by the lead for the public demo; AC-03 was amended by the lead (review of PR #111). None is dropped or weakened.
 
 - AC-01 — When a customer session is requested and the OTP verified, the session shall last 15 minutes; once expired, every protected route shall answer `SESSION_EXPIRED`. · [T] `tests/test_spec05_api.py`
 - AC-02 — A case's status shall be its last event in `case_events`; no row shall be updated or deleted. · [T]
@@ -36,6 +36,7 @@ AC-01 to AC-08 are copied from issue #7 with the same numbers. AC-09 to AC-13 ar
 - AC-11 — The api shall serve the channels of spec 13: a signed Telegram link (TTL 15 min) and webhook (secret header, 401 otherwise), e-mail sent only to a typed and confirmed address, and a failing channel shall leave the in-app notification and the case unaffected. · [T]
 - AC-12 — `POST /api/cases/{id}/reevaluation` shall move a resolved case back to `review` with `reevaluation_requested` (spec 03 AC-19), refuse an active case as `already_in_progress`, and open one related case for a closed case with deadlines derived by the clock from the new notice (never copied); repeating the request shall not open a second case. · [T]
 - AC-13 — The api image shall ship an executable `/app/migrate.sh` (`alembic upgrade head`, baseline = `store/schema.sql`) for the deploy's migration hook (spec 06 FR-04). · [T] `tests/test_spec05_migrations.py` (offline `--sql`; the live run is Task 7)
+- AC-18 — If one client IP (an IPv6 client by its /64) exceeds 10 new sessions or 60 agent requests (thread creation and turns) in a rolling hour, or all clients together exceed 300 sessions or 1500 agent requests `[assumption]`, then the api shall answer 429 `RATE_LIMITED` with a calm ES/PT message and `Retry-After`, without counting the refused request; the client IP shall be the last `X-Forwarded-For` entry only when the peer is the trusted proxy (`TRUSTED_PROXY_CIDRS`, Caddy on the compose network), else the peer. Each turn's `usage` shall be written to `llm_calls` once per `trace_id` (a stream that ends without a turn logs the thread's latest state the same way); a Platform `event: error`, or a final state carrying the `trace_id` of the state before the run (LangGraph's first `values`), shall be neither logged nor shown as the turn; the run's input shall be rebuilt from the customer's text and a valid chip press, with the language from the session (spec 01 AC-06); and every run's `configurable` shall carry the day's spend (sum of `llm_calls` since 00:00 UTC, every run) and the daily cap (`DAILY_LLM_CAP_USD`, 5 USD `[assumption]`) for the graph's G-OPS-01 check (spec 04 §5). · [T] `tests/test_spec05_guard.py`
 
 ## 8. Assumptions and open questions
 - Decided (lead): AC-03 is amended as above; notifications go out on status changes only, and the customer text carries a fixed outcome label from `messages.yaml` `status.label`, never the analyst's free-text reason.
@@ -46,6 +47,7 @@ AC-01 to AC-08 are copied from issue #7 with the same numbers. AC-09 to AC-13 ar
 - `[assumption]` Telegram and e-mail confirmation tokens are signed and stateless (`LINK_SIGNING_KEY`); single use comes from `store.once` and from the channel row order. Notification templates are the Spanish ones of `policies.yaml`.
 - `[assumption]` The Platform stream is normalized to `progress` items plus one final `turn` (the last `values`), and only the customer projection of the turn leaves the api.
 - `[assumption]` `POL-REEVAL-WINDOW`: `policies.yaml` has no `reevaluation.window_days` yet, so a resolved case is reopened by status alone; the window check lands when the lead adds the value (spec 02 `reevaluation_allowed`).
+- `[assumption]` AC-18 counters live in process memory: one uvicorn worker on one EC2 sees every request (`app/guard.py`); more workers or hosts need a store table. Store accessor added: `llm_spend_since(since)` (the day's LLM spend, any run). Caddy-level rate limiting would need a plugin (`caddy-ratelimit` is not in `caddy:2-alpine`), so it stays in the api. `infra/deploy.sh` does not write the `RATE_*`, `TRUSTED_PROXY_CIDRS` or `DAILY_LLM_CAP_USD` variables yet, so production runs on the defaults until infra passes them.
 - `/api/console/demo/reset` is not served by the live app until `demo_transactions` exist (spec 03 task 03b).
 - Open question: eval hooks (`/api/eval/*`) stay on the stub; the live app does not register them until spec 10 needs them on Postgres.
 
@@ -61,6 +63,7 @@ AC-01 to AC-08 are copied from issue #7 with the same numbers. AC-09 to AC-13 ar
 - [x] Task 5 — Telegram, e-mail and webhooks · covers AC-11 · done when: the tests pass
 - [x] Task 6 — accounts in the README · covers AC-08 · done when: the README lists them without the password
 - [ ] Task 7 — run on Postgres and the public URL; Cognito pool values; gold catalog · covers AC-01 to AC-07 · done when: same flows on the public URL
+- [x] Task 9 — public abuse guard and the api side of the daily LLM cap · covers AC-18 · done when: the tests pass
 
 **Closing checklist** (last PR): every AC has a passing test or check that cites it · status → Implemented · ADR for
 any decision taken · lessons added to `CLAUDE.md`.
