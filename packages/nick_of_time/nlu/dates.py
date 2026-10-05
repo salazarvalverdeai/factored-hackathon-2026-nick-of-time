@@ -29,8 +29,10 @@ _DAY_MONTH = re.compile(r"\b(\d{1,2}) de (" + "|".join(_MONTHS) + r")(?: de (\d{
 _AGO = re.compile(r"\b(?:hace|ha) (\d{1,3}) dias?\b")
 _WEEKDAY = re.compile(r"(?:\b(na|no|nesta|neste|desta|deste|dessa|desse|ultima|ultimo) )?\b(" + "|".join(_WEEKDAYS)
                       + r")(-feira| passad[ao])?\b")
+# nouns that follow an ordinal: "a quinta compra", "na segunda vez", "na segunda semana", "na segunda fatura";
+# "na sexta semana passada" is still a weekday
 _NOT_A_DAY = re.compile(r" (?:vez|compra|parcela|cobranca|transacao|tentativa|fatura|via|mensalidade|assinatura|etapa"
-                        r"|opcao)\b")                    # "a quinta compra", "na segunda vez", "na segunda fatura"
+                        r"|opcao|semana(?! passad)|quinzena|viagem|loja|linha|pagina|metade)\b")
 
 
 def _safe(year: int, month: int, day: int) -> Optional[date]:
@@ -61,7 +63,7 @@ def parse_date(text: str, today: date) -> Optional[date]:
     if m := _AGO.search(t):
         return today - timedelta(days=int(m[1]))
     for m in _WEEKDAY.finditer(t):
-        if m[2] in _PT_ORDINALS and (not (m[1] or m[3]) or _NOT_A_DAY.match(t, m.end())):
+        if m[2] in _PT_ORDINALS and (not (m[1] or m[3]) or m[3] != "-feira" and _NOT_A_DAY.match(t, m.end())):
             continue
         back = (today.weekday() - _WEEKDAYS[m[2]]) % 7 or 7
         return today - timedelta(days=back)
