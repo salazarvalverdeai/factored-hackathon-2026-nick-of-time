@@ -60,6 +60,17 @@ def check_heldout(cases: Path, protocol: Path = PROTOCOL, hash_file: Path = HELD
         raise HarnessError(f"{cases.name} is not the sealed held-out: its sha256 differs from eval/heldout.sha256")
 
 
+def require_protocol_tag(tag: str = "protocol-v1") -> None:
+    """The seal counts only when the lead has tagged the sealing commit and that commit is in this checkout's history;
+    a SEALED string in the file is not enough."""
+    def git(*args: str) -> int:
+        return subprocess.run(["git", *args], cwd=ROOT, capture_output=True).returncode
+    if git("rev-parse", "-q", "--verify", f"refs/tags/{tag}^{{commit}}") != 0:
+        raise HarnessError(f"git tag {tag} is missing: the protocol is sealed only when the lead tags the sealing commit")
+    if git("merge-base", "--is-ancestor", f"{tag}^{{commit}}", "HEAD") != 0:
+        raise HarnessError(f"git tag {tag} is not an ancestor of HEAD: update this checkout to the sealed main")
+
+
 def claim_heldout_run(arms: list[str], cases: Path, marker: Path = HELDOUT_RUN) -> None:
     """T7: the held-out is run ONCE (ADR 0007). Call after check_heldout, so nothing is written while UNSEALED. The
     marker stays after a failed or partial run on purpose: a second look at the held-out is a decision for the lead,

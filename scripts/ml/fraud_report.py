@@ -246,6 +246,14 @@ def main(argv=None) -> int:
     if test and seal["status"] != "SEALED":                     # before any data or label is opened
         print(f"stop: eval/PROTOCOL.md is {seal['status']}, not SEALED; the test window is not scored", file=sys.stderr)
         return 2
+    if test:                                                    # status string alone is not the seal: the tag is
+        from eval.harness.client import HarnessError
+        try:
+            from eval.harness.report import require_protocol_tag
+            require_protocol_tag()
+        except HarnessError as error:
+            print(f"stop: {error}", file=sys.stderr)
+            return 2
     if test and ((csv_dir / "fraud_benchmark.csv").exists() or (json_dir / "fraud_benchmark.json").exists()):
         print("stop: the test window was already scored (fraud_benchmark.* exists); it is scored once", file=sys.stderr)
         return 2

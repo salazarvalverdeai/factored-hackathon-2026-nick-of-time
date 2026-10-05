@@ -66,6 +66,7 @@ def test_ac_04_test_window_is_refused_while_unsealed_and_reads_no_label(tmp_path
 def test_ac_04_sealed_test_window_is_scored_once(tmp_path, monkeypatch, capsys):
     monkeypatch.setattr(fr, "load_window", lambda *a, **k: (_ for _ in ()).throw(KeyError("reached the data")))
     monkeypatch.setattr("eval.harness.report.protocol_seal", lambda *a: {"status": "SEALED", "sha256": "a" * 64})
+    monkeypatch.setattr("eval.harness.report.require_protocol_tag", lambda *a: None)
     (tmp_path / "fraud_benchmark.json").write_text("{}")
     assert fr.main(["--gold", "g", "--eval", "e", "--models", "m", "--window", "test", "--out", str(tmp_path)]) == 2
     assert "already scored" in capsys.readouterr().err
@@ -88,3 +89,14 @@ def test_ac_07_heldout_runs_once_and_writes_no_marker_while_unsealed(tmp_path, m
     assert json.loads(marker.read_text())["arms"] == ["S0"]
     with pytest.raises(HarnessError, match="runs once"):
         harness_report.claim_heldout_run(["S0"], EXAMPLE_FILE)
+
+
+def test_ac_04_sealed_string_without_the_protocol_tag_is_refused(tmp_path, monkeypatch, capsys):
+    """The seal is the lead's tag on the sealing commit, not the word SEALED in the file (T7 and 17c)."""
+    monkeypatch.setattr("eval.harness.report.protocol_seal", lambda *a: {"status": "SEALED", "sha256": "a" * 64})
+    monkeypatch.setattr(harness_report.require_protocol_tag, "__defaults__", ("no-such-tag",))
+    monkeypatch.setattr(fr, "load_window", lambda *a, **k: pytest.fail("data opened without the tag"))
+    assert fr.main(["--gold", "g", "--eval", "e", "--models", "m", "--window", "test", "--out", str(tmp_path)]) == 2
+    assert "no-such-tag is missing" in capsys.readouterr().err
+    with pytest.raises(HarnessError, match="no-such-tag is missing"):
+        harness_report.require_protocol_tag("no-such-tag")
