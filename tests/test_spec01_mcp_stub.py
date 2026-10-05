@@ -105,6 +105,9 @@ def test_ac_03_customer_id_only_comes_from_the_session():
     for name, (model_in, _) in tools.CUSTOMER_TOOLS.items():
         assert "session_id" in model_in.model_fields and "customer_id" not in model_in.model_fields, name
         assert model_in.model_json_schema()["additionalProperties"] is False, name
+    unknown = _args("search_transaction", "S-unknownsession01", customer_id="CLI-EXAMPLE00002")
+    [result] = _run(("search_transaction", unknown))           # session first (spec 03 AC-02), then the arguments
+    assert tools.ToolError.model_validate(result.structured_content).code == "SESSION_EXPIRED"
     with pytest.raises(MCPError) as err:        # the fake's input-model check → JSON-RPC invalid params
         _run(("search_transaction", _args("search_transaction", customer_id="CLI-EXAMPLE00002")))
     assert err.value.code == -32602
@@ -155,7 +158,36 @@ def test_ac_03_accepted_is_not_verified_in_any_tool_result():
         tools.BlockCardOut(action_id="A-3E9F20B7C164", product_id=fake._PRD, state="verified")
 
 
+FORBIDDEN = {"customer_id", "score", "fraud_score", "zone", "policy_id", "transcript", "email", "phone",
+             "document_number"}
+
+
+def _property_names(schema):
+    """Every property name in a JSON schema, $defs and nested objects included."""
+    if isinstance(schema, dict):
+        yield from schema.get("properties", {})
+        for value in schema.values():
+            yield from _property_names(value)
+    elif isinstance(schema, list):
+        for item in schema:
+            yield from _property_names(item)
+
+
+@pytest.mark.parametrize("name", list(tools.CUSTOMER_TOOLS))
+def test_ac_03_no_output_exposes_identity_score_zone_or_policy(name):
+    """Constitution #3 and policies.yaml notifications.never_send: only get_fraud_score, which the agent reads, carries a score."""
+    exposed = set(_property_names(tools.CUSTOMER_TOOLS[name][1].model_json_schema())) & FORBIDDEN
+    assert exposed == ({"score"} if name == "get_fraud_score" else set())
+
+
 READS = sorted(set(tools.VERIFIED_WITH.values()))
+# The (read, write action) pairs the fake must verify, derived from the contract: one per VERIFIED_WITH entry.
+PAIRS = sorted({(read, fake.FIXTURES[write]["action_id"]) for write, read in tools.VERIFIED_WITH.items()})
+
+
+def _reading(read: str, action_id: Optional[str]) -> dict:
+    args = {key: value for key, value in _args(read).items() if key != "action_id"}
+    return args if action_id is None else {**args, "action_id": action_id}
 
 
 @pytest.mark.parametrize("read", READS)
@@ -174,33 +206,57 @@ def test_d_025_a_verifying_read_names_the_write_it_verified(read):
     assert plain.read_at is not None
 
 
-def test_d_025_the_fake_verifies_only_the_write_it_is_asked_about():
-    for (read, action_id), verification_id in fake.VERIFICATIONS.items():
-        write = next(name for name, data in fake.FIXTURES.items() if data.get("action_id") == action_id
-                     and name in tools.VERIFIED_WITH)
-        assert tools.VERIFIED_WITH[write] == read
-    assert len(set(fake.VERIFICATIONS.values())) == len(fake.VERIFICATIONS)   # one V- per (read, write)
-    asked = [fake.FIXTURES[w]["action_id"] for w in ("add_case_info", "request_reevaluation", "block_card")]
-    results = _run(("get_case", _args("get_case", action_id=asked[0])),
-                   ("get_case", _args("get_case", action_id=asked[1])),     # wrote nothing: already_in_progress
-                   ("get_case", _args("get_case", action_id=asked[2])),     # verified by get_product_status
-                   ("get_case", _args("get_case", action_id=None)),         # a plain status read
-                   ("list_my_cards", _args("list_my_cards")))
-    got = [(r.structured_content["action_id"], r.structured_content["verification_id"]) for r in results[:4]]
-    assert got == [(asked[0], fake.VERIFICATIONS[("get_case", asked[0])])] + [(None, None)] * 3
-    assert all(r.structured_content["read_at"] for r in results[:4])
-    assert [(card["action_id"], card["verification_id"]) for card in results[4].structured_content["cards"]] == [
+@pytest.mark.parametrize(("read", "action_id"), PAIRS)
+def test_d_025_the_fake_verifies_each_write_by_its_read(read, action_id):
+    assert set(fake.VERIFICATIONS) == set(PAIRS)                               # the VERIFIED_WITH table of tools.py
+    assert len(set(fake.VERIFICATIONS.values())) == len(PAIRS)                 # one V- per (read, write)
+    [result] = _run((read, _reading(read, action_id)))
+    got = result.structured_content
+    assert (got["action_id"], got["verification_id"]) == (action_id, fake.VERIFICATIONS[(read, action_id)])
+    assert got["read_at"]
+
+
+@pytest.mark.parametrize(("read", "asked"), [(read, asked) for read in READS for asked in ("none", "foreign")])
+def test_d_025_a_plain_or_foreign_read_verifies_nothing(read, asked):
+    foreign = next(action for other, action in PAIRS if other != read)         # a write another read verifies
+    [result] = _run((read, _reading(read, None if asked == "none" else foreign)))
+    got = result.structured_content
+    assert (got["action_id"], got["verification_id"]) == (None, None) and got["read_at"]
+
+
+def test_d_025_list_my_cards_verifies_no_write():
+    [result] = _run(("list_my_cards", _args("list_my_cards")))
+    assert [(card["action_id"], card["verification_id"]) for card in result.structured_content["cards"]] == [
         (None, None)]
+    with pytest.raises(ValidationError, match="verifies no write"):
+        tools.ListMyCardsOut.model_validate({"cards": [fake.FIXTURES["get_product_status"]]})
 
 
-def test_d_026_a_call_request_with_no_case_answers_no_case_and_stays_requested():
+def test_d_026_a_call_request_with_no_case_is_its_own_unverified_action():
     args = {key: value for key, value in _args("request_call").items() if key != "case_id"}
     [result] = _run(("request_call", args))
     answer = tools.RequestCallOut.model_validate(result.structured_content)
-    assert (answer.case_id, answer.state) == (None, "requested")
-    assert answer.event_id and answer.action_id and "verification_id" not in result.structured_content
+    assert (answer.case_id, answer.state, answer.expected_contact_by) == (None, "requested", dt.date(2026, 6, 2))
+    assert "verification_id" not in result.structured_content
+    assert answer.action_id not in {action for _, action in fake.VERIFICATIONS}            # outside VERIFICATIONS
+    assert answer.event_id != fake.FIXTURES["request_call"]["event_id"]
+    [read] = _run(("get_case", _args("get_case", action_id=answer.action_id)))
+    assert (read.structured_content["action_id"], read.structured_content["verification_id"]) == (None, None)
     spec_03 = (ROOT / "specs/03-mcp-tools.md").read_text().split("## 6.")[1].split("## 7.")[0]
     assert "call_requests" in spec_03 and "only as `requested`" in spec_03 and "03d" in spec_03
+    row = next(line for line in SPEC_01.splitlines() if line.startswith("| `request_call`"))
+    assert "D-026" in row and "call_requests" in row
+
+
+def test_ac_19_already_in_progress_returns_the_original_write_ids():
+    """D-025 default: nothing is written, so the answer carries the ids of the write that holds the case active."""
+    answer = fake.ANSWERS["request_reevaluation"]
+    opened = next(event for event in fake.FIXTURES["get_case"]["timeline"] if event["type"] == "case_opened")
+    assert answer.outcome == "already_in_progress"
+    assert (answer.action_id, answer.event_id) == (fake.FIXTURES["open_case"]["action_id"], opened["event_id"])
+    assert all(tools.RequestReevaluationOut.model_fields[field].is_required() for field in ("action_id", "event_id"))
+    [read] = _run(("get_case", _args("get_case", action_id=answer.action_id)))
+    assert read.structured_content["verification_id"] == fake.VERIFICATIONS[("get_case", answer.action_id)]
 
 
 def test_d_027_synthetic_is_a_score_source():
@@ -211,30 +267,54 @@ def test_d_027_synthetic_is_a_score_source():
                                            "version": "synthetic-v0"})
 
 
-@pytest.mark.parametrize(("name", "field", "good", "bad"), [
+MISSING = object()
+AWARE, NAIVE = "2026-06-01T15:04:11-06:00", "2026-06-01T15:04:11"
+BASES = {"convert_amount": {"converted": {"amount": "22500.00", "currency": "MXN", "rate": "18.0",
+                                          "rate_source": "Banxico FIX", "as_of": "2026-06-01"}}}
+SHAPES = [   # (tool, field path, a valid value, an invalid value): output fields no fixture id covers
     ("open_case", "duplicate_of", "K-104233", "104233"),
     ("request_reevaluation", "event_id", "E-5D0E7A21C9B4", "E-5d0e7a21c9b4"),
     ("get_case", "transaction.currency", "MXN", "usd"),
     ("get_case", "deadline_source_url", "https://www.banxico.org.mx/", "http://www.banxico.org.mx/"),
     ("get_product_status", "last4", "0001", "441"),
-])
+    ("get_case", "read_at", AWARE, NAIVE), ("get_case", "read_at", AWARE, MISSING),          # AC-16
+    ("list_my_cases", "read_at", AWARE, NAIVE), ("list_my_cases", "read_at", AWARE, MISSING),
+    ("compute_deadline", "source_url", fake._URL, "http://www.gob.mx/condusef"),              # ADR 0019
+    ("compute_deadline", "source_url", fake._URL, MISSING), ("compute_deadline", "verified_on", "2026-10-04", MISSING),
+    ("get_fraud_score", "score", 100.0, 100.5), ("get_fraud_score", "score", 0.0, -5.0),
+    ("get_fraud_score", "score", None, float("nan")),
+    ("convert_amount", "converted.rate", "18.0", "18,0"),
+]
+
+
+@pytest.mark.parametrize(("name", "field", "good", "bad"), SHAPES,
+                         ids=[f"{n}.{f}={'missing' if b is MISSING else b}" for n, f, _, b in SHAPES])
 def test_ac_03_output_fields_keep_their_shape(name, field, good, bad):
-    """OpenCaseOut.duplicate_of, RequestReevaluationOut.event_id, CaseCharge.currency, the https deadline_source_url
-    and Card.last4: fields no fixture id covers."""
     def with_value(value):
-        data = copy.deepcopy(fake.FIXTURES[name])
-        if name == "request_reevaluation":
-            data["outcome"] = "back_to_review"          # an outcome that writes an event
+        data = copy.deepcopy(BASES.get(name, fake.FIXTURES[name]))
         *parents, key = field.split(".")
         node = data
         for parent in parents:
             node = node[parent]
-        node[key] = value
+        if value is MISSING:
+            node.pop(key, None)
+        else:
+            node[key] = value
         return data
     model = tools.CUSTOMER_TOOLS[name][1]
     model.model_validate(with_value(good))
     with pytest.raises(ValidationError):
         model.model_validate(with_value(bad))
+
+
+def test_ac_03_enums_keep_their_source_vocabulary():
+    def values(model, field):
+        return get_args(model.model_fields[field].annotation)
+    assert values(tools.GetCaseOut, "queue_status") == values(tools.MyCase, "queue_status") == tuple(
+        POLICIES["case_queue"]["states"])
+    assert values(tools.NotificationItem, "delivery_status") == values(c.CaseNotification, "delivery_status")
+    assert values(tools.GetCustomerProfileOut, "language") == get_args(c.Language)
+    assert values(tools.BlockCardIn, "reason") == ("high_zone_dispute", "confirmed_dispute")   # tools.py v1.1
 
 
 @pytest.mark.parametrize("drop", ["deadline_source", "deadline_source_url", "deadline_verified_on"])
@@ -255,6 +335,10 @@ def test_ac_03_a_stored_deadline_travels_with_its_source(drop):
     (tools.SearchTransactionIn, {"merchant": "X" * 101}, False),
     (tools.RequestCallIn, {"idempotency_key": "k"}, True),                     # case_id optional: a general request
     (tools.RequestReevaluationIn, {"idempotency_key": "k", "reason": "r"}, False),   # case_id required
+    (tools.OpenCaseIn, {**ARGS["open_case"], "idempotency_key": "k"}, True),
+    (tools.OpenCaseIn, {**ARGS["open_case"], "idempotency_key": ""}, False),
+    (tools.AddCaseInfoIn, {"idempotency_key": "k", "case_id": fake._CASE, "text": "x" * 1000}, True),   # AC-17
+    (tools.AddCaseInfoIn, {"idempotency_key": "k", "case_id": fake._CASE, "text": "x" * 1001}, False),
 ])
 def test_ac_03_input_bounds(model, data, valid):
     try:
@@ -273,20 +357,6 @@ def test_ac_03_search_returns_at_most_four_candidates_and_no_score():
     assert not {"fraud_score", "split"} & set(tools.Transaction.model_fields)    # D-026: the zone uses get_fraud_score
 
 
-@pytest.mark.parametrize(("outcome", "event_id", "valid"), [
-    ("already_in_progress", None, True), ("already_in_progress", "E-5D0E7A21C9B4", False),
-    ("back_to_review", "E-5D0E7A21C9B4", True), ("back_to_review", None, False),
-    ("related_case_opened", None, False)])
-def test_ac_03_reevaluation_writes_an_event_unless_already_in_progress(outcome, event_id, valid):
-    data = {**fake.FIXTURES["request_reevaluation"], "outcome": outcome, "event_id": event_id}
-    try:
-        tools.RequestReevaluationOut.model_validate(data)
-    except ValidationError:
-        assert not valid
-    else:
-        assert valid
-
-
 def test_d_008_request_call_returns_expected_contact_by():
     field = tools.RequestCallOut.model_fields["expected_contact_by"]
     assert tools.RequestCallResult is tools.RequestCallOut
@@ -302,3 +372,16 @@ def test_ac_01_handoff_evidence_uses_gold_and_contract_id_shapes():
     prefixes = set(handoff["properties"]["evidence"]["description"].replace(",", " ").split())
     assert {"TRX-", "PRD-", "CLI-", "A-", "V-", "RC-", "K-"} <= prefixes
     assert not {"T-", "P-", "R-"} & prefixes
+
+
+def test_ac_03_mcp_image_serves_on_the_container_port_and_keeps_secrets_out():
+    lines = (ROOT / "apps/mcp/Dockerfile").read_text().splitlines()
+    cmd = json.loads(next(line for line in lines if line.startswith("CMD "))[4:])
+    assert "EXPOSE 8001" in lines and "(container port 8001, spec 06)" in SPEC_01
+    assert cmd[cmd.index("--host") + 1] == "0.0.0.0" and cmd[cmd.index("--port") + 1] == "8001"
+    ignored = {line.strip() for line in (ROOT / ".dockerignore").read_text().splitlines()
+               if line.strip() and not line.startswith("#")}
+    notes = (ROOT / ".gitignore").read_text().split("# personal drafts")[1].split("\n\n")[0].splitlines()[1:]
+    assert {".venv", "data", "**/data/gold_eval", "**/*.parquet", "**/*.duckdb", "**/.env*", "**/*.pem", ".git",
+            ".claude", "revision"} | set(notes) <= ignored
+    assert notes and "**/data" not in ignored      # apps/web/app/data is source

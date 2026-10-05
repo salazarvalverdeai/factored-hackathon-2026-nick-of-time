@@ -137,7 +137,7 @@ class GetFraudScoreIn(_In):
 
 class GetFraudScoreOut(_Model):
     transaction_id: str = Field(pattern=_TRX)
-    score: Optional[float]            # 0-100 or None
+    score: Optional[float] = Field(ge=0, le=100, allow_inf_nan=False)   # 0-100 or None (required, nullable)
     source: Literal["dataset", "rules", "model", "llm", "synthetic"]   # synthetic: live-mode demo transactions (ADR 0020)
     version: str                      # e.g. "gold-v1", "model-v0"
     features_used: Optional[dict] = None   # rules/model only; goes to the evidence
@@ -212,7 +212,13 @@ class ListMyCardsIn(_In):
 
 
 class ListMyCardsOut(_Model):
-    cards: list[Card]
+    cards: list[Card]                 # plain status reads: list_my_cards verifies no write (D-025)
+
+    @model_validator(mode="after")
+    def _a_listing_verifies_nothing(self):
+        if any(card.action_id or card.verification_id for card in self.cards):
+            raise ValueError("list_my_cards verifies no write: its cards carry no action_id or V- (D-025)")
+        return self
 
 
 # ---------- get_case / list_my_cases (R) ----------
@@ -289,6 +295,8 @@ class RequestCallIn(_WriteIn):
 
 
 class RequestCallOut(_CaseEventOut):
+    # AC-18 [assumption] (D-025): a second request for a case with an open one writes nothing and returns the ORIGINAL
+    # request's action_id, event_id and expected_contact_by, so its action_id stays verifiable by get_case.
     # D-008: the tool computes it from policies.yaml contact.callback_within_business_days counted from
     # clock.today(mode, country), stores it in the call_requested event and never recomputes it; None = no promise.
     expected_contact_by: Optional[date] = None
@@ -303,15 +311,11 @@ class RequestReevaluationIn(_WriteIn):
 
 
 class RequestReevaluationOut(_CaseEventOut):
+    # AC-19 [assumption] (D-025): already_in_progress writes nothing and returns the ORIGINAL action_id and event_id of
+    # the write that holds the case active (its open_case and case_opened, or the earlier request_reevaluation and
+    # reevaluation_requested), so action_id stays required and verifiable by get_case.
     outcome: Literal["back_to_review", "related_case_opened", "already_in_progress"]   # spec 03 AC-19
-    event_id: Optional[str] = Field(None, pattern=PATTERN["event"])   # None iff already_in_progress: nothing written
     related_case_id: Optional[str] = Field(None, pattern=_CASE)
-
-    @model_validator(mode="after")
-    def _an_event_iff_something_was_written(self):
-        if (self.event_id is None) != (self.outcome == "already_in_progress"):
-            raise ValueError("event_id is null exactly when the case is already_in_progress (AC-19)")
-        return self
 
 
 # ---------- convert_amount (R) ----------

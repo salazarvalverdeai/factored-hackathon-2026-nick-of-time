@@ -174,12 +174,12 @@ shape of `data` is fixed in the producing spec.
 | `compute_deadline` | R | Legal deadline for a new case, with `source_url` and `verified_on` | — | — |
 | `open_case` | W | Open the case; no duplicate active case; closed case → new case with `related_case_id` | `cases`, `case_events` (`case_opened`) | `get_case` |
 | `block_card` | W | Block the card | `product_overrides`, `case_events` (`card_blocked`) | `get_product_status` |
-| `get_product_status` | R | One card: type, last 4, status, `verification_id`, `read_at` | — | — |
-| `list_my_cards` | R | The customer's cards with status | — | — |
+| `get_product_status` | R | One card: type, last 4, status, `read_at`; `action_id` + `verification_id` only when called with a write's `action_id` (D-025) | — | — |
+| `list_my_cards` | R | The customer's cards with status; never a `V-` (plain reads) | — | — |
 | `get_case` | R | Customer view of a case: status label, stored deadlines with source and `deadline_verified_on`, visible timeline, `taken_by_person`, `related_case_id`, `read_at` (replaces `get_case_status`) | — | — |
 | `list_my_cases` | R | The customer's cases | — | — |
 | `add_case_info` | W | Customer adds information to an active case | `case_events` (`customer_info_added`) | `get_case` |
-| `request_call` | W | Customer asks a person to call | `case_events` (`call_requested`) | `get_case` |
+| `request_call` | W | Customer asks a person to call; with no `case_id` it is reported only as `requested`, since no read verifies it (D-026) | `case_events` (`call_requested`); with no case, a `call_requests` row (task 03d) | `get_case` |
 | `request_reevaluation` | W | Re-evaluate a resolved case (→ `review`) or open a related case for a closed one | `case_events` (`reevaluation_requested`) or `cases` | `get_case` |
 | `convert_amount` | R | Amount in the display currency, with rate, source and date | — | — |
 | `send_case_summary` | N | Send the receipt template to a confirmed channel | `notifications`, `case_events` (`notification_sent`) | `list_my_notifications` |
@@ -188,8 +188,7 @@ shape of `data` is fixed in the producing spec.
   The analysts' actions (approve credit, unblock, close, reopen) stay in the api behind Cognito and never appear in
   the MCP.
   `[assumption]` (D-014, pending the lead): the `open_case` and `get_case` results carry `deadline_verified_on`
-  with the stored deadline, so a receipt re-sent later can fill `deadline.verified_on` (§6.7, ADR 0019); the models
-  land with T4.
+  with the stored deadline, so a receipt re-sent later can fill `deadline.verified_on` (§6.7, ADR 0019).
   `contracts/tools.py` lists them in `CUSTOMER_TOOLS` (name → models) and `VERIFIED_WITH` (the column above). A W or N
   result says at most `state: "requested"` and carries no `V-` id; the verifying read mints `verification_id` with
   `read_at` (D-025 `[assumption]`, §6.5). The verifying reads take an optional `action_id` (the write they check)

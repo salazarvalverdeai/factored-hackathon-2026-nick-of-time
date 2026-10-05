@@ -92,8 +92,8 @@ graph's run id). Kind: R read · W write · N notification.
 | `compute_deadline` | R | Country from the customer (`México`→MX, `Argentina`→AR, `Colombia`→CO), product from the card type, opened on `clock.today(mode, country)`, `abroad` when `transaction_country` ≠ customer country; delegates to `clock.deadline()` (spec 02); returns `source_url` and `verified_on`. |
 | `open_case` | W | Duplicate check first (AC-15); recomputes the zone from the score (mismatch → AC-09); idempotent on `idempotency_key` (prefixed with `run_id`); writes `cases` (with `mode`, `related_case_id` when given) and `case_events(case_opened)`; returns `case_id`, deadlines and `duplicate_of`. |
 | `block_card` | W | Requires an open case for that product in the session and run; asks `engine.check("block_card", zone, amount, country, supervised_mode)`; on allow, writes `product_overrides(Blocked)` and `case_events(card_blocked)`, returns `state: "requested"` (not yet verified). |
-| `get_product_status` | R | Latest override for the product in the same `run_id`, else gold `product_status`; returns type, last 4, status, `verification_id`, `read_at`. No cache. |
-| `list_my_cards` | R | The session customer's cards with the same fields as `get_product_status`. |
+| `get_product_status` | R | Latest override for the product in the same `run_id`, else gold `product_status`; returns type, last 4, status and `read_at`, plus `action_id` + `verification_id` only when called with a write's `action_id` whose post-condition holds (D-025). No cache. |
+| `list_my_cards` | R | The session customer's cards with the same fields as `get_product_status`, never with an `action_id` or `V-`: a listing verifies no write (D-025). |
 | `get_case` | R | Replaces `get_case_status`. Status label for the customer (`Recibido`, `En revisión`, `Resuelto`, `Cerrado` and PT equivalents from `messages.yaml`), stored deadlines with source, transaction, visible timeline, `taken_by_person` (an `assigned` event exists), `related_case_id`, `read_at`. |
 | `list_my_cases` | R | The session customer's cases (active first) with status label, deadlines, last 4 and `updated_at`. |
 | `add_case_info` | W | AC-17; writes `case_events(customer_info_added)`. |
@@ -125,7 +125,9 @@ hash (G-OPS-02). The analysts' actions never appear in this server.
   task 01c).
   `get_case`, `get_product_status` and `list_my_notifications` take an optional `action_id` and return it with a
   `verification_id` only when that write's post-condition holds; otherwise, and for a plain status read, they return
-  `read_at` only (both ids or neither).
+  `read_at` only (both ids or neither). A duplicate that writes nothing (`open_case` AC-15, `request_call` AC-18,
+  `request_reevaluation` `already_in_progress` AC-19) returns the original write's `action_id` and, for the last two,
+  its `event_id`, so the action stays verifiable.
 - D-026: `search_transaction` returns no `fraud_score` or `split`, because the zone comes only from `get_fraud_score`.
   A `request_call` without `case_id` writes no `case_events` row. It returns `case_id: null`, its `action_id` and an
   `event_id` (`E-`) that keys an append-only `call_requests` row. No customer read verifies it, so the agent reports it

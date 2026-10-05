@@ -9,7 +9,8 @@ Each tool publishes the JSON schema of its `contracts/tools.py` input model and 
 - Ids: a `transaction_id`, `product_id` or `case_id` other than the fixture's answers `ToolError` `NOT_FOUND`.
 - Verifying reads (D-025): called with the `action_id` of a fixture write they verify, they return it with the `V-` of
   `VERIFICATIONS`; with any other `action_id`, or none, they are a plain status read (`read_at` only).
-- A `request_call` with no `case_id` answers `case_id: null` (D-026).
+- A `request_call` with no `case_id` answers `CASELESS_CALL`: `case_id: null` and its own action and event ids, which no
+  read verifies (D-026).
 - No API key: never deploy it publicly; the real server requires `X-API-Key` (spec 03 AC-06).
 Run: `PYTHONPATH=.:packages:apps/mcp python -m mcp_server.fake` → http://localhost:8100/mcp.
 """
@@ -62,7 +63,9 @@ FIXTURES: dict[str, dict[str, Any]] = {
     # D-008: replay today 2026-06-01 (Monday) + contact.callback_within_business_days (1) → 2026-06-02
     "request_call": {"action_id": "A-9A4D07E2C5B1", "case_id": _CASE, "event_id": "E-3B6C1D9F2A85",
                      "expected_contact_by": "2026-06-02"},
-    "request_reevaluation": {"action_id": "A-6F1B3C8D2E90", "case_id": _CASE, "outcome": "already_in_progress"},
+    # AC-19 (D-025): the case is active, so nothing is written; the ids are those of the open_case that holds it active
+    "request_reevaluation": {"action_id": "A-71C0D5E8A2F3", "case_id": _CASE, "event_id": "E-0B7F3A9C2D14",
+                             "outcome": "already_in_progress"},
     "convert_amount": {"converted": None},      # no verified rate yet, as in the sample receipt (ADR 0019)
     "send_case_summary": {"action_id": "A-D3E5F7091B2C", "notification_id": "N-7E2A9C4B1D30", **_TELEGRAM},
     "list_my_notifications": {"action_id": "A-D3E5F7091B2C", "verification_id": "V-4A1C9E7B3D52",   # send_case_summary
@@ -76,8 +79,8 @@ FIXTURES: dict[str, dict[str, Any]] = {
 # Built through the contract models, so a fixture that drifts from contracts/tools.py fails at import.
 ANSWERS = {name: CUSTOMER_TOOLS[name][1].model_validate(data) for name, data in FIXTURES.items()}
 KNOWN_IDS = {"transaction_id": _TRX, "product_id": _PRD, "case_id": _CASE}
-# (read, action_id of the fixture write it verifies) → the V- that read mints (D-025). The request_reevaluation fixture
-# wrote nothing (already_in_progress), so no read verifies it.
+# (read, action_id of the fixture write it verifies) → the V- that read mints (D-025): one pair per VERIFIED_WITH entry
+# of contracts/tools.py. The request_reevaluation fixture returns open_case's action (AC-19), so it shares that pair.
 VERIFICATIONS: dict[tuple[str, str], str] = {
     ("get_case", "A-71C0D5E8A2F3"): "V-0C6A93F1B57D",                 # open_case
     ("get_case", "A-2C8E61F0B3A7"): "V-1E4B7D0A9C36",                 # add_case_info
@@ -85,6 +88,8 @@ VERIFICATIONS: dict[tuple[str, str], str] = {
     ("get_product_status", "A-3E9F20B7C164"): "V-8B2D41C7E0A9",       # block_card
     ("list_my_notifications", "A-D3E5F7091B2C"): "V-4A1C9E7B3D52",    # send_case_summary
 }
+# D-026: a general request (no case_id) writes a call_requests row, not a case event; no customer read verifies it.
+CASELESS_CALL = {"action_id": "A-5E8B2F0C7D19", "event_id": "E-6A3D9B1F4C07", "case_id": None}
 
 
 def _error(error: ToolError) -> ToolResult:
@@ -106,7 +111,7 @@ class FixtureTool(Tool):
             answer = answer.model_copy(update={"action_id": arguments["action_id"] if verification_id else None,
                                                "verification_id": verification_id})
         if self.name == "request_call" and arguments.get("case_id") is None:   # a general request: no case (D-026)
-            answer = answer.model_copy(update={"case_id": None})
+            answer = answer.model_copy(update=CASELESS_CALL)
         return ToolResult(structured_content=answer.model_dump(mode="json"))
 
 
