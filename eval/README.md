@@ -14,6 +14,8 @@ harness of spec 10 when it scores.
 | `demo/sample_cases.jsonl` | four processed sample cases with scripted analyst steps | 09 §7.3 |
 | `cases/plan/dev.jsonl` | what the team writes for each dev case: type, messages, intent and the index row it is about | 09 §7.4 |
 | `cases/dev.jsonl` | the 20 dev agent cases, built by `derive_expected.py`; do not edit by hand | 09 §7.4 |
+| `cases/plan/heldout.jsonl`, `cases/heldout.jsonl` | the same for the 80 held-out cases | 09 §7.4 |
+| `heldout.sha256` | sha256 of `cases/heldout.jsonl` | 09 §7.7 |
 | `derive_expected.py` | builds a case file from its plan; `expected` comes from the policy engine | 09 §7.5 |
 | `eval_case.schema.json`, `examples.jsonl` | shape of an agent case, with five examples | 01 |
 | `PROTOCOL.md` | pre-registered evaluation rules; unsealed until M02 | 11, 15, 17 |
@@ -105,4 +107,16 @@ change a case, edit its plan line and rebuild; a test fails if a committed case 
 
 Dev set: 20 cases, 14 in Spanish and 6 in Portuguese — 4 `normal`, 4 `human`, 3 `ambiguous`, 2 `customer_returns`,
 2 `injection` and 1 each of `unauthorized_access`, `session_expired`, `tool_failure`, `missing_data`, `out_of_scope`.
-The held-out set (80 cases), its seal and the second labeling of 20 cases (AC-06) are not done yet.
+
+Held-out set: 80 cases on 80 different held-out customers, 50 in Spanish and 30 in Portuguese — 13 `normal`,
+17 `human`, 10 `ambiguous`, 8 `customer_returns`, 10 `injection`, 6 `unauthorized_access`, 4 `session_expired`,
+4 `tool_failure`, 3 `missing_data`, 2 `late_arrival`, 3 `out_of_scope`. It uses all 7 high-zone held-out transactions
+gold has (5 `normal`, 2 `tool_failure`) and all 10 medium-zone ones (8 `normal`, 2 `customer_returns`) `[data]`.
+With 80 cases the intervals per cell are wide: results show n and do not over-claim (ADR 0007).
+
+**Seal.** `eval/heldout.sha256` is the sha256 of `cases/heldout.jsonl`
+(`PYTHONPATH=packages python -m eval.derive_expected seal`). No model has been trained or evaluated on the held-out.
+The hash becomes binding at M02, when `eval/PROTOCOL.md` is sealed; after that the file never changes and new data
+is a new sealed set (ADR 0021). **Do not use the held-out to tune prompts, rules or thresholds: use the dev set.**
+
+Not done yet: the second labeling of 20 cases (AC-06) and the classifier sentences (AC-04, AC-10).

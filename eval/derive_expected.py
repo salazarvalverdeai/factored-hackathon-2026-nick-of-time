@@ -4,12 +4,15 @@ A plan line holds what the team writes: the case type, the customer messages, th
 eval/demo_index.csv the case is about. This script adds the real state (the transaction fixtures) and the `expected`
 block, which comes from the policy engine and is never typed by hand (AC-09).
 
-Usage, from the repo root: PYTHONPATH=packages python -m eval.derive_expected dev|heldout
+Usage, from the repo root: PYTHONPATH=packages python -m eval.derive_expected dev|heldout|seal
+`seal` writes eval/heldout.sha256, the sha256 of eval/cases/heldout.jsonl (AC-05). After the seal the held-out file
+never changes (ADR 0021).
 A plan line with `"fixtures": "cluster"` (ambiguous cases) reads the customer's neighbouring card transactions from
 data/gold/, so it needs `make setup`; every other line needs only the index.
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import sys
 from pathlib import Path
@@ -67,8 +70,12 @@ def expected_for(case: dict[str, Any], intent: Optional[str], engine: Optional[P
     opened, blocked = "open_case" in decision.allowed_actions, "block_card" in decision.allowed_actions
     outcome, queue = decision.decision, decision.queue_status_after
     handoff = decision.handoff_reason is not None or decision.request_call is not None
-    if blocked and "block_card" in state.get("tool_faults", []):
-        # reliability.on_failure: the block is never reported; the case goes to a person with the action unconfirmed
+    faults = state.get("tool_faults", [])
+    if opened and "open_case" in faults:
+        # reliability.on_failure: no case is confirmed, so nothing is reported as opened or blocked; a person gets it
+        outcome, opened, blocked, handoff, queue = "escalate_unconfirmed_action", False, False, True, None
+    elif blocked and "block_card" in faults:
+        # the block is never reported; the case goes to a person with the action unconfirmed
         outcome, blocked, handoff, queue = "escalate_unconfirmed_action", False, True, "review"
     expected: dict[str, Any] = {"decision": outcome}
     if decision.zone:
@@ -159,8 +166,16 @@ def write(set_name: str) -> int:
     return len(cases)
 
 
+def heldout_sha256() -> str:
+    return hashlib.sha256((CASES / "heldout.jsonl").read_bytes()).hexdigest()
+
+
 if __name__ == "__main__":
     name = sys.argv[1] if len(sys.argv) == 2 else ""
-    if name not in ("dev", "heldout"):
-        sys.exit("usage: python -m eval.derive_expected dev|heldout")
-    print(f"eval/cases/{name}.jsonl: {write(name)} cases")
+    if name == "seal":
+        (ROOT / "eval/heldout.sha256").write_text(heldout_sha256() + "\n", encoding="ascii", newline="\n")
+        print(f"eval/heldout.sha256: {heldout_sha256()}")
+    elif name in ("dev", "heldout"):
+        print(f"eval/cases/{name}.jsonl: {write(name)} cases")
+    else:
+        sys.exit("usage: python -m eval.derive_expected dev|heldout|seal")
