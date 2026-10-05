@@ -70,7 +70,7 @@ def read_handlers(gold: Gold, policies: Policies, *, channels: Optional[Callable
 
     def customer(call: Call) -> Optional[tuple[GoldCustomer, str]]:
         row = gold.customer(call.session.customer_id)
-        country = COUNTRY.get(fold(row.country or "")) if row else None
+        country = _code(row.country) if row else None
         return (row, country) if country in gates else None
 
     def display_currency(call: Call, country: str) -> str:

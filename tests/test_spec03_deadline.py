@@ -84,7 +84,8 @@ def _expected(country, product, opened_on, charged_on, abroad=False):
 
 
 def test_t3_compute_deadline_answers_every_clock_row_from_the_session_customers_country(gold_dir):
-    """Spec 03 §6 compute_deadline: country from the customer, product from the card type, opened on DEMO_TODAY."""
+    """Spec 03 §6 compute_deadline: country from the customer, product from the card type, opened on DEMO_TODAY;
+    spec 02 AC-03 (MX debit and credit) and spec 02 AC-14 (a country without an entry)."""
     run, rows = Run(gold_dir), load_policies().regulatory_clock
     assert set(rows) <= {"MX"} | {code for _, code in COUNTRIES.values()}       # every row of the table is exercised
     for customer, (_, code) in COUNTRIES.items():
@@ -101,7 +102,8 @@ def test_t3_compute_deadline_answers_every_clock_row_from_the_session_customers_
 
 
 def test_t3_mx_provisional_credit_covers_charges_within_90_calendar_days_debit_and_credit(gold_dir):
-    """ADR 0023: day 90 still qualifies; day 91 falls to LTOSF art. 23, a ruling date and no credit date."""
+    """Spec 02 AC-03 and ADR 0023: day 90 still qualifies; day 91 falls to LTOSF art. 23, a ruling date and no credit
+    date."""
     run = Run(gold_dir)
     for day90, day91 in ((3, 4), (8, 9)):                                      # debit, then credit
         assert run(day90).credit_deadline == dt.date(2026, 6, 3)
@@ -111,6 +113,7 @@ def test_t3_mx_provisional_credit_covers_charges_within_90_calendar_days_debit_a
 
 
 def test_t3_a_charge_abroad_gets_the_abroad_ruling_term(gold_dir):
+    """Spec 03 §6 `abroad` when transaction_country differs from the customer's; spec 02 AC-03 (180 days abroad)."""
     run = Run(gold_dir)
     assert run(5).ruling_deadline == dt.date(2026, 11, 28)                     # USA: 180 calendar days
     assert run(5) == _expected("MX", "debit", clock.DEMO_TODAY, MAY30, abroad=True)
@@ -119,7 +122,7 @@ def test_t3_a_charge_abroad_gets_the_abroad_ruling_term(gold_dir):
 
 
 def test_t3_a_country_without_a_verified_entry_gets_no_deadline_and_pol_clock_unknown(gold_dir):
-    """Spec 02 §4.3: case opened, a person decides, no invented deadline; the error carries no date at all."""
+    """Spec 02 AC-14 and §4.3: case opened, a person decides, no invented deadline; the error carries no date."""
     run = Run(gold_dir)
     for customer in ("CLI-URY000000001", *(c for c, (_, code) in COUNTRIES.items()
                                           if code and code not in load_policies().regulatory_clock)):

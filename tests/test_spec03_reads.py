@@ -24,6 +24,8 @@ from mcp_server.gold import Gold  # noqa: E402
 NOW = dt.datetime(2026, 6, 1, 15, 0, tzinfo=dt.UTC)
 ANA, BRUNO, CARLA = "CLI-ANA000000001", "CLI-BRUNO0000001", "CLI-CARLA0000001"     # MX, MX, AR
 S_ANA, S_BRUNO, S_CARLA, S_LIVE = "S-anareplay0000001", "S-brunoreplay00001", "S-carlareplay00001", "S-analive000000001"
+DORA, EDU = "CLI-DORA00000001", "CLI-EDU000000001"                                    # BR by name, BR by ISO code
+S_DORA, S_EDU = "S-dorareplay000001", "S-edureplay0000001"
 
 
 def _trx(n, customer, day, amount, currency="USD", merchant=None, status="Approved", ptype="Tarjeta Crédito",
@@ -52,7 +54,8 @@ def gold_dir(tmp_path_factory):
     pl.DataFrame([{"customer_id": c, "first_name": f, "last_name": "Pérez", "document_number": "DOC-SECRET",
                    "email": f"{f.lower()}.perez@example.com", "mobile_phone": "+525512345678", "address": "Calle 1",
                    "country": k} for c, f, k in ((ANA, "Ana", "México"), (BRUNO, "Bruno", "México"),
-                                                 (CARLA, "Carla", "Argentina"))]).write_parquet(
+                                                 (CARLA, "Carla", "Argentina"), (DORA, "Dora", "Brasil"),
+                                                 (EDU, "Edu", "BR"))]).write_parquet(
         root / "gold/customers.parquet")
     (root / "gold_eval").mkdir()
     labels = root / "gold_eval/transaction_labels.parquet"
@@ -68,7 +71,8 @@ class Run:
             return gate.SessionRow(**{"session_id": sid, "customer_id": customer, "verified_at": NOW, "language": "es",
                                       "mode": "replay", "expires_at": NOW + dt.timedelta(minutes=15), **extra})
         sessions = {S_ANA: row(S_ANA, ANA), S_BRUNO: row(S_BRUNO, BRUNO, display_currency="USD"),
-                    S_CARLA: row(S_CARLA, CARLA), S_LIVE: row(S_LIVE, ANA, mode="live")}
+                    S_CARLA: row(S_CARLA, CARLA), S_LIVE: row(S_LIVE, ANA, mode="live"),
+                    S_DORA: row(S_DORA, DORA, language="pt"), S_EDU: row(S_EDU, EDU, language="pt")}
         self.denials, policies = [], load_policies()
         handlers = reads.read_handlers(Gold(gold_dir / "gold"), policies, **kwargs)
         guardrails = {rule_id: rule.guardrail for rule_id, rule in policies.rules.items() if rule.guardrail}
@@ -178,6 +182,13 @@ def test_ac_11_profile_gives_the_first_name_and_masked_confirmed_channels_only(g
     assert run("get_customer_profile", S_BRUNO).display_currency == "USD"          # the session preference wins
     assert run("get_customer_profile", S_CARLA).model_dump(include={"country", "display_currency", "channels"}) \
         == {"country": "AR", "display_currency": "ARS", "channels": []}
+
+
+def test_ac_11_a_br_profile_maps_the_country_by_name_or_iso_code_like_compute_deadline(gold_dir):
+    run = Run(gold_dir)
+    for session in (S_DORA, S_EDU):                      # "Brasil" and "BR" both map through reads._code
+        assert run("get_customer_profile", session).model_dump(include={"language", "country", "display_currency"}) \
+            == {"language": "pt", "country": "BR", "display_currency": "BRL"}
 
 
 def test_ac_11_the_loader_reads_named_gold_columns_only_and_never_gold_eval(gold_dir):
