@@ -90,6 +90,8 @@ fixed seed, so the same gold gives the same file. The rows per cell and the empt
   `customer_id`, `display_name`, `country`, `segment`, `scenario`, `language`. At least one PT customer and one MX debit
   customer (provisional credit by business day 2). `display_name` is invented and labeled so; no personal data from
   `gold.customers` is copied.
+- `reference.json` (internal, never served): the mandatory case of each demo customer and the row of
+  `demo_index.csv` behind it. `scenario` in `customers.json` stays neutral: it shows no score and no zone.
 - `live_profiles.yaml`: for `high`, `medium` and `human`, the fields the live-mode generator needs (score range, amount
   range per country, merchant, hours before "now"). Synthetic, stored apart, never in gold, eval or pitch numbers.
 - `sample_cases.jsonl`: MX high zone → credit approved → closed · CO human zone → information requested → resolved ·
@@ -194,7 +196,7 @@ generator and the sample-case seeder (spec 05; this spec gives their inputs) · 
 Implementation goes in `feat/09-…` branches once this spec is approved.
 - [x] T1 — `queries/eval/demo_index.sql` + `eval/demo_index.csv` (`python -m eval.demo_index`) · covers AC-01, AC-07, AC-08 · done when: the cells of
       §7.2 are filled or the empty ones are listed in `eval/README.md`
-- [ ] T2 — `eval/demo/customers.json`, `live_profiles.yaml`, `sample_cases.jsonl` · covers AC-02, AC-11
+- [x] T2 — `eval/demo/customers.json`, `reference.json`, `live_profiles.yaml`, `sample_cases.jsonl` · covers AC-02, AC-11
 - [ ] T3 — `eval/derive_expected.py` + `eval/cases/dev.jsonl` · covers AC-03, AC-09 · done when: 20 cases validate
 - [ ] T4 — `eval/cases/heldout.jsonl` + `eval/heldout.sha256` · covers AC-03, AC-05, AC-07 · done when: 80 cases
       validate with the counts of §7.4

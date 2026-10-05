@@ -8,6 +8,10 @@ harness of spec 10 when it scores.
 |---|---|---|
 | `demo_index.csv` | candidate transactions for the demo and the agent cases | 09 §7.2 |
 | `demo_index.py` | runs `queries/eval/demo_index.sql` and writes the CSV; holds the customer split function | 09 §7.1 |
+| `demo/customers.json` | the six demo customers of `/chat`, in the shape of `GET /api/demo/customers` | 09 §7.3 |
+| `demo/reference.json` | internal: the mandatory case and the index transaction behind each demo customer; never served | 09 §7.3 |
+| `demo/live_profiles.yaml` | profiles of the synthetic recent transactions of live mode `[simulated]` | 09 §7.3 |
+| `demo/sample_cases.jsonl` | four processed sample cases with scripted analyst steps | 09 §7.3 |
 | `eval_case.schema.json`, `examples.jsonl` | shape of an agent case, with five examples | 01 |
 | `PROTOCOL.md` | pre-registered evaluation rules; unsealed until M02 | 11, 15, 17 |
 | `bench/` | model benchmark | 15 |
@@ -52,3 +56,35 @@ Rows per cell on gold v1 `[data]` (596 rows, 563 customers):
 transactions score 30 or more `[data]`. The agent cases use the scored transactions that exist and never invent a
 score. No candidate is above the `high` amount tier either (550 `low`, 46 `mid`), so the "block needs a person because
 of the amount" row has no real transaction in this window.
+
+## Demo data (`demo/`)
+Six real `dev` customers, two per mandatory case. The customer, the card and the transactions are real gold state
+`[data]`; the display names are **invented** and no personal field of `gold.customers` is copied. `scenario` is neutral
+on purpose: it never shows a score or a zone to the person using `/chat`.
+
+| Demo customer | Country, card | Mandatory case | Language | Real transaction behind it |
+|---|---|---|---|---|
+| Ana | MX debit | normal (high zone: block and open the case) | es | 1,533.08 USD on 2026-03-18 |
+| Camilo | CO credit | normal (medium zone: confirm first) | es | 1,230,906.80 COP on 2026-04-13 |
+| Sofía | MX, several cards | ambiguous | es | 3 card charges between 2026-03-20 and 2026-03-30 |
+| Bruno | AR debit | ambiguous | pt | 3 card charges between 2026-05-19 and 2026-05-22 |
+| Valentina | CO credit | requires a human (no score) | es | 1,598,055.46 COP on 2026-05-14 |
+| Rafaela | AR debit | requires a human (score below 30) | pt | 75,525.08 ARS on 2026-05-29 |
+
+The dataset has no Brazilian customer, so the Portuguese customers are real AR customers who write in Portuguese and
+keep their real country (spec 09 Q5, default).
+
+- **Live mode** (`live_profiles.yaml`): what the generator of spec 05 creates for each demo customer relative to the
+  real date. Every generated row is synthetic `[simulated]`, is stored only in `demo_transactions` and never enters
+  gold, the evaluation or a pitch number (ADR 0020). Amount ranges are the p25 to p75 of approved card transactions in
+  gold v1 `[data]`; score ranges and hours are our choice `[assumption]`.
+- **Processed sample cases** (`sample_cases.jsonl`): four historical cases on other `dev` customers, so a demo
+  customer never meets a seeded case. The customer text and every analyst step are scripted `[simulated]`; the
+  transactions are real. `SC-01` is the case proposed for the video.
+
+| Id | Case | Ends in |
+|---|---|---|
+| SC-01 | MX high zone: card blocked, credit approved, closed | `closed` |
+| SC-02 | CO human zone: information requested, then resolved | `resolved` |
+| SC-03 | AR human zone: resolved, then re-evaluated at the customer's request | `review` |
+| SC-04 | PT: injection refused, then a legitimate high-zone case | `verification` |
