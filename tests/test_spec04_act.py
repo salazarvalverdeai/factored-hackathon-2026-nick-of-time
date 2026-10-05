@@ -70,7 +70,9 @@ def test_ac_01_ev_0001_ends_with_the_card_blocked_and_verified_and_the_case_open
 
 
 def test_ac_04_block_card_that_times_out_on_every_retry_escalates_and_never_says_blocked(monkeypatch):
-    monkeypatch.setattr(intake, "TIMEOUT_S", 0.05)
+    # Only block_card is slow: it sleeps 5 s, far past this budget, while every other call answers at once. The budget is
+    # generous (1 s) so a GC pause or a loaded runner cannot time out the handshake or an earlier call (flaky at 0.05 s).
+    monkeypatch.setattr(intake, "TIMEOUT_S", 1.0)
     seen = []
     turn = Chat(mcp_transport=hanging(seen, "block_card")).say(EV_0001, language="es")
     assert len(seen) == 1 + intake.RETRIES                           # the first call and its retries
