@@ -1,0 +1,21 @@
+# [external] Brazil 2026 non-business days for financial operations (Resolução CMN 4.880/2020, art. 6): national holidays
+# (Lei 662/1949, Lei 6.802/1980, Lei 14.759/2023 at planalto.gov.br), Carnival Monday and Tuesday and Corpus Christi
+# (Easter Sunday 2026-04-05). Weekends are skipped by the clock.
+# [assumption] Conservative: Good Friday (04-03) is a municipal holiday (Lei 9.093/1995, art. 2), not listed by art. 6, so
+# it counts as a business day and a deadline can only come earlier than the legal one, never later.
+source: "Resolução CMN 4.880/2020, art. 6, and the federal holiday laws"
+source_url: https://www.bcb.gov.br/estabilidadefinanceira/exibenormativo?tipo=Resolu%C3%A7%C3%A3o%20CMN&numero=4880
+verified_on: 2026-10-04
+holidays:
+  2026-01-01: New Year's Day
+  2026-02-16: Carnival Monday
+  2026-02-17: Carnival Tuesday
+  2026-04-21: Tiradentes
+  2026-05-01: Labor Day
+  2026-06-04: Corpus Christi
+  2026-09-07: Independence Day
+  2026-10-12: Our Lady of Aparecida
+  2026-11-02: All Souls' Day
+  2026-11-15: Republic Day (a Sunday)
+  2026-11-20: Black Consciousness Day
+  2026-12-25: Christmas

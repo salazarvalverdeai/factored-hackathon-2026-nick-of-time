@@ -152,6 +152,26 @@ regulatory_clock:                        # [external] spec 02 §4.3; amount_gate
         source: "BCRA, Protección de los Usuarios de Servicios Financieros, item 3.1.6"
         source_url: https://www.bcra.gob.ar/archivos/Pdfs/texord/t-pusf.pdf
         verified_on: 2026-10-04
+  CO:
+    any:
+      # SFC: answer within 15 days (Ley 1755 de 2015, art. 14; its parágrafo allows one extension, up to double, when the
+      # customer is told before it expires); days in a law are business days (Ley 4 de 1913, art. 62), counted Monday to
+      # Friday [assumption]. https://www.funcionpublica.gov.co/eva/gestornormativo/norma.php?i=65334 · ...norma.php?i=8426
+      # Not modeled (P1): the e-commerce payment reversal of Ley 1480 de 2011, art. 51 [external, to verify].
+      - ruling: {days: 15, calendar: business}
+        extendable_once: true
+        source: "SFC; Ley 1755 de 2015, art. 14"
+        source_url: https://www.superfinanciera.gov.co/preguntas-frecuentes/3/3-derechos-de-peticion-ante-entidades-vigiladas/
+        verified_on: 2026-10-04
+  BR:
+    any:
+      # Ouvidoria answer within 10 dias úteis, extendable once by an equal period (art. 6, § 2). Portuguese demo only.
+      # [to verify] whether the SAC term of Decreto 11.034/2022, art. 13 (7 calendar days, first level) reaches banks.
+      - ruling: {days: 10, calendar: business}
+        extendable_once: true
+        source: "Resolução CMN 4.860/2020, art. 6, § 2"
+        source_url: https://www.bcb.gov.br/estabilidadefinanceira/exibenormativo?tipo=Resolu%C3%A7%C3%A3o%20CMN&numero=4860
+        verified_on: 2026-10-04
 
 countries:                               # spec 02 §4.4 (FR-09): IANA time zone of clock.today(live); T7 adds currency and fx
   MX: {time_zone: America/Mexico_City}

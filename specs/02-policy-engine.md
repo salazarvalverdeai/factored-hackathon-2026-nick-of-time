@@ -148,8 +148,8 @@ test, no code change.** A country without a verified entry falls back to `POL-CL
 | MX · credit, charge within the **90 calendar days** before the notice | opened + **2 business days** (provisional credit) | opened + **45 calendar days** `[assumption]`: numeral 3.6 says "días" without defining them (ruling; 180 if the charge was abroad) | Banxico Circular 34/2010, numerals 3.4 b) and 3.6, as amended by Circular 13/2018 | [Banxico, compiled text](https://www.banxico.org.mx/marco-normativo/normativa-emitida-por-el-banco-de-mexico/circular-34-2010/%7B0C55B906-6DB4-6B88-FED0-67987E9FB3CC%7D.pdf) | 2026-10-04 |
 | MX · credit, older charge | — | opened + **45 calendar days** `[assumption]`: art. 23 says "días" without defining them (180 if the charge was abroad) | LTOSF art. 23 fr. II | [Orden Jurídico Nacional, LTOSF](https://www.ordenjuridico.gob.mx/Documentos/Federal/pdf/wo46.pdf) | 2026-10-04 |
 | AR · any card | — (item 2.3.5.1's 10-day reimbursement lists charges the bank itself generates, not a third party's unrecognized charge) | opened + **10 business days** (resolution, item 3.1.6) | BCRA, Protección de los Usuarios de Servicios Financieros (texto ordenado al 2026-05-06) | [BCRA t-pusf](https://www.bcra.gob.ar/archivos/Pdfs/texord/t-pusf.pdf) | 2026-10-04 |
-| CO · any card | — | opened + **15 business days** | SFC: petitions to supervised entities | [SFC FAQ](https://www.superfinanciera.gov.co/preguntas-frecuentes/3/3-derechos-de-peticion-ante-entidades-vigiladas/) | 2026-10-04 |
-| BR · any card (PT demo only) | — | opened + **10 business days**, extendable once by an equal period | Resolução CMN 4.860/2020 (ouvidoria) | [BCB · Ouvidoria](https://www3.bcb.gov.br/sisorf_externo/manual/06-01-030-160.htm) | 2026-10-04 |
+| CO · any card | — | opened + **15 business days**, extendable once up to double (Ley 1755 de 2015, art. 14, parágrafo); business days per Ley 4 de 1913, art. 62, counted Monday–Friday `[assumption]` | SFC: petitions to supervised entities (Ley 1755 de 2015, art. 14) | [SFC FAQ](https://www.superfinanciera.gov.co/preguntas-frecuentes/3/3-derechos-de-peticion-ante-entidades-vigiladas/) · [Ley 4 de 1913](https://www.funcionpublica.gov.co/eva/gestornormativo/norma.php?i=8426) | 2026-10-04 |
+| BR · any card (PT demo only) | — | opened + **10 business days**, extendable once by an equal period `[to verify]`: whether the SAC term of Decreto 11.034/2022, art. 13 (7 calendar days, first level) reaches banks | Resolução CMN 4.860/2020, art. 6, § 2 (ouvidoria, second level) | [BCB, Resolução CMN 4.860](https://www.bcb.gov.br/estabilidadefinanceira/exibenormativo?tipo=Resolu%C3%A7%C3%A3o%20CMN&numero=4860) | 2026-10-04 |
 | PE · any card | — | opened + **15 business days** (extendable only when a third party must rule) | Resolución SBS N.° 04036-2022 | [El Peruano](https://busquedas.elperuano.pe/normaslegales/aprueban-el-reglamento-de-gestion-de-reclamos-y-requerimient-resolucion-sbs-no-04036-2022-2138687-1) | 2026-10-04 |
 | CL · any card | opened + **10 business days** up to 35 UF (15 for cash advances and ATM withdrawals); +7 more days for the part above 35 UF | — | Ley 20.009 | [SERNAC](https://www.sernac.cl/portal/604/w3-propertyname-791.html) | 2026-10-04 |
 | any other LATAM country | — | — | `POL-CLOCK-UNKNOWN`: case opened, routed to a person, no deadline invented |
@@ -163,8 +163,8 @@ test, no code change.** A country without a verified entry falls back to `POL-CL
   `source_url` and `verified_on` fields plus a comment, and a test fails if an entry lacks them. Rows marked
   `[external, to verify]` are re-checked in T3.
 - Business days = Monday–Friday minus the country's bank holidays. A day whose bank closure is not certain (e.g. AR
-  "días no laborables") counts as a business day `[assumption]`, so a deadline can only come earlier, never later. A
-  count that reaches a year with no holiday file returns no deadline at all, not even a calendar-day term of the same
+  "días no laborables", BR Good Friday) counts as a business day `[assumption]`, so a deadline can only
+  come earlier, never later, except CO's Monday–Friday count (CO row). A count that reaches a year with no holiday file returns no deadline at all, not even a calendar-day term of the same
   entry (`POL-CLOCK-UNKNOWN`; no date is invented). In live mode from mid-December this holds until the next
   year's calendars are added. Holiday files are validated when `policies.yaml` loads (FR-01).
 - Holiday lists live in `packages/nick_of_time/policy/holidays/{mx,ar,co,br,pe,cl}_2026.yaml`, each with the official source
@@ -330,7 +330,8 @@ fx.convert(amount=1250.0, from_currency="USD", to_currency="MXN") -> {amount, ra
   The clock follows the official texts; an hours window (`when_charged_within: {hours: 48}`) is supported and tested.
 
 ## 9. Out of scope
-Calibrating thresholds with data (Q-AMT, P2); the injection detector itself (spec 11); writing to Postgres (the
+Calibrating thresholds with data (Q-AMT, P2); the CO e-commerce payment reversal of Ley 1480 de 2011,
+art. 51 (P1, `[external, to verify]`); the injection detector itself (spec 11); writing to Postgres (the
 callers write).
 
 ## 10. Plan, tasks and verification
@@ -338,7 +339,7 @@ Implementation goes in `feat/02-policy-engine` once this spec and spec 01 (packa
 - [x] T1 — Pydantic model of `policies.yaml` + loader with validation; add `rules:` and `version: 2` · FR-01, FR-07, AC-12
 - [x] T2 — `decide()` with the evaluation order of §4.1 and mode combination of §4.2 · AC-01, 02, 04, 05, 06, 07, 08, 09, 15
 - [ ] T3 — `clock.deadline()` + holiday files with sources for MX, AR, CO, BR, PE, CL; re-verify every clock source · AC-03, AC-14
-      (MX and AR done with `add_business_days` (D-008); CO, BR, PE and CL pending: until then they get `POL-CLOCK-UNKNOWN`)
+      (MX, AR, CO and BR done with `add_business_days` (D-008); PE and CL pending: until then they get `POL-CLOCK-UNKNOWN`)
 - [x] T4 — `transition()` and `sla()` (`policy/queue.py`, §4.5) · AC-10, AC-11
 - [x] T5 — decision-table tests (`tests/test_spec02_table.py`): zone × country × mode × tier, plus the boundaries 29/30/49/50 and null · AC-01…AC-13
 - [ ] T6 — `docs`: policy ids listed in `/agent` content (spec 04 AC-08)
