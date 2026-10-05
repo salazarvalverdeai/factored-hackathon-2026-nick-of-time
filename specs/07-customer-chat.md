@@ -5,7 +5,7 @@
 - **Owner:** @gianzk · **Priority:** P0 · **Size:** L
 - **Challenge dimension:** AI Engineering
 - **Depends on:** 16, then 04 and 05 · **Enables:** 13
-- **ADRs:** [0013](../docs/adr/0013-customer-receives-proof-receipt-case-page-notifications.md), [0016](../docs/adr/0016-guardrails-injection-detector-and-exact-grounding.md), [0017](../docs/adr/0017-identity-mock-otp-customers-cognito-analysts.md), [0027](../docs/adr/0027-voice-input-voxtral-stt-browser-tts.md)
+- **ADRs:** [0013](../docs/adr/0013-customer-receives-proof-receipt-case-page-notifications.md), [0016](../docs/adr/0016-guardrails-injection-detector-and-exact-grounding.md), [0017](../docs/adr/0017-identity-mock-otp-customers-cognito-analysts.md), [0028](../docs/adr/0028-voice-input-voxtral-stt-browser-tts.md)
 - **Issue:** #9
 
 > **Profile.** Minimal: sections 1, 3, 8, 9 and 10. The routes it calls belong to spec 01 §6.2.
@@ -67,7 +67,7 @@ AC-01 to AC-05 are copied from issue #9 with the same numbers. None is dropped o
   The agent greets with the typed name, else the gold name, from `get_customer_profile`. Each session starts clean.
   Telegram and e-mail are off in a demo session (the link routes answer 403): the case page and the in-app log show
   every update.
-- Decided (lead, D-072, 2026-10-05; ADR 0027): voice for live mode, built by the web owner on spec 05 AC-21.
+- Decided (lead, D-072, 2026-10-05; ADR 0028): voice for live mode, built by the web owner on spec 05 AC-21.
   1. **Mic button and push-to-talk:** hold (pointer or Space while focused) to record, release to send; a tap toggles
      for touch users. Recording stops at 30 s. `MediaRecorder` with `audio/webm;codecs=opus` (Chrome, Firefox,
      Safari 18.4+), else `audio/ogg;codecs=opus`, else 16 kHz mono WAV encoded in the page; the raw blob is the POST

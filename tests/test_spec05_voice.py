@@ -1,4 +1,4 @@
-"""Spec 05 AC-21 (D-072, ADR 0027): `POST /api/voice/transcribe`. Offline: MemoryStore and the scripted `fake` STT
+"""Spec 05 AC-21 (D-072, ADR 0028): `POST /api/voice/transcribe`. Offline: MemoryStore and the scripted `fake` STT
 provider; CI never calls Bedrock (CLAUDE.md)."""
 from __future__ import annotations
 
