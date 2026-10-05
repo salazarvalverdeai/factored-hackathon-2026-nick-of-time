@@ -102,4 +102,5 @@ HANDOFF = {"case_id": CASE_ID, "language": "es", "zone": "high", "request": "Car
            "verified_facts": [{"fact": "Tarjeta bloqueada", "source_id": "V-8B2D41C7E0A9"}], "actions": [],
            "evidence": [CASE_ID], "open_questions": [], "trace_id": "tr-fixture",
            "deadline": {"country": "MX", "product": "debit", "credit_deadline": "2026-06-03",
-                        "deadline_source": _SRC["deadline_source"]}}
+                        "deadline_source": _SRC["deadline_source"], "source_url": _SRC["deadline_source_url"],
+                        "verified_on": _SRC["deadline_verified_on"].isoformat()}}

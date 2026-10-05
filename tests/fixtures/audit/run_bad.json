@@ -1,0 +1,44 @@
+{
+ "reply": "Bloqueé tu tarjeta ····4417 y abrí el caso K-104233. Plazo: 2026-06-03. Te devolvemos USD 1,300.00 el 2026-06-02.",
+ "receipt.verified_facts.0.fact": "Cargo no reconocido: USD 999.00 · 2026-05-31.",
+ "handoff.evidence.3": "TRX-INVENTED00000000009",
+ "verified_reads.1.verification_id": "V-FFFFFFFFFFFF",
+ "actions.1.read_at": "2026-06-01T15:04:12Z",
+ "status_replies.0.stated_status": "resolved",
+ "privacy.surfaces.reply": "Score 62.5, regla POL-ZONE-HIGH. Tarjeta 4111 1111 1111 1111 CVV 123.",
+ "privacy.surfaces.notification": "El cliente C-OTHER0000001 dijo: no reconozco este cargo",
+ "events": [
+  {
+   "case_id": "K-104233",
+   "type": "status",
+   "status": "new",
+   "actor": "agent"
+  },
+  {
+   "case_id": "K-104233",
+   "type": "status",
+   "status": "closed",
+   "actor": "agent"
+  },
+  {
+   "case_id": "K-104233",
+   "type": "provisional_credit",
+   "status": null,
+   "actor": "agent"
+  },
+  {
+   "case_id": "K-200001",
+   "type": "status",
+   "status": "new",
+   "actor": "agent"
+  },
+  {
+   "case_id": "K-300001",
+   "type": "status",
+   "status": "new",
+   "actor": "agent"
+  }
+ ],
+ "case_keys.1": ["K-200001", "C-0001", "TRX-FIXTURE0000000000001"],
+ "case_keys.2": ["K-300001", "C-0001", "TRX-FIXTURE0000000000001"]
+}

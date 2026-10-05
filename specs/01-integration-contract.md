@@ -2,15 +2,16 @@
 
 - **Feature:** the contract the three of us build against — folders, REST API, MCP tools, graph I/O, Postgres schema,
   customer receipt, evaluation hooks — plus stubs so nobody waits for anybody.
-- **Status:** Draft (contract 1.1.0, updated 2026-10-04: 16 customer tools, two time modes, action states, delivery status)
+- **Status:** Draft (contract 1.2.0, updated 2026-10-04: 16 customer tools, two time modes, action states, delivery status)
 - **Owner:** @salazarvalverdeai · **Priority:** P0 · **Size:** M
 - **Challenge dimension:** AI Engineering, Technical Judgment
 - **Depends on:** framework (#2) · **Enables:** 03, 05, 07, 08, 10, 13, 16 · **ADRs:** 0005, 0007, 0008, 0010, 0013, 0017, 0019,
   0020
 - **Issue:** #3 · **Approval:** all three (@salazarvalverdeai, @gianzk, @vldiego)
 
-> Full profile: this spec *is* the contract. Contract version **1.1.0** (1.0.0 was the first review draft; 1.1.0 adds
-> the approved improvements #12–#16 before approval). Any change after approval is a PR that all three approve and that
+> Full profile: this spec *is* the contract. Contract version **1.2.0** (1.0.0 was the first review draft; 1.1.0 adds
+> the approved improvements #12–#16 before approval; 1.2.0 is additive: the handoff rules of §6.4, `GOLD_PATTERN`, the
+> `zone_medium` and `supervised_mode` handoff reasons). Any change after approval is a PR that all three approve and that
 > bumps the version (minor = additive, major = breaking).
 
 ---
@@ -103,7 +104,7 @@ otherwise builds on 3.11). Every deployment of a Python app ships `contracts/`, 
 schemas and `policies.yaml` at runtime.
 
 ### 6.2 REST API (`apps/api`, prefix `/api`)
-OpenAPI is generated from the code at `/api/docs`; this table is the agreed contract. Errors always use
+OpenAPI is generated from the code at `/api/docs` (schema at `/api/openapi.json`); this table is the agreed contract. Errors always use
 `{"code": "DENY|NOT_FOUND|SESSION_EXPIRED|UNAUTHENTICATED|UNAVAILABLE|INVALID", "policy_id": str|null, "message": str}`.
 
 **Public and customer routes** (customer routes need the `not_session` cookie)
@@ -113,19 +114,19 @@ OpenAPI is generated from the code at `/api/docs`; this table is the agreed cont
 | GET | `/api/health` | — | `{status, version, contract_version, git_sha, gold_version, policies_version, platform_revision, models: {graph, fast}, prompt_hash, classifier_version, today: {replay, live}}` | 200 |
 | GET | `/api/demo/customers` | — | `[{customer_id, display_name, country, segment, scenario, language}]` (6 demo customers, spec 09) | 200 |
 | POST | `/api/sessions` | `{customer_id, mode: "replay"\|"live"}` (default `live`) | `{session_id, mode, today, otp_demo, expires_at}` — the OTP is shown on screen (mock, ADR 0017) | 201 / 404 |
-| POST | `/api/sessions/{session_id}/verify` | `{otp}` | `{verified, expires_at}` + sets `not_session` cookie | 200 / 401 / 410 |
+| POST | `/api/sessions/{session_id}/verify` | `{otp}` | `{verified, expires_at}` + sets `not_session` cookie | 200 / 401 / 404 / 410 |
 | * | `/api/agent/...` | LangGraph Server protocol subset: `POST threads`, `POST threads/{id}/runs/stream`, `GET threads/{id}/state` | proxied to Platform; `configurable.session_id` injected from the cookie; any client `session_id`/`customer_id` is dropped (AC-06); the stream carries SSE events `progress` (`ProgressItem`), `turn` (`CustomerTurn`) and `error` (the standard error shape), and `threads/{id}/state` returns the last `CustomerTurn`, never the raw thread state (D-013). A thread belongs to the session that created it: an unknown or foreign thread is 404. `[assumption]` (pending the lead) 401 `UNAUTHENTICATED` only for a missing or unknown cookie; a known session in any state is forwarded with `configurable.session_state` = `verified\|expired\|unverified` and the graph decides `reauthenticate` (spec 02 AC-07) | 200 / 401 / 404 |
 | GET | `/api/notifications` | — | `[{notification_id, case_id, event, channel, masked_address, text, delivery_status, created_at}]` for the session's customer ("My notifications"); `delivery_status` = `queued\|sent\|delivered\|bounced\|failed` | 200 / 401 |
 | GET | `/api/me/products` | — | `[ProductView]` (§6.6) — "My cards", read fresh on each call | 200 / 401 |
 | GET | `/api/me/cases` | — | `[CustomerCaseSummary]` (§6.6) — the customer's cases, active first | 200 / 401 |
 | PUT | `/api/me/preferences` | `{display_currency?, language?}` | the stored preferences (kept in the session) | 200 / 400 / 401 |
 | GET | `/api/cases/{case_id}` | — | `CustomerCaseView` (§6.6) if the case belongs to the session's customer | 200 / 403 / 404 / 401 |
-| POST | `/api/cases/{case_id}/info` | `{text}` | `{event_id}` → event `customer_info_added` | 201 / 403 / 401 |
-| POST | `/api/cases/{case_id}/call-request` | `{preferred_time?}` | `{event_id, expected_contact_by}` (D-008: `YYYY-MM-DD` or null) → event `call_requested` | 201 / 403 / 401 |
-| POST | `/api/cases/{case_id}/reevaluation` | `{reason}` | `{event_id, case_id}` — a resolved case returns to `review`; a closed case gets a new case with `related_case_id` (spec 03) | 201 / 403 / 409 / 401 |
-| POST | `/api/cases/{case_id}/channels/telegram` | — | `{deep_link, expires_at}` (one-time token, TTL 15 min) | 201 / 403 / 401 |
-| POST | `/api/cases/{case_id}/channels/email` | `{email}` | `{confirmation_sent: true}` — confirmation link to that address | 202 / 400 / 403 / 401 |
-| GET | `/api/channels/email/confirm` | `?token=` | redirect to `/case/{id}` with a confirmed banner | 302 / 410 |
+| POST | `/api/cases/{case_id}/info` | `{text}` | `{event_id}` → event `customer_info_added` | 201 / 403 / 404 / 401 |
+| POST | `/api/cases/{case_id}/call-request` | `{preferred_time?}` | `{event_id, expected_contact_by}` (D-008: `YYYY-MM-DD` or null) → event `call_requested` | 201 / 403 / 404 / 401 |
+| POST | `/api/cases/{case_id}/reevaluation` | `{reason}` | `{event_id, case_id}` — a resolved case returns to `review`; a closed case gets a new case with `related_case_id` (spec 03) | 201 / 403 / 404 / 409 / 401 |
+| POST | `/api/cases/{case_id}/channels/telegram` | — | `{deep_link, expires_at}` (one-time token, TTL 15 min) | 201 / 403 / 404 / 401 |
+| POST | `/api/cases/{case_id}/channels/email` | `{email}` | `{confirmation_sent: true}` — confirmation link to that address | 202 / 400 / 403 / 404 / 401 |
+| GET | `/api/channels/email/confirm` | `?token=` | redirect to `/case/{id}` with a confirmed banner | 302 / 410 DENY (unknown, used or expired token) |
 | POST | `/api/telegram/webhook` | Telegram update; header `X-Telegram-Bot-Api-Secret-Token` | `{ok: true}` | 200 / 401 |
 | POST | `/api/resend/webhook` | Resend e-mail event (`email.sent`, `email.delivered`, `email.bounced`, `email.failed`, …); headers `svix-id`, `svix-timestamp`, `svix-signature` verified with `RESEND_WEBHOOK_SECRET` | `{ok: true}` → row in `notification_deliveries` | 200 / 401 |
 
@@ -240,6 +241,9 @@ shape of `data` is fixed in the producing spec.
   the last reply. The four action states are the only vocabulary for an action, in every surface; a `verified` action
   carries `verification_id` and `read_at`, and a `progress` item says `verified` only when `actions[]` holds a
   verified record of the same tool (`step` = `tool`). `options` holds at most `clarify.max_candidate_transactions`.
+  `handoff` is validated against `handoff.schema.json` with formats checked: an action with `verified: true` needs a
+  `V-` `verification_id`, and a deadline with a date needs an `https://` `source_url` and `verified_on` (no date, as
+  for `POL-CLOCK-UNKNOWN`, needs neither).
 - `CustomerTurn` = `TurnResult` without `handoff`, `zone`, `usage`, `trace` and `denials[].policy_id`
   (`TurnResult.for_customer()`); it is the only shape the browser receives (D-013 `[assumption]`, §6.2).
   `G-…` guardrail ids may appear in the chat; `notifications.never_send.policy_ids` means `POL-…` rule ids; receipts
@@ -252,8 +256,8 @@ Append-only tables are marked **AO** (no `UPDATE`/`DELETE`; enforced by grants a
 | Table | Columns (type) | Notes |
 |---|---|---|
 | `sessions` | `session_id` text PK · `customer_id` text null · `otp_hash` text · `verified_at` timestamptz null · `expires_at` timestamptz · `language` text · `mode` text (`replay\|live`) · `display_currency` text null · `tool_faults` text[] · `run_id` text null · `arm` text null · `created_at` | TTL 15 min; `mode` fixed at creation; `run_id`/`arm` set only by the eval seed |
-| `cases` | `case_id` text PK · `customer_id` · `transaction_id` · `product_id` · `country` · `product_type` · `zone` · `dispute_type` · `credit_deadline` date null · `ruling_deadline` date null · `deadline_source` text · `deadline_source_url` text · `deadline_verified_on` date null · `related_case_id` text null · `mode` text · `run_id` text null · `trace_id` · `created_at` | static facts only; `deadline_verified_on` `[assumption]` (D-014); `case_id` from `ids.new_id("case")` has 10^6 values, so the insert retries on a PK conflict (T9, §10) |
-| `demo_transactions` | same columns as gold `transactions` · `synthetic` bool (always true) · `scenario` text · `generated_at` | `live` mode only; deleted and regenerated by "Reset demo"; never copied to gold, lakehouse or eval |
+| `cases` | `case_id` text PK · `customer_id` · `transaction_id` · `product_id` · `country` · `product_type` · `zone` · `dispute_type` · `credit_deadline` date null · `ruling_deadline` date null · `deadline_source` text · `deadline_source_url` text · `deadline_verified_on` date null · `related_case_id` text null · `mode` text · `run_id` text null · `trace_id` · `created_at` | static facts only; `deadline_verified_on` `[assumption]` (D-014), null only when both dates are null; `case_id` from `ids.new_id("case")` has 10^6 values, so the insert retries on a PK conflict (T9, §10) |
+| `demo_transactions` | same columns as gold `transactions` · `synthetic` bool (always true) · `scenario` text · `generated_at` | `live` mode only; deleted and regenerated by "Reset demo"; never copied to gold, lakehouse or eval. `transaction_id` follows `ids.GOLD_PATTERN["transaction"]` and is drawn again if it clashes with gold; rows are told apart by `synthetic`, not by an id prefix (32 gold ids already start with `TRX-SYN` `[data]`) |
 | `case_events` **AO** | `event_id` text PK · `case_id` FK · `seq` int · `type` text · `actor` text · `payload` jsonb · `customer_visible` bool · `trace_id` · `created_at` | unique (`case_id`, `seq`) |
 | `product_overrides` **AO** | `override_id` PK · `product_id` · `status` · `case_id` · `actor` · `run_id` text null · `created_at` | current status = latest row **for the same `run_id`**, else gold |
 | `notifications` **AO** | `notification_id` PK · `case_id` · `customer_id` · `event` · `channel` (`log\|telegram\|email`) · `masked_address` · `text` · `trigger` (`auto\|on_request`) · `provider_message_id` null · `created_at` | |
@@ -278,13 +282,14 @@ Queue statuses (from `policies.yaml`): `new → verification | review → resolv
   product_last4, status_label, taken_by_person, related_case_id, mode, receipt: customer_receipt|null,
   timeline: [{event_id, type, label, created_at}] (customer-visible only), deadline_countdown_days,
   deadline_source, deadline_source_url, deadline_verified_on (`[assumption]` D-014, §6.5; a deadline date always
-  comes with its source and an `https://` URL, ADR 0019),
+  comes with its source, an `https://` URL and `deadline_verified_on`, ADR 0019),
   channels: {telegram: bool, email: bool}, notifications: [{notification_id, channel, masked_address,
   delivery_status, created_at}]}`.
 - `CustomerCaseView`: `CaseView` without `customer_id`, `zone`, `priority`, `tags` and `sla_due_at`
   (`CaseView.for_customer()`); `GET /api/cases/{case_id}` returns it (D-013 `[assumption]`).
 - `CustomerCaseSummary`: `{case_id, status_label, credit_deadline, ruling_deadline, product_last4, related_case_id,
-  updated_at}`.
+  updated_at}`; the list shows only the date and links to `/case/{id}`, which carries the source, URL and
+  `verified_on` (ADR 0019).
 - `ProductView`: `{product_id, type, last4, status, verification_id, read_at}`.
 - `[assumption]` `priority` is `normal|high` (raised by `case_queue.deadline_sla`); `transaction.amount` is a number,
   as in `contracts/tools.py` `Transaction`. Ids follow `nick_of_time.ids`; `last4` is 4 digits; timestamps carry
@@ -323,8 +328,9 @@ schema; a test feeds the same good and bad receipts to both.
 **Identifiers** (`nick_of_time.ids`): case `K-` + 6 digits · action `A-` · verification `V-` · event `E-` ·
 receipt `RC-` · notification `N-` · session `S-` + 16 url-safe chars. `[assumption]` `A-`, `V-`, `E-`, `RC-` and `N-`
 take 12 upper-case hex characters; a case id has only 10^6 values, so the store retries on a primary-key conflict.
-Transaction and product ids come from gold unchanged: `TRX-` + 20 and `PRD-` + 12 upper-case letters or digits
-(`ids.GOLD_PATTERN`; gold `transactions` and `products` `[data]`).
+Transaction and product ids come from gold, or from `demo_transactions` in `live` mode, in the same shape: `TRX-` + 20 and `PRD-` + 12 upper-case letters or digits
+(`ids.GOLD_PATTERN`; gold `transactions` and `products` `[data]`); customer ids are `CLI-` + 12 upper-case letters or digits
+(`GOLD_PATTERN["customer"]`; all 150,000 gold customers match, 3,077 have no digit `[data]`).
 
 ### 6.8 Evaluation hooks (`EVAL_MODE=true` only)
 | Method | Path | Request | Response |
@@ -390,7 +396,7 @@ the notice (spec 02 §4.3); an older-charge case is added once spec 02 T3 verifi
 `DEMO_TODAY` · `DATABASE_URL` · `GOLD_PATH` / `GOLD_S3_URI` · `MCP_URL` · `MCP_API_KEY` · `LANGGRAPH_API_URL` ·
 `LANGSMITH_API_KEY` · `LLM_PROVIDER` (`bedrock|anthropic|fake`) · `BEDROCK_MODEL_GRAPH` · `BEDROCK_MODEL_FAST` ·
 `COGNITO_USER_POOL_ID` · `COGNITO_CLIENT_ID` · `TELEGRAM_BOT_TOKEN` · `TELEGRAM_WEBHOOK_SECRET` · `RESEND_API_KEY` ·
-`EVAL_MODE` · `DEFAULT_SESSION_MODE` (`live`) · `RESEND_WEBHOOK_SECRET`. `DEMO_TODAY` applies only to `replay`
+`GIT_SHA` · `EVAL_MODE` · `DEFAULT_SESSION_MODE` (`live`) · `RESEND_WEBHOOK_SECRET`. `DEMO_TODAY` applies only to `replay`
 sessions. Names only in `.env.example`; values in SSM (`/nickoftime/prod/*`) or the Platform deployment secrets.
 
 ## 7. Data model touched

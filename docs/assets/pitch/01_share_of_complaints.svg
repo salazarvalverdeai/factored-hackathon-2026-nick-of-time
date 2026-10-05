@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 226" width="720" height="226" font-family='system-ui, -apple-system, "Segoe UI", sans-serif' role="img" aria-label="More than a third of complaints are unrecognized or wrongful charges">
+<rect x="0.5" y="0.5" width="719" height="225" rx="8" fill="#fcfcfb" stroke="#e1e0d9"/>
+<text x="32.0" y="36.0" font-size="16" fill="#0b0b0b" text-anchor="start" font-weight="600">More than a third of complaints are unrecognized or wrongful charges</text>
+<text x="32.0" y="56.0" font-size="12" fill="#52514e" text-anchor="start" font-weight="normal">Share of all the bank&#x27;s complaints in the dataset</text>
+<text x="32.0" y="118.0" font-size="48" fill="#0b0b0b" text-anchor="start" font-weight="600">36.4%</text>
+<text x="196.0" y="98.0" font-size="13" fill="#0b0b0b" text-anchor="start" font-weight="normal">24,431 of 67,095 complaints</text>
+<text x="196.0" y="118.0" font-size="12" fill="#52514e" text-anchor="start" font-weight="normal">about 679 per month over 35 full months</text>
+<rect x="32" y="142" width="656" height="20" rx="4" fill="#cde2fb"/>
+<path d="M32.0,142.0 H266.9 Q270.9,142.0 270.9,146.0 V158.0 Q270.9,162.0 266.9,162.0 H32.0 Z" fill="#2a78d6"/>
+<text x="32.0" y="184.0" font-size="12" fill="#52514e" text-anchor="start" font-weight="normal">Unrecognized or wrongful charges (W3)</text>
+<text x="688.0" y="184.0" font-size="12" fill="#52514e" text-anchor="end" font-weight="normal">All other complaints · 63.6%</text>
+<text x="32.0" y="210.0" font-size="11" fill="#898781" text-anchor="start" font-weight="normal">[data] p01</text>
+</svg>
