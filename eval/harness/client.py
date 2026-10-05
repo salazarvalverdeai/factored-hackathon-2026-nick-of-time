@@ -33,19 +33,33 @@ class Api:
 
     def run(self, case: dict[str, Any], run_id: str, arm: str) -> dict[str, Any]:
         """One run: seed → one turn per scripted message → FinalState (FR-02)."""
+        # `language`: the store-backed api takes a turn's language from the session, so the seed stores it (eval/local)
         seeded = self._json(self.http.post("/api/eval/seed", json={
-            "initial_state": case["initial_state"], "run_id": run_id, "arm": arm}))
+            "initial_state": case["initial_state"], "run_id": run_id, "arm": arm, "language": case["language"]}))
         if seeded.get("mode") != "replay":                   # AC-06, ADR 0020: an evaluation never runs in live mode
             raise HarnessError(f"{run_id}: the seeded session is in mode {seeded.get('mode')!r}, not 'replay'")
         cookie = {"Cookie": f"not_session={seeded['session_id']}"}          # D-019: the same way as a browser
         for message in case["messages"]:
             turn = self.http.post(f"/api/agent/threads/{seeded['thread_id']}/runs/stream", headers=cookie, json={
                 "input": {"messages": [{"role": "user", "content": message["text"]}], "language": case["language"]}})
-            turn.raise_for_status()
+            self._ok(turn)
             turn.read()                                      # only to know the turn ended; the reply is never scored
         return self._json(self.http.get(f"/api/eval/final-state/{seeded['session_id']}"))
 
     @staticmethod
-    def _json(response: httpx.Response) -> dict[str, Any]:
-        response.raise_for_status()
+    def _ok(response: httpx.Response) -> None:
+        """raise_for_status, with the api's `code` and `message` in the error, so runs.jsonl says why a run failed."""
+        if response.is_success:
+            return
+        try:
+            body = response.json()
+            detail = f" - {body.get('code')}: {body.get('message')}" if isinstance(body, dict) else ""
+        except ValueError:
+            detail = ""
+        raise httpx.HTTPStatusError(f"{response.status_code} {response.request.method} {response.request.url.path}"
+                                    f"{detail}", request=response.request, response=response)
+
+    @classmethod
+    def _json(cls, response: httpx.Response) -> dict[str, Any]:
+        cls._ok(response)
         return response.json()

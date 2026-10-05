@@ -51,3 +51,4 @@ node_modules/
 # local Spanish guides and reviews (never committed)
 habilitar_*.md
 revision_*.md
+.langgraph_api/

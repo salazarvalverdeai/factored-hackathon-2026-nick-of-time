@@ -71,7 +71,8 @@ def test_ac_01_runs_every_case_on_every_arm_and_compares_the_final_state():
                                                   "EV-0002:S0:1"]
     assert len(records) == 2 * 5 * 4 and all(r["status"] == "ok" and r["passed"] for r in records)
     seeds = [json.loads(r.content) for r in seen if r.url.path == "/api/eval/seed"]
-    assert seeds[0] == {"initial_state": BLOCK["initial_state"], "run_id": "EV-0001:S0:1", "arm": "S0"}
+    assert seeds[0] == {"initial_state": BLOCK["initial_state"], "run_id": "EV-0001:S0:1", "arm": "S0",
+                        "language": "es"}             # the store-backed api takes the turn's language from the session
     turn = next(r for r in seen if r.url.path.endswith("/runs/stream"))
     assert turn.headers["cookie"] == "not_session=S-0000000000000001"            # D-019
     assert json.loads(turn.content) == {"input": {"messages": [{"role": "user", "content": BLOCK["messages"][0]["text"]}],
