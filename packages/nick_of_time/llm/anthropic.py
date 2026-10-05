@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import re
 
-from .base import LLMClient, ProviderUnavailable, classify_validation
+from .base import TOOL_DESCRIPTION, LLMClient, ProviderUnavailable, classify_validation
 
 # [assumption] short enough for spec 04 section 5 (degrade to S0, turn p95 <= 6 s): 2 attempts of at most 15 s
 TIMEOUT_S, MAX_RETRIES = 15.0, 1
@@ -56,7 +56,7 @@ class AnthropicClient(LLMClient):
         if temperature is not None:
             kw["temperature"] = temperature
         if schema:
-            kw["tools"] = [{"name": tool_name, "description": "Record the output.", "input_schema": schema}]
+            kw["tools"] = [{"name": tool_name, "description": TOOL_DESCRIPTION, "input_schema": schema}]
             kw["tool_choice"] = TOOL_CHOICES[mode](tool_name)
         try:
             r = self._client.messages.create(**kw)

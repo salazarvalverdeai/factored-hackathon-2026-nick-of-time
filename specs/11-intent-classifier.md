@@ -288,7 +288,11 @@ Fine-tuning; embeddings + LR (P2); Jev (benchmarked in spec 15); the agent's use
 - [x] T4 — B2 structured-output prompt (Haiku 4.5) · AC-02 (task 11b: `nlu.learned.B2NLU`, the S1 `understand` prompt
   and schema, forced tool use; a reply with no valid tool input is a wrong prediction, D-022, counted in
   `missing_tool_calls`; a provider error with no reply is also wrong, counted in `provider_errors` [assumption]; one
-  preflight call on validation must get a reply before anything is written)
+  preflight call on validation must get a reply before anything is written). D-082: one prompt iteration on
+  validation, before any test score (PROTOCOL §2.1): the prompt defines `human_request` first from §1 and the §8
+  intent order (a person or a call is asked for, in ES or PT, and it wins over every other intent, AC-10), with no
+  sentence from any split, and is shorter for rule 3; D-078 makes only the slot keys optional. Prompt hash and the
+  before/after size are in ADR 0027 "Validation iteration (D-082)"
 - [ ] T5 — injection detector, both arms · AC-04 (rules arm done in 11a, `nlu.injection`; LR arm and AC-04 numbers pending spec 09)
 - [ ] T6 — evaluation script, report, export, ADR "model selection" (with spec 15) · AC-03, AC-05 (task 11b:
   `eval/classifier/evaluate.py`; `make classifier` is the validation development run, written to `eval/.runs/` only;

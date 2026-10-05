@@ -25,6 +25,7 @@ ROOT = Path(__file__).resolve().parents[2]
 SPLITS = ROOT / "eval/classifier"
 TODAY = DEMO_TODAY                       # replay only (AC-09): every arm reads relative dates against the same day
 PROMPT = UNDERSTAND + json.dumps(INTENT_SCHEMA, sort_keys=True)     # what the prompt hash covers (AC-05)
+SLOT_KEYS = ("amount", "currency", "date", "merchant")
 SMOKE_TEXT = "No reconozco un cargo de 45 dólares en mi tarjeta."
 IN_TOKENS, OUT_TOKENS = 900, 120         # [assumption] per-message projection: prompt + schema + message; tool input
 JEV_URL = "https://api.typesafe.ai/v1/systemone"
@@ -110,7 +111,8 @@ def llm_items(arm: dict, rows: list[dict], provider: smoke.Provider, price: dict
                 jsonschema.validate(tool, INTENT_SCHEMA)
             except jsonschema.ValidationError:
                 tool = None               # D-022: no tool call or a schema failure scores as a wrong prediction
-            it = item(row, tool and tool["intent"], tool and tool["slots"], tool_call=tool is not None,
+            slots = tool and {k: tool["slots"].get(k) for k in SLOT_KEYS}    # D-078: a missing slot key is null
+            it = item(row, tool and tool["intent"], slots, tool_call=tool is not None,
                       latency_ms=r.get("latency_ms"), usage=r.get("usage") or {}, price=price)
             temps.add(r.get("temperature"))
         except Exception as exc:

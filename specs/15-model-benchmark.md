@@ -256,7 +256,9 @@ Public third-party leaderboards; fine-tuning; batch or provisioned throughput pr
 - [x] T2 — B1 runner over spec 11 arms + the LLM candidates + Jev; unavailable arms recorded · AC-01, AC-06
       (`eval/bench/b1.py`: smoke then B1 with exactly `smoke.converse_request`, the `understand` prompt and schema of
       spec 04; B1 TF-IDF + LR through `load_nlu`, unavailable until spec 11 T3 lands; per-sentence errors scored
-      wrong and counted in `errors`, items appended to disk as they arrive, §4.1)
+      wrong and counted in `errors`, items appended to disk as they arrive, §4.1; the tool description is the
+      production one, `nick_of_time.llm.base.TOOL_DESCRIPTION`, so the request equals what S1 sends, and a missing
+      slot key is scored as null, D-078)
 - [ ] T3 — structured-output smoke test (done, `eval/bench/smoke.py`, AC-11; live run pending Bedrock invoke
       rights); `word` task set (40 template instances from dev cases) and blind preference sheet (pending spec 09) ·
       AC-11, AC-12

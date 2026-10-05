@@ -83,17 +83,61 @@ is in the git-ignored folder `eval/.runs/bench/2026-10-05-validation-bedrock/`.
   in both languages. Bedrock availability now cites the Bedrock SLA, checked on 2026-10-05. On this run only Sonnet 4.6
   passes the production gate.
 
+## Validation iteration (D-082)
+**One iteration, on validation only, before any test score exists** (PROTOCOL §2.1: validation only to fix prompts;
+§1.1: no prompt edit on test). No arm has been scored on the test split; neither `make bench` nor `make
+classifier-test` has run. No split file, label, `eval/PROTOCOL.md` or the sealed manifest changed. The development
+table above was measured with the prompt before this iteration; the orchestrator re-runs validation with the new one.
+- **Schema (D-078, Q1 below).** In `nick_of_time.llm.steps.INTENT_SCHEMA` only the four slot keys (`amount`,
+  `currency`, `date`, `merchant`) become optional; `intent`, `confidence`, `dispute_detected` and `slots` stay required.
+  A missing key already read as null in production through the `nlu.Slots` defaults (`steps.slots_of`, `B2NLU`); the B1
+  runner now fills a missing key with null before scoring slots. Tests: `tests/test_spec04_arms.py` (`d_078`),
+  `tests/test_spec15_b1.py` (`d078`), `tests/test_spec11_learned_arms.py`.
+- **Prompt (D-082, Q2 below).** `steps.UNDERSTAND` defines `human_request` first: the customer asks to talk to a person
+  (ES persona, asesor, ejecutivo, agente, humano; PT pessoa, atendente) or for a call (llamada, ligação), and it wins
+  over every other intent, even when the message also reports a charge or asks for status (`dispute_detected` keeps the
+  charge). It is written from the intent definitions of spec 11 §1, the B0 intent order of spec 11 §8 and AC-10, with
+  person and call words only and no sentence from any split. Slots now say "omit the rest" instead of a null per key,
+  which also shortens the reply.
+- **Every LLM arm, Sonnet included.** Every arm of `eval/bench/arms.yaml` and B2 send the production request (D-011),
+  so all of them measure this prompt. The B1 request is now equal to the production Bedrock request: the bench sent the
+  tool description "Record the intent.", production sends "Record the output."; both now read
+  `nick_of_time.llm.base.TOOL_DESCRIPTION` (test `test_ac_01_the_bench_request_is_the_production_request_d011`).
+- **Prompt hash** (`eval.bench.core.prompt_hash`: the first 16 hex characters of sha256 over `UNDERSTAND +
+  json.dumps(INTENT_SCHEMA, sort_keys=True)`; `make eval-local` records the full digest as `sha256:…`):
+  - before (`main` at `b5b531a`, unchanged since the seal at `7b18f72`): `3a993dd5c209892b`
+  - after: `3683759e42eb149f` (full: `sha256:3683759e42eb149f20eaf43feaecae49e66ab5b03c2560655afb390ee0665374`)
+- **Input size of the fixed request** `[data]`, counted with the tokenizer-free proxy the code uses (characters / 4, as
+  `steps.ask` estimates spend and `eval.bench.b1.fake_provider` reports usage); it is not a model tokenizer:
+
+  | Part | Before (chars / ≈ tokens) | After (chars / ≈ tokens) |
+  |---|---|---|
+  | System prompt `UNDERSTAND` | 918 / 229 | 894 / 223 |
+  | Schema `json.dumps(INTENT_SCHEMA)` | 582 / 145 | 526 / 131 |
+  | Tool name and description | 31 / 7 | 31 / 7 |
+  | **Fixed request** | **1,531 / 382** | **1,451 / 362** (−5%) |
+
+  The user turn (`{"today", "message"}`) adds about 22 tokens for the smoke sentence.
+- **What it can do for rule 3** `[assumption]`. The measured Haiku 4.5 cost, 1.86 USD per 1,000 messages at 1.1 / 5.5
+  USD per 1M tokens (`eval/bench/prices.yaml`), implies about 940 billed input tokens per message if a reply has 150
+  output tokens or fewer, well above the ≈ 384 of our request text. The rest is the provider's tool-use prompt and
+  tokenizer differences, which the request text cannot shorten. This iteration therefore cuts the text it controls
+  (5% of the fixed request, plus the omitted null slots in each reply) and is not expected, on its own, to bring Haiku
+  4.5 under 1 USD per 1,000 messages. The validation re-run measures the real cost.
+
 ## Open questions for the lead (after the seal, before `make bench`)
 The protocol was sealed on 2026-10-05 (tag `protocol-v1` → `7b18f72`). The sealed manifest covers the split files, so
 no label may change. Only the prompt or the schema may still change, validated on validation (PROTOCOL §2.1). Nothing
 may change once the test run has started.
-- **Q1: slot keys.** Should the `understand` schema (spec 04, `nick_of_time.llm.steps.INTENT_SCHEMA`) stop requiring
+- **Q1: slot keys.** Decided as D-078 (only the slot keys optional); see "Validation iteration (D-082)". Should the
+  `understand` schema (spec 04, `nick_of_time.llm.steps.INTENT_SCHEMA`) stop requiring
   the null slot keys? That would let 12 more arms reach B1.
   - The schema is not a hashed input, and §2.1 allows prompt and schema fixes on validation.
   - B1 has to measure the request that production sends, so the change belongs to spec 04 and lands in both places.
   - After the change, re-run `make bench-dev` on validation, record the new `prompt_hash` here, and only then run
     `make bench`.
-- **Q2: person requests.** Every LLM arm misses `human_request` far more often than the floor allows.
+- **Q2: person requests.** Decided as D-082 (one prompt iteration); see "Validation iteration (D-082)". Every LLM arm
+  misses `human_request` far more often than the floor allows.
   - **Do not act on this by relabeling.** `validation.jsonl` and `test.jsonl` are in the sealed manifest, so any label
     edit breaks the seal, and `make bench` would refuse.
   - Only the prompt wording may change, validated on validation before the test run.

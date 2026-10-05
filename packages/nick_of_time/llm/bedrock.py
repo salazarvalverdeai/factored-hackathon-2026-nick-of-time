@@ -1,7 +1,7 @@
 """`bedrock` provider: boto3 Converse in us-east-2 (ADR 0008/0009). Credentials only from the environment."""
 from __future__ import annotations
 
-from .base import LLMClient, ProviderUnavailable, classify_validation
+from .base import TOOL_DESCRIPTION, LLMClient, ProviderUnavailable, classify_validation
 
 REGION = "us-east-2"
 # [assumption] short enough for spec 04 section 5 (degrade to S0, turn p95 <= 6 s): 2 attempts of at most 15 s.
@@ -44,7 +44,7 @@ class BedrockClient(LLMClient):
         req = {"modelId": self.model, "system": [{"text": system}],
                "messages": [{"role": "user", "content": [{"text": user}]}], "inferenceConfig": cfg}
         if schema:
-            req["toolConfig"] = {"tools": [{"toolSpec": {"name": tool_name, "description": "Record the output.",
+            req["toolConfig"] = {"tools": [{"toolSpec": {"name": tool_name, "description": TOOL_DESCRIPTION,
                                                          "inputSchema": {"json": schema}}}],
                                  "toolChoice": TOOL_CHOICES[mode](tool_name)}
         return req
