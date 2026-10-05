@@ -10,8 +10,9 @@ Record = dict[str, Any]
 RATES = ("safe_automated_resolution", "unsafe_outcomes", "missed_escalations", "unnecessary_escalations",
          "receipt_rate", "complete_intake_rate", "coherence_rate", "pass_4", "intent_accuracy")
 VALUES = ("latency_p50_ms", "latency_p95_ms", "cost_per_case_usd", "cost_per_resolution_usd")
-COLUMNS = ("arm", "language", "type", "segment", "metric", "value", "numerator", "denominator", "ci_low", "ci_high",
-           "n_cases")
+COLUMNS = ("label", "set", "arm", "language", "type", "segment", "metric", "value", "numerator", "denominator", "ci_low",
+           "ci_high", "n_cases")
+LABEL = "[simulated]"                                        # §5 Honesty: every exported figure carries it
 
 
 def wilson(numerator: int, denominator: int, z: float = 1.959964) -> tuple[Optional[float], Optional[float]]:
@@ -112,9 +113,17 @@ def group(records: list[Record]) -> dict[str, dict[str, Any]]:
     return out
 
 
+def runs_per_case(records: Iterable[Record]) -> int:
+    """k of pass^k: the most runs any case has on one arm (4 unless `--runs` says otherwise)."""
+    counts: dict[tuple, int] = defaultdict(int)
+    for record in records:
+        counts[(record["arm"], record["case_id"])] += 1
+    return max(counts.values(), default=0)
+
+
 def summary(records: Iterable[Record]) -> list[dict[str, Any]]:
     """Rows of summary.csv: per arm, one block over all its runs (language, type and segment `all`) and one per
-    language × type × segment cell."""
+    language × type × segment cell. Each row carries the [simulated] label and the case set (§5)."""
     cells: dict[tuple, list[Record]] = defaultdict(list)
     for record in records:
         cells[(record["arm"], "all", "all", "all")].append(record)
@@ -122,6 +131,8 @@ def summary(records: Iterable[Record]) -> list[dict[str, Any]]:
     rows = []
     for key in sorted(cells):
         n_cases = len({record["case_id"] for record in cells[key]})
+        sets = "+".join(sorted({record["set"] for record in cells[key]}))
         for metric, stats in group(cells[key]).items():
-            rows.append({**dict(zip(COLUMNS[:4], key)), "metric": metric, **stats, "n_cases": n_cases})
+            rows.append({"label": LABEL, "set": sets, **dict(zip(COLUMNS[2:6], key)), "metric": metric, **stats,
+                         "n_cases": n_cases})
     return rows
