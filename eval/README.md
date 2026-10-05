@@ -16,6 +16,7 @@ harness of spec 10 when it scores.
 | `cases/dev.jsonl` | the 20 dev agent cases, built by `derive_expected.py`; do not edit by hand | 09 §7.4 |
 | `cases/plan/heldout.jsonl`, `cases/heldout.jsonl` | the same for the 80 held-out cases | 09 §7.4 |
 | `heldout.sha256` | sha256 of `cases/heldout.jsonl` | 09 §7.7 |
+| `second_label.py`, `labeling/` | blind second-labeling sheet of the dev cases and the agreement with the first labels | 09 AC-06 |
 | `derive_expected.py` | builds a case file from its plan; `expected` comes from the policy engine | 09 §7.5 |
 | `eval_case.schema.json`, `examples.jsonl` | shape of an agent case, with five examples | 01 |
 | `PROTOCOL.md` | pre-registered evaluation rules; unsealed until M02 | 11, 15, 17 |
@@ -120,6 +121,28 @@ With 80 cases the intervals per cell are wide: results show n and do not over-cl
 (`PYTHONPATH=packages python -m eval.derive_expected seal`). No model has been trained or evaluated on the held-out.
 The hash becomes binding at M02, when `eval/PROTOCOL.md` is sealed; after that the file never changes and new data
 is a new sealed set (ADR 0021). **Do not use the held-out to tune prompts, rules or thresholds: use the dev set.**
+
+## Second labeling (AC-06)
+A second person labels the 20 **dev** cases blind, and the agreement with the first labeler (`vldiego`) is reported
+here. The sample is the whole dev set and never the held-out: the second labeler (the lead, @salazarvalverdeai,
+AI-assisted) develops the agent and the classifier, so they must not read held-out cases before the seal (ADR 0007).
+`eval/second_label.py` never opens `cases/heldout.jsonl`.
+
+```bash
+python -m eval.second_label export       # writes eval/labeling/dev_second_label.csv; refuses to overwrite without --force
+# fill intent, decision, handoff, case_open, labeler (and note) in the CSV, one row per case, without opening cases/
+python -m eval.second_label agreement    # writes eval/labeling/agreement.json and prints a Markdown table
+```
+
+- **Blind:** the sheet has the messages and the state (country, segment, session, candidate transactions with the
+  bank's `fraud_score`, any existing case, tool faults), and no `expected` and no first-labeler intent.
+- **Vocabulary:** `intent` is one of the five intents of spec 11 or `none` when the case is refused before an intent
+  matters; `decision` is one of the nine decisions of spec 09 §7.5; `handoff` and `case_open` are `yes` or `no`.
+- **Agreement:** per field, n, agreements, percent agreement, Cohen's kappa and the disagreeing case ids, against
+  `cases/plan/dev.jsonl` (intent) and `cases/dev.jsonl` `expected` (decision, handoff, case open). If both raters use
+  a single category for every case, kappa is 0/0 and is defined as 1.0. Disagreements are discussed and the cases
+  fixed in the plan, never in `expected` by hand.
+- **Result:** pending; paste the table printed by `agreement` here.
 
 ## Classifier set (`classifier/`)
 The ES/PT sentences of spec 11, with five intents, slots and injection rows (spec 09 §7.6). They are written by three
