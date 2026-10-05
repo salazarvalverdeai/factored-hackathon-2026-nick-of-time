@@ -96,7 +96,7 @@ def build_candidates(con, cutoff: str = fs.WINDOWS[fs.VALIDATION][1]) -> pl.Data
       t.transaction_date AS td, coalesce(t.customer_id, t.product_id) AS e, t.product_id, t.customer_id,
       coalesce(t.amount_usd, CASE WHEN t.currency = 'USD' THEN t.amount END) AS amt, t.channel,
       t.merchant_name AS mname, t.merchant_category AS mcat, t.transaction_country AS tc, t.transaction_city AS city,
-      t.branch_id, t.latitude AS lat, t.longitude AS lon, t.transaction_status AS st, t.response_code AS rc,
+      t.branch_id, t.latitude AS lat, t.longitude AS lon, t.transaction_status AS st,
       t.fraud_score, t.product_opening_date, hour(t.transaction_date) AS hr, isodow(t.transaction_date) AS dow,
       c.registration_date, c.date_of_birth
       FROM transactions_enriched t LEFT JOIN customers c ON c.customer_id = t.customer_id
