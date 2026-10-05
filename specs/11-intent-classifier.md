@@ -278,8 +278,9 @@ Fine-tuning; embeddings + LR (P2); Jev (benchmarked in spec 15); the agent's use
   `eval/classifier/evaluate.py`; `make classifier` is the validation development run, written to `eval/.runs/` only;
   `make classifier-test` is the one test run and refuses while `eval/PROTOCOL.md` is UNSEALED, when the `protocol-v1`
   tag is not in HEAD's history with the same `PROTOCOL.md`, when the split files differ from the sealed manifest, or
-  when the arms are not exactly B0, B1, B2; it reads `test.jsonl` only after B1 is saved and exports `test_review`
-  with its ADR 0028 label; ADR after the test run)
+  when the arms are not exactly B0, B1, B2; it runs once through the shared guard of spec 10
+  (`eval/harness/seal_guard.py`: `check_seal`, then `claim_run("classifier-test")`) before B1 is saved and
+  `test.jsonl` is read, and exports `test_review` with its ADR 0028 label; ADR after the test run)
 
 ## 11. Sources
 External sources checked on 2026-10-04.

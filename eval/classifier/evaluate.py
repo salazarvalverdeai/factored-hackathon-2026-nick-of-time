@@ -30,6 +30,7 @@ from pathlib import Path
 import numpy as np
 
 from eval.classifier.review import INTENTS, LANGS, manifest_sha256
+from eval.harness import seal_guard
 from eval.harness.metrics import percentile, wilson
 from eval.harness.report import git_sha, now
 from nick_of_time import llm
@@ -46,6 +47,8 @@ DEV_LABEL = "development run on validation: not a test result, never used for se
 RULE_REVIEW = "test split decided by fixed rules, without independent human review"   # ADR 0028, spec 11 §7.1
 TEST_ARMS = ("B0", "B1", "B2")                                            # PROTOCOL §1.2: every arm on the one test run
 BUILT_ARMS = ("B0", "B1")                                                 # B2 lands with spec 11 T4
+RUN_NAME = "classifier-test"                                              # seal_guard.claim_run: eval/results/<name>/
+OUTPUTS = ("models/intent-b1-v1.joblib", "eval/results/classifier.csv", "apps/web/public/data/classifier.json")
 SEAL_TAG = "protocol-v1"                                                  # eval/PROTOCOL.md "Seal": tag of the sealing commit
 
 
@@ -111,6 +114,21 @@ def load_splits(split: str, root: Path = ROOT) -> tuple[dict[str, list[dict]], s
         return {s: jsonl((d / f"{s}.jsonl").read_bytes()) for s in names}, "promoted split files"
     from eval.classifier.review import _reviewed
     return {s: _reviewed(root, s) for s in names}, "human-reviewed drafts (split files not promoted yet)"
+
+
+def claim_test_run(root: Path = ROOT) -> dict:
+    """The shared once-only guard (eval/harness/seal_guard.py), called before B1 is saved and before test.jsonl is
+    read: the seal holds at HEAD and in the working tree, the sealed inputs are committed and every top-level
+    eval/classifier/*.jsonl hashes to the sealed manifest; then `claim_run` refuses a second run and writes
+    eval/results/classifier-test/classifier-test.start.json. An existing output of this run also refuses it."""
+    if done := [p for p in OUTPUTS if (root / p).exists()]:
+        raise EvalError(f"refused: the classifier test run already wrote {done}; it runs once (spec 11 §5)")
+    try:
+        guard = seal_guard.check_seal(inputs={"classifier_splits": None}, root=root)
+        seal_guard.claim_run(RUN_NAME, root / "eval" / "results" / RUN_NAME, guard, root=root)
+    except seal_guard.SealError as exc:
+        raise EvalError(f"refused: {exc}") from exc
+    return guard
 
 
 def read_test(root: Path = ROOT) -> list[dict]:
@@ -282,6 +300,7 @@ def evaluate(split: str, arms: list[str], root: Path = ROOT) -> Path:
     val_preds = run_arm(b1, val)
     tau = choose_tau([p["confidence"] for p in val_preds], [r["intent"] == p["intent"] for r, p in zip(val, val_preds)])
     nlus = {"B0": load_nlu("B0"), "B1": b1}
+    guard = claim_test_run(root) if split == "test" else None   # once-only; before any write and before test is read
     out_dir = (root / "apps/web/public/data") if split == "test" else root / "eval/.runs/classifier" / now().replace(":", "")
     model_dir = (root / "models") if split == "test" else out_dir
     model_dir.mkdir(parents=True, exist_ok=True)
@@ -304,6 +323,7 @@ def evaluate(split: str, arms: list[str], root: Path = ROOT) -> Path:
                "injection": [{"arm": "rules", "recall": rate(sum(inj), len(inj)),
                               "false_positive_rate": rate(sum(legit), len(legit))}]}
     if split == "test":
+        payload["seal_guard"] = guard
         payload["test_review"] = review_mode(data["test"])
         if payload["test_review"] == "rules-v1":
             payload["test_review_label"] = RULE_REVIEW

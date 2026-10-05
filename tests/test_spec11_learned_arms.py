@@ -58,6 +58,22 @@ def results(root):
     return [p for g in RESULT_GLOBS for p in root.glob(g)]
 
 
+GUARD = {"status": "SEALED", "sha256": "a" * 64, "tag": "protocol-v1", "commit": "c" * 40, "head": "d" * 40,
+         "test_review": "rules-v1", "inputs": {"classifier_splits": "b" * 64}}
+
+
+def sealed_guard(monkeypatch, refuse: str | None = None) -> None:
+    """The temporary root has no git tag: stand in for seal_guard.check_seal, and keep claim_run offline."""
+    def check_seal(inputs=None, root=None, **kw):
+        assert inputs == {"classifier_splits": None}               # every top-level split file is hashed
+        if refuse:
+            raise ev.seal_guard.SealError(refuse)
+        return GUARD
+    monkeypatch.setattr(ev, "protocol_tagged", lambda root: True)
+    monkeypatch.setattr(ev.seal_guard, "check_seal", check_seal)
+    monkeypatch.setattr(ev.seal_guard, "_origin_main", lambda root, fetch: None)
+
+
 def test_ac_02_ac_05_b1_trains_parses_and_reloads_with_its_version(tmp_path):
     tr, va = [r for r in rows("train", 8) if r["intent"]], [r for r in rows("validation", 4) if r["intent"]]
     b1 = B1NLU(ev.train_b1([r["text"] for r in tr], [r["intent"] for r in tr],
@@ -144,9 +160,46 @@ def test_ac_03_test_review_is_rules_v1_only_when_the_rules_decided_every_row(rev
     assert ev.review_mode([{"reviewer": r} for r in reviewers]) == mode
 
 
+def test_ac_01_test_run_runs_once_through_the_shared_seal_guard(tmp_path, monkeypatch):
+    root = make_root(tmp_path, "SEALED", test_reviewer="rules-v1")
+    sealed_guard(monkeypatch)
+    monkeypatch.setattr(ev, "TEST_ARMS", ("B0", "B1"))           # B2 joins the test set with spec 11 T4
+    out = ev.evaluate("test", ["B0", "B1"], root)
+    marker = root / "eval/results/classifier-test/classifier-test.start.json"
+    assert json.loads(marker.read_text())["protocol_sha256"] == GUARD["sha256"]
+    assert json.loads(out.read_text())["data"]["seal_guard"] == GUARD
+    before = {p: p.read_bytes() for p in results(root) if p.is_file()}
+    monkeypatch.setattr(ev, "read_test", lambda root: pytest.fail("test.jsonl read on a second run"))
+    with pytest.raises(ev.EvalError, match="already"):
+        ev.evaluate("test", ["B0", "B1"], root)
+    assert {p: p.read_bytes() for p in results(root) if p.is_file()} == before
+
+
+def test_ac_01_a_marker_alone_refuses_the_test_run(tmp_path, monkeypatch):
+    root = make_root(tmp_path, "SEALED", test_reviewer="rules-v1")
+    sealed_guard(monkeypatch)
+    monkeypatch.setattr(ev, "TEST_ARMS", ("B0", "B1"))
+    (root / "eval/results/classifier-test").mkdir(parents=True)
+    (root / "eval/results/classifier-test/classifier-test.start.json").write_text("{}")
+    monkeypatch.setattr(ev, "read_test", lambda root: pytest.fail("test.jsonl read after a claimed run"))
+    with pytest.raises(ev.EvalError, match="already started"):
+        ev.evaluate("test", ["B0", "B1"], root)
+    assert not (root / "models").exists()
+
+
+def test_ac_01_a_refused_seal_guard_writes_nothing_and_never_reads_test(tmp_path, monkeypatch):
+    root = make_root(tmp_path, "SEALED", test_reviewer="rules-v1")
+    sealed_guard(monkeypatch, refuse="uncommitted changes to sealed inputs")
+    monkeypatch.setattr(ev, "TEST_ARMS", ("B0", "B1"))
+    monkeypatch.setattr(ev, "read_test", lambda root: pytest.fail("test.jsonl read after a refused guard"))
+    with pytest.raises(ev.EvalError, match="uncommitted"):
+        ev.evaluate("test", ["B0", "B1"], root)
+    assert not results(root) and not (root / "models").exists()
+
+
 def test_ac_03_ac_05_sealed_test_run_exports_the_spec_shape(tmp_path, monkeypatch):
     root = make_root(tmp_path, "SEALED", test_reviewer="rules-v1")
-    monkeypatch.setattr(ev, "protocol_tagged", lambda root: True)
+    sealed_guard(monkeypatch)
     monkeypatch.setattr(ev, "TEST_ARMS", ("B0", "B1"))           # B2 joins the test set with spec 11 T4
     read_test = ev.read_test
 
