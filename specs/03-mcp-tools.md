@@ -186,7 +186,8 @@ engine's behavior does not change).
   already written in `review` with `person_requested` may have no `call_requested` event, and it must stay held.
   `[assumption]` (pending lead decision D-055): 03c reads the opening reason from the `handoff_emitted` event of the
   opening turn (a store event type already in spec 01 §6.5, not customer-visible), whose payload carries
-  `handoff_reason`; if that event is absent the hold is not open. No field is added to `OpenCaseIn` or any contract.
+  `handoff_reason`; if that event is absent the hold is not open. The writer of that event is the api (spec 05 AC-21), from the
+  turn result Platform returns, not an MCP tool (amendment of D-066, pending the lead's confirmation). No field is added to `OpenCaseIn` or any contract.
   So a later plain-dispute turn about the same transaction is denied with `POL-HUMAN-REQUEST`. The hold is per case: a
   different charge opens a new case, which has no hold unless its own turn asked for a person. In the turn of the call
   request the order is spec 04's `act` → `verify` → `connect` (`open_case`, then `request_call` on that case); until
@@ -253,7 +254,8 @@ Implementation goes in one `feat/03-*` branch per task (T1: `feat/03-mcp-server`
       `tests/test_spec03_queue_status.py`: the write tools move the queue through `store.change_status` (it enforces
       `case_queue.transitions`; spec 02 §4.5); reads never move a case. The D-029 call-request case is moved to
       `review` by `request_call` (task 03d1, PR #124). Gaps: a high-zone case whose `escalate_unconfirmed_action`
-      turn (spec 09 EV-0118) leaves it `new` depends on who writes `handoff_emitted`, pending D-066; and
+      turn (spec 09 EV-0118) left `new` is moved to `review` by the api when it writes `handoff_emitted` (spec 05
+      AC-22, D-066 default); and
       `notifications.events.in_review` ("Un analista está revisando tu caso") is wrong for a case that opens in
       `review` with no analyst yet, a wording change recorded for spec 13
 - [x] T6 — follow-up tools (`add_case_info`, `request_call`, `request_reevaluation`) · AC-17, AC-18, AC-19 ·
