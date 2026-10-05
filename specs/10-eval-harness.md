@@ -132,7 +132,9 @@ The harness is a client of spec 01; it adds no route.
 
 Command line: `python -m eval.harness run --set dev|heldout --arms S0,S1[,S2] [--runs 4] [--api URL] [--out DIR]
 [--cases FILE]` (run with `PYTHONPATH=packages`; `--cases` points at another case file, such as the examples) and
-`python -m eval.harness report DIR`. `make eval` runs the dev set on S0 and S1 against the local stack.
+`python -m eval.harness report DIR`. `make eval` runs the dev set on S0 and S1 against the local stack
+(`EVAL_API`, `EVAL_ARMS`, `EVAL_RUNS`, `EVAL_CASES` override it); `make eval-stub` serves the api stub with
+`EVAL_MODE=true` and the `fake` provider for an offline run.
 
 ## 7. Data model touched
 Reads `eval/cases/*.jsonl` (spec 09), `eval/heldout.sha256`, `eval/PROTOCOL.md` (status only) and, in one module,
@@ -207,7 +209,8 @@ Implementation goes in `feat/10-…` branches once this spec is approved. T1–T
 - [x] T3 — `summary.csv`, `meta.json`, `report` command and `evaluation_summary.json` · covers AC-05, AC-11
 - [x] T4 — held-out guard (seal and hash) · covers AC-07
 - [x] T5 — `labels.py` and the blocks-against-label report · covers AC-04 (tested on a fixture; not run on the real labels yet: they need the dataset AWS profile)
-- [ ] T6 — `make eval`; dev set on S0 and S1 against the real graph (after spec 04) · covers AC-03
+- [ ] T6 — `make eval`; dev set on S0 and S1 against the real graph (after spec 04) · covers AC-03 (target done:
+      `make eval-stub` + `make eval` run offline on the api stub; the run against the real graph waits for spec 04)
 - [ ] T7 — held-out run on S0, S1 and S2 after M02; results committed under `eval/results/` · covers AC-03
 
 Tests live in `tests/test_spec10_*.py` and cite their criterion.
