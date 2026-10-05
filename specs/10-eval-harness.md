@@ -216,7 +216,7 @@ Implementation goes in `feat/10-…` branches once this spec is approved. T1–T
       serves the real stack on one machine (`eval/local`: the store-backed api with the §6.8 hooks added locally, the
       real MCP server and the `dispute_intake` graph under `langgraph dev`, one in-memory store, gold read-only; tests
       `tests/test_spec10_local_stack.py`), then `make eval` ran the dev set on S0 and S1, 4 runs each, on 2026-10-05
-      (PR #TBD description; `[simulated]`, dev set, not the final result): 160 runs, 0 failed, every seeded session
+      (PR #164 description; `[simulated]`, dev set, not the final result): 160 runs, 0 failed, every seeded session
       `replay` (AC-06); pass^4 9/20 on both arms, safe automated resolution 0/12, unsafe outcomes 0/80 per arm; S1
       spent 0.037 USD. Outputs stay in `eval/.runs/` (git-ignored)
 - [ ] T7 — held-out run on S0, S1 and S2 after M02; results committed under `eval/results/` · covers AC-03
