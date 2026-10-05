@@ -3,7 +3,9 @@ grounding gate of spec 04 §4.3 (ADR 0016, G-OUT-01): whatever does not string-m
 dropped and counted. The gate runs the auditor's A4 rule (spec 18), so the runtime and the auditor agree on a fact."""
 from __future__ import annotations
 
+import datetime as dt
 import hashlib
+import json
 import re
 from typing import Any, Iterable, Optional
 
@@ -14,14 +16,42 @@ from nick_of_time.receipt import amount_text, text
 REASONS = load_schema("handoff.schema.json")["properties"]["handoff_reason"]["enum"]
 STEP = re.compile(r"^\d+\. ")       # [assumption] a plan step's own number is the template's, not a fact
 NO_CLOCK = "POL-CLOCK-UNKNOWN"
+# a time as a tool returns it (ISO) or as the customer sees it ('YYYY-MM-DD HH:MM UTC', D-051)
+TIME = re.compile(r"\b\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:?\d{2}| UTC)?")
+SECONDS = re.compile(r"\d{2}:\d{2}:\d{2}")
 RATIONALE = {"approve_block": "The card is not blocked and verified; a person decides the block.",
              "request_customer_info": "Zone human: a person reviews the charge with the customer."}
 
 
+def when(value: Any) -> Optional[dt.datetime]:
+    """A time as an aware UTC datetime; a time with no zone, or 'UTC', is UTC (D-051). None when it does not parse."""
+    if isinstance(value, dt.datetime):
+        return value.astimezone(dt.timezone.utc)
+    try:
+        t = dt.datetime.fromisoformat(str(value).replace(" UTC", "+00:00").replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    return (t if t.tzinfo else t.replace(tzinfo=dt.timezone.utc)).astimezone(dt.timezone.utc)
+
+
+def stamp(value: Any) -> str:
+    """A tool time as shown to the customer: UTC to the minute, 'YYYY-MM-DD HH:MM UTC' (D-051)."""
+    return when(value).strftime("%Y-%m-%d %H:%M UTC")
+
+
+def untimed(doc: Any, facts: list[Any]) -> bool:
+    """True when `doc` states a time no tool returned: exact to the second when it shows seconds, else to the minute
+    (a D-051 stamp), so a wrong HH:MM is caught although A4 counts a timestamp by its date (constitution #5)."""
+    known = {when(m) for m in TIME.findall(json.dumps(facts, default=str))} - {None}
+    minutes = {t.replace(second=0, microsecond=0) for t in known}
+    return any(when(raw) not in (known if SECONDS.search(raw) else minutes)
+               for raw in TIME.findall(json.dumps(doc, default=str, ensure_ascii=False)))
+
+
 def bad(value: Any, facts: list[Any], policy: Iterable[str] = ()) -> bool:
-    """True when `value` states an id, date or number that no tool result (or policy fact) states."""
+    """True when `value` states an id, date, time or number that no tool result (or policy fact) states."""
     doc = value if isinstance(value, dict) else {"_": STEP.sub("", value) if isinstance(value, str) else value}
-    return check_grounding(facts, handoff=doc, policy_facts=list(policy)).status == "finding"
+    return check_grounding(facts, handoff=doc, policy_facts=list(policy)).status == "finding" or untimed(doc, facts)
 
 
 def gate(doc: dict[str, Any], facts: list[Any], policy: Iterable[str] = (), *, required: Iterable[str] = (),
@@ -60,11 +90,11 @@ def receipt(f: dict[str, Any]) -> Optional[dict[str, Any]]:
                            amount=amount_text(trx["amount"]), currency=trx["currency"]),
               "source_id": trx["transaction_id"]},
              {"fact": text("act.case_opened", language, case_id=case["case_id"],
-                           verification_id=case["verification_id"], verified_at=case["read_at"]),
+                           verification_id=case["verification_id"], verified_at=stamp(case["read_at"])),
               "source_id": case["case_id"]}]
     if card:
         facts.append({"fact": text("receipt.card_blocked", language, last4=card["last4"],
-                                   verification_id=card["verification_id"], verified_at=card["read_at"]),
+                                   verification_id=card["verification_id"], verified_at=stamp(card["read_at"])),
                       "source_id": card["verification_id"]})
     dates = {key: case.get(key) for key in ("credit_deadline", "ruling_deadline")}
     if f["dispute"] != "unrecognized_charge":   # D-030 (ADR 0023 item 5): a wrongful charge shows the ruling date only
@@ -80,7 +110,7 @@ def receipt(f: dict[str, Any]) -> Optional[dict[str, Any]]:
         "receipt_id": "RC-" + hashlib.sha256(f"{f['trace_id']}:{case['case_id']}".encode()).hexdigest()[:12].upper(),
         "case_id": case["case_id"], "language": language, "mode": f["mode"],
         # [assumption] issued at the last post-condition read of the turn: a tool time, never the system clock
-        "issued_at": max(a["read_at"] for a in actions if a["state"] == "verified"),
+        "issued_at": max((a for a in actions if a["state"] == "verified"), key=lambda a: when(a["read_at"]))["read_at"],
         "verified_facts": facts, "product_last4": trx["last4"],
         "amount": {"original": {"amount": amount_text(trx["amount"]), "currency": trx["currency"]}, "display": fx},
         "actions": [{"label": text(f"status.action_label.{a['tool']}", language), "action_id": a["action_id"],
@@ -91,21 +121,25 @@ def receipt(f: dict[str, Any]) -> Optional[dict[str, Any]]:
 
 
 def handoff(f: dict[str, Any]) -> Optional[dict[str, Any]]:
-    """The analyst's handoff card (handoff.schema.json) for a case a tool returned this turn, verified or not; None
-    without one, or for an existing case (duplicate_of), whose own card already exists [assumption]."""
+    """The analyst's handoff card (handoff.schema.json) for a case a tool returned this turn, verified or not (a case
+    get_case did not read back is flagged in open_questions); None without one, or for an existing case
+    (duplicate_of), whose own card already exists [assumption, D-056]."""
     trx, opened, case, card, route, score = f["trx"], f["opened"], f["case"], f["card"], f["route"], f["score"]
     if not opened or opened.get("duplicate_of"):
         return None
     actions = shown(f)
     stored = case or opened                       # the stored deadlines: get_case's, else open_case's answer
     dates = {key: str(stored[key]) for key in ("credit_deadline", "ruling_deadline") if stored.get(key)}
-    reason = "tool_failure" if f["decision"] == "escalate_unconfirmed_action" else route.get("handoff_reason")
+    # [assumption, D-056] a session that expired mid-turn hands off as identity_unverified
+    reason = {"escalate_unconfirmed_action": "tool_failure", "reauthenticate": "identity_unverified"}.get(
+        f["decision"], route.get("handoff_reason"))
     proposal = ("approve_block" if route["zone"] in ("high", "medium") and not card
                 else "request_customer_info" if route["zone"] == "human" else None)
     charge = f"{trx['currency']} {amount_text(trx['amount'])} on {trx['transaction_date']}"
     questions = [f"{a['tool']}: not confirmed" for a in f["actions"]
                  if a["state"] == "not_confirmed" and not (a["tool"] == "block_card" and f["held"])]
     questions += ["block_card: held by the open call request; decide it after the call"] if f["held"] else []
+    questions += [f"case {opened['case_id']} not read back by get_case: confirm it exists before acting"] if not case else []
     questions += [f"no verified legal deadline ({NO_CLOCK})"] if not dates else []
     ids = [trx["transaction_id"], trx["product_id"], opened["case_id"], *(a["action_id"] for a in actions),
            *(a["verification_id"] for a in actions if a.get("verification_id"))]

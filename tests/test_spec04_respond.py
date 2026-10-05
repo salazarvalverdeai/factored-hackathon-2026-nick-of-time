@@ -38,14 +38,22 @@ def test_ac_21_ac_01_ev_0001_receipt_has_last4_verification_case_deadline_and_ne
     assert r.what_a_person_does == msg.text("receipt.what_a_person_does", "es")
     assert {f.source_id for f in r.verified_facts} == {TRX["transaction_id"], "K-104233", "V-8B2D41C7E0A9"}
     assert "score" not in json.dumps(r.model_dump(mode="json")) and "POL-" not in turn.reply   # never_send
+    assert "Caso K-104233 abierto y verificado (verificación V-0C6A93F1B57D, 2026-06-01 15:04 UTC)." in [
+        f.fact for f in r.verified_facts]                                                     # D-051
+    assert "G-OUT-01" not in turn.guardrails_triggered and len(turn.handoff["verified_facts"]) == 5
+    assert "copilot_proposal" not in turn.handoff     # the block is verified: nothing to approve (M30)
 
 
-def test_ac_12_human_zone_hands_off_a_card_that_validates_with_requires_human():
-    turn = Chat(mcp_transport=server(get_fraud_score=score(12.0))).say(EV_0001, language="es")
+@pytest.mark.parametrize("source", ["dataset", "synthetic"])
+def test_ac_12_human_zone_hands_off_a_card_that_validates_with_requires_human(source):
+    turn = Chat(mcp_transport=server(get_fraud_score=score(12.0, source))).say(EV_0001, language="es")
     card = turn.handoff                              # TurnResult validated it against handoff.schema.json
     assert (card["zone"], card["handoff_reason"], card["copilot_proposal"]["requires_human"]) == ("human", "zone_human",
                                                                                                  True)
-    assert (card["score"], card["score_source"], card["score_version"]) == (12.0, "dataset", "gold-v1")   # D-033
+    # D-033: the score's own source and version, so a synthetic one is shown as [simulated]
+    assert (card["score"], card["score_source"], card["score_version"]) == (12.0, source, "gold-v1")
+    assert "G-OUT-01" not in turn.guardrails_triggered and len(card["verified_facts"]) == 4
+    assert card["verified_facts"][-1] == {"fact": "decision handoff, zone human", "source_id": "POL-ZONE-HUMAN"}
 
 
 def test_ac_11_medium_zone_once_confirmed_hands_off_with_approve_block():
@@ -140,29 +148,109 @@ def test_ac_05_ac_19_d_051_utc_read_times_pass_grounding_and_a_card_and_case_que
 
 def test_d_043_a_block_held_by_a_call_request_is_said_calmly_and_does_not_escalate():
     turn = Chat(mcp_transport=server(block_card=HELD)).say(EV_0001, language="es")
-    held = "Bloqueo de la tarjeta: SIN CONFIRMAR. Una persona decide el bloqueo después de la llamada que pediste."
+    held = ("Bloqueo de la tarjeta: SIN CONFIRMAR. No bloqueé tu tarjeta; una persona decide si bloquearla después de "
+            "la llamada que pediste.")
     assert turn.reply.splitlines()[-1] == held and "revisará" not in turn.reply
     assert turn.decision == "block_and_open_case" and turn.handoff.get("handoff_reason") != "tool_failure"
     assert next(s for s in turn.trace if s.node == "verify").status == "ok"
     assert turn.receipt.what_ai_did == msg.text("receipt.what_ai_did_case_only", "es")
-    assert [s.id for s in turn.suggestions] == ["view_case", "add_info", "request_call"]
+    assert [s.id for s in turn.suggestions] == ["view_case", "add_info", "check_case"]   # a call is already open
+    assert "block_card: held by the open call request; decide it after the call" in turn.handoff["open_questions"]
 
 
-def test_ac_18_session_expired_on_block_card_asks_to_sign_in_without_saying_nothing_changed():
+def test_ac_18_ac_20_session_expired_on_block_card_asks_to_sign_in_and_keeps_the_verified_case():
     turn = Chat(mcp_transport=server(block_card=EXPIRED)).say(EV_0001, language="es")
     assert turn.decision == "reauthenticate" and turn.reply.splitlines()[-1] == msg.text("act.sign_in", "es")
-    assert "No hice ningún cambio" not in turn.reply and turn.receipt.case_id == "K-104233"
+    assert "No hice ningún cambio" not in turn.reply and turn.receipt.case_id == turn.case_id == "K-104233"
+    assert [s.id for s in turn.suggestions] == ["reauthenticate", "view_case", "talk_to_person"]
+    assert turn.suggestions[1].href == "/case/K-104233" and turn.handoff["handoff_reason"] == "identity_unverified"
+
+
+def test_ac_18_m13b_session_expired_on_the_verifying_read_after_an_accepted_write_never_says_nothing_changed():
+    """Human zone: open_case was accepted, then get_case answered SESSION_EXPIRED (finding 1 of the #109 review)."""
+    turn = Chat(mcp_transport=server(get_fraud_score=score(12.0), get_case=EXPIRED)).say(EV_0001, language="es")
+    assert turn.decision == "reauthenticate" and turn.reply.splitlines()[-1] == msg.text("act.sign_in", "es")
+    assert "No hice ningún cambio" not in turn.reply and turn.receipt is None and turn.case_id is None
+    assert turn.handoff["handoff_reason"] == "identity_unverified"
+
+
+UNREAD = {**CASE, "action_id": None, "verification_id": None}       # a plain read: the write is not confirmed
+
+
+@pytest.mark.parametrize("get_case", [DOWN, UNREAD])
+def test_ac_05_m3_no_receipt_without_a_verified_case_and_the_handoff_flags_the_unread_case(get_case):
+    """Constitution #4: the receipt needs get_case's V-; the analyst's card keeps the accepted case, flagged (D-056)."""
+    turn = Chat(mcp_transport=server(get_case=get_case)).say(EV_0001, language="es")
+    assert turn.receipt is None and turn.decision == "escalate_unconfirmed_action"
+    card = turn.handoff
+    assert (card["case_id"], card["handoff_reason"]) == ("K-104233", "tool_failure") and "queue_status" not in card
+    assert "case K-104233 not read back by get_case: confirm it exists before acting" in card["open_questions"]
+    assert [(a["tool"], a["verified"]) for a in card["actions"]] == [("open_case", False), ("block_card", True)]
+
+
+def test_m9_m10_a_duplicate_of_case_gets_no_new_receipt_or_handoff():
+    turn = Chat(mcp_transport=server(open_case={**OPENED, "duplicate_of": "K-104233"})).say(EV_0001, language="es")
+    assert turn.case_id == "K-104233" and turn.receipt is None and turn.handoff is None
+
+
+def test_ac_05_m25_m26_respond_gates_the_receipt_and_the_handoff_it_builds(monkeypatch):
+    """The tools answer as usual; a builder that adds a fact no tool returned is caught by respond's gate."""
+    receipt, handoff = build.receipt, build.handoff
+    monkeypatch.setattr(build, "receipt", lambda f: {**receipt(f), "verified_facts": [
+        *receipt(f)["verified_facts"], {"fact": "Reembolso de 999.99 USD.", "source_id": TRX["transaction_id"]}]})
+    monkeypatch.setattr(build, "handoff", lambda f: {**handoff(f), "evidence": [*handoff(f)["evidence"], "K-999999"]})
+    turn = Chat(mcp_transport=server()).say(EV_0001, language="es")
+    assert "999.99" not in json.dumps(turn.receipt.model_dump(mode="json")) and len(turn.receipt.verified_facts) == 3
+    assert "K-999999" not in turn.handoff["evidence"] and "G-OUT-01" in turn.guardrails_triggered
+    assert turn.trace[-1].detail == "G-OUT-01: 2 ungrounded fact(s) dropped"
+
+
+def test_ac_05_m7_d_030_a_wrongful_charge_reply_shows_the_ruling_date_and_not_the_credit_date():
+    ruled = {**CASE, "ruling_deadline": "2026-07-16"}
+    turn = Chat(mcp_transport=server(get_case=ruled)).say("Me cobraron dos veces 1250 USD en TIENDA X", language="es")
+    assert turn.intent == "wrongful_charge" and "2026-07-16" in turn.reply
+    assert "2026-06-03" not in turn.reply and "fondos en disputa" not in turn.reply
+    assert (turn.receipt.deadline.credit_deadline, str(turn.receipt.deadline.ruling_deadline)) == (None, "2026-07-16")
+
+
+def test_ac_05_d_051_a_shown_time_must_match_a_tool_time_exactly():
+    """A4 counts a timestamp by its date; the gate also checks the minute (or the second, when shown)."""
+    assert not build.bad("Caso K-104233 (consultado el 2026-06-01 15:04 UTC).", [CASE])
+    assert build.bad("Caso K-104233 (consultado el 2026-06-01 15:05 UTC).", [CASE])
+    assert not build.bad("verificado 2026-06-01T15:04:11Z", [CASE]) and build.bad("verificado 2026-06-01T15:04:12Z", [CASE])
+
+
+def test_ac_21_issued_at_is_the_latest_read_by_time_not_by_text():
+    _, _, paper = facts("TIENDA X", 1250.0, {"credit_deadline": "2026-06-03"}, True, "unrecognized_charge", "high",
+                        False)
+    paper["actions"][0]["read_at"], paper["actions"][1]["read_at"] = "2026-06-01T10:04:11-05:00", "2026-06-01T12:00:00Z"
+    assert build.receipt(paper)["issued_at"] == "2026-06-01T10:04:11-05:00"      # 15:04:11 UTC is the later one
+
+
+@pytest.mark.parametrize("down, said", [("list_my_cards", "No pude verificar tus tarjetas ahora"),
+                                        ("list_my_cases", "No pude verificar tu caso ahora")])
+def test_ac_19_a_card_and_case_question_names_the_one_read_that_failed(down, said):
+    turn = Chat(mcp_transport=server(**{"list_my_cases": None, down: DOWN})).say("¿Cómo está mi tarjeta y mi caso?",
+                                                                                 language="es")
+    assert said in turn.reply and msg.text("status.read_failed", "es") not in turn.reply
+    assert ("Tu tarjeta terminada en 4417" in turn.reply) == (down == "list_my_cases")
+    assert ("Estado de tu caso K-104233" in turn.reply) == (down == "list_my_cards")
 
 
 def test_ac_29_ac_30_every_row_without_a_case_drops_case_chips_and_keeps_two_or_three_with_a_person():
     for row, language in itertools.product(msg.ROWS, ("es", "pt")):
         chips = [c.id for c in msg.suggestions(row, language)]
         assert 2 <= len(chips) <= 3 and not set(chips) & msg.NEEDS_CASE, row
-        assert row in ("greet", "connect_person", "connect_person_case") or set(chips) & msg.PERSON, row   # AC-31
+        assert row == "greet" or row in msg.CALL_OPEN or set(chips) & msg.PERSON, row   # AC-31: starter chips
 
 
-@pytest.mark.parametrize("answers", [{}, {"get_fraud_score": score(12.0)}, {"block_card": DOWN},
-                                     {"block_card": HELD}])
+def test_ac_20_ac_30_m4_a_row_left_without_a_person_gets_one_and_is_filled_to_two(monkeypatch):
+    monkeypatch.setitem(msg.ROWS, "probe", ("view_case",))
+    assert [c.id for c in msg.suggestions("probe", "es")] == ["talk_to_person", "check_case"]
+    assert [c.id for c in msg.suggestions("probe", "es", "K-104233")] == ["view_case", "talk_to_person"]
+
+
+@pytest.mark.parametrize("answers", [{}, {"get_fraud_score": score(12.0)}, {"block_card": DOWN}])
 def test_ac_20_a_reply_with_a_case_links_it_and_keeps_a_person_reachable(answers):
     turn = Chat(mcp_transport=server(**answers)).say(EV_0001, language="es")
     assert f"/case/{turn.case_id}" in [s.href for s in turn.suggestions] and set(labels(turn)) & PERSON

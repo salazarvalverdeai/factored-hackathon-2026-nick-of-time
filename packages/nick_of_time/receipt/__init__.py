@@ -51,6 +51,9 @@ ROWS: dict[str, tuple[str, ...]] = {
     "case_unconfirmed": ("talk_to_person", "report_unrecognized", "check_case"),
     "deny": ("report_unrecognized", "check_case", "talk_to_person"),
     "reauthenticate": ("reauthenticate", "talk_to_person"),
+    "reauthenticate_case": ("reauthenticate", "view_case", "talk_to_person"),   # a case verified before it expired
+    # D-043: a call request already holds the block, so no new call chip (AC-30); the person is already coming
+    "block_held": ("view_case", "add_info", "check_case"),
     "connect_person": ("report_another", "check_case", "report_duplicate"),     # no case: F-007 adds 2 text chips
     "connect_person_case": ("view_case", "report_another"),
     "connect_failed": ("talk_to_person", "check_case", "report_unrecognized"),     # the first chip retries the call
@@ -101,13 +104,14 @@ def chip(chip_id: str, language: str, case_id: Optional[str] = None) -> Suggesti
 
 NEEDS_CASE = {"view_case", "send_summary", "add_info", "request_reevaluation"}   # chips about a case the turn read
 PERSON = {"talk_to_person", "request_call"}
+CALL_OPEN = {"connect_person", "connect_person_case", "block_held"}   # rows where a call is already registered
 
 
 def suggestions(row: str, language: str, case_id: Optional[str] = None) -> list[Suggestion]:
     """The §4.5 row, checked against the state (AC-30): a chip about a case only when the turn has one. Then a person
     stays reachable (AC-20, except right after connect_person) and 2 or 3 chips remain (AC-29)."""
     ids = [c for c in ROWS[row] if case_id or c not in NEEDS_CASE]
-    if not PERSON & set(ids) and not row.startswith("connect_person"):
+    if not PERSON & set(ids) and row not in CALL_OPEN:
         ids.append("talk_to_person")
     ids += [c for c in ("check_case", "report_unrecognized") if c not in ids][:max(0, 2 - len(ids))]
     return [chip(chip_id, language, case_id) for chip_id in ids[:3]]

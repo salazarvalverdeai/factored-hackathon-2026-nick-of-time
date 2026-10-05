@@ -483,12 +483,14 @@ async def verify(state: State, config: RunnableConfig) -> dict[str, Any]:
                        action_label=msg.text("status.action_label.block_card", language))] if held else []
     reads = {"readings": readings, "seen": list(readings.values()), "path": state["path"] + ["verify"]}
     if expired:     # sign in again (spec 02 rule 1); "nothing changed" only when nothing may have been written
-        maybe = writes["unanswered"] or any(a["state"] != "not_confirmed" for a in done)
+        maybe = writes["unanswered"] or any(tool in writes for tool in ("open_case", "block_card"))   # accepted
         lines.append(msg.text("act.sign_in" if maybe else "refuse.reauthenticate", language))
-        return {"actions": done, "unconfirmed": unconfirmed, "body": [*state["body"], *lines], "row": "reauthenticate",
-                "decision": "reauthenticate", **reads}
+        return {"actions": done, "unconfirmed": unconfirmed, "body": [*state["body"], *lines],
+                "row": "reauthenticate_case" if case else "reauthenticate", "decision": "reauthenticate",
+                "case_id": case["case_id"] if case else None, **reads}
     row = ("case_active" if duplicate else ("escalate_unconfirmed" if case else "case_unconfirmed") if unconfirmed
-           else "receipt" if state["route"]["decision"] == "block_and_open_case" and not held else "handoff")
+           else "block_held" if held else "receipt" if state["route"]["decision"] == "block_and_open_case"
+           else "handoff")
     # a duplicate_of case reports as the duplicate node does (D-050); any other unconfirmed action escalates
     decision = ({"decision": "connect_person" if calls else None} if duplicate else
                 {"decision": "escalate_unconfirmed_action"} if unconfirmed else {})
@@ -588,6 +590,10 @@ async def status(state: State, config: RunnableConfig) -> dict[str, Any]:
     reads = [card_status] * bool(CARD_WORDS.search(said)) + [case_status] * (
         bool(CASE_WORDS.search(said)) or not CARD_WORDS.search(said))
     parts = [await read(state, config) for read in reads]
+    if len(parts) == 2 and sum(bool(part.get("read_failed")) for part in parts) == 1:   # name the read that failed
+        parts = [{"body": [msg.text("status.read_failed_" + ("cards" if part["read_failed"] == "list_my_cards"
+                                                            else "case"), state["language"])]}
+                 if part.get("read_failed") else part for part in parts]
     merged = {key: value for part in parts for key, value in part.items()}
     return {**merged, "body": [line for part in parts for line in part["body"]],
             "seen": [fact for part in parts for fact in part.get("seen", [])], "path": state["path"] + ["status"]}
