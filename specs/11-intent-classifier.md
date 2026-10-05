@@ -135,6 +135,45 @@ does with the flag is decision D-020 (§8).
 Reads the sentence set of spec 09 (`eval/classifier/*.jsonl`). Writes `models/intent-*.joblib`, `models/injection-*.joblib`,
 `eval/results/classifier.csv` and `apps/web/public/data/classifier.json` (spec 01 §6.2).
 
+### 7.1 Web export shape (`classifier.json`, answers spec 12 Q1)
+`apps/web/public/data/classifier.json` is `{generated_at, git_sha, source, data}` (spec 01 §6.2); `data` is below. It
+is written once by the evaluation script (T6) from the frozen test split, never by hand. `protocol` comes from the seal block of `eval/PROTOCOL.md`, so `/evaluation` can apply the guard of spec 12 AC-05 (status other than `SEALED`: "development run" notice). A proportion is the rate object of spec 10 §7.2, `{value, numerator, denominator, ci_low, ci_high}`, with the 95% Wilson interval of spec 10 §4.1, computed by the exporter (the browser computes nothing, spec 12 §9; spec 12 AC-06). `null` marks a figure the run fills in.
+
+```json
+{
+  "label": "[simulated]",
+  "protocol": {"status": "SEALED", "sha256": "…", "split_manifest_sha256": "…"},
+  "test_split": {"sentences": {"es": null, "pt": null}, "injection_rows": null},
+  "tau": null,
+  "chosen_arm": "B0",
+  "arms": [
+    {"arm": "B1", "version": "…", "p50_ms": null, "p95_ms": null, "cost_per_1000_usd": null,
+     "meets_floors": null, "mcnemar_p_vs_best": null, "human_request_answered_out_of_scope": null,
+     "by_language": {
+       "es": {"macro_f1": null, "macro_f1_ci": [null, null],
+              "per_class_f1": {"unrecognized_charge": null, "wrongful_charge": null, "status_inquiry": null,
+                               "human_request": null, "out_of_scope": null},
+              "dispute_recall": {"value": null, "numerator": null, "denominator": null, "ci_low": null, "ci_high": null}, "dispute_detected_recall": {"value": null, "numerator": null, "denominator": null, "ci_low": null, "ci_high": null}, "human_request_recall": {"value": null, "numerator": null, "denominator": null, "ci_low": null, "ci_high": null},
+              "slot_accuracy": {"value": null, "numerator": null, "denominator": null, "ci_low": null, "ci_high": null}, "ece": null, "coverage_at_tau": {"value": null, "numerator": null, "denominator": null, "ci_low": null, "ci_high": null}, "precision_at_tau": {"value": null, "numerator": null, "denominator": null, "ci_low": null, "ci_high": null}},
+       "pt": {}}}
+  ],
+  "injection": [
+    {"arm": "rules_lr", "recall": {"value": null, "numerator": null, "denominator": null, "ci_low": null, "ci_high": null}, "false_positive_rate": {"value": null, "numerator": null, "denominator": null, "ci_low": null, "ci_high": null}}
+  ]
+}
+```
+- `label` is `[simulated]` (the spec 09 sentences are generated). `protocol.status` is `SEALED` or `UNSEALED`;
+  `sha256` and `split_manifest_sha256` are hex strings from the seal block. `test_split` counts sentences, injection
+  rows apart (AC-06, D-022). `tau` is a score in 0–1 chosen on validation (AC-07) `[simulated]`; only its precision
+  target of 0.95 is `[assumption]`. `chosen_arm` is one of B0–B3 by the rule of §4.1.
+- `arms[]` (AC-02, AC-03): `arm` B0–B3; `p50_ms` and `p95_ms` in milliseconds per message; `cost_per_1000_usd` in USD
+  per 1,000 messages; `meets_floors` bool; `mcnemar_p_vs_best` p-value of the paired test; `human_request_answered_out_of_scope`
+  integer count of person requests the arm answered `out_of_scope` (AC-10, must be 0).
+- `by_language` is keyed `es` and `pt`: `macro_f1` with its 95% bootstrap interval, `per_class_f1`, `dispute_recall`,
+  `dispute_detected_recall` (recall of the `dispute_detected` flag, D-020 (d)), `human_request_recall`, `slot_accuracy`,
+  `coverage_at_tau`, `precision_at_tau` as rate objects, and `ece` (0–1). All `[simulated]`.
+- `injection[]` (AC-04): recall and false-positive rate per detector arm (`rules`, `rules_lr`) as rate objects.
+
 ## 8. Assumptions and open questions (gate 1)
 - **Q1 — thresholds:** **Decided (lead, 2026-10-04, after the check of §4.1):** the floors of §4.1, a test split of
   ≥ 100 sentences per language, paired McNemar instead of a point gap; p95 ≤ 1.5 s, ≤ 1 USD per 1,000 messages and
