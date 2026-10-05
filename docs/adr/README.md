@@ -29,3 +29,4 @@ deleted: a new ADR supersedes them. How and when to write one: [`CONTRIBUTING.md
 | [0021](0021-continuous-evaluation-and-outcome-audit.md) | Continuous evaluation and outcome audit: inventory of models and decision engines, deterministic auditor, advisory judge, sealed regression sets | Accepted | 2026-10-04 |
 | [0022](0022-fraud-labels-for-model-training.md) | Fraud labels may train our fraud model, by time window, and never reach the runtime | Accepted | 2026-10-04 |
 | [0023](0023-mx-provisional-credit-90-days.md) | MX provisional credit by business day 2 for unrecognized-charge claims within 90 calendar days (debit and credit); the 48 h window is for theft or loss only; AR promises the 10-business-day resolution only (amends 0019, 0020) | Accepted | 2026-10-04 |
+| [0024](0024-high-zone-call-request-defers-block.md) | A call request in the high zone defers the card block to the analyst | Accepted | 2026-10-04 |

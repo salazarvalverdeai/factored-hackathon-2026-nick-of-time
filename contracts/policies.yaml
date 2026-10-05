@@ -6,7 +6,7 @@ rules:                   # stable ids every decision cites (spec 02 §4.1, AC-12
   POL-SESSION:           {text: "session expired or unverified -> reauthenticate, before any other rule", guardrail: G-SES-01}
   POL-INJECTION:         {text: "input flagged by the injection detector (spec 11) -> deny", guardrail: G-IN-01}
   POL-CROSS-CUSTOMER:    {text: "request targets another customer's data -> deny", guardrail: G-SES-02}
-  POL-HUMAN-REQUEST:     {text: "intent human_request -> connect_person with a call request; never refused. If it also reports a charge on one card transaction the customer did not reject, and the intent confidence is at least clarify.intent_confidence_min, the call goes on that transaction's case, which opens in review and is never blocked in that turn (D-029): in the high zone with person_requested, so the analyst decides the block after the call (amount_over_case_gate or supervised_mode when the block needs a person anyway); in the medium and human zones with the zone's handoff reason. check() denies block_card when call_requested is true. Below that confidence, only the call"}
+  POL-HUMAN-REQUEST:     {text: "intent human_request -> connect_person with a call request; never refused. If it also reports a charge on one card transaction the customer did not reject, and the intent confidence is at least clarify.intent_confidence_min, the call goes on that transaction's case, which opens in review and is never blocked in that turn nor later while the call is open (D-029, D-042): in the high zone with person_requested, so the analyst decides the block after the call (amount_over_case_gate or supervised_mode when the block needs a person anyway); in the medium and human zones with the zone's handoff reason. After the mode check, check() denies a money action when call_requested is true; block_card reads it from the store, true until the analyst acts on the case (ADR 0024). Below that confidence, only the call"}
   POL-STATUS:            {text: "intent status_inquiry -> answer_status; read-only, no case opened. If it also reports a charge and the customer has no active case, the turn goes on like a dispute (rules 4-9)"}
   POL-OUT-OF-SCOPE:      {text: "intent out_of_scope with no reported charge, or the identified transaction's product is not a card -> deny (polite abstention)", guardrail: G-IN-04}
   POL-CLARIFY:           {text: "intent confidence below clarify.intent_confidence_min, not exactly one candidate, or an out_of_scope intent that reports a charge -> ask", guardrail: G-IN-03}
@@ -14,7 +14,7 @@ rules:                   # stable ids every decision cites (spec 02 §4.1, AC-12
   POL-SCORE-NULL:        {text: "no fraud score -> zone human; the case is still opened"}
   POL-SCORE-LLM:         {text: "score from the llm provider -> zone human; an LLM score never decides a block"}
   POL-SCORE-SOURCE:      {text: "score from a source not in scoring.deciding_sources -> zone human"}
-  POL-ZONE-HIGH:         {text: "score in zones.high -> block_and_open_case: the high zone blocks and verifies, unless the customer asked for a person in that turn; the case opens and the analyst decides the block after the call (D-029: connect_person, person_requested). When the block needs a person (amount tier, supervised mode): a handoff, or connect_person on a call request"}
+  POL-ZONE-HIGH:         {text: "score in zones.high -> block_and_open_case: the high zone blocks and verifies, unless the customer asked for a person in that turn: the case opens, the call is registered and the analyst decides the block after the call (D-029: connect_person, person_requested; held until the analyst acts, D-042). When the block needs a person (amount tier, supervised mode): a handoff, or connect_person on a call request"}
   POL-ZONE-MEDIUM:       {text: "score in zones.medium -> confirm with the customer, then open the case and hand off proposing approve_block; a call request opens the case without asking; never a block"}
   POL-ZONE-HUMAN:        {text: "score in zones.human -> open the case and hand off (zone_human); no block"}
   POL-TICKET-ALWAYS:     {text: "open_case runs with mode auto in every zone; registering is not a money decision"}
@@ -71,7 +71,7 @@ approval:                                # approval mode per action: auto | huma
   money_actions: [block_card, unblock_card, provisional_credit]   # amount tiers and supervised_mode apply only to these (spec 02 AC-15)
   per_action:
     open_case:          {high: auto, medium: auto, human: auto}                                 # logging a case is not a money decision
-    block_card:         {high: manual_check, medium: human_required, human: human_required}     # high: runs and verifies now; the case stays in 'verification' until an analyst closes it
+    block_card:         {high: manual_check, medium: human_required, human: human_required}     # high: runs and verifies now; the case stays in 'verification' until an analyst closes it; except on a call request (D-029)
     provisional_credit: {high: human_required, medium: human_required, human: human_required}   # never auto
     unblock_card:       {high: human_required, medium: human_required, human: human_required}
   manual_check_leaves_case_in: verification  # with manual_check the action runs and the case stays in verification until a human signs off

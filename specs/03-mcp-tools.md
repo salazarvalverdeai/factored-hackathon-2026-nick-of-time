@@ -163,6 +163,15 @@ and writes Postgres through `nick_of_time.store`: `sessions` (read), `demo_trans
   (improvement #13).
 - **D-040 (lead, 2026-10-04):** the tool-call audit is a stdout log line for now; gate denials cite `POL-DEFAULT-DENY`
   with G-TOOL-01, with no `contracts/` change. **D-041 (lead, 2026-10-04):** the notification limit is per session (AC-21).
+- **Source of `call_requested` for `block_card` (task 03c, T4) — decided by the lead, 2026-10-04 (D-042, ADR 0024):**
+  store-backed. `BlockCardIn` gains no field: like every other `check()` input (the case zone, `settings_events`, the
+  gold transaction), the flag comes from trusted state, not from the agent. It is true while the case has an open call,
+  that is a `call_requested` event with no analyst action on that case after it, so the D-029 hold lasts until the
+  analyst acts, and a later plain-dispute turn about the same transaction is denied with `POL-HUMAN-REQUEST`. This
+  refines the `block_card` row of §6: "asked for a person in that turn" reads as "has an open call". In the turn of the
+  call request the order is spec 04's `act` → `verify` → `connect` (`open_case`, then `request_call` on that case);
+  until that write, `decide()` leaving `block_card` out of `allowed_actions` is the guard. `[assumption]` any analyst
+  action recorded on the case (spec 05) ends the hold, since from then on the block is the analyst's decision.
 - Assumption: the DuckDB in-memory load fits the EC2 (t3.medium, 4 GB) — measured in T5.
 
 ## 9. Out of scope
