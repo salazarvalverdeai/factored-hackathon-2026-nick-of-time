@@ -34,6 +34,7 @@ SPEC_CHIPS = {  # spec 04 §4.5 table: id -> (kind, ES label, PT label)
     "dont_remember_amount": ("text", "No recuerdo el monto", "Não lembro o valor"),
     "talk_to_person": ("action", "Hablar con una persona", "Falar com uma pessoa"),
     "confirm_yes": ("action", "Sí, continúa", "Sim, continue"),
+    "confirm_charge": ("action", "Sí, es ese cargo", "Sim, é esse"),
     "confirm_no": ("action", "No es ese cargo", "Não é essa cobrança"),
     "view_case": ("link", "Ver mi caso", "Ver meu caso"),
     "send_summary": ("action", "Enviarme el comprobante", "Me envie o comprovante"),
