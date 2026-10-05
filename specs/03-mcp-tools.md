@@ -260,7 +260,10 @@ Implementation goes in one `feat/03-*` branch per task (T1: `feat/03-mcp-server`
       stored; the re-evaluation window is policies.yaml `reevaluation.window_days` per country (spec 02 FR-09; 30 for
       MX, CO, AR, BR, PE and CL, the spec 02 §4.4 proposal; day 30 qualifies, day 31 is denied; a country not listed is
       denied) until `reevaluation_allowed()` ships. Other `[assumption]`s: a call stays open until
-      `approve_block`, `resolve` or `close_case` (the D-042 hold end); a closed case has no window, so any closed case
+      `approve_block`, `resolve` or `close_case` (the D-042 hold end); a new `call_requested` on a `new` case also moves
+      it to `review` (`status_changed`, reason `call_requested`) in the same `once`, so a held case gets the review SLA
+      that spec 02 `_open()` sets (`queue_status_after: review`); a case in `verification` or `review`, a repeated
+      request and a call with no case move nothing (pending lead decision D-063); a closed case has no window, so any closed case
       may open one related case; that related case copies the closed case's facts and zone, opens on today, goes to
       `review`, keeps the reason in its `reevaluation_requested` and takes its deadline from gold with `abroad` derived
       as `open_case` does from the card index `cards_of(gold)` (none without the charge); while a case of that

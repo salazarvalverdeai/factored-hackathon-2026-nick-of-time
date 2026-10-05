@@ -141,8 +141,8 @@ def test_ac_18_one_open_call_per_case_with_the_stored_expected_contact_by_until_
     case_id = run.case()
     first = run("request_call", case_id=case_id, preferred_time="por la tarde")
     assert isinstance(first, tools.RequestCallOut) and first.expected_contact_by == dt.date(2026, 6, 2)   # D-008
-    event = run.store.events(case_id)[-1]
-    assert (event.type, event.event_id) == ("call_requested", first.event_id)
+    event = next(e for e in run.store.events(case_id) if e.event_id == first.event_id)
+    assert event.type == "call_requested"
     assert event.payload == {"action_id": first.action_id, "expected_contact_by": "2026-06-02",
                              "preferred_time": "por la tarde", "origin": "customer"}
     run.analyst(case_id, "take", "review")                                # take keeps the call open (D-042)
@@ -156,7 +156,8 @@ def test_ac_18_no_callback_term_in_the_policy_promises_no_date():
     run = Run(policies=POLICIES.model_copy(update={"contact": None}))
     case_id = run.case()
     out = run("request_call", case_id=case_id)
-    assert out.expected_contact_by is None and run.store.events(case_id)[-1].payload["expected_contact_by"] is None
+    event = next(e for e in run.store.events(case_id) if e.event_id == out.event_id)
+    assert out.expected_contact_by is None and event.payload["expected_contact_by"] is None
 
 
 @pytest.mark.parametrize("country, expected", [(None, None), ("MX", dt.date(2026, 6, 2))])
@@ -320,3 +321,37 @@ def test_ac_15_concurrent_reevaluations_and_open_case_on_a_closed_case_open_one_
         active = [c for c in runs[0].store.list_cases(GOLD_ANA, run_id=RUN)
                   if c.transaction_id == ABROAD_TRX and runs[0].store.queue_status(c.case_id) != "closed"]
         assert len(active) == 1 and {o.case_id for o in outs} == {active[0].case_id}, second
+
+
+@pytest.mark.parametrize("status, after", [("new", "review"), ("verification", "verification"),
+                                           ("review", "review")])
+def test_d063_a_call_on_a_new_case_moves_it_to_review_once(status, after):
+    """[assumption] D-063: the held case (D-029) gets the review SLA as spec 02 `_open()` expects; a case already in
+    verification or review is left as is, and a repeated call moves nothing."""
+    run = Run()
+    case_id = run.case("new" if status == "verification" else status)
+    if status == "verification":
+        run.store.change_status(case_id, "verification", on=dt.date(2026, 6, 1), actor="agent", trace_id="t")
+    moves = types(run.store, case_id).count("status_changed")
+    run("request_call", case_id=case_id)
+    run("request_call", case_id=case_id)                                    # the open request: nothing written
+    assert run.store.queue_status(case_id) == after
+    changes = [e for e in run.store.events(case_id) if e.type == "status_changed"][moves:]
+    assert [(e.payload["to"], e.payload.get("reason")) for e in changes] == (
+        [("review", "call_requested")] if status == "new" else [])
+
+
+def test_d063_the_move_to_review_rolls_back_with_the_call_request():
+    """One `once`: a failing status change leaves no call_requested either, and the retry with its key writes both."""
+    run = Run()
+    case_id = run.case()
+
+    def broken(*args, **kwargs):
+        raise StoreError("down")
+    run.store.change_status = broken                                      # this instance only
+    assert run("request_call", key="k1", case_id=case_id) == gate.UNAVAILABLE
+    assert types(run.store, case_id) == ["case_opened"]
+    del run.store.change_status
+    out = run("request_call", key="k1", case_id=case_id)
+    assert isinstance(out, tools.RequestCallOut) and types(run.store, case_id) == [
+        "case_opened", "call_requested", "status_changed"]

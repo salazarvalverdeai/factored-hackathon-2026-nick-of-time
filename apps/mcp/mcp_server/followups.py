@@ -201,6 +201,9 @@ def followups_handlers(store: Store, policies: Policies, gold: Optional[Gold] = 
                 payload |= {"preferred_time": args.preferred_time, "origin": "customer"}
             event = store.append_event(case.case_id, "call_requested", actor=ACTOR, trace_id=call.trace_id,
                                        payload=payload)
+            if store.queue_status(case.case_id) == "new":    # [assumption] D-063: a held case waits in review (its
+                store.change_status(case.case_id, "review", on=business_day(call, case.country), actor=ACTOR,
+                                    trace_id=call.trace_id, reason="call_requested")   # SLA), in the same once
             return t.RequestCallOut(action_id=action_id, event_id=event.event_id, case_id=case.case_id,
                                     expected_contact_by=when)
         return once(call, args, write)
