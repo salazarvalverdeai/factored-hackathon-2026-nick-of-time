@@ -272,7 +272,10 @@ Fine-tuning; embeddings + LR (P2); Jev (benchmarked in spec 15); the agent's use
   "1,25" as 1.25; B0 has no session country, so the MX ambiguity stays with `search_transaction` · AC-08, AC-09, AC-10
 - [x] T3 — B1 training with calibration; τ on validation · AC-02, AC-07 (task 11b: `nlu.learned.train_b1`, sigmoid
   calibration on validation, the protocol's one calibration split; `load_nlu("B1", path)` loads the export · AC-05)
-- [ ] T4 — B2 structured-output prompt (Haiku 4.5) · AC-02
+- [x] T4 — B2 structured-output prompt (Haiku 4.5) · AC-02 (task 11b: `nlu.learned.B2NLU`, the S1 `understand` prompt
+  and schema, forced tool use; a reply with no valid tool input is a wrong prediction, D-022, counted in
+  `missing_tool_calls`; a provider error with no reply is also wrong, counted in `provider_errors` [assumption]; one
+  preflight call on validation must get a reply before anything is written)
 - [ ] T5 — injection detector, both arms · AC-04 (rules arm done in 11a, `nlu.injection`; LR arm and AC-04 numbers pending spec 09)
 - [ ] T6 — evaluation script, report, export, ADR "model selection" (with spec 15) · AC-03, AC-05 (task 11b:
   `eval/classifier/evaluate.py`; `make classifier` is the validation development run, written to `eval/.runs/` only;

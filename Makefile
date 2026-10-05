@@ -105,6 +105,7 @@ eval-stub: $(PY)
 # Classifier arms of spec 11 (eval/README.md "Classifier evaluation"). `classifier`: development run on validation,
 # written to eval/.runs/ only. `classifier-test`: the one test-split run; refused while eval/PROTOCOL.md is UNSEALED or untagged.
 # The test run always scores the pre-registered arms B0,B1,B2 (AC-02, PROTOCOL §1.2); CLASSIFIER_ARMS is for validation only.
+# B2 (the S1 model) needs LLM_PROVIDER=bedrock AWS_PROFILE=nickoftime; on validation it is opt-in: CLASSIFIER_ARMS=B0,B1,B2.
 CLASSIFIER_ARMS ?= B0,B1
 
 classifier: $(PY)

@@ -1,6 +1,6 @@
-"""Spec 11 task 11b: the B1 arm (TF-IDF + LR), τ on validation, the report and its guarded export.
+"""Spec 11 task 11b: B1 (TF-IDF + LR) and B2 (LLM) arms, τ on validation, the report and its guarded export.
 
-Offline: synthetic sentences in a temporary root, no LLM. AC-02, AC-03, AC-05, AC-07,
+Offline: synthetic sentences in a temporary root, the `fake` LLM provider only (CLAUDE.md). AC-02, AC-03, AC-05, AC-07,
 and the AC-01 guard: no result file while eval/PROTOCOL.md is UNSEALED.
 """
 import hashlib
@@ -13,8 +13,9 @@ import pytest
 
 from eval.classifier import evaluate as ev
 from eval.classifier.review import manifest_sha256
+from nick_of_time import llm
 from nick_of_time.nlu import load_nlu
-from nick_of_time.nlu.learned import B1NLU
+from nick_of_time.nlu.learned import B1NLU, B2NLU
 from tests.test_spec11_protocol import RESULT_GLOBS
 
 TODAY = date(2026, 6, 1)
@@ -55,6 +56,22 @@ def make_root(tmp_path, status="UNSEALED", manifest=True, test_reviewer="gianzk"
     return tmp_path
 
 
+PRICES = {"input_per_1m": 1.1, "output_per_1m": 5.5}
+
+
+def reply(intent: str) -> dict:
+    return {"intent": intent, "confidence": 0.97, "dispute_detected": intent in ev.DISPUTES, "slots": SLOTS}
+
+
+def oracle(split: str) -> llm.FakeClient:
+    """A scripted fake that answers the preflight (first validation row) and then each scored row with its gold
+    intent (forced tool use, D-011)."""
+    preflight = next(r for r in rows("validation", 4) if r.get("intent"))
+    script = [reply(preflight["intent"])] + [reply(r["intent"]) for r in rows(split, 3 if split == "test" else 4)
+                                             if r.get("intent")]
+    return llm.FakeClient(script=script, prices=PRICES)
+
+
 def results(root):
     return [p for g in RESULT_GLOBS for p in root.glob(g)]
 
@@ -88,6 +105,53 @@ def test_ac_02_ac_05_b1_trains_parses_and_reloads_with_its_version(tmp_path):
         b1.parse("quero falar com um atendente", today=TODAY).model_dump()
 
 
+def test_ac_02_b2_forces_the_tool_and_maps_the_reply():
+    client = llm.FakeClient(script=[{"intent": "human_request", "confidence": 0.9, "dispute_detected": True,
+                                     "slots": {**SLOTS, "amount": "1,250"}}])
+    r = B2NLU(client).parse("quiero una persona, me cobraron dos veces", today=TODAY)
+    call = client.calls[0]
+    assert (call["mode"], call["tool_name"], call["temperature"]) == ("tool", "record_intent", 0)
+    assert json.loads(call["user"]) == {"today": "2026-06-01", "message": "quiero una persona, me cobraron dos veces"}
+    assert (r.arm, r.intent, r.dispute_detected, r.slots.amount) == ("B2", "human_request", True, None)  # bad slot: none
+
+
+def test_ac_02_b2_without_tool_input_is_a_missing_call_kept_in_the_denominator():
+    nlu = B2NLU(llm.FakeClient(script=["texto sin herramienta"]))
+    [p] = ev.run_arm(nlu, [{"text": "hola"}])
+    assert p["intent"] is None and nlu.last is not None               # billed call kept for cost (D-022)
+    assert p["error"] == "no_tool"
+
+
+def test_ac_02_ac_03_b2_provider_error_is_not_billed_and_is_counted_apart_from_missing_tool_calls():
+    nlu = B2NLU(llm.FakeClient(script=[reply("human_request"), llm.ProviderUnavailable("throttled"),
+                                       "texto sin herramienta"], prices=PRICES))
+    texts = [{"text": "quiero una persona", "intent": "human_request", "language": "es", "slots": SLOTS}] * 3
+    preds = ev.run_arm(nlu, texts)
+    assert preds[0]["cost"] > 0 and preds[1]["cost"] == 0.0             # the throttled call does not re-bill call 1
+    assert [p.get("error") for p in preds] == [None, "provider", "no_tool"]
+    arm = ev.score_arm("B2", nlu, texts, preds, 0.5)
+    assert (arm["missing_tool_calls"], arm["provider_errors"]) == (1, 1)
+
+
+def test_ac_01_ac_02_b2_preflight_refuses_before_the_b1_file_or_test_is_touched(tmp_path, monkeypatch):
+    root = make_root(tmp_path, "SEALED", test_reviewer="rules-v1")
+    monkeypatch.setattr(ev, "protocol_tagged", lambda root: True)
+    monkeypatch.setattr(ev, "read_test", lambda root: pytest.fail("test.jsonl read before the B2 preflight"))
+    down = llm.FakeClient(script=[llm.ProviderUnavailable("throttled")], prices=PRICES)
+    with pytest.raises(ev.EvalError, match="preflight"):
+        ev.evaluate("test", ["B0", "B1", "B2"], root, client=down)
+    assert not results(root) and not (root / "models").exists()
+
+
+@pytest.mark.parametrize("provider, max_usd", [(None, 1.0), ("bedrock", 0.0), ("anthropic", 1.0)])
+def test_ac_02_b2_client_refuses_the_fake_provider_a_projected_overspend_and_no_price(monkeypatch, provider, max_usd):
+    monkeypatch.delenv("LLM_PROVIDER", raising=False)
+    if provider:
+        monkeypatch.setenv("LLM_PROVIDER", provider)
+    with pytest.raises(ev.EvalError, match="refused"):
+        ev.b2_client(max_usd, 150, "validation")
+
+
 @pytest.mark.parametrize("conf, ok, tau", [
     ([0.5, 0.6, 0.7, 0.9], [False, True, True, True], 0.6),
     ([0.5, 0.9], [False, False], None),
@@ -112,18 +176,20 @@ def test_ac_02_rule_4_keeps_b0_when_no_learned_arm_beats_it_with_significance():
 
 def test_ac_01_dev_run_writes_only_the_ignored_runs_folder(tmp_path):
     root = make_root(tmp_path)
-    out = ev.evaluate("validation", ["B0", "B1"], root)
+    out = ev.evaluate("validation", ["B0", "B1", "B2"], root, client=oracle("validation"))
     assert out.parent.parent == root / "eval" / ".runs" / "classifier" and not results(root)
     data = json.loads(out.read_text())["data"]
     assert data["run"] == ev.DEV_LABEL and data["protocol"]["status"] == "UNSEALED"
-    assert data["tau"] is not None and [a["arm"] for a in data["arms"]] == ["B0", "B1"]
+    assert data["tau"] is not None and data["llm"]["provider"] == "fake"
+    b2 = next(a for a in data["arms"] if a["arm"] == "B2")
+    assert b2["by_language"]["pt"]["macro_f1"] == 1.0 and (b2["missing_tool_calls"], b2["provider_errors"]) == (0, 0)
+    assert data["llm"]["preflight"]["cost_usd"] > 0
 
 
 @pytest.mark.parametrize("status, manifest, why", [("UNSEALED", True, "UNSEALED"), ("SEALED", False, "manifest")])
 def test_ac_01_test_run_is_refused_unless_sealed_with_the_same_split(tmp_path, monkeypatch, status, manifest, why):
     root = make_root(tmp_path, status, manifest)
     monkeypatch.setattr(ev, "protocol_tagged", lambda root: True)
-    monkeypatch.setattr(ev, "BUILT_ARMS", ev.TEST_ARMS)          # reach the seal guards on this branch (B2: T4)
     with pytest.raises(ev.EvalError, match=why):
         ev.evaluate("test", list(ev.TEST_ARMS), root)
     assert not results(root)
@@ -131,7 +197,6 @@ def test_ac_01_test_run_is_refused_unless_sealed_with_the_same_split(tmp_path, m
 
 def test_ac_01_sealed_but_untagged_protocol_refuses_the_test_run(tmp_path, monkeypatch):
     root = make_root(tmp_path, "SEALED")                 # not a git repository: no protocol-v1 tag
-    monkeypatch.setattr(ev, "BUILT_ARMS", ev.TEST_ARMS)
     with pytest.raises(ev.EvalError, match="protocol-v1"):
         ev.evaluate("test", list(ev.TEST_ARMS), root)
     assert not results(root)
@@ -191,8 +256,7 @@ def test_ac_01_test_run_runs_once_through_the_shared_seal_guard(tmp_path, monkey
     check_seal = ev.seal_guard.check_seal                          # the real guard, pinned to this repo's seal commit
     monkeypatch.setattr(ev.seal_guard, "check_seal", lambda inputs=None, root=None: check_seal(inputs, root=root,
                                                                                                commit=sha))
-    monkeypatch.setattr(ev, "TEST_ARMS", ("B0", "B1"))           # B2 joins the test set with spec 11 T4
-    out = ev.evaluate("test", ["B0", "B1"], root)
+    out = ev.evaluate("test", ["B0", "B1", "B2"], root, client=oracle("test"))
     guard = json.loads(out.read_text())["data"]["seal_guard"]
     assert (guard["status"], guard["tag"], guard["commit"], guard["test_review"]) == ("SEALED", "protocol-v1", sha,
                                                                                       "rules-v1")
@@ -202,43 +266,40 @@ def test_ac_01_test_run_runs_once_through_the_shared_seal_guard(tmp_path, monkey
     before = {p: p.read_bytes() for p in results(root) if p.is_file()}
     monkeypatch.setattr(ev, "read_test", lambda root: pytest.fail("test.jsonl read on a second run"))
     with pytest.raises(ev.EvalError, match="already started"):
-        ev.evaluate("test", ["B0", "B1"], root)
+        ev.evaluate("test", ["B0", "B1", "B2"], root, client=oracle("test"))
     assert {p: p.read_bytes() for p in results(root) if p.is_file()} == before
 
 
 def test_ac_01_a_marker_alone_refuses_the_test_run(tmp_path, monkeypatch):
     root = make_root(tmp_path, "SEALED", test_reviewer="rules-v1")
     sealed_guard(monkeypatch)
-    monkeypatch.setattr(ev, "TEST_ARMS", ("B0", "B1"))
     (root / "eval/results/classifier-test").mkdir(parents=True)
     (root / "eval/results/classifier-test/classifier-test.start.json").write_text("{}")
     monkeypatch.setattr(ev, "read_test", lambda root: pytest.fail("test.jsonl read after a claimed run"))
     with pytest.raises(ev.EvalError, match="already started"):
-        ev.evaluate("test", ["B0", "B1"], root)
+        ev.evaluate("test", ["B0", "B1", "B2"], root, client=oracle("test"))
     assert not (root / "models").exists()
 
 
 def test_ac_01_a_refused_seal_guard_writes_nothing_and_never_reads_test(tmp_path, monkeypatch):
     root = make_root(tmp_path, "SEALED", test_reviewer="rules-v1")
     sealed_guard(monkeypatch, refuse="uncommitted changes to sealed inputs")
-    monkeypatch.setattr(ev, "TEST_ARMS", ("B0", "B1"))
     monkeypatch.setattr(ev, "read_test", lambda root: pytest.fail("test.jsonl read after a refused guard"))
     with pytest.raises(ev.EvalError, match="uncommitted"):
-        ev.evaluate("test", ["B0", "B1"], root)
+        ev.evaluate("test", ["B0", "B1", "B2"], root, client=oracle("test"))
     assert not results(root) and not (root / "models").exists()
 
 
 def test_ac_03_ac_05_sealed_test_run_exports_the_spec_shape(tmp_path, monkeypatch):
     root = make_root(tmp_path, "SEALED", test_reviewer="rules-v1")
     sealed_guard(monkeypatch)
-    monkeypatch.setattr(ev, "TEST_ARMS", ("B0", "B1"))           # B2 joins the test set with spec 11 T4
     read_test = ev.read_test
 
     def after_b1_is_saved(root):                                  # §0 rule 1: B1 frozen before test is read
         assert (root / "models/intent-b1-v1.joblib").exists()
         return read_test(root)
     monkeypatch.setattr(ev, "read_test", after_b1_is_saved)
-    out = ev.evaluate("test", ["B0", "B1"], root)
+    out = ev.evaluate("test", ["B0", "B1", "B2"], root, client=oracle("test"))
     assert out == root / "apps/web/public/data/classifier.json"
     assert (root / "models/intent-b1-v1.joblib").exists() and (root / "eval/results/classifier.csv").exists()
     doc = json.loads(out.read_text())
@@ -258,4 +319,4 @@ def test_ac_03_ac_05_sealed_test_run_exports_the_spec_shape(tmp_path, monkeypatc
         for key in ("dispute_recall", "dispute_detected_recall", "human_request_recall", "slot_accuracy",
                     "coverage_at_tau", "precision_at_tau"):
             assert set(m[key]) == {"value", "numerator", "denominator", "ci_low", "ci_high"}
-    assert data["injection"][0]["arm"] == "rules" and data["chosen_arm"] in ("B0", "B1")
+    assert data["injection"][0]["arm"] == "rules" and data["chosen_arm"] in ("B0", "B1", "B2")

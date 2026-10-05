@@ -25,7 +25,7 @@ harness of spec 10 when it scores.
 | `local/` | the real stack for `make eval` on one machine (`make eval-local`): api with the eval hooks, MCP server, graph | 10 T6 |
 | `classifier/generate.py`, `classifier/draft/` | classifier sentence drafts from three model families and their run record | 09 §7.6 |
 | `classifier/review.py` | review sheets of the drafts and promotion to `classifier/{train,validation,test}.jsonl` | 09 §7.6 |
-| `classifier/evaluate.py` | scores B0 and B1, picks τ on validation, exports `classifier.json` after the seal | 11 T3, T4, T6 |
+| `classifier/evaluate.py` | scores B0, B1 and B2, picks τ on validation, exports `classifier.json` after the seal | 11 T3, T4, T6 |
 
 ## Demo index
 `python -m eval.demo_index` rewrites `demo_index.csv` from `data/gold/` (it needs `make setup`). The same gold gives
@@ -244,7 +244,15 @@ AC-10).
 
 ## Classifier evaluation (spec 11 T3, T4, T6)
 B1 (TF-IDF + logistic regression) is fit on train and calibrated on validation; τ is the lowest B1 threshold that keeps
-precision ≥ 0.95 on validation (AC-07). Every arm is reported at τ.
+precision ≥ 0.95 on validation (AC-07). Every arm is reported at τ. B2 is the S1 model (Haiku 4.5) with the prompt
+and schema of the graph's `understand` step and forced tool use (D-011); a reply with no valid tool input is a wrong
+prediction (D-022). On validation it is opt-in (`CLASSIFIER_ARMS=B0,B1,B2`); `make classifier-test` always scores it.
+Both need `LLM_PROVIDER=bedrock AWS_PROFILE=nickoftime`. B2 refuses the fake provider, a provider without a price row
+(D-058) and, before any call, a projected spend above `--max-usd` (default 1 USD). Before the test run is claimed and before anything is written (the B1
+file included) one preflight call on the first validation sentence must get a reply, so an unavailable provider
+refuses the run before test is touched. A reply with no valid tool input counts in `missing_tool_calls`; a provider
+error with no reply is also scored wrong but counts in `provider_errors`. `classifier.json` records its provider,
+model, toolChoice mode, temperature, measured cost and the preflight.
 
 - `make classifier`: **development run on validation**. Writes `.runs/classifier/<time>/classifier.json` and the B1
   file there (ignored by git), labeled "development run on validation"; never a result path of `PROTOCOL.md`. Before

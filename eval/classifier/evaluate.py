@@ -9,7 +9,8 @@ protocol-v1 in HEAD's history, and the promoted split files hash to the sealed m
 pre-registered arm set B0, B1, B2 (AC-02, PROTOCOL §1.2); it then writes models/intent-b1-v1.joblib,
 eval/results/classifier.csv and apps/web/public/data/classifier.json (§7.1), once. test.jsonl is read only after B1 is
 saved (§0 rule 1). B1 is fit on train, calibrated on validation, and τ is the lowest
-B1 threshold with precision ≥ 0.95 on validation (AC-07); every arm is reported at that τ [assumption]. Dates resolve
+B1 threshold with precision ≥ 0.95 on validation (AC-07); every arm is reported at that τ [assumption]. B2 (opt-in on
+validation, `--arms B0,B1,B2`) uses the S1 model with LLM_PROVIDER=bedrock (`config.resolve("S1")`). Dates resolve
 against DEMO_TODAY (replay, ADR 0020).
 """
 from __future__ import annotations
@@ -34,9 +35,9 @@ from eval.harness import seal_guard
 from eval.harness.metrics import percentile, wilson
 from eval.harness.report import git_sha, now
 from nick_of_time import llm
-from nick_of_time.config import DEMO_TODAY
+from nick_of_time.config import DEMO_TODAY, price, resolve
 from nick_of_time.nlu import injection_flagged, load_nlu
-from nick_of_time.nlu.learned import DISPUTES, B1NLU, train_b1
+from nick_of_time.nlu.learned import DISPUTES, B1NLU, B2NLU, train_b1
 from nick_of_time.nlu.rules import VERSION as B0_VERSION
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -46,7 +47,7 @@ FLOOR_F1, FLOOR_RECALL, P95_MS, USD_PER_1000 = 0.90, 0.95, 1500, 1.0      # eval
 DEV_LABEL = "development run on validation: not a test result, never used for selection (eval/PROTOCOL.md §1.1)"
 RULE_REVIEW = "test split decided by fixed rules, without independent human review"   # ADR 0028, spec 11 §7.1
 TEST_ARMS = ("B0", "B1", "B2")                                            # PROTOCOL §1.2: every arm on the one test run
-BUILT_ARMS = ("B0", "B1")                                                 # B2 lands with spec 11 T4
+BUILT_ARMS = ("B0", "B1", "B2")                                           # arms this module can build
 RUN_NAME = "classifier-test"                                              # seal_guard.claim_run: eval/results/<name>/
 SEAL_TAG = "protocol-v1"                                                  # eval/PROTOCOL.md "Seal": tag of the sealing commit
 
@@ -146,7 +147,8 @@ def model_record(path: Path, root: Path) -> dict:
 
 
 def run_arm(nlu, rows: list[dict]) -> list[dict]:
-    """One reading per row; a provider error or no valid tool input is `intent=None` (wrong, D-022)."""
+    """One reading per row. A reply with no valid tool input (`no_tool`, D-022) and a provider error with no reply
+    (`provider`) are both `intent=None`, scored wrong and counted apart."""
     out = []
     for r in rows:
         t0 = time.perf_counter()
@@ -154,8 +156,9 @@ def run_arm(nlu, rows: list[dict]) -> list[dict]:
             res = nlu.parse(r["text"], today=TODAY)
             p = {"intent": res.intent, "confidence": res.confidence, "dispute": res.dispute_detected,
                  "slots": res.slots.model_dump()}
-        except llm.LLMError:
-            p = {"intent": None, "confidence": 0.0, "dispute": False, "slots": {}}
+        except llm.LLMError as exc:
+            p = {"intent": None, "confidence": 0.0, "dispute": False, "slots": {},
+                 "error": "no_tool" if isinstance(exc, llm.NoStructuredOutput) else "provider"}
         last = getattr(nlu, "last", None)
         p["ms"] = (time.perf_counter() - t0) * 1000
         p["cost"] = (last.cost_usd or 0.0) if last is not None else 0.0
@@ -257,7 +260,8 @@ def score_arm(arm: str, nlu, rows: list[dict], preds: list[dict], tau: float | N
             "mcnemar_p_vs_best": None,
             "human_request_answered_out_of_scope": sum(r["intent"] == "human_request" and p["intent"] == "out_of_scope"
                                                        for r, p in zip(rows, preds)),
-            "missing_tool_calls": sum(p["intent"] is None for p in preds),
+            "missing_tool_calls": sum(p.get("error") == "no_tool" for p in preds),     # replied, no valid tool input
+            "provider_errors": sum(p.get("error") == "provider" for p in preds),        # no reply at all
             "same_family_as_generator": hasattr(nlu, "client") and family(nlu.version) in authors,   # LLM arms only
             "by_language": langs}
 
@@ -284,11 +288,47 @@ def choose(arms: list[dict], correct: dict[str, list[bool]]) -> str | None:
     return min(keep, key=ORDER.index) if keep else None
 
 
+def b2_client(max_usd: float, n: int, split: str):
+    """The S1 model's client. Refused with the unscripted fake provider (it answers nothing, so every row would be a
+    missing call) and, before any call, when the projected spend exceeds `max_usd` (spec 15 AC-08)."""
+    cfg = resolve("S1")
+    if cfg.provider == "fake":
+        raise EvalError("refused: B2 needs a real provider (LLM_PROVIDER=bedrock); the fake one only runs in tests")
+    try:
+        prices = price(cfg)
+    except ValueError as exc:                          # no price row (e.g. LLM_PROVIDER=anthropic): fail closed, D-058
+        raise EvalError(f"refused: {exc}") from exc
+    if llm.cost_usd(prices, 900, 150) * n > max_usd:   # [assumption] about 900 tokens in and 150 out per message
+        raise EvalError(f"refused: projected B2 spend on {split} above {max_usd} USD")
+    return llm.make_client(cfg, prices=prices)
+
+
 def intents_only(rows: list[dict]) -> list[dict]:
     return [r for r in rows if r.get("label") != "injection" and r.get("intent")]
 
 
-def evaluate(split: str, arms: list[str], root: Path = ROOT) -> Path:
+def scored_size(split: str, root: Path, val: list[dict]) -> int:
+    """Rows B2 will be asked about, for the spend projection before any call: on test, the sealed file's line count
+    (an upper bound, injection rows included), so no test row is parsed before B1 is saved."""
+    if split != "test":
+        return len(val)
+    return sum(1 for x in sealed_blobs(root)["eval/classifier/test.jsonl"].splitlines() if x.strip())
+
+
+def preflight_b2(nlu, val: list[dict]) -> dict:
+    """One B2 call on the first validation sentence before anything is written (B1 file included): a provider that
+    gives no reply refuses the run here instead of after the one touch of test. A reply without a valid tool input
+    still passes (the provider answers; D-022 scores it later)."""
+    try:
+        nlu.parse(val[0]["text"], today=TODAY)
+    except llm.NoStructuredOutput:
+        pass
+    except llm.LLMError as exc:
+        raise EvalError(f"refused: the B2 preflight on one validation sentence got no reply ({exc}); nothing written") from exc
+    return {"row": val[0].get("id"), "cost_usd": round((nlu.last.cost_usd or 0.0) if nlu.last else 0.0, 6)}
+
+
+def evaluate(split: str, arms: list[str], root: Path = ROOT, client=None, max_usd: float = 1.0) -> Path:
     check_arms(split, arms)
     data, source = load_splits(split, root)
     train, val = intents_only(data["train"]), intents_only(data["validation"])
@@ -297,7 +337,10 @@ def evaluate(split: str, arms: list[str], root: Path = ROOT) -> Path:
     val_preds = run_arm(b1, val)
     tau = choose_tau([p["confidence"] for p in val_preds], [r["intent"] == p["intent"] for r, p in zip(val, val_preds)])
     nlus = {"B0": load_nlu("B0"), "B1": b1}
-    guard = claim_test_run(root) if split == "test" else None   # once-only; before any write and before test is read
+    if "B2" in arms:                                           # health before any write (B1 file included)
+        nlus["B2"] = B2NLU(client or b2_client(max_usd, scored_size(split, root, val), split))
+        preflight = preflight_b2(nlus["B2"], val)
+    guard = claim_test_run(root) if split == "test" else None   # once-only, after the B2 preflight; before any write or test read
     out_dir = (root / "apps/web/public/data") if split == "test" else root / "eval/.runs/classifier" / now().replace(":", "")
     model_dir = (root / "models") if split == "test" else out_dir
     model_dir.mkdir(parents=True, exist_ok=True)
@@ -306,6 +349,9 @@ def evaluate(split: str, arms: list[str], root: Path = ROOT) -> Path:
         data["test"] = read_test(root)
     scored = intents_only(data[split])
     preds = {a: (val_preds if a == "B1" and split == "validation" else run_arm(nlus[a], scored)) for a in arms}
+    if "B2" in preds and client is None and all(p["intent"] is None for p in preds["B2"]):
+        raise EvalError("refused: every B2 call failed (provider unavailable?); no result written, only the B1 file "
+                        "frozen before the scored split was read")
     report = [score_arm(a, nlus[a], scored, preds[a], tau) for a in arms]
     correct = {a: [r["intent"] == p["intent"] for r, p in zip(scored, preds[a])] for a in arms}
     chosen = choose(report, correct)
@@ -319,6 +365,11 @@ def evaluate(split: str, arms: list[str], root: Path = ROOT) -> Path:
                "b1_model": model_record(model_dir / "intent-b1-v1.joblib", root),
                "injection": [{"arm": "rules", "recall": rate(sum(inj), len(inj)),
                               "false_positive_rate": rate(sum(legit), len(legit))}]}
+    if "B2" in nlus:
+        c = nlus["B2"].client
+        payload["llm"] = {"provider": c.provider, "model": c.model, "tool_choice_mode": c.mode,
+                          "temperature": c.temperature, "cost_usd": round(sum(p["cost"] for p in preds["B2"]), 4),
+                          "preflight": preflight}
     if split == "test":
         payload["seal_guard"] = guard
         payload["test_review"] = review_mode(data["test"])
@@ -349,10 +400,11 @@ def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--split", choices=("validation", "test"), default="validation")
     ap.add_argument("--arms", help="comma-separated; validation default B0,B1; test only B0,B1,B2 (AC-02)")
+    ap.add_argument("--max-usd", type=float, default=1.0)
     args = ap.parse_args(argv)
     arms = args.arms or ("B0,B1" if args.split == "validation" else ",".join(TEST_ARMS))
     try:
-        path = evaluate(args.split, [a.strip() for a in arms.split(",")])
+        path = evaluate(args.split, [a.strip() for a in arms.split(",")], max_usd=args.max_usd)
     except EvalError as exc:
         print(exc, file=sys.stderr)
         return 2
