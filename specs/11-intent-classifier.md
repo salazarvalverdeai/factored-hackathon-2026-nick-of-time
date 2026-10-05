@@ -240,6 +240,13 @@ is written once by the evaluation script (T6) from the frozen test split, never 
   - "el/la" (ES) and "pra/pro" (PT) before the person word count only after a request form of pasar, passar or comunicar
     (pronoun attached or right before it) or a verb that starts the message, and not before "de" ("el gerente de la
     tienda"). A message that is only a person word is a request; "alguien" or "alguém" alone is not.
+  - (EV-0107, spec 10 T6 dev run) A charge verb (cobraron, cobraram, debitaron…) followed by "no contraté / não
+    contratei / no solicité / não assinei", or "no tengo / não tenho / no uso" plus servicio, suscripción, assinatura,
+    plan or membresía, is a `wrongful_charge` reading, so it sets `dispute_detected`. "No tengo ese servicio" alone, or
+    "no tengo dinero", reads nothing.
+  - (EV-0120) A clear topic outside disputes (raise the limit or cupo, a loan or financing, the balance, opening an
+    account, interest rates, points or miles) reads `out_of_scope` at 0.9, so spec 02 rule 4 abstains (G-IN-04),
+    unless the message has a charge word (cargo, cobro, compra, débito…): then it stays at 0.5, as D-032 asks.
   - A PT ordinal before a noun ("na segunda semana", "na quinta loja", "na segunda metade do mês") is no weekday. A
     "-feira" day ("na sexta-feira loja Renner") and "na sexta semana passada" still are.
 - **Currency `[assumption]`:** a bare "$" or "pesos" leaves `currency` null; the country comes from the session.

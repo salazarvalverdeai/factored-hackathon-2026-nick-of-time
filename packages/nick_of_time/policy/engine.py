@@ -194,7 +194,10 @@ class PolicyEngine:
                                or (inp.candidates == 1 and inp.product_type not in CARDS)),
                  "deny", "POL-OUT-OF-SCOPE")):
             if hit:                                       # rules 1–3 come before 3a/3b, so only rule 4 cites them
-                return self._result(decision, [*carried, rule] if rule == "POL-OUT-OF-SCOPE" else [rule],
+                # [assumption] EV-0116: a flagged request for another customer's data cites rule 3 too, so G-SES-02
+                # is always recorded for it; the decision is the same deny
+                both = ["POL-CROSS-CUSTOMER"] if rule == "POL-INJECTION" and inp.cross_customer else []
+                return self._result(decision, [*carried, rule] if rule == "POL-OUT-OF-SCOPE" else [rule, *both],
                                     request_call="active_or_general" if rule == "POL-HUMAN-REQUEST" else None)
         return None
 
