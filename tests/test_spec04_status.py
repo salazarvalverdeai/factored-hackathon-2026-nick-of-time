@@ -154,27 +154,32 @@ def test_d_020_f_010_status_with_dispute_words_and_unread_cases_never_guesses():
     assert turn.decision == "answer_status" and turn.reply.splitlines()[-1] == intake.msg.text("status.read_failed", "es")
 
 
-@pytest.mark.parametrize("cases, expected", [(NO_CASES, None), (fake.FIXTURES["list_my_cases"], "K-104233")])
-def test_d_020_f_010_person_with_dispute_registers_the_call_and_never_decides_the_block(cases, expected):
-    """D-029/D-031: the engine decides whether the high zone blocks; the graph registers the call. Until T4 opens the
-    case, the call falls back to the active case, or a general one (spec 04 `connect`)."""
+@pytest.mark.parametrize("cases", [NO_CASES, fake.FIXTURES["list_my_cases"]])
+def test_d_020_f_010_person_with_dispute_registers_the_call_and_never_decides_the_block(cases):
+    """D-029/D-031: the engine decides whether the high zone blocks; the graph registers the call. With no verified case
+    for this charge (T4 not run yet), the call is general and never names another charge's active case [assumption]."""
     seen, calls = [], []
     other = case(transaction={**CASE["transaction"], "transaction_id": "TRX-FIXTURE0000000000009"})
+    general = {**fake.FIXTURES["request_call"], "case_id": None}
     turn = Chat(mcp_transport=server(calls, list_my_cases=cases, get_fraud_score=score(72.0), get_case=other,
-                                     request_call=args_of(seen, fake.FIXTURES["request_call"]))).say(
+                                     request_call=args_of(seen, general))).say(
         "Quiero hablar con una persona, no reconozco un cargo de 1250 USD en TIENDA X", language="es")
     decision = record(turn)["decision"]
     assert decision["request_call"] == "opened_case" and turn.zone == "high" and turn.plan
-    assert seen[0].get("case_id") == expected and calls.count("request_call") == 1
+    assert "case_id" not in seen[0] and calls.count("request_call") == 1
+    assert "K-104233" not in turn.reply and turn.case_id is None
     assert ("block_card" in calls) <= ("block_card" in decision["allowed_actions"])
 
 
 def test_d_020_connect_uses_the_case_opened_this_turn_only_once_verified():
     """The contract with T4: `opened_case` names the case act opened only when its open_case is verified; otherwise
-    the call falls back to the active case (or a general one) and is still registered."""
-    config = {"configurable": {"session_id": fake.SESSION_ID, "mcp_transport": server(list_my_cases=NO_CASES)}}
+    the call is general, even when another charge has an active case [assumption], and is still registered."""
+    another = fake.FIXTURES["list_my_cases"]                # K-104233, active, about another charge
+    config = {"configurable": {"session_id": fake.SESSION_ID, "mcp_transport": server(list_my_cases=another)}}
     state = {"route": {"request_call": "opened_case"}, "case_id": "K-300001", "case_id_in": None}
     opened = {"tool": "open_case", "action_id": "A-71C0D5E8A2F3"}
     assert asyncio.run(intake.call_case({**state, "actions": [{**opened, "state": "verified"}]}, config)) == "K-300001"
     assert asyncio.run(intake.call_case({**state, "actions": [{**opened, "state": "not_confirmed"}]}, config)) is None
+    assert asyncio.run(intake.call_case({**state, "case_id": None, "actions": []}, config)) is None
     assert asyncio.run(intake.call_case({**state, "route": {"request_call": "general"}}, config)) is None
+    assert asyncio.run(intake.call_case({**state, "route": {"request_call": "active_or_general"}}, config)) == "K-104233"

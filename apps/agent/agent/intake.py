@@ -272,14 +272,15 @@ async def connect(state: State, config: RunnableConfig) -> dict[str, Any]:
 
 async def call_case(state: State, config: RunnableConfig) -> Optional[str]:
     """The case for the call (spec 04 `connect`): `general` → none (rule 5b); `opened_case` → the case set this turn
-    (opened and verified, or the active case on the charge, AC-23); otherwise, and as the fallback of `opened_case`,
-    `active_or_general` → the customer's active case, read now with list_my_cases, else none (a general request)."""
+    (opened and verified, or the active case on the charge, AC-23), else none; `active_or_general` → the customer's
+    active case, read now with list_my_cases, else none (a general request)."""
     where, opened = (state.get("route") or {}).get("request_call") or "active_or_general", state.get("case_id")
     if where == "general":
         return None
-    if where == "opened_case" and opened and all(a["state"] == "verified" for a in state.get("actions") or []
-                                                 if a["tool"] == "open_case"):
-        return opened
+    if where == "opened_case":
+        # [assumption] no verified case for this charge → a general request, never another charge's active case
+        verified = all(a["state"] == "verified" for a in state.get("actions") or [] if a["tool"] == "open_case")
+        return opened if opened and verified else None
     cases = await call(config, "list_my_cases")
     if isinstance(cases, ToolError):        # [assumption] cases unread: a general request, still registered (AC-28)
         return None
