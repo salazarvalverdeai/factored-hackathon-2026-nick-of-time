@@ -16,7 +16,7 @@ import duckdb
 import pytest
 
 from data.pipeline import contracts as gold
-from nick_of_time.store import CUSTOMER_VISIBLE, EventType
+from nick_of_time.store import CUSTOMER_VISIBLE, WRITE_EVENTS, EventType
 
 ROOT = Path(__file__).resolve().parents[1]
 SQL = (ROOT / "packages/nick_of_time/store/schema.sql").read_text()
@@ -30,11 +30,13 @@ UNTYPED = {"created_at": "TIMESTAMP WITH TIME ZONE", "generated_at": "TIMESTAMP 
            "tokens_in": "INTEGER", "tokens_out": "INTEGER", "latency_ms": "INTEGER"}      # else text (§6.5 convention)
 
 CASE = ("insert into cases (case_id, customer_id, transaction_id, product_id, country, product_type, zone, "
-        "dispute_type, opened_on, credit_deadline, deadline_source, deadline_source_url, deadline_verified_on, mode, trace_id) "
-        "values ('{id}', 'CLI-1', 'TRX-1', 'PRD-1', 'MX', 'debit', 'high', 'unrecognized_charge', '2026-06-01', "
-        "'2026-06-03', {source}, 'replay', 't')")
-EVENT = ("insert into case_events (event_id, case_id, seq, type, actor, customer_visible, trace_id) "
-         "values ('{id}', '{case}', 1, '{type}', 'agent', true, 't')")
+        "dispute_type, opened_on, credit_deadline, ruling_deadline, deadline_source, deadline_source_url, "
+        "deadline_verified_on, mode, trace_id) values ('{id}', 'CLI-1', 'TRX-1', 'PRD-1', 'MX', 'debit', 'high', "
+        "'unrecognized_charge', '2026-06-01', {dates}, {source}, 'replay', 't')")
+CREDIT, RULING, NO_DATES = "'2026-06-03', null", "null, '2026-07-01'", "null, null"
+EVENT = ("insert into case_events (event_id, case_id, seq, type, actor, payload, customer_visible, trace_id) "
+         "values ('{id}', '{case}', {seq}, '{type}', 'agent', '{payload}', true, 't')")
+ACTION = '{{"action_id": "A-00000000000{n}"}}'
 NOTIFICATION = ("insert into notifications (notification_id, case_id, customer_id, event, channel, text, trigger) "
                 "values ('{id}', 'K-000001', 'CLI-1', 'case_opened', '{channel}', 'Abrimos tu caso.', '{trigger}')")
 DELIVERY = ("insert into notification_deliveries (delivery_id, notification_id, status) "
@@ -42,15 +44,27 @@ DELIVERY = ("insert into notification_deliveries (delivery_id, notification_id, 
 DENIAL = ("insert into policy_denials (denial_id, trace_id, actor, policy_id, guardrail_id, detail) "
           "values ('{id}', 't', '{actor}', 'POL-QUEUE-TRANSITION', 'G-POL-01', '{{}}')")
 SOURCE = "'Banxico', 'https://www.banxico.org.mx/', '2026-10-04'"
-GOOD = [CASE.format(id="K-000001", source=SOURCE), EVENT.format(id="E-1", case="K-000001", type="case_opened"),
+GOOD = [CASE.format(id="K-000001", dates=CREDIT, source=SOURCE),
+        CASE.format(id="K-000010", dates=RULING, source=SOURCE),                # a ruling date alone, with provenance
+        CASE.format(id="K-000011", dates=NO_DATES, source="null, null, null"),  # no legal date, no provenance
+        EVENT.format(id="E-1", case="K-000001", seq=1, type="case_opened", payload=ACTION.format(n=1)),
+        EVENT.format(id="E-5", case="K-000001", seq=2, type="action_verified", payload=ACTION.format(n=1)),
+        EVENT.format(id="E-6", case="K-000001", seq=3, type="handoff_emitted", payload="{}"),
         NOTIFICATION.format(id="N-1", channel="log", trigger="auto"),
         DENIAL.format(id="P-0", actor="analyst:sub-1")]                   # no session: an analyst-side denial
-BAD = [EVENT.format(id="E-2", case="K-000001", type="customer_info_added"),     # duplicate (case_id, seq)
-       EVENT.format(id="E-3", case="K-999999", type="case_opened"),             # no such case
-       EVENT.format(id="E-4", case="K-000001", type="case_closed"),             # not an event type of §6.5
-       CASE.format(id="K-000002", source="null, null, null"),                   # a legal date without its source
-       CASE.format(id="K-000003", source="'Banxico', 'http://www.banxico.org.mx/', '2026-10-04'"),
-       CASE.format(id="K-000004", source="'Banxico', 'https://www.banxico.org.mx/', null"),   # no verified_on
+BAD = [EVENT.format(id="E-2", case="K-000001", seq=1, type="handoff_emitted", payload="{}"),  # duplicate seq
+       EVENT.format(id="E-3", case="K-999999", seq=1, type="case_opened", payload="{}"),     # no such case
+       EVENT.format(id="E-4", case="K-000001", seq=9, type="case_closed", payload="{}"),     # not a §6.5 type
+       EVENT.format(id="E-7", case="K-000011", seq=0, type="handoff_emitted", payload="{}"),  # seq starts at 1
+       # D-014: a legal date travels with its source, an https URL and verified_on; none is ever empty or http
+       CASE.format(id="K-000002", dates=CREDIT, source="null, null, null"),
+       CASE.format(id="K-000003", dates=CREDIT, source="'Banxico', 'http://www.banxico.org.mx/', '2026-10-04'"),
+       CASE.format(id="K-000004", dates=CREDIT, source="'Banxico', 'https://www.banxico.org.mx/', null"),
+       CASE.format(id="K-000005", dates=CREDIT, source="'Banxico', null, '2026-10-04'"),
+       CASE.format(id="K-000006", dates=CREDIT, source="null, 'https://www.banxico.org.mx/', '2026-10-04'"),
+       CASE.format(id="K-000007", dates=RULING, source="null, null, null"),
+       CASE.format(id="K-000008", dates=NO_DATES, source="'', null, null"),
+       CASE.format(id="K-000009", dates=NO_DATES, source="null, 'http://www.banxico.org.mx/', null"),
        "insert into sessions (session_id, otp_hash, expires_at, language, mode) "
        "values ('S-1', 'h', now(), 'es', 'demo')",
        DELIVERY.format(id="D-1", n="N-404", status="sent"),                      # no such notification
@@ -59,7 +73,12 @@ BAD = [EVENT.format(id="E-2", case="K-000001", type="customer_info_added"),     
        NOTIFICATION.format(id="N-3", channel="log", trigger="cron"),
        "insert into customer_channels (channel_id, customer_id, channel, address, event) "
        "values ('C-1', 'CLI-1', 'email', 'a@example.com', 'deleted')",
-       DENIAL.format(id="P-1", actor="bot")]
+       DENIAL.format(id="P-1", actor="bot"),
+       DENIAL.format(id="P-2", actor="analyst:")]                                # an analyst with no sub
+# Postgres only (DuckDB has no partial index): a write's action id cannot come back in another write (D-025).
+BAD_ON_POSTGRES = [EVENT.format(id="E-8", case="K-000001", seq=4, type="card_blocked", payload=ACTION.format(n=1)),
+                   EVENT.format(id="E-9", case="K-000010", seq=1, type="customer_info_added",
+                                payload=ACTION.format(n=1))]
 
 
 def spec_table() -> dict[str, dict]:
@@ -110,7 +129,8 @@ def test_ac_01_schema_sql_has_the_spec_tables_columns_types_and_keys(db):
 
 
 def test_ac_01_schema_sql_keeps_the_spec_constraints(db):
-    """unique (case_id, seq), the FKs of §6.5, one bad row per listed vocabulary, and the deadline rule (D-014)."""
+    """unique (case_id, seq), seq ≥ 1, the FKs of §6.5, one bad row per listed vocabulary, and the deadline rule
+    (D-014) with one bad row per missing, empty or http provenance field."""
     links = db.execute("select table_name, constraint_type, constraint_column_names from duckdb_constraints() "
                        "where constraint_type in ('FOREIGN KEY', 'UNIQUE') order by 1, 2").fetchall()
     assert links == [("case_events", "FOREIGN KEY", ["case_id"]), ("case_events", "UNIQUE", ["case_id", "seq"]),
@@ -142,6 +162,13 @@ def test_ac_01_append_only_tables_refuse_update_delete_and_truncate():
     assert "raise exception '% is append-only: % is not allowed', tg_table_name, tg_op;" in POSTGRES_ONLY
 
 
+def test_d025_an_action_id_is_unique_over_the_store_write_events():
+    """The partial unique index covers exactly the store's WRITE_EVENTS (checked on a server by the postgres test)."""
+    index = re.search(r"create unique index case_events_action_id_once on case_events \(\(payload ->> 'action_id'\)\)"
+                      r"\s+where type in \((.*?)\);", POSTGRES_ONLY, re.S)
+    assert set(re.findall(r"'(\w+)'", index.group(1))) == WRITE_EVENTS
+
+
 @pytest.mark.postgres
 @pytest.mark.skipif(not os.environ.get("TEST_DATABASE_URL"), reason="needs a PostgreSQL server at TEST_DATABASE_URL")
 def test_ac_01_schema_sql_on_postgres_keeps_constraints_and_refuses_changes():
@@ -157,6 +184,9 @@ def test_ac_01_schema_sql_on_postgres_keeps_constraints_and_refuses_changes():
                 con.execute(statement)
             for statement in BAD:
                 with pytest.raises(psycopg.errors.IntegrityError):
+                    con.execute(statement)
+            for statement in BAD_ON_POSTGRES:
+                with pytest.raises(psycopg.errors.UniqueViolation, match="case_events_action_id_once"):
                     con.execute(statement)
             for table in sorted(append_only_tables()):
                 for op in (f"update {table} set created_at = created_at", f"delete from {table}", f"truncate {table}"):

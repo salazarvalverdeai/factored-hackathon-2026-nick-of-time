@@ -30,18 +30,18 @@ create table cases (                                                 -- AO, inse
   opened_on date not null,                                           -- business date (D-023)
   credit_deadline date null,                                         -- stored once, never recomputed
   ruling_deadline date null,
-  deadline_source text null,
-  deadline_source_url text null,
+  deadline_source text null check (deadline_source <> ''),
+  deadline_source_url text null check (deadline_source_url is null or deadline_source_url like 'https://%'),
   deadline_verified_on date null,                                    -- [assumption] D-014
   related_case_id text null,
   mode text not null,
   run_id text null,
   trace_id text not null,
   created_at timestamptz not null default now(),
-  -- a legal date travels with its source, an https:// URL and the date it was verified (§6.6, ADR 0019, D-014)
+  -- a legal date travels with its source, its https:// URL (column check) and the date it was verified (§6.6,
+  -- ADR 0019, D-014). Every term is "is not null": a check that evaluates to null passes.
   check ((credit_deadline is null and ruling_deadline is null)
-         or (deadline_source is not null and deadline_source_url like 'https://%'
-             and deadline_verified_on is not null))
+         or (deadline_source is not null and deadline_source_url is not null and deadline_verified_on is not null))
 );
 
 create table demo_transactions (                                     -- live mode only; gold transactions columns
@@ -74,7 +74,7 @@ create table demo_transactions (                                     -- live mod
 create table case_events (                                           -- AO
   event_id text primary key,
   case_id text not null references cases (case_id),
-  seq integer not null,
+  seq integer not null check (seq >= 1),
   type text not null check (type in ('case_opened', 'card_blocked', 'block_verified', 'action_verified',
     'status_changed', 'handoff_emitted', 'assigned', 'analyst_action', 'customer_info_added', 'call_requested',
     'reevaluation_requested', 'related_case_opened', 'notification_sent', 'receipt_issued', 'telegram_linked',
@@ -176,7 +176,12 @@ create table settings_events (                                       -- AO; supe
   created_at timestamptz not null default now()
 );
 
--- postgres-only: the append-only guard. The offline DuckDB check stops at this line.
+-- postgres-only: the action-id index and the append-only guard. The offline DuckDB check stops at this line.
+-- A customer write's action id is written once, so one read never verifies two actions (D-025).
+create unique index case_events_action_id_once on case_events ((payload ->> 'action_id'))
+  where type in ('case_opened', 'card_blocked', 'customer_info_added', 'call_requested', 'reevaluation_requested',
+                 'notification_sent');
+
 create function forbid_append_only_change() returns trigger language plpgsql as $$
 begin
   raise exception '% is append-only: % is not allowed', tg_table_name, tg_op;
