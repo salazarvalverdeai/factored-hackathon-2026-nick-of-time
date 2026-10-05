@@ -17,7 +17,7 @@ from zoneinfo import ZoneInfo
 from fastapi import Body, Cookie, Depends, FastAPI, Header, Query, Request, Response
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse, RedirectResponse, StreamingResponse
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict
 
 from app import fixtures as fx
 from nick_of_time import CONTRACT_VERSION, ids
@@ -202,7 +202,7 @@ class RecentTransactionOut(Out):
 
 
 class SyntheticChargeIn(BaseModel):
-    amount: float = Field(gt=0)                      # in the currency of the customer's country
+    amount: float                                    # in the customer's currency; app.demo.charge_amount checks it
     merchant: str                                    # checked by app.demo.clean_merchant (422 when not a plain name)
 
 
