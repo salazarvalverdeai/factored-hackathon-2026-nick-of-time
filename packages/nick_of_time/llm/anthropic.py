@@ -45,7 +45,9 @@ class AnthropicClient(LLMClient):
         super().__init__(model, **kw)
         if sdk_client is None:
             import anthropic
-            sdk_client = anthropic.Anthropic(timeout=TIMEOUT_S, max_retries=MAX_RETRIES)
+            sdk_client = anthropic.Anthropic(
+                timeout=TIMEOUT_S if self.read_timeout_s is None else self.read_timeout_s,
+                max_retries=MAX_RETRIES if self.max_attempts is None else max(self.max_attempts - 1, 0))
         self._client = sdk_client
 
     def _call(self, system, user, schema, tool_name, max_tokens, mode, temperature):

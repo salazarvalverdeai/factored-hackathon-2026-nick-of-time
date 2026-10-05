@@ -93,8 +93,14 @@ class LLMClient:
     provider = "base"
 
     def __init__(self, model: str, *, prices: dict | None = None, temperature: float | None = 0,
-                 mode: str = LADDER[0]) -> None:
+                 mode: str = LADDER[0], read_timeout_s: float | None = None, max_attempts: int | None = None) -> None:
         self.model, self.prices = model, prices
+        # HTTP read timeout and total attempts (first try included); None keeps the provider default. Fake ignores them.
+        if read_timeout_s is not None and read_timeout_s <= 0:
+            raise ValueError(f"read_timeout_s must be > 0, got {read_timeout_s!r}")
+        if max_attempts is not None and max_attempts < 1:
+            raise ValueError(f"max_attempts must be >= 1, got {max_attempts!r}")
+        self.read_timeout_s, self.max_attempts = read_timeout_s, max_attempts
         self.temperature = temperature   # current setting; becomes None once the provider rejects it
         self.mode = mode                 # first mode to try; after a call, the accepted one
 

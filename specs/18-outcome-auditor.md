@@ -160,6 +160,8 @@ comes from the policy engine, not from an LLM, so the judge does not grade its o
 - Judge: at most one call per case in review; cost under 0.01 USD per case `[assumption]`, estimated before the call
   and the call is skipped when over budget or when the client has no prices; input capped at about 12k tokens; timeout
   10 s because G-OPS-01's 800 ms would always expire on a model call (D-037) `[assumption]`; the customer never sees it.
+  `judge_client` builds the judge's client with read timeout = that timeout and one attempt, so an abandoned call ends
+  soon after (the LLM client takes `read_timeout_s` and `max_attempts`, defaults unchanged).
   The cap reserves 700 output tokens, so it implies a **Haiku-class judge**, and AC-12's choice must respect it: at the
   `eval/bench/prices.yaml` prices `[external]`, Sonnet 4.6 (16.5 USD per 1M output tokens) can never fit, and Haiku 4.5
   (1.1 in, 5.5 out) fits up to about 5.6k estimated input tokens, so the cost cap binds before the 12k input cap.
@@ -221,7 +223,7 @@ tools for the third line (internal audit).
       AC-10, AC-11 (`nick_of_time/audit/judge.py`, `tests/test_spec18_judge.py`; the fallback is `None`, the timeout and
       the per-case cost cap are `[assumption]` defaults, see §4.2 and §5; the `AnalystDecision` record matches only the
       first decisive action and leaves persistence to the store owner, see T5)
-- [ ] T5 [P0] — second-opinion panel in the console (with @gianzk) · AC-09. The api gives the judge its own client and
+- [ ] T5 [P0] — second-opinion panel in the console (with @gianzk) · AC-09. The api gives the judge its own client from `judge.judge_client` and
       owns persistence: it calls `judge.record_decision` with the case's earlier analyst actions as `prior_actions` (only
       the first decisive action is matched, §4.2) and stores `matched_second_opinion` in the `analyst_action` payload,
       the opinion in `second_opinions`, and one `llm_calls` row per billed call (`on_call` result not `None`) · AC-10
