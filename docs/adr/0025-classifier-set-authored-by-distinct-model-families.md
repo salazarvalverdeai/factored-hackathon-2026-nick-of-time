@@ -60,7 +60,7 @@ Verified on 2026-10-05 with the team account (`nickoftime` profile), region `us-
 | Option | Pros | Cons |
 |---|---|---|
 | Three model families, one per split, no Claude (chosen) | Author split tests unseen writers; no favored candidate flagged; done in one run for cents; reproducible from a recorded prompt | Machine text is less diverse than real customers; every line needs human review; three candidate families get flagged |
-| Team-written seeds + one LLM paraphraser (spec 09 Q3/Q7) | Human seeds; one flagged family | Needs three available writers, and Diego cannot continue; one paraphraser style crosses every split; the lead would write a split of his own classifier |
+| Team-written seeds + one LLM paraphraser (spec 09 Q3/Q7) | Human seeds; one flagged family | Needs three available writers, and Diego cannot continue; one paraphraser style crosses every split; the lead would write a split for the classifier they develop |
 | One generator for all splits | Simplest; one flagged family | The "author" is the same model in every split, so the author split measures nothing |
 | Claude as a generator | Strong ES/PT writing | Flags the arms we expect to choose (Haiku 4.5, Sonnet 4.6); the benchmark would favor or doubt its own winner |
 
