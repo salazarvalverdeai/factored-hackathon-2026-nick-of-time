@@ -6,5 +6,7 @@ checks A3–A7; A1–A2 (decision and deadline) need the policy engine and the c
 from nick_of_time.audit.checks import (ActionRead, Finding, LifecycleEvent, check_actions, check_coherence,
                                        check_grounding, check_lifecycle, check_privacy)
 
-__all__ = ["ActionRead", "Finding", "LifecycleEvent", "check_actions", "check_coherence", "check_grounding",
+from nick_of_time.audit.judge import AnalystDecision, SecondOpinion, opinion, record_decision
+
+__all__ = ["AnalystDecision", "SecondOpinion", "opinion", "record_decision","ActionRead", "Finding", "LifecycleEvent", "check_actions", "check_coherence", "check_grounding",
            "check_lifecycle", "check_privacy"]

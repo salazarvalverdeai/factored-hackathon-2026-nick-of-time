@@ -136,7 +136,8 @@ comes from the policy engine, not from an LLM, so the judge does not grade its o
 ## 6. API contract (additions to spec 01, minor version)
 ```python
 findings: list[Finding] = audit.run(records)            # records: TurnResult, trace, tool results, case events
-opinion: SecondOpinion | None = judge.opinion(handoff, transcript, evidence, audit=findings)
+opinion: SecondOpinion | None = judge.opinion(handoff, transcript, evidence, client=llm, audit=findings)   # None = "No second opinion"
+decision: AnalystDecision = judge.record_decision(case_id, analyst, action, proposal_action=..., second_opinion=opinion)
 ```
 - **Input mapping (for the `records_for_run(run_id)` adapter of T2, reused by T3).** `FinalState` does not change.
   - A3: the claims are the TurnResult `actions` (`ActionRecord`), `receipt.actions` and `handoff.actions`. The evidence
@@ -178,8 +179,9 @@ tools for the third line (internal audit).
       Note: AC-01 names A1–A10, but P0 is A1–A7 (§4.3, T1); A8–A10 are outside P0, pending the lead.
 - [ ] T2 [P0] — harness uses the library for its final-state checks (with @vldiego) · AC-02
 - [ ] T3 [P1] — api background task, `audit_findings`, critical flag and acknowledgment · AC-03, AC-04, AC-05
-- [ ] T4 [P0] — judge: prompt with the fixed rubric, structured output, grounding of reasons, fallback · AC-07, AC-08,
-      AC-10, AC-11
+- [x] T4 [P0] — judge: prompt with the fixed rubric, structured output, grounding of reasons, fallback · AC-07, AC-08,
+      AC-10, AC-11 (`nick_of_time/audit/judge.py`, `tests/test_spec18_judge.py`; the fallback is `None`, the timeout and
+      the per-case cost cap are `[assumption]` defaults; the `AnalystDecision` record leaves persistence to the store owner)
 - [ ] T5 [P0] — second-opinion panel in the console (with @gianzk) · AC-09
 - [ ] T5b [P1] — auditor panel and critical flag in the console (with @gianzk) · AC-06
 - [ ] T6 [P2] — `judge` as a spec 15 task; KPIs in `ops_kpis`; calibration report · AC-12, AC-13, AC-14
