@@ -172,7 +172,9 @@ is written once by the evaluation script (T6) from the frozen test split, never 
   `sha256` and `split_manifest_sha256` are hex strings from the seal block. `test_split` counts sentences, injection
   rows apart (AC-06, D-022). `tau` is a score in 0–1 chosen on validation (AC-07) `[simulated]`; only its precision
   target of 0.95 is `[assumption]`. `chosen_arm` is one of B0–B3 by the rule of §4.1. `test_review` is `human` or `rules-v1` (ADR 0028); `/evaluation`
-  shows the label "test split decided by fixed rules, without independent human review" when it is `rules-v1`.
+  shows the label "test split decided by fixed rules, without independent human review" when it is `rules-v1`; the
+  export carries that sentence as `test_review_label`. `b1_model` records the exported B1 file's `path`, `sha256` and
+  the `sklearn_version` that wrote it, so a reader can check it loads the same model.
 - `arms[]` (AC-02, AC-03): `arm` B0–B3; `p50_ms` and `p95_ms` in milliseconds per message; `cost_per_1000_usd` in USD
   per 1,000 messages; `meets_floors` bool; `mcnemar_p_vs_best` p-value of the paired test; `human_request_answered_out_of_scope`
   integer count of person requests the arm answered `out_of_scope` (AC-10, must be 0); `same_family_as_generator` bool,
@@ -274,7 +276,10 @@ Fine-tuning; embeddings + LR (P2); Jev (benchmarked in spec 15); the agent's use
 - [ ] T5 — injection detector, both arms · AC-04 (rules arm done in 11a, `nlu.injection`; LR arm and AC-04 numbers pending spec 09)
 - [ ] T6 — evaluation script, report, export, ADR "model selection" (with spec 15) · AC-03, AC-05 (task 11b:
   `eval/classifier/evaluate.py`; `make classifier` is the validation development run, written to `eval/.runs/` only;
-  `make classifier-test` is the one test run and refuses while `eval/PROTOCOL.md` is UNSEALED; ADR after the test run)
+  `make classifier-test` is the one test run and refuses while `eval/PROTOCOL.md` is UNSEALED, when the `protocol-v1`
+  tag is not in HEAD's history with the same `PROTOCOL.md`, when the split files differ from the sealed manifest, or
+  when the arms are not exactly B0, B1, B2; it reads `test.jsonl` only after B1 is saved and exports `test_review`
+  with its ADR 0028 label; ADR after the test run)
 
 ## 11. Sources
 External sources checked on 2026-10-04.

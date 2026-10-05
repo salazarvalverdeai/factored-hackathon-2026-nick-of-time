@@ -1,12 +1,14 @@
 """Score the classifier arms, choose τ on validation and export the report (spec 11 T3, T4, T6; AC-02, AC-03, AC-07).
 
     PYTHONPATH=packages python -m eval.classifier.evaluate --split validation --arms B0,B1   # make classifier
-    PYTHONPATH=packages python -m eval.classifier.evaluate --split test --arms B0,B1         # make classifier-test
+    PYTHONPATH=packages python -m eval.classifier.evaluate --split test --arms B0,B1,B2      # make classifier-test
 
 `validation` is a development run: written only to eval/.runs/classifier/ (git-ignored) and labeled "development run
 on validation", never to a path of the protocol's results. `test` is refused unless eval/PROTOCOL.md is SEALED, tagged
-protocol-v1 in HEAD's history, and the promoted split files hash to the sealed manifest; it then writes models/intent-b1-v1.joblib, eval/results/classifier.csv
-and apps/web/public/data/classifier.json (§7.1), once. B1 is fit on train, calibrated on validation, and τ is the lowest
+protocol-v1 in HEAD's history, and the promoted split files hash to the sealed manifest, and it scores only the
+pre-registered arm set B0, B1, B2 (AC-02, PROTOCOL §1.2); it then writes models/intent-b1-v1.joblib,
+eval/results/classifier.csv and apps/web/public/data/classifier.json (§7.1), once. test.jsonl is read only after B1 is
+saved (§0 rule 1). B1 is fit on train, calibrated on validation, and τ is the lowest
 B1 threshold with precision ≥ 0.95 on validation (AC-07); every arm is reported at that τ [assumption]. Dates resolve
 against DEMO_TODAY (replay, ADR 0020).
 """
@@ -14,6 +16,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import hashlib
 import json
 import math
 import re
@@ -40,7 +43,9 @@ TODAY = date.fromisoformat(DEMO_TODAY)
 TARGET_PRECISION, ORDER = 0.95, ("B0", "B1", "B3", "B2")
 FLOOR_F1, FLOOR_RECALL, P95_MS, USD_PER_1000 = 0.90, 0.95, 1500, 1.0      # eval/PROTOCOL.md §1.3-1.4 [assumption]
 DEV_LABEL = "development run on validation: not a test result, never used for selection (eval/PROTOCOL.md §1.1)"
-RULE_REVIEW = "test split without independent human review"               # ADR 0025 amendment (rules-v1)
+RULE_REVIEW = "test split decided by fixed rules, without independent human review"   # ADR 0028, spec 11 §7.1
+TEST_ARMS = ("B0", "B1", "B2")                                            # PROTOCOL §1.2: every arm on the one test run
+BUILT_ARMS = ("B0", "B1")                                                 # B2 lands with spec 11 T4
 SEAL_TAG = "protocol-v1"                                                  # eval/PROTOCOL.md "Seal": tag of the sealing commit
 
 
@@ -66,26 +71,63 @@ def protocol_tagged(root: Path = ROOT) -> bool:
             and tagged.stdout == (root / "eval" / "PROTOCOL.md").read_bytes())
 
 
-def load_splits(split: str, root: Path = ROOT) -> tuple[dict[str, list[dict]], str]:
-    """train, validation and the scored split. Test: only the promoted, sealed files. Validation dev runs fall back to
-    the human-reviewed drafts while the files are not promoted (review.py applies the decisions; test is never read)."""
+def check_arms(split: str, arms: list[str]) -> None:
+    """Every arm must be built here; the test split takes exactly the pre-registered set (AC-02, PROTOCOL §1.2), so a
+    forgotten arm is never lost for good nor scored on a second touch of test."""
+    if split == "test" and (len(arms) != len(set(arms)) or set(arms) != set(TEST_ARMS)):
+        raise EvalError(f"refused: the test split scores exactly the arms {','.join(TEST_ARMS)} (AC-02), "
+                        f"got {','.join(arms)}")
+    if missing := [a for a in arms if a not in BUILT_ARMS]:
+        raise EvalError(f"refused: arm {','.join(missing)} is not built on this branch")
+
+
+def sealed_blobs(root: Path) -> dict[str, bytes]:
     d = root / "eval" / "classifier"
+    blobs = {f"eval/classifier/{s}.jsonl": (d / f"{s}.jsonl").read_bytes() for s in ("train", "validation", "test")
+             if (d / f"{s}.jsonl").exists()}
+    if len(blobs) != 3 or manifest_sha256(blobs) != seal(root)["split_manifest_sha256"]:
+        raise EvalError("refused: the promoted split files are missing or differ from the sealed manifest")
+    return blobs
+
+
+def jsonl(blob: bytes) -> list[dict]:
+    return [json.loads(x) for x in blob.decode("utf-8").splitlines() if x.strip()]
+
+
+def load_splits(split: str, root: Path = ROOT) -> tuple[dict[str, list[dict]], str]:
+    """train and validation. Test: refused unless sealed, tagged and hashed to the manifest; the test rows are parsed
+    later by `read_test`, after B1 is saved (§0 rule 1). Validation dev runs fall back to the human-reviewed drafts
+    while the files are not promoted (review.py applies the decisions; test is never read)."""
+    d = root / "eval" / "classifier"
+    names = ("train", "validation")
     if split == "test":
         if seal(root)["status"] != "SEALED":
             raise EvalError("refused: eval/PROTOCOL.md is UNSEALED; the test split is scored once, after the seal (M02)")
         if not protocol_tagged(root):
             raise EvalError(f"refused: no {SEAL_TAG} tag in HEAD's history with this eval/PROTOCOL.md (M02 tags it)")
-        blobs = {f"eval/classifier/{s}.jsonl": (d / f"{s}.jsonl").read_bytes() for s in ("train", "validation", "test")
-                 if (d / f"{s}.jsonl").exists()}
-        if len(blobs) != 3 or manifest_sha256(blobs) != seal(root)["split_manifest_sha256"]:
-            raise EvalError("refused: the promoted split files are missing or differ from the sealed manifest")
-    names = ("train", "validation") + (("test",) if split == "test" else ())
+        blobs = sealed_blobs(root)                                  # hashed only; the test rows are not parsed here
+        return {s: jsonl(blobs[f"eval/classifier/{s}.jsonl"]) for s in names}, "promoted split files"
     if all((d / f"{s}.jsonl").exists() for s in names):
-        rows = {s: [json.loads(x) for x in (d / f"{s}.jsonl").read_text(encoding="utf-8").splitlines() if x.strip()]
-                for s in names}
-        return rows, "promoted split files"
+        return {s: jsonl((d / f"{s}.jsonl").read_bytes()) for s in names}, "promoted split files"
     from eval.classifier.review import _reviewed
     return {s: _reviewed(root, s) for s in names}, "human-reviewed drafts (split files not promoted yet)"
+
+
+def read_test(root: Path = ROOT) -> list[dict]:
+    """The sealed test rows, read once B1 is frozen; the bytes are hashed again, so they are the sealed ones."""
+    return jsonl(sealed_blobs(root)["eval/classifier/test.jsonl"])
+
+
+def review_mode(rows: list[dict]) -> str:
+    """ADR 0028: `rules-v1` when the fixed rules decided every test row, otherwise `human`."""
+    return "rules-v1" if rows and all(r.get("reviewer") == "rules-v1" for r in rows) else "human"
+
+
+def model_record(path: Path, root: Path) -> dict:
+    """What a reader needs to load the exported B1 file again: its hash and the scikit-learn that wrote it."""
+    import sklearn
+    return {"path": str(path.relative_to(root)), "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+            "sklearn_version": sklearn.__version__}
 
 
 def run_arm(nlu, rows: list[dict]) -> list[dict]:
@@ -227,10 +269,14 @@ def choose(arms: list[dict], correct: dict[str, list[bool]]) -> str | None:
     return min(keep, key=ORDER.index) if keep else None
 
 
+def intents_only(rows: list[dict]) -> list[dict]:
+    return [r for r in rows if r.get("label") != "injection" and r.get("intent")]
+
+
 def evaluate(split: str, arms: list[str], root: Path = ROOT) -> Path:
+    check_arms(split, arms)
     data, source = load_splits(split, root)
-    intent_rows = {s: [r for r in v if r.get("label") != "injection" and r.get("intent")] for s, v in data.items()}
-    train, val, scored = intent_rows["train"], intent_rows["validation"], intent_rows[split]
+    train, val = intents_only(data["train"]), intents_only(data["validation"])
     b1 = B1NLU(train_b1([r["text"] for r in train], [r["intent"] for r in train],
                         [r["text"] for r in val], [r["intent"] for r in val]))
     val_preds = run_arm(b1, val)
@@ -240,6 +286,9 @@ def evaluate(split: str, arms: list[str], root: Path = ROOT) -> Path:
     model_dir = (root / "models") if split == "test" else out_dir
     model_dir.mkdir(parents=True, exist_ok=True)
     b1.save(model_dir / "intent-b1-v1.joblib")                 # frozen before the scored split is read (§0 rule 1)
+    if split == "test":
+        data["test"] = read_test(root)
+    scored = intents_only(data[split])
     preds = {a: (val_preds if a == "B1" and split == "validation" else run_arm(nlus[a], scored)) for a in arms}
     report = [score_arm(a, nlus[a], scored, preds[a], tau) for a in arms]
     correct = {a: [r["intent"] == p["intent"] for r, p in zip(scored, preds[a])] for a in arms}
@@ -251,10 +300,13 @@ def evaluate(split: str, arms: list[str], root: Path = ROOT) -> Path:
                "split_source": source, f"{split}_split": {"sentences": {g: sum(r["language"] == g for r in scored)
                                                                        for g in LANGS}, "injection_rows": len(inj)},
                "tau": tau, "chosen_arm": chosen, "arms": report,
+               "b1_model": model_record(model_dir / "intent-b1-v1.joblib", root),
                "injection": [{"arm": "rules", "recall": rate(sum(inj), len(inj)),
                               "false_positive_rate": rate(sum(legit), len(legit))}]}
-    if split == "test" and any(r.get("reviewer") == "rules-v1" for r in data["test"]):
-        payload["review_note"] = RULE_REVIEW
+    if split == "test":
+        payload["test_review"] = review_mode(data["test"])
+        if payload["test_review"] == "rules-v1":
+            payload["test_review_label"] = RULE_REVIEW
     doc = {"generated_at": now(), "git_sha": git_sha(), "data": payload,
            "source": f"eval/classifier/evaluate.py [simulated], {split} split ({source})"}
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -279,10 +331,11 @@ def write_csv(path: Path, report: list[dict]) -> None:
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--split", choices=("validation", "test"), default="validation")
-    ap.add_argument("--arms", default="B0,B1")
+    ap.add_argument("--arms", help="comma-separated; validation default B0,B1; test only B0,B1,B2 (AC-02)")
     args = ap.parse_args(argv)
+    arms = args.arms or ("B0,B1" if args.split == "validation" else ",".join(TEST_ARMS))
     try:
-        path = evaluate(args.split, [a.strip() for a in args.arms.split(",")])
+        path = evaluate(args.split, [a.strip() for a in arms.split(",")])
     except EvalError as exc:
         print(exc, file=sys.stderr)
         return 2

@@ -251,5 +251,8 @@ precision ≥ 0.95 on validation (AC-07). Every arm is reported at τ.
   the split files are promoted it reads the human-reviewed train and validation drafts; it never reads test.
 - `make classifier-test`: **the one test-split run, after the seal (M02)**. Refused while `PROTOCOL.md` is UNSEALED, when no
   `protocol-v1` tag in HEAD's history holds this same `PROTOCOL.md`, or when the promoted split files do not hash to
-  the sealed manifest. It writes `models/intent-b1-v1.joblib`, `results/classifier.csv` and `apps/web/public/data/classifier.json` (spec 11 §7.1), and
-  labels a test split decided by `rules-v1` "test split without independent human review" (ADR 0025 amendment).
+  the sealed manifest. It scores exactly the pre-registered arms B0, B1 and B2 and refuses any other set (AC-02,
+  `PROTOCOL.md` §1.2). It saves B1 before `test.jsonl` is read, then writes `models/intent-b1-v1.joblib`,
+  `results/classifier.csv` and `apps/web/public/data/classifier.json` (spec 11 §7.1). The export records
+  `test_review` (`rules-v1` or `human`) and, for `rules-v1`, the label "test split decided by fixed rules, without
+  independent human review" (ADR 0028), plus the B1 file's sha256 and the scikit-learn version that wrote it.
