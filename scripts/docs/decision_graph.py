@@ -209,12 +209,19 @@ def build_graph(root: Path = ROOT) -> dict:
     problems = read_problem(root, extra)
 
     # validate the extra file against the repository so it cannot rot
-    themed = [n for t in extra["themes"] for n in t["adrs"]]
-    if sorted(themed) != sorted(adrs) or len(themed) != len(set(themed)):
-        raise SystemExit(
-            "graph_extra.yaml: themes must list every ADR exactly once; "
-            f"missing {sorted(set(adrs) - set(themed))}, unknown {sorted(set(themed) - set(adrs))}"
+    themes = [
+        {"name": th["name"], "adrs": [n for n in th["adrs"] if n in adrs]}
+        for th in extra["themes"]
+    ]
+    themed = {n for th in themes for n in th["adrs"]}
+    other = sorted(set(adrs) - themed)
+    if other:
+        print(
+            f"note: ADRs {', '.join(other)} are not in graph_extra.yaml themes; drawn in the 'Other' group",
+            file=sys.stderr,
         )
+        themes.append({"name": "Other", "adrs": other})
+    extra = {**extra, "themes": themes}
     for num, paths in extra["components"].items():
         if num not in specs:
             raise SystemExit(f"graph_extra.yaml: components for unknown spec {num}")

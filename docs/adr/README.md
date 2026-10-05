@@ -4,7 +4,7 @@ One file per load-bearing decision, written from [`_template.md`](_template.md).
 deleted: a new ADR supersedes them. How and when to write one: [`CONTRIBUTING.md`](../../CONTRIBUTING.md#4-architecture-decision-records).
 *If it is not in the log, it was not decided.*
 
-The whole log as one picture, from the problem to the evidence: [decisions graph](../decisions/graph.md) (generated from these headers).
+The whole log as one picture, from the problem to the evidence: [decisions graph](../decisions/graph.md) (generated from these headers; regenerate with `make docs-graph`).
 
 | ADR | Decision | Status | Date |
 |---|---|---|---|

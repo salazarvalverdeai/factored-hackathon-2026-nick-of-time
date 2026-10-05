@@ -6,7 +6,7 @@ PYTHON ?= python3
 PY := .venv/bin/python
 SOURCE ?= s3
 
-.PHONY: setup deps pipeline fixture report test lint hooks check-bedrock check-telegram check-resend check-jev check-all telegram-profile env-pull gold-pull labels-pull eval eval-stub eval-local classifier classifier-test
+.PHONY: setup deps pipeline fixture report test lint hooks check-bedrock check-telegram check-resend check-jev check-all telegram-profile env-pull gold-pull labels-pull eval eval-stub eval-local classifier classifier-test docs-graph
 
 setup: deps pipeline fixture report
 
@@ -32,6 +32,10 @@ ops:
 
 test:
 	$(PY) -m pytest -q
+
+# Regenerate docs/decisions/graph.md and graph.json from the ADR and spec headers.
+docs-graph: $(PY)
+	$(PY) scripts/docs/decision_graph.py
 
 # Same pinned ruff as CI (ruff.toml); installs into the venv on first use.
 lint:
