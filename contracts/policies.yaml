@@ -102,8 +102,9 @@ contact:                                 # callback promise for request_call (D-
 
 reevaluation:                            # spec 02 §4.4 (AC-18), spec 03 AC-19: request_reevaluation on a resolved case
   # [assumption] D-062 pending: a product policy with no regulatory source, the spec 02 §4.4 proposal for every country.
-  # Calendar days from the resolution's business date; day window_days still qualifies, the next one gets POL-REEVAL-WINDOW.
-  window_days: 30
+  # Per country (spec 02 FR-09, AC-18), calendar days from the resolution's business date; day window_days still
+  # qualifies, the next one gets POL-REEVAL-WINDOW. A country not listed has no window: nothing goes back (deny).
+  window_days: {MX: 30, CO: 30, AR: 30, BR: 30, PE: 30, CL: 30}
 
 handoff:
   triggers: [zone_human, zone_medium, supervised_mode, amount_over_case_gate, identity_unverified, clarification_exhausted, tool_failure, language_low_confidence, person_requested]   # person_requested: D-029

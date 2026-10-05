@@ -16,6 +16,7 @@ from typing import Optional
 from pydantic import BaseModel
 
 from contracts import tools as t
+from mcp_server.cards import cards_of
 from mcp_server.gate import ACTOR, Call, Handler
 from mcp_server.gold import Gold
 from mcp_server.reads import COUNTRY
@@ -45,11 +46,13 @@ TransactionCountry = Callable[[str, str], Optional[str]]     # (customer_id, tra
 
 
 def policy_window(policies: Policies) -> Reevaluation:
-    """`reevaluation.window_days` of policies.yaml ([assumption] D-062, until spec 02 T7's `reevaluation_allowed()`):
-    day `window_days` after the resolution still qualifies; with no window in the policy nothing goes back."""
-    days = policies.reevaluation.window_days if policies.reevaluation else None
+    """The case country's `reevaluation.window_days` of policies.yaml ([assumption] D-062, until spec 02 T7's
+    `reevaluation_allowed()`): day `window_days` after the resolution still qualifies; a country with no window, or a
+    policy with none, sends nothing back (the most conservative answer)."""
+    windows = policies.reevaluation.window_days if policies.reevaluation else {}
 
     def allowed(country: str, resolved_on: dt.date, on: dt.date) -> bool:
+        days = windows.get(country)
         return days is not None and (on - resolved_on).days <= days
     return allowed
 
@@ -99,16 +102,6 @@ def gold_country(gold: Gold) -> Callable[[str], Optional[str]]:
     return country_of
 
 
-def shared_transaction_country() -> Optional[TransactionCountry]:
-    """The gold card-transaction countries of PR #123 (`cards.shared_cards`) once it merges; until then None, so a
-    related case is not abroad [assumption]."""
-    try:
-        from mcp_server.cards import shared_cards
-    except ImportError:
-        return None
-    return lambda customer_id, transaction_id: shared_cards().transaction_country(customer_id, transaction_id)
-
-
 def gold_deadline(gold: Gold, policies: Policies,
                   transaction_country: Optional[TransactionCountry]) -> Callable[[CaseRecord, dt.date], Optional[Deadline]]:
     """A related case's deadline from the new notice over its gold charge, `abroad` as open_case derives it. A charge
@@ -131,13 +124,13 @@ def followups_handlers(store: Store, policies: Policies, gold: Optional[Gold] = 
                        now: Optional[Callable[[], dt.datetime]] = None) -> dict[str, Handler]:
     """The T8 entry point wires `store`, `policies` and `gold` by name. `country_of(customer_id)` (default: gold) gives
     the country of a call with no case; without one that call promises no date. `deadline_of(case, opened_on)`
-    (default: gold, with `transaction_country` or PR #123's cards) gives a related case's legal deadline; without one
+    (default: gold, with `transaction_country`, else the card index `cards_of(gold)`) gives a related case's legal deadline; without one
     the related case opens with no deadline and a person sets it [assumption]. `now` (aware UTC) feeds `clock.today`
     in live mode only; None lets the clock read it (ADR 0020)."""
     reevaluation_allowed = reevaluation_allowed or policy_window(policies)
     if gold is not None:
         country_of = country_of or gold_country(gold)
-        deadline_of = deadline_of or gold_deadline(gold, policies, transaction_country or shared_transaction_country())
+        deadline_of = deadline_of or gold_deadline(gold, policies, transaction_country or cards_of(gold).transaction_country)
     contact = policies.contact.callback_within_business_days if policies.contact else None
 
     def owned(call: Call, case_id: str) -> CaseRecord:
@@ -243,7 +236,13 @@ def followups_handlers(store: Store, policies: Policies, gold: Optional[Gold] = 
                 return t.RequestReevaluationOut(action_id=event.payload["action_id"], event_id=event.event_id,
                                                 case_id=case.case_id, outcome="back_to_review")
             # closed: never reopened; a related case from the new notice, decided by a person (spec 03 §6 lifecycle).
-            # AC-15: one case not closed per transaction, so an earlier related case (or open_case's) is the answer.
+            # AC-15: one case not closed per transaction, so an earlier related case (or open_case's) is the answer,
+            # under open_case's lock on the same key, so concurrent calls of either tool open one case.
+            session = call.session
+            with store.serialize(f"open_case:{session.run_id or '-'}:{session.customer_id}:{case.transaction_id}"):
+                return related_case(case, on)
+
+        def related_case(case: CaseRecord, on: dt.date) -> t.RequestReevaluationOut:
             session = call.session
             same = next((c for c in store.list_cases(session.customer_id, run_id=session.run_id)
                          if c.transaction_id == case.transaction_id and store.queue_status(c.case_id) != "closed"), None)

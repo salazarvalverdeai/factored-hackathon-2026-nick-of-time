@@ -196,8 +196,8 @@ class Contact(_Strict):                   # D-008: request_call's expected_conta
     callback_within_business_days: Optional[StrictInt] = Field(None, ge=1)
 
 
-class Reevaluation(_Strict):              # spec 02 §4.4: a resolved case goes back to review within this many days
-    window_days: StrictInt = Field(ge=0)
+class Reevaluation(_Strict):              # spec 02 §4.4, FR-09: per country, the days a resolved case may go back
+    window_days: dict[CountryCode, Annotated[StrictInt, Field(ge=0)]]
 
 
 class Policies(_Strict):

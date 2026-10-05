@@ -257,13 +257,15 @@ Implementation goes in one `feat/03-*` branch per task (T1: `feat/03-mcp-server`
       resolved case takes information), and `new`, `verification` or `review` for AC-19's `already_in_progress`.
       `[assumption]`s, pending lead decision D-062: a card number, CVV or password in any stored customer text
       (`text`, `preferred_time`, `reason`) is denied with `POL-PII` (guardrail G-IN-04, policies.yaml) and nothing is
-      stored; the re-evaluation window is policies.yaml `reevaluation.window_days` (30, the spec 02 §4.4 proposal; day 30
-      qualifies, day 31 is denied) until `reevaluation_allowed()` ships. Other `[assumption]`s: a call stays open until
+      stored; the re-evaluation window is policies.yaml `reevaluation.window_days` per country (spec 02 FR-09; 30 for
+      MX, CO, AR, BR, PE and CL, the spec 02 §4.4 proposal; day 30 qualifies, day 31 is denied; a country not listed is
+      denied) until `reevaluation_allowed()` ships. Other `[assumption]`s: a call stays open until
       `approve_block`, `resolve` or `close_case` (the D-042 hold end); a closed case has no window, so any closed case
       may open one related case; that related case copies the closed case's facts and zone, opens on today, goes to
       `review`, keeps the reason in its `reevaluation_requested` and takes its deadline from gold with `abroad` derived
-      as `open_case` does (none without the charge); while a case of that transaction is not closed, a new request
-      answers `already_in_progress` with that case's `case_opened` (AC-15); the result has `case_id` = the new case and
+      as `open_case` does from the card index `cards_of(gold)` (none without the charge); while a case of that
+      transaction is not closed, a new request answers `already_in_progress` with that case's `case_opened` (AC-15),
+      checked and written under `open_case`'s `serialize` key, so concurrent calls of either tool open one case; the result has `case_id` = the new case and
       `related_case_id` = the closed one; a write on a closed case is `DENY POL-DEFAULT-DENY`
 - [ ] T7 — `send_case_summary`, `list_my_notifications` · AC-21, AC-22
 - [ ] T8 — entry point, Dockerfile and compose service `mcp` · AC-02, AC-06, AC-12 · `apps/mcp/mcp_server/__main__.py`,

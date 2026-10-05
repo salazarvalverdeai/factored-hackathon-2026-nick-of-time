@@ -1,6 +1,6 @@
 """Spec 03 T6: `add_case_info`, `request_call` and `request_reevaluation` through the real gate over the case store
 (AC-17, AC-18, AC-19; D-008, D-025, D-026, D-042, D-052). Every test runs on MemoryStore and, with TEST_DATABASE_URL
-(`-m postgres`), on PostgresStore in a fresh schema. No network, no gold, no LLM."""
+(`-m postgres`), on PostgresStore in a fresh schema. No network, no LLM; gold is a stub or #123's tiny fixture."""
 from __future__ import annotations
 
 import datetime as dt
@@ -17,10 +17,12 @@ from nick_of_time import ids
 from nick_of_time.contracts import AnalystActionIn
 from nick_of_time.policy import load_policies
 from nick_of_time.store import StoreError
-from tests.test_spec01_store import backend, new_store, open_case, types  # noqa: F401
+from tests.test_spec01_store import RUN, at_once, backend, new_store, open_case, postgres_only, types  # noqa: F401
+from tests.test_spec03_case_and_block import write_gold
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "apps/mcp"))
-from mcp_server import followups, gate  # noqa: E402
+from mcp_server import followups, gate, writes  # noqa: E402
+from mcp_server.gold import Gold  # noqa: E402
 
 NOW = dt.datetime(2026, 6, 1, 15, 0, tzinfo=dt.UTC)
 ANA, BRUNO = "CLI-000001", "CLI-000002"
@@ -41,10 +43,11 @@ class Sessions:
 
 
 class Run:
-    def __init__(self, policies=POLICIES, **kwargs):
+    def __init__(self, policies=POLICIES, extra=None, **kwargs):
         self.store, self.denials = new_store(), []
         guardrails = {rule_id: rule.guardrail for rule_id, rule in policies.rules.items() if rule.guardrail}
-        self.gate = gate.Gate(Sessions(self.store), followups.followups_handlers(self.store, policies, **kwargs),
+        handlers = {**followups.followups_handlers(self.store, policies, **kwargs), **(extra(self) if extra else {})}
+        self.gate = gate.Gate(Sessions(self.store), handlers,
                               denials=self.denials.append, audit=lambda _: None, now=lambda: NOW,
                               guardrails=guardrails, limiter=gate.RateLimiter(clock=itertools.count(0, 1000).__next__))
         self.ana, self.bruno = self.session(ANA), self.session(BRUNO)
@@ -57,8 +60,8 @@ class Run:
         arguments = {"session_id": session or self.ana, "idempotency_key": key or secrets.token_hex(4), **args}
         return self.gate.call(tool, arguments, "trace-t6")
 
-    def case(self, status="new", customer=ANA, resolved_on=dt.date(2026, 5, 20)):
-        case_id = open_case(self.store, customer_id=customer).case_id
+    def case(self, status="new", customer=ANA, resolved_on=dt.date(2026, 5, 20), **facts):
+        case_id = open_case(self.store, customer_id=customer, **facts).case_id
         steps = [("take", "review", resolved_on), ("resolve", "resolved", resolved_on),
                  ("close_case", "closed", resolved_on)][:{"new": 0, "review": 1, "resolved": 2, "closed": 3}[status]]
         for action, to, on in steps:
@@ -187,7 +190,7 @@ def test_ac_19_a_resolved_case_in_the_window_goes_back_to_review_with_the_reason
 def test_ac_19_the_window_is_policies_reevaluation_window_days_and_day_31_is_denied(days, allowed):
     """policies.yaml `reevaluation.window_days` (30 [assumption] D-062): day 30 after the resolution goes back to
     review, day 31 gets POL-REEVAL-WINDOW and nothing is written."""
-    assert POLICIES.reevaluation.window_days == 30
+    assert POLICIES.reevaluation.window_days["MX"] == 30
     run = Run()
     case_id = run.case("resolved", resolved_on=dt.date(2026, 6, 1) - dt.timedelta(days=days))
     before = types(run.store, case_id)
@@ -256,3 +259,64 @@ def test_d008_a_later_duplicate_request_keeps_the_stored_expected_contact_by():
     clock[0] = NOW + dt.timedelta(days=2)
     again = run("request_call", session=live, case_id=case_id)
     assert first.expected_contact_by == again.expected_contact_by == dt.date(2026, 6, 2) and again == first
+
+
+def test_ac_19_a_country_with_no_window_sends_nothing_back():
+    """Spec 02 FR-09: the window is per country; a country not in `reevaluation.window_days` is denied."""
+    run = Run()
+    case_id = run.case("resolved", resolved_on=dt.date(2026, 5, 31), country="US")
+    out = run("request_reevaluation", case_id=case_id, reason="No estoy de acuerdo")
+    assert (out.code, out.policy_id) == ("DENY", "POL-REEVAL-WINDOW")
+
+
+# ---------- with #123's gold fixture: the card index and open_case ----------
+GOLD_ANA, CREDIT, ABROAD_TRX = "CLI-ANA000000001", "PRD-ANACREDIT001", "TRX-" + "0" * 19 + "4"   # charged in "USA"
+
+
+@pytest.fixture(scope="module")
+def gold_dir(tmp_path_factory):
+    return write_gold(tmp_path_factory.mktemp("data"))
+
+
+def closed_abroad(run: Run, session_run=None) -> str:
+    return run.case("closed", customer=GOLD_ANA, transaction_id=ABROAD_TRX, product_id=CREDIT, product_type="credit",
+                    run_id=session_run)
+
+
+def test_ac_19_the_entry_points_wiring_reads_the_card_index_and_gives_the_abroad_ruling_term(gold_dir):
+    """`followups_handlers(store, policies, gold)` exactly as the entry point calls it, with no transaction_country
+    injected: the card index (`cards_of(gold)`) says the charge was abroad, so the MX 180-day ruling term applies."""
+    run = Run(gold=Gold(gold_dir))
+    out = run("request_reevaluation", session=run.session(GOLD_ANA), case_id=closed_abroad(run), reason="Sigo")
+    case = run.store.get_case(out.case_id, run_id=None, customer_id=GOLD_ANA)
+    assert (out.outcome, case.ruling_deadline) == ("related_case_opened", dt.date(2026, 11, 28))
+
+
+def _sessions(run: Run) -> list[str]:
+    return [run.store.create_session(customer_id=GOLD_ANA, otp_hash="h", verified_at=NOW, language="es", run_id=RUN,
+                                     expires_at=NOW + dt.timedelta(hours=1), mode="replay").session_id]
+
+
+def test_ac_15_concurrent_reevaluations_and_open_case_on_a_closed_case_open_one_case(gold_dir, backend):  # noqa: F811
+    """Two connections, different keys: `request_reevaluation` takes `open_case`'s lock on the same key, so two
+    re-evaluations, or a re-evaluation and `open_case(related_case_id)`, leave one active case for the charge."""
+    postgres_only(backend)
+    gold = Gold(gold_dir)
+
+    def wired(run):
+        return writes.writes_handlers(gold, POLICIES, run.store, now=lambda: NOW)
+    for second in ("request_reevaluation", "open_case"):
+        runs = [Run(gold=gold, extra=wired) for _ in range(2)]
+        closed = closed_abroad(runs[0], session_run=RUN)
+        sessions = [_sessions(r)[0] for r in runs]
+        calls = [lambda: runs[0]("request_reevaluation", session=sessions[0], case_id=closed, reason="Sigo")]
+        if second == "open_case":
+            calls.append(lambda: runs[1]("open_case", session=sessions[1], transaction_id=ABROAD_TRX, zone="high",
+                                         dispute_type="unrecognized_charge", related_case_id=closed))
+        else:
+            calls.append(lambda: runs[1]("request_reevaluation", session=sessions[1], case_id=closed, reason="Sigo"))
+        outs = at_once(calls)
+        assert all(not isinstance(o, (tools.ToolError, StoreError)) for o in outs), outs
+        active = [c for c in runs[0].store.list_cases(GOLD_ANA, run_id=RUN)
+                  if c.transaction_id == ABROAD_TRX and runs[0].store.queue_status(c.case_id) != "closed"]
+        assert len(active) == 1 and {o.case_id for o in outs} == {active[0].case_id}, second
