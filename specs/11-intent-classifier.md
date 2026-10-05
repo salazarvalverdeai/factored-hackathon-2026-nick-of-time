@@ -253,7 +253,8 @@ is written once by the evaluation script (T6) from the frozen test split, never 
 Fine-tuning; embeddings + LR (P2); Jev (benchmarked in spec 15); the agent's use of the result (spec 04).
 
 ## 10. Plan, tasks and verification
-- [ ] T1 — `eval/PROTOCOL.md` with the floors and rule of §4.1; review by Diego; seal · AC-01, AC-06
+- [x] T1 — `eval/PROTOCOL.md` with the floors and rule of §4.1; review by Diego; seal · AC-01, AC-06 (sealed
+      2026-10-05; reviewed by the lead because Diego could not continue, a deviation from AC-01 recorded in the seal)
       (partly done: protocol written, with the rules of specs 15 and 17; review and seal pending, manual step M02;
       the AC-06 [C] split check is skipped until spec 09 delivers `eval/classifier/`)
 - [x] T2 — B0 rules + date parser (`nick_of_time.nlu`; `dispute_detected` in §6, intent order and D-020 in §8) · AC-08,

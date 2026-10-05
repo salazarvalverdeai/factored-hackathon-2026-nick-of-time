@@ -15,7 +15,7 @@ new, dated protocol version and a new seal, and the earlier results stay labeled
   sentences, the 1.5 s and 6 s p95 limits, 20 blind samples, 20 dev cases x 4 runs, tree depth <= 6.
 - **Decided by the lead and binding here whether or not the cited spec records them yet:** the 20-fraud slice floor
   (D-017c, spec 17) and the 3-point share tolerance (D-017e, spec 11), on 2026-10-04; the three D-022 rules, on
-  `<date set at M02>`: a missing tool call counts as a wrong B1 prediction (spec 15), injection rows sit outside the
+  2026-10-05: a missing tool call counts as a wrong B1 prediction (spec 15), injection rows sit outside the
   test minimums and the intent metrics (spec 11), and rules 1-2 are judged on all products with country as
   `customer_country` (spec 17).
 - **Not done here:** nothing is scored, no held-out sentence is read, no label of `data/gold_eval/` is read.
@@ -275,11 +275,11 @@ files=$(find eval/classifier -maxdepth 1 -name '*.jsonl' | LC_ALL=C sort); test 
 `tests/test_spec11_protocol.py` recomputes (a) and (b) with exactly these methods and fails on any mismatch.
 
 <!-- SEAL:BEGIN -->
-- Status: UNSEALED
-- Protocol sha256: pending
-- Classifier split manifest sha256: pending
-- Agent held-out sha256 (eval/heldout.sha256, ADR 0007): pending
-- Fraud split hash (spec 17 T1): pending
-- Sealed by: pending
-- Sealed on: pending
+- Status: SEALED
+- Protocol sha256: 533fc516c78509868b95e1d674bbeeee2555285d68bc4856f229623aa7aaa2d2
+- Classifier split manifest sha256: 6334f41a5c9c6787cd2d107fd051e24cd38ad7c82de9897ed8ce6a4a6496e99b
+- Agent held-out sha256 (eval/heldout.sha256, ADR 0007): 7e44a5956db2f292a48360490297f445ba41dd341ba23d47fad22926dc0b5b80
+- Fraud split hash (spec 17 T1): 877a3a2386375dd35fe535e29f1f04d2326fa79bcc5c65349b151cda445df15a
+- Sealed by: @salazarvalverdeai (lead, for the spec 09 owner; reviewed by the lead because Diego could not continue); test split decided by rules-v1 (ADR 0028)
+- Sealed on: 2026-10-05
 <!-- SEAL:END -->
