@@ -231,6 +231,21 @@ def test_ac_28_d029_a_person_request_on_a_high_zone_charge_opens_the_case_and_re
     assert turn.case_id in turn.reply.splitlines()[-1]                  # "Registré tu solicitud en el caso K-…"
 
 
+def test_ac_28_d029_ev_0107_a_person_request_naming_a_dated_charge_opens_the_case_and_registers_the_call(
+        serve, tmp_path):
+    """AC-28 / D-029 on dev EV-0107 (AR credit, human zone): "Me cobraron 29.133,48 pesos de Cable TV el 21 de mayo y yo
+    no tengo ese servicio" is a reported charge (B0 dispute words), named by its amount and date (D-067), so the case
+    opens in review with the call on it and nothing is blocked. Before, no dispute word was read: a general call only."""
+    case = CASES["EV-0107"]
+    mcp = serve(L.fixture_gold(tmp_path / "gold", case))
+    sid, chat = session(mcp, case)
+    turn = checked(chat.say(case["messages"][0]["text"], language=case["language"]))
+    expected_outcome(turn, mcp, sid, case)
+    assert [(a.tool, a.state) for a in turn.actions] == [("open_case", "verified"), ("request_call", "verified")]
+    verified_actions(turn, mcp)
+    assert "call_requested" in [e.type for e in mcp.store.events(turn.case_id)]
+
+
 def test_ac_28_d_067_a_person_request_with_an_unnamed_charge_then_its_confirm_holds_the_block_on_the_case(
         serve, tmp_path):
     """Task 04h (D-067 [assumption], orchestrator decision pending the lead) on EV-0001's charge, high zone: a call
@@ -311,7 +326,7 @@ def test_ac_03_ev_0115_pt_injection_is_denied_and_opens_nothing(serve, tmp_path)
 
 
 # ---------- opt-in: the full gold (GOLD_PATH) ----------
-REAL = ["EV-0101", "EV-0102", "EV-0103", "EV-0104", "EV-0106"]
+REAL = ["EV-0101", "EV-0102", "EV-0103", "EV-0104", "EV-0106", "EV-0107"]
 
 
 @pytest.mark.skipif(bool(NO_GOLD), reason=str(NO_GOLD))
