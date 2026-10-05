@@ -37,12 +37,23 @@ def gold(tmp_path_factory):
     pl.DataFrame([{"transaction_id": "TRX-1", "product_id": "PRD-1", "customer_id": CUSTOMER,
                    "transaction_date": dt.datetime(2026, 5, 30, 10), "amount": 120.0, "currency": "MXN",
                    "amount_usd": 6.67, "merchant_name": "Tienda", "transaction_status": "Approved",
-                   "fraud_score": 61.0, "product_type": "Tarjeta Crédito"}]).write_parquet(
+                   "fraud_score": 61.0, "product_type": "Tarjeta Crédito",
+                   "transaction_country": "México"}]).write_parquet(
         root / "transactions_enriched.parquet")
     pl.DataFrame([{"customer_id": CUSTOMER, "first_name": "Ana", "country": "Mexico"}]).write_parquet(
         root / "customers.parquet")
     (root / "manifest.json").write_text(json.dumps({"dataset": "latam_bank_gold", "version": 1}))
     return root
+
+
+def test_t8_the_fixture_has_every_column_gold_reads(gold):
+    """Drift guard: the fixture must carry each source column `Gold` selects (the 4 failures after PR #120)."""
+    from mcp_server import gold as gold_module
+    wanted = {c.strip() for c in gold_module._LOAD.split(",")}
+    wanted = {c.split(" AS ")[0].replace("CAST(", "").strip() for c in wanted}
+    wanted = {c.split(" ")[0] for c in wanted}
+    have = set(pl.read_parquet(gold / "transactions_enriched.parquet").columns)
+    assert wanted <= have, sorted(wanted - have)
 
 
 def _env(gold, **extra):
