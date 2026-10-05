@@ -4,7 +4,8 @@ Each of the 16 customer tools has `<Name>In` / `<Name>Out` models, listed in `CU
 `policies.yaml` `actors.customer.tools`. Every input carries `session_id` and never `customer_id`: the server resolves
 the customer from the session row (constitution #3), and inputs forbid unknown fields. Accepted ≠ verified
 (constitution #4): a write answers `state: "requested"` at most and carries no `V-` id; only its read tool in
-`VERIFIED_WITH` mints a `verification_id` with `read_at`, which the store persists (D-025 `[assumption]`, task 01c).
+`VERIFIED_WITH`, called with the write's `action_id`, mints a `verification_id` with `read_at`, which the store
+persists (D-025 `[assumption]`, task 01c).
 Every tool answers `ToolError` instead of raising.
 """
 from datetime import date
@@ -52,8 +53,22 @@ class _WriteOut(_Model):
 
 
 class _Reading(_Model):               # a post-condition read: what TurnResult.actions[] needs to say "verified"
-    verification_id: str = Field(pattern=PATTERN["verification"])   # minted by this read, persisted by the store
+    # D-025 [assumption]: called with a write's action_id, the read returns it with a V- only when that write's
+    # post-condition holds (minted by this read, persisted by the store as action_verified); otherwise, and for a
+    # plain status read, both are None and only read_at is set.
+    action_id: Optional[str] = Field(None, pattern=PATTERN["action"])
+    verification_id: Optional[str] = Field(None, pattern=PATTERN["verification"])
     read_at: AwareDatetime
+
+    @model_validator(mode="after")
+    def _a_verification_names_its_action(self):
+        if (self.action_id is None) != (self.verification_id is None):
+            raise ValueError("action_id and verification_id come both or neither (D-025)")
+        return self
+
+
+class _VerifyingIn(_In):              # the read tools of VERIFIED_WITH
+    action_id: Optional[str] = Field(None, pattern=PATTERN["action"])   # the write whose post-condition is read
 
 
 class _Deadlines(_Model):             # stored with the case, never recomputed (spec 03 AC-16)
@@ -123,13 +138,14 @@ class GetFraudScoreIn(_In):
 class GetFraudScoreOut(_Model):
     transaction_id: str = Field(pattern=_TRX)
     score: Optional[float]            # 0-100 or None
-    source: Literal["dataset", "rules", "model", "llm"]
+    source: Literal["dataset", "rules", "model", "llm", "synthetic"]   # synthetic: live-mode demo transactions (ADR 0020)
     version: str                      # e.g. "gold-v1", "model-v0"
     features_used: Optional[dict] = None   # rules/model only; goes to the evidence
 
 
 class ScoreProvider(Protocol):
-    """Contract all four providers meet. The policy reads 'score'; the audit log keeps 'source' and 'version'."""
+    """Contract the swappable providers meet (dataset, rules, model, llm); 'synthetic' is the score stored with a
+    live-mode demo transaction. The policy reads 'score'; the audit log keeps 'source' and 'version'."""
     def score(self, transaction: "Transaction") -> GetFraudScoreOut: ...
 
 
@@ -176,7 +192,7 @@ class BlockCardOut(_WriteOut):
 
 
 # ---------- get_product_status / list_my_cards (R) ----------
-class GetProductStatusIn(_In):
+class GetProductStatusIn(_VerifyingIn):
     product_id: str = Field(pattern=_PRD)
 
 
@@ -200,7 +216,7 @@ class ListMyCardsOut(_Model):
 
 
 # ---------- get_case / list_my_cases (R) ----------
-class GetCaseIn(_In):
+class GetCaseIn(_VerifyingIn):
     case_id: str = Field(pattern=_CASE)
 
 
@@ -267,7 +283,8 @@ class AddCaseInfoOut(_CaseEventOut):
 
 
 class RequestCallIn(_WriteIn):
-    case_id: Optional[str] = Field(None, pattern=_CASE)   # None: a general request with no case (spec 04 `connect`)
+    case_id: Optional[str] = Field(None, pattern=_CASE)   # None: a general request with no case (spec 04 `connect`);
+    # it answers case_id None and stays "requested": no customer read verifies it (D-026, spec 03 §6)
     preferred_time: Optional[str] = None
 
 
@@ -328,7 +345,7 @@ class SendCaseSummaryOut(_WriteOut):
     masked_address: str
 
 
-class ListMyNotificationsIn(_In):
+class ListMyNotificationsIn(_VerifyingIn):
     case_id: Optional[str] = Field(None, pattern=_CASE)
 
 

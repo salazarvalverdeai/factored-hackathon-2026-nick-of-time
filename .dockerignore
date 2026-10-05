@@ -2,7 +2,7 @@
 .venv
 **/.venv
 data
-.env*
+**/.env*
 .git
 node_modules
 **/node_modules

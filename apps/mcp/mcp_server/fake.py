@@ -7,6 +7,9 @@ Each tool publishes the JSON schema of its `contracts/tools.py` input model and 
 - Arguments: the fake validates them with the input model, so an unexpected one (a `customer_id` included) fails
   there and reaches the client as JSON-RPC error -32602; the real server answers `DENY` G-TOOL-01 instead (spec 03).
 - Ids: a `transaction_id`, `product_id` or `case_id` other than the fixture's answers `ToolError` `NOT_FOUND`.
+- Verifying reads (D-025): called with the `action_id` of a fixture write they verify, they return it with the `V-` of
+  `VERIFICATIONS`; with any other `action_id`, or none, they are a plain status read (`read_at` only).
+- A `request_call` with no `case_id` answers `case_id: null` (D-026).
 - No API key: never deploy it publicly; the real server requires `X-API-Key` (spec 03 AC-06).
 Run: `PYTHONPATH=.:packages:apps/mcp python -m mcp_server.fake` → http://localhost:8100/mcp.
 """
@@ -18,7 +21,7 @@ from typing import Any
 from fastmcp import FastMCP
 from fastmcp.tools.base import Tool, ToolResult
 
-from contracts.tools import CUSTOMER_TOOLS, ToolError
+from contracts.tools import CUSTOMER_TOOLS, VERIFIED_WITH, ToolError
 
 SESSION_ID = "S-demoreplay000001"
 _CASE, _TRX, _PRD = "K-104233", "TRX-FIXTURE0000000000001", "PRD-FIXTURE00001"   # the sample receipt's ids
@@ -27,8 +30,7 @@ _URL = ("https://www.gob.mx/condusef/prensa/cargos-no-reconocidos-en-tarjeta-de-
         "habiles-bancarios?idiom=es")
 _DEADLINE = {"credit_deadline": "2026-06-03", "deadline_source": _SOURCE, "deadline_source_url": _URL,
              "deadline_verified_on": "2026-10-04"}
-_CARD = {"product_id": _PRD, "type": "debit", "last4": "4417", "status": "Blocked",
-         "verification_id": "V-8B2D41C7E0A9", "read_at": "2026-06-01T15:04:09Z"}
+_CARD = {"product_id": _PRD, "type": "debit", "last4": "4417", "status": "Blocked", "read_at": "2026-06-01T15:04:09Z"}
 _TELEGRAM = {"channel": "telegram", "masked_address": "···4821"}
 _EVENT = {"case_id": _CASE, "event_id": "E-5D0E7A21C9B4"}
 
@@ -41,15 +43,16 @@ FIXTURES: dict[str, dict[str, Any]] = {
     "get_fraud_score": {"transaction_id": _TRX, "score": 72.0, "source": "dataset", "version": "gold-v1"},
     "compute_deadline": {"country": "MX", "product": "debit", "credit_deadline": "2026-06-03", "ruling_deadline": None,
                          "deadline_source": _SOURCE, "source_url": _URL, "verified_on": "2026-10-04"},
-    # writes stay "requested" and carry no V- id: get_case and get_product_status mint it when they read (D-025)
+    # writes stay "requested" and carry no V- id: the read of VERIFIED_WITH mints it when asked about the write (D-025)
     "open_case": {"action_id": "A-71C0D5E8A2F3", "case_id": _CASE, "country": "MX", **_DEADLINE},
     "block_card": {"action_id": "A-3E9F20B7C164", "product_id": _PRD},
-    "get_product_status": _CARD,
+    "get_product_status": {**_CARD, "action_id": "A-3E9F20B7C164", "verification_id": "V-8B2D41C7E0A9"},   # block_card
     "list_my_cards": {"cards": [_CARD]},
     "get_case": {**_DEADLINE, "case_id": _CASE, "queue_status": "verification", "status_label": "Recibido",
                  "transaction": {"transaction_id": _TRX, "amount": 1250.0, "currency": "USD",
                                  "transaction_date": "2026-05-31", "merchant": "TIENDA X"},
-                 "product_last4": "4417", "verification_id": "V-0C6A93F1B57D", "read_at": "2026-06-01T15:04:11Z",
+                 "product_last4": "4417", "read_at": "2026-06-01T15:04:11Z",
+                 "action_id": "A-71C0D5E8A2F3", "verification_id": "V-0C6A93F1B57D",           # open_case
                  "timeline": [{"event_id": "E-0B7F3A9C2D14", "type": "case_opened", "label": "Caso abierto",
                                "created_at": "2026-06-01T15:04:10Z"}]},
     "list_my_cases": {"cases": [{"case_id": _CASE, "queue_status": "verification", "status_label": "Recibido",
@@ -62,7 +65,8 @@ FIXTURES: dict[str, dict[str, Any]] = {
     "request_reevaluation": {"action_id": "A-6F1B3C8D2E90", "case_id": _CASE, "outcome": "already_in_progress"},
     "convert_amount": {"converted": None},      # no verified rate yet, as in the sample receipt (ADR 0019)
     "send_case_summary": {"action_id": "A-D3E5F7091B2C", "notification_id": "N-7E2A9C4B1D30", **_TELEGRAM},
-    "list_my_notifications": {"verification_id": "V-4A1C9E7B3D52", "read_at": "2026-06-01T15:04:12Z",
+    "list_my_notifications": {"action_id": "A-D3E5F7091B2C", "verification_id": "V-4A1C9E7B3D52",   # send_case_summary
+                              "read_at": "2026-06-01T15:04:12Z",
                               "notifications": [{"notification_id": "N-1F0D8B6A4C29", "case_id": _CASE,
                                                  "event": "case_opened", "channel": "log",
                                                  "delivery_status": "delivered",
@@ -72,6 +76,15 @@ FIXTURES: dict[str, dict[str, Any]] = {
 # Built through the contract models, so a fixture that drifts from contracts/tools.py fails at import.
 ANSWERS = {name: CUSTOMER_TOOLS[name][1].model_validate(data) for name, data in FIXTURES.items()}
 KNOWN_IDS = {"transaction_id": _TRX, "product_id": _PRD, "case_id": _CASE}
+# (read, action_id of the fixture write it verifies) → the V- that read mints (D-025). The request_reevaluation fixture
+# wrote nothing (already_in_progress), so no read verifies it.
+VERIFICATIONS: dict[tuple[str, str], str] = {
+    ("get_case", "A-71C0D5E8A2F3"): "V-0C6A93F1B57D",                 # open_case
+    ("get_case", "A-2C8E61F0B3A7"): "V-1E4B7D0A9C36",                 # add_case_info
+    ("get_case", "A-9A4D07E2C5B1"): "V-5C2F8A1E7B04",                 # request_call
+    ("get_product_status", "A-3E9F20B7C164"): "V-8B2D41C7E0A9",       # block_card
+    ("list_my_notifications", "A-D3E5F7091B2C"): "V-4A1C9E7B3D52",    # send_case_summary
+}
 
 
 def _error(error: ToolError) -> ToolResult:
@@ -87,7 +100,14 @@ class FixtureTool(Tool):
         CUSTOMER_TOOLS[self.name][0].model_validate(arguments)    # strict: extra="forbid" → JSON-RPC -32602
         if any(arguments.get(key) not in (None, known) for key, known in KNOWN_IDS.items()):
             return _error(ToolError(code="NOT_FOUND", message="No such transaction, card or case for this customer."))
-        return ToolResult(structured_content=ANSWERS[self.name].model_dump(mode="json"))
+        answer = ANSWERS[self.name]
+        if self.name in VERIFIED_WITH.values():                     # a V- only for the write it was asked about
+            verification_id = VERIFICATIONS.get((self.name, arguments.get("action_id")))
+            answer = answer.model_copy(update={"action_id": arguments["action_id"] if verification_id else None,
+                                               "verification_id": verification_id})
+        if self.name == "request_call" and arguments.get("case_id") is None:   # a general request: no case (D-026)
+            answer = answer.model_copy(update={"case_id": None})
+        return ToolResult(structured_content=answer.model_dump(mode="json"))
 
 
 def build_server() -> FastMCP:

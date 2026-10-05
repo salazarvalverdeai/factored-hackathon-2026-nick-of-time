@@ -192,7 +192,9 @@ shape of `data` is fixed in the producing spec.
   land with T4.
   `contracts/tools.py` lists them in `CUSTOMER_TOOLS` (name → models) and `VERIFIED_WITH` (the column above). A W or N
   result says at most `state: "requested"` and carries no `V-` id; the verifying read mints `verification_id` with
-  `read_at` (D-025 `[assumption]`, §6.5). `search_transaction` returns no `fraud_score` or `split`: the zone comes only
+  `read_at` (D-025 `[assumption]`, §6.5). The verifying reads take an optional `action_id` (the write they check)
+  and return it with a `verification_id` only when its post-condition holds; a plain status read returns `read_at`
+  only. `search_transaction` returns no `fraud_score` or `split`: the zone comes only
   from `get_fraud_score` (D-026 `[assumption]`). The fake server (`apps/mcp/mcp_server/fake.py`) answers each tool
   with fixtures built from these models.
 

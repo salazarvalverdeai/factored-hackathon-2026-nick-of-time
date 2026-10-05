@@ -18,6 +18,7 @@ scoring:                                 # where the fraud_score read by the zon
     rules:   {note: "heuristic: amount vs the customer's p95, channel, hour, different country; no training", version: "rules-v0"}
     model:   {note: "plan B: GBM/LR on transactions features against is_fraud, temporal held-out; only if Slack says the score is not available in real time", version: "model-v0"}
     llm:     {note: "demo illustration only; NEVER decides a block (zone forced to human when it is the source)", version: "llm-v0"}
+    synthetic: {note: "live mode only: the score generated with a labeled synthetic transaction in demo_transactions (ADR 0020); never in replay, eval or a pitch number; shown as [simulated] on the receipt, handoff and console", version: "synthetic-v0"}
   record_source_in_audit: true           # source and version go to the audit log and the handoff card
   null_score_zone: human
 

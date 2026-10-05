@@ -119,13 +119,19 @@ are typed data, delimited when passed to the LLM (G-IN-01); per-session limits o
 notifications/hour `[assumption]` (G-TOOL-01, G-OPS-01); every call audited with `trace_id`, actor `agent` and an input
 hash (G-OPS-02). The analysts' actions never appear in this server.
 
-**Verification and call requests** `[assumption]` (defaults pending the lead):
+**Verification, call requests and score sources** `[assumption]` (defaults pending the lead):
 - D-025: a write returns `state: "requested"` and no `V-` id. The read that verifies it (`VERIFIED_WITH` in
   `contracts/tools.py`) mints the `verification_id` and the store persists it with that read (event `action_verified`,
   task 01c).
+  `get_case`, `get_product_status` and `list_my_notifications` take an optional `action_id` and return it with a
+  `verification_id` only when that write's post-condition holds; otherwise, and for a plain status read, they return
+  `read_at` only (both ids or neither).
 - D-026: `search_transaction` returns no `fraud_score` or `split`, because the zone comes only from `get_fraud_score`.
-  A `request_call` without `case_id` writes an append-only `call_requests` record verified by its own read instead of
-  `case_events(call_requested)`; task 03d implements it.
+  A `request_call` without `case_id` writes no `case_events` row. It returns `case_id: null`, its `action_id` and an
+  `event_id` (`E-`) that keys an append-only `call_requests` row. No customer read verifies it, so the agent reports it
+  only as `requested`, never as verified. Task 03d adds `call_requests` to spec 01 §6.5 and to §7 here.
+- D-027: `synthetic` is a score source. `get_fraud_score` returns `source: "synthetic"` with the stored score of a
+  live-mode `demo_transactions` row (`policies.yaml` `scoring.providers.synthetic`).
 
 ## 7. Data model touched
 Reads gold `transactions_enriched`, `products` and `customers` through DuckDB; from `customers` the loader selects only
