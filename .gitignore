@@ -11,6 +11,13 @@ data/*
 !data/gold/
 data/gold/*
 !data/gold/manifest.json
+# spec 14: the ops job's code is tracked; its layers, manifest and export stay local
+!data/ops/
+data/ops/bronze/
+data/ops/silver/
+data/ops/gold/
+data/ops/manifest.json
+data/ops/ops_kpis.json
 *.parquet
 *.duckdb
 *.duckdb.wal
