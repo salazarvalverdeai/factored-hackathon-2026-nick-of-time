@@ -110,6 +110,7 @@ export type BenchmarkArm = {
   cost_per_1000_usd: number | null;
   meets_bar: boolean | null;
   pareto: boolean | null;
+  same_family_as_generator?: boolean | null;
   gate: { benchmark_pass: boolean | null; production_pass: boolean | null };
 };
 export type BenchmarkData = {
@@ -143,6 +144,7 @@ export type ClassifierArm = {
   meets_floors: boolean | null;
   mcnemar_p_vs_best: number | null;
   human_request_answered_out_of_scope: number | null;
+  same_family_as_generator?: boolean | null;
   by_language: Record<string, ClassifierLanguage>;
 };
 export type ClassifierData = {
@@ -198,4 +200,10 @@ export function costQualityPoints(data: BenchmarkData, language: string): CostQu
     if (a.status !== "ok" || a.cost_per_1000_usd === null || quality === null || quality === undefined) return [];
     return [{ arm: a.arm, cost: a.cost_per_1000_usd, quality, ci: a.macro_f1_ci[language], pareto: a.pareto === true, chosen: a.arm === chosen, row: a }];
   });
+}
+
+/** ADR 0025: an arm of the family that wrote the test split is flagged wherever its result is shown. */
+export const GENERATOR_FLAG = "same family as the test-split generator (ADR 0025)";
+export function generatorFlag(arm: { same_family_as_generator?: boolean | null }): string | null {
+  return arm.same_family_as_generator === true ? GENERATOR_FLAG : null;
 }

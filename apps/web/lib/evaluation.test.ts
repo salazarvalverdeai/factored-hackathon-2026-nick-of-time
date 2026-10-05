@@ -2,7 +2,7 @@
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 import test from "node:test";
-import { METRICS, RESULT_FILES, costQualityPoints, developmentNotice, interval, pending, protocolNotice, rateParts, rateText, scoreText } from "./evaluation.ts";
+import { GENERATOR_FLAG, METRICS, RESULT_FILES, costQualityPoints, developmentNotice, generatorFlag, interval, pending, protocolNotice, rateParts, rateText, scoreText } from "./evaluation.ts";
 import type { BenchmarkData, ClassifierData, EvaluationData, FraudData, Insight, Rate } from "./evaluation.ts";
 
 const SAMPLE = JSON.parse(
@@ -147,4 +147,12 @@ test("spec 12 AC-07: the cost-quality chart keeps only arms with a cost and a sc
   assert.deepEqual(points.filter((p) => p.chosen).map((p) => p.arm), ["Haiku 4.5"]);
   assert.deepEqual(points.filter((p) => p.pareto).map((p) => p.arm), ["Haiku 4.5", "Sonnet 4.6"]);
   assert.equal(costQualityPoints(BENCH.data, "pt")[0].quality, 0.83);
+});
+
+test("spec 12 AC-01: an arm of the family that wrote the test split is flagged (ADR 0025), others are not", () => {
+  const bench = fixture<BenchmarkData>("benchmark.json").data.b1.arms;
+  assert.deepEqual(bench.filter((a) => generatorFlag(a)).map((a) => a.arm), ["Sample D"]);
+  assert.equal(generatorFlag({ same_family_as_generator: true }), GENERATOR_FLAG);
+  for (const missing of [{}, { same_family_as_generator: null }, { same_family_as_generator: false }]) assert.equal(generatorFlag(missing), null);
+  assert.ok(fixture<ClassifierData>("classifier.json").data.arms.every((a) => generatorFlag(a) === null));
 });

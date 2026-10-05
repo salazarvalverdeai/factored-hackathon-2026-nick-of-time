@@ -8,6 +8,8 @@ import { FOCUS, Swatch, TableView, TipBody, useTip } from "@/app/analytics/chart
 import {
   costQualityPoints,
   dollars,
+  GENERATOR_FLAG,
+  generatorFlag,
   interval,
   milliseconds,
   protocolNotice,
@@ -122,24 +124,24 @@ export function BenchmarkSection({ file }: { file: Insight<BenchmarkData> }) {
                 {p.chosen ? <circle cx={x(p.cost)} cy={y(p.quality)} r={11} fill="none" stroke="var(--arm-2)" strokeWidth={2} /> : null}
                 <circle tabIndex={0} role="img" cx={x(p.cost)} cy={y(p.quality)} r={6} strokeWidth={2} stroke="var(--arm-1)"
                   fill={p.pareto ? "var(--arm-1)" : "var(--card)"} className="outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-                  aria-label={`${p.arm}: macro-F1 ${scoreText(p.quality, p.ci)}, ${dollars(p.cost)} per 1,000 messages, p95 ${milliseconds(a.p95_ms)}${p.chosen ? ", chosen" : ""}`}
+                  aria-label={`${p.arm}: macro-F1 ${scoreText(p.quality, p.ci)}, ${dollars(p.cost)} per 1,000 messages, p95 ${milliseconds(a.p95_ms)}${p.chosen ? ", chosen" : ""}${generatorFlag(a) ? `, ${GENERATOR_FLAG}` : ""}`}
                   {...bind(
-                    <TipBody title={`${p.arm}${p.chosen ? " · chosen" : ""}`}
+                    <TipBody title={`${p.arm}${p.chosen ? " · chosen" : ""}${generatorFlag(a) ? " · flagged" : ""}`}
                       rows={[["Macro-F1", score(p.quality)], ["95% interval", interval(p.ci)], ["Cost per 1,000", dollars(p.cost)], ["p95", milliseconds(a.p95_ms)],
                         ["Dispute recall", rateText(a.dispute_recall)]]}
-                      note={`[simulated] ${a.price.label} price ${a.price.date}`} />,
+                      note={`[simulated] ${a.price.label} price ${a.price.date}${generatorFlag(a) ? ` · ${GENERATOR_FLAG}` : ""}`} />,
                   )} />
-                <text x={x(p.cost) + 10} y={y(p.quality) - 9} fontSize={10} fill="currentColor">{p.arm}</text>
+                <text x={x(p.cost) + 10} y={y(p.quality) - 9} fontSize={10} fill="currentColor">{p.arm}{generatorFlag(a) ? " *" : ""}</text>
               </g>
             );
           })}
         </svg>
       )}
       <TableView
-        head={["Arm", "Status", `Macro-F1 ${language.toUpperCase()}`, "Dispute recall", "Person-request recall", "Slot accuracy", "p95", "Per 1,000", "Pareto", "Meets bar", "Production gate"]}
+        head={["Arm", "Status", `Macro-F1 ${language.toUpperCase()}`, "Dispute recall", "Person-request recall", "Slot accuracy", "p95", "Per 1,000", "Pareto", "Meets bar", "Production gate", "Flag"]}
         rows={data.b1.arms.map((a) => [a.arm, a.status === "ok" ? "ok" : `${a.status}${a.unavailable_reason ? `: ${a.unavailable_reason}` : ""}`,
           scoreText(a.macro_f1[language], a.macro_f1_ci[language]), rateText(a.dispute_recall), rateText(a.human_request_recall), rateText(a.slot_accuracy),
-          milliseconds(a.p95_ms), dollars(a.cost_per_1000_usd), yes(a.pareto), yes(a.meets_bar), yes(a.gate.production_pass)])}
+          milliseconds(a.p95_ms), dollars(a.cost_per_1000_usd), yes(a.pareto), yes(a.meets_bar), yes(a.gate.production_pass), generatorFlag(a) ?? "—"])}
       />
       <h3 className="mt-5 text-sm font-semibold">Whole system on the dev cases ({data.b2.set}, {data.b2.cases} cases x {data.b2.runs_per_case} runs)</h3>
       <Table head={["Arm", "Safe automated resolution", "Unsafe outcomes", "Receipt with its deadline", "Status told = status read", "p95 per turn", "Cost per case"]}
@@ -156,7 +158,7 @@ export function ClassifierSection({ file }: { file: Insight<ClassifierData> }) {
   const sentences = Object.entries(data.test_split.sentences).map(([l, n]) => `${l.toUpperCase()} ${n ?? "—"}`).join(", ");
   const rows = data.arms.flatMap((a) =>
     Object.entries(a.by_language).map(([lang, m]) => [
-      a.arm + (a.arm === data.chosen_arm ? " (chosen)" : ""), lang.toUpperCase(), scoreText(m.macro_f1, m.macro_f1_ci),
+      a.arm + (a.arm === data.chosen_arm ? " (chosen)" : "") + (generatorFlag(a) ? " *" : ""), lang.toUpperCase(), scoreText(m.macro_f1, m.macro_f1_ci),
       rateText(m.dispute_recall), rateText(m.dispute_detected_recall), rateText(m.human_request_recall), rateText(m.slot_accuracy),
       rateText(m.coverage_at_tau), rateText(m.precision_at_tau), score(m.ece),
       Object.entries(m.per_class_f1).map(([k, v]) => `${k.replace(/_/g, " ")} ${score(v)}`).join(" · "),
@@ -168,8 +170,8 @@ export function ClassifierSection({ file }: { file: Insight<ClassifierData> }) {
       <Table
         head={["Arm", "Lang", "Macro-F1", "Dispute recall", "Dispute flag recall", "Person-request recall", "Slot accuracy", "Coverage at tau", "Precision at tau", "ECE", "F1 per intent"]}
         rows={rows} />
-      <Table head={["Arm", "Version", "p95", "Per 1,000", "Meets floors", "McNemar p vs best", "Person requests answered out of scope"]}
-        rows={data.arms.map((a) => [a.arm, a.version, milliseconds(a.p95_ms), dollars(a.cost_per_1000_usd), yes(a.meets_floors), score(a.mcnemar_p_vs_best), String(a.human_request_answered_out_of_scope ?? "—")])} />
+      <Table head={["Arm", "Version", "p95", "Per 1,000", "Meets floors", "McNemar p vs best", "Person requests answered out of scope", "Flag"]}
+        rows={data.arms.map((a) => [a.arm, a.version, milliseconds(a.p95_ms), dollars(a.cost_per_1000_usd), yes(a.meets_floors), score(a.mcnemar_p_vs_best), String(a.human_request_answered_out_of_scope ?? "—"), generatorFlag(a) ?? "—"])} />
       <h3 className="mt-5 text-sm font-semibold">Prompt-injection detectors</h3>
       <Table head={["Detector", "Recall", "False positives"]} rows={data.injection.map((d) => [d.arm, rateText(d.recall), rateText(d.false_positive_rate)])} />
     </Section>

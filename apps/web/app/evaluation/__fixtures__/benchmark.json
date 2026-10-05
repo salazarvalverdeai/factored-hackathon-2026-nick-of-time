@@ -74,7 +74,8 @@
             "benchmark_pass": true,
             "production_pass": false,
             "criteria": []
-          }
+          },
+          "same_family_as_generator": false
         },
         {
           "arm": "Sonnet 4.6",
@@ -137,7 +138,8 @@
             "benchmark_pass": true,
             "production_pass": false,
             "criteria": []
-          }
+          },
+          "same_family_as_generator": false
         },
         {
           "arm": "Sample C",
@@ -200,7 +202,8 @@
             "benchmark_pass": true,
             "production_pass": false,
             "criteria": []
-          }
+          },
+          "same_family_as_generator": false
         },
         {
           "arm": "Sample D",
@@ -263,7 +266,8 @@
             "benchmark_pass": false,
             "production_pass": null,
             "criteria": []
-          }
+          },
+          "same_family_as_generator": true
         }
       ]
     },

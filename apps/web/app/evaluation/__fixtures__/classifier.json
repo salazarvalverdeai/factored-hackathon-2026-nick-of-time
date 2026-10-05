@@ -143,7 +143,8 @@
               "ci_high": 0.9921
             }
           }
-        }
+        },
+        "same_family_as_generator": false
       },
       {
         "arm": "B1",
@@ -269,7 +270,8 @@
               "ci_high": 0.9921
             }
           }
-        }
+        },
+        "same_family_as_generator": false
       },
       {
         "arm": "B2",
@@ -395,7 +397,8 @@
               "ci_high": 0.9921
             }
           }
-        }
+        },
+        "same_family_as_generator": false
       }
     ],
     "injection": [

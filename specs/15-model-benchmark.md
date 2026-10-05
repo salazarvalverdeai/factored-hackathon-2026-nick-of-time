@@ -185,7 +185,7 @@ written once by T5 after the run. `protocol` comes from the seal block of `eval/
      "price": {"label": "[external]", "input_per_1m_usd": null, "output_per_1m_usd": null, "source": "…", "date": "…"},
      "macro_f1": {"es": null, "pt": null}, "macro_f1_ci": {"es": [null, null], "pt": [null, null]},
      "dispute_recall": {"value": null, "numerator": null, "denominator": null, "ci_low": null, "ci_high": null}, "human_request_recall": {"value": null, "numerator": null, "denominator": null, "ci_low": null, "ci_high": null}, "slot_accuracy": {"value": null, "numerator": null, "denominator": null, "ci_low": null, "ci_high": null}, "missing_tool_calls": null,
-     "p50_ms": null, "p95_ms": null, "cost_per_1000_usd": null, "meets_bar": null, "pareto": null,
+     "p50_ms": null, "p95_ms": null, "cost_per_1000_usd": null, "meets_bar": null, "pareto": null, "same_family_as_generator": null,
      "gate": {"benchmark_pass": null, "production_pass": null, "criteria": [
        {"criterion": "…", "needed_benchmark": null, "needed_production": null, "verdict": "pass",
         "evidence_url": "…", "checked_on": "…"}]}}
@@ -211,7 +211,9 @@ written once by T5 after the run. `protocol` comes from the seal block of `eval/
   (`[assumption]` for Jev); `macro_f1` per language with its 95% interval; the recalls and `slot_accuracy` (§4.2) as
   rate objects; `missing_tool_calls` an integer count, each scored as a wrong prediction (`eval/PROTOCOL.md` §2.1,
   D-022); `p50_ms` and `p95_ms` in milliseconds per message; `cost_per_1000_usd`; `meets_bar` and `pareto` bools from
-  §4.4 and AC-04 (the chart needs cost, p95, macro-F1 and `pareto`).
+  §4.4 and AC-04 (the chart needs cost, p95, macro-F1 and `pareto`); `same_family_as_generator` bool, true when the
+  arm's model family wrote the split it is scored on (the test split: DeepSeek V3.2), so its result is flagged
+  (ADR 0025, `eval/PROTOCOL.md` §1.1).
 - `gate` (AC-10, §4.5, rows of `bench_gate.csv`): `benchmark_pass` and `production_pass` bools; `criteria[]` one entry
   per criterion with what each level needs, `verdict` (`pass`, `fail` or `not documented`), evidence URL and check
   date `[external]`.
