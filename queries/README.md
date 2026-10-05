@@ -28,3 +28,8 @@ The EDA queries are in `docs/eda/queries/`, where the documents reference them.
 | Query | Value |
 |---|---|
 | `implied_usd_rate.sql` | `amount_gate.by_country` `usd_rate` for CO (4,000) and AR (350) `[data]`; runs on this repo's gold, output in the file |
+
+## `eval/`: candidates for the demo and the evaluation cases
+| Query | Output CSV | What it holds |
+|---|---|---|
+| `demo_index.sql` | `eval/demo_index.csv` | approved card transactions per country × zone × split, 2026-03-03 to 2026-05-31 `[data]` (spec 09 §7.2); `python -m eval.demo_index` runs it on this repo's gold |
