@@ -222,7 +222,7 @@ def append_only_tables() -> set[str]:
 def test_ac_01_append_only_tables_refuse_update_delete_and_truncate():
     """§6.5 AO tables (cases insert-only, D-023) are exactly the trigger's list; it fires before every statement."""
     guarded = set(re.findall(r"'(\w+)'", re.search(r"array\[(.*?)\]", POSTGRES_ONLY, re.S).group(1)))
-    assert guarded == append_only_tables() and len(guarded) == 9 and "cases" in guarded
+    assert guarded == append_only_tables() and len(guarded) == 10 and "cases" in guarded
     assert "before update or delete or truncate on %I '\n" in POSTGRES_ONLY
     assert "'for each statement execute function forbid_append_only_change()', t || '_append_only', t)" in POSTGRES_ONLY
     assert "raise exception '% is append-only: % is not allowed', tg_table_name, tg_op;" in POSTGRES_ONLY

@@ -163,7 +163,8 @@ create table idempotency (                                           -- key pref
   action text not null,
   result jsonb not null,
   run_id text null,
-  created_at timestamptz not null default now()
+  created_at timestamptz not null default now(),
+  args_hash text not null                                            -- sha256 of the call's arguments: a reused key must match
 );
 
 create table policy_denials (                                        -- AO
@@ -216,7 +217,8 @@ do $$
 declare t text;
 begin
   foreach t in array array['cases', 'case_events', 'product_overrides', 'notifications', 'notification_deliveries',
-                           'customer_channels', 'policy_denials', 'llm_calls', 'settings_events'] loop
+                           'customer_channels', 'idempotency', 'policy_denials', 'llm_calls',
+                           'settings_events'] loop
     execute format('create trigger %I before update or delete or truncate on %I '
                    'for each statement execute function forbid_append_only_change()', t || '_append_only', t);
   end loop;

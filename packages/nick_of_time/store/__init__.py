@@ -31,7 +31,7 @@ from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, model_validato
 from nick_of_time import ids
 from nick_of_time.contracts import (CONTRACTS_DIR, HTTPS_URL, AnalystActionIn, AnalystActionOut, Mode, ProductType,
                                     QueueStatus, Zone)
-from nick_of_time.store.accounts import ChannelEvent, CustomerChannel, LinkedChannel, PolicyDenial, SessionRecord
+from nick_of_time.store.accounts import ChannelEvent, CustomerChannel, LinkedChannel, Once, PolicyDenial, SessionRecord
 
 EventType = Literal["case_opened", "card_blocked", "block_verified", "action_verified", "status_changed",
                     "handoff_emitted", "assigned", "analyst_action", "customer_info_added", "call_requested",
@@ -405,3 +405,13 @@ class Store(Protocol):
     def channels(self, customer_id: str) -> list[CustomerChannel]:
         """The latest row (inserted last) of each of the customer's channels, by channel name; a tool sends only where
         `confirmed` is true and shows only masked addresses (spec 03 AC-11, AC-21)."""
+
+    # ---------- idempotency (task 01g, store/accounts.py) ----------
+    def once(self, key: str, *, action: str, customer_id: Optional[str], run_id: Optional[str],
+             arguments: dict[str, Any], write: Callable[[], dict[str, Any]]) -> Once:
+        """Spec 03 AC-03 and spec 01 §6.3 Idempotency: the first call with this `key` (of this action, customer and
+        run) runs `write()`, stores its JSON result and returns it; every later one returns the stored result with
+        `replayed` and writes nothing. On Postgres a concurrent second call waits for the first. A `write` that raises
+        stores nothing and leaves none of its writes (both backends); a key used for another action or with other
+        `arguments` (the call's JSON arguments, hashed) is a StoreError. `customer_id` None is the api's analyst
+        actions (`AnalystActionIn`)."""

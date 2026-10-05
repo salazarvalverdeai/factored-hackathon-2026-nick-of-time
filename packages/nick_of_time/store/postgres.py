@@ -30,9 +30,9 @@ from nick_of_time.store import (CUSTOMER_VISIBLE, RESERVED_EVENTS, UNDELIVERED, 
                                 _utc_now, check_action_id, check_business_date, check_text, check_transition,
                                 insert_with_fresh_case_id)
 from nick_of_time.store.accounts import (CHANNEL_CASE_EVENT, CHANNEL_ID, DENIAL_ID, ChannelEvent, CustomerChannel,
-                                         LinkedChannel, NewDenial, NewSession, PolicyDenial, SessionRecord,
-                                         check_channel_event, check_denial_session, check_key, new_row_id, parse,
-                                         window_start)
+                                         LinkedChannel, NewDenial, NewSession, Once, PolicyDenial,
+                                         SessionRecord, check_channel_event, check_denial_session, check_key,
+                                         arguments_hash, check_replay, idempotency_key, json_object, new_row_id, parse, window_start)
 
 WRITES = sorted(WRITE_EVENTS)
 EVENT = "event_id, case_id, seq, type, actor, payload, customer_visible, trace_id, created_at"
@@ -399,6 +399,19 @@ class PostgresStore:
             "from customer_channels where customer_id = %s order by channel collate \"C\", row_no desc",
             (check_key(customer_id),))
         return [CustomerChannel(**r) for r in rows]
+
+    def once(self, key: str, *, action: str, customer_id: Optional[str], run_id: Optional[str],
+             arguments: dict[str, Any], write: Callable[[], dict[str, Any]]) -> Once:
+        stored, args = idempotency_key(key, action, customer_id, run_id), arguments_hash(arguments)
+        with self._tx("idempotency:" + stored):             # a second writer of the key waits, then replays
+            rows = self._rows("select action, run_id, args_hash, result from idempotency where key = %s", (stored,))
+            if rows:
+                check_replay((rows[0]["action"], rows[0]["run_id"], rows[0]["args_hash"]), action, run_id, args)
+                return Once(result=rows[0]["result"], replayed=True)
+            result = json_object(write())                   # its own writes nest in this transaction
+            self._insert("idempotency", {"key": stored, "action": action, "args_hash": args, "result": Jsonb(result),
+                                         "run_id": run_id, "created_at": self._now()})
+            return Once(result=result, replayed=False)
 
     def _insert(self, table: str, row: dict[str, Any]) -> None:
         """One row into a table whose columns are the row's keys (names from the models, never from input)."""
