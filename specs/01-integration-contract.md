@@ -306,7 +306,8 @@ once, and no `V-` id: `case_opened {action_id}` (`open_case`, or `request_reeval
 `auto` send has no `action_id`). A read returns a `V-` id only when it is called with a write's `action_id`: the
 read of that write in §6.3 "Verified with" (`get_case`, `get_product_status` or `list_my_notifications`; the two
 without a case id find the case with the store's `action_write`) mints it in `action_verified {action_id,
-verification_id, read_at}`, one per read; another read is refused. A `card_blocked` action is verified only while its
+verification_id, read_at, read}` (`read` names that tool, so the auditor can check it), one per read; another read is
+refused. A `card_blocked` action is verified only while its
 override is the card's latest in the run and `Blocked`, and its first read also writes `block_verified {action_id,
 product_id}`, once. A summary send is verified only while its latest `notification_deliveries` row is not `failed` or
 `bounced` (D-035 `[assumption]`, pending the lead). When a post-condition does not hold, the store writes nothing
@@ -317,7 +318,7 @@ call request with no case (D-026) lives in 03d's `call_requests`, stays `request
 `[assumption]`). The store alone writes `case_opened`, `status_changed`, `analyst_action`, `assigned`,
 `related_case_opened` (with the new case), `card_blocked` (with its override), `action_verified` and `block_verified`
 (from a read) and `notification_sent` (with its notification); `telegram_linked` and `email_confirmed` are reserved
-until 03a's `customer_channels` accessor writes them with their row.
+until 01g's `customer_channels` accessor writes them with their row.
 
 ### 6.6 View models (api)
 - `CaseSummary`: `{case_id, customer_id, country, zone, queue_status, credit_deadline, ruling_deadline, sla_due_at,
@@ -492,17 +493,21 @@ Implementation goes in one `feat/01-*` branch per task (for example `feat/01-pac
       read is scoped by `run_id`; the case reads, `action_write` and `record_verification` also by customer; the
       per-case calls expect a case loaded with `get_case`. The case insert retries with a fresh `ids.new_id("case")`
       on a `case_id` primary-key conflict and a test forces one collision · covers AC-01 ·
-      `tests/test_spec01_store.py`. C1 builds the Postgres backend and the other tables' accessors in task 03a
-      `[assumption]` (D-023): its `record_verification` reads the post-condition (for a block, the product's latest
-      override) and inserts `action_verified` and `block_verified` in one transaction. The api checks
+      `tests/test_spec01_store.py`. The Postgres backend `store/postgres.py` (task 01g) keeps the same rules: each
+      write is one transaction under a per-case advisory lock (no UPDATE grant needed), so `record_verification`
+      reads the post-condition (for a block, the product's latest override) and inserts `action_verified` and
+      `block_verified` in one transaction; every store test runs on both backends, the Postgres half when
+      `TEST_DATABASE_URL` is set (`-m postgres`). The accessors of `sessions` (read), `policy_denials` (insert) and
+      `customer_channels` come in task 01g's second PR. The api checks
       `AnalystActionIn.idempotency_key` through the `idempotency` accessor before it calls `record_analyst_action`.
       Once task 02a merges, `record_analyst_action` takes the new status from `engine.transition(current, action,
       actor)`, and the store's `check_transition` stays for agent and customer changes
 - [x] T10 — `store/schema.sql`: the §6.5 tables as Postgres DDL with the append-only trigger and the unique
       action-id index, adopted verbatim by `apps/api/migrations` as its first migration (D-002) · covers AC-01 ·
       `tests/test_spec01_store_schema.py`; its `postgres`-marked test runs when `TEST_DATABASE_URL` is set, and the
-      CI job with a `postgres:16` service comes with task 03a (with grants of INSERT and SELECT only on the AO tables
-      for the app role)
+      CI job with a `postgres:16` service (`pytest -m postgres`, which also runs the store suite on Postgres) is a
+      task-01g follow-up for the workflow owner (with grants of INSERT and SELECT only on the AO tables for the app
+      role)
 - [x] T11 — api stub follow-ups from the 01d round-2 review: `GET threads/{id}/state` 401 on an expired session (not
       forwarded), a data-free `reauthenticate` turn (session line, chips, no progress event), the seed answers the stored
       mode, exact key-set tests for the dict-shaped §6.2 rows, and tests for verify-expired 410, final-state on a

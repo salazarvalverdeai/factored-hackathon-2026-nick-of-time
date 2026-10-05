@@ -1,7 +1,8 @@
 """Case state and audit store (spec 01 §6.5, §6.8; ADR 0010).
 
-`Store` is the interface the MCP tools and the api use; `store.memory.MemoryStore` backs tests and the fake MCP; the
-Postgres backend over the §6.5 tables is built by C1 in task 03a [assumption] (D-023). Every backend keeps these rules:
+`Store` is the interface the MCP tools and the api use; `store.memory.MemoryStore` backs tests and the fake MCP;
+`store.postgres.PostgresStore` runs it over the §6.5 tables of schema.sql (T9, task 01g). Every backend keeps these
+rules:
 - events are append-only (no update or delete) and a case's status is its last `status_changed` event (FR-02);
 - the store generates every case id, retrying on a primary-key conflict (T9), so no eval run reuses one (§6.8);
 - a status change follows `case_queue.transitions` and the analyst-action table (D-034); only `resolve` resolves and
@@ -38,7 +39,7 @@ CUSTOMER_VISIBLE: frozenset[str] = frozenset(get_args(EventType)) - {"action_ver
                                                                      "analyst_action"}               # §6.5 ✓
 # Written only by the store's own methods, so their invariants hold: one opening, checked status changes, analysts,
 # a related case that exists, a block with its override row, a V- id and a verified block only from a read, a send
-# with its row. The channel events wait for the customer_channels accessor (task 03a), which writes them with the row.
+# with its row. The channel events wait for the customer_channels accessor (task 01g), which writes them with the row.
 RESERVED_EVENTS: frozenset[str] = frozenset({"case_opened", "status_changed", "analyst_action", "assigned",
                                              "related_case_opened", "card_blocked", "action_verified",
                                              "block_verified", "notification_sent", "telegram_linked",
@@ -284,7 +285,8 @@ class Store(Protocol):
     def record_verification(self, case_id: str, action_id: str, *, read: VerifyingRead, run_id: Optional[str],
                             customer_id: Optional[str], actor: str, trace_id: str) -> CaseEvent:
         """Called by the read of VERIFIED_WITH, asked about a write of the case, after it read the post-condition:
-        mint a V- id and append `action_verified` `{action_id, verification_id, read_at}` (D-025). Every read adds
+        mint a V- id and append `action_verified` `{action_id, verification_id, read_at, read}` (D-025; `read` is the
+        tool that minted it, for the auditor, 18x X1-3). Every read adds
         one; earlier ones stay as the audit trail. A `card_blocked` action verifies only while its override is the
         product's latest in the run and `Blocked`, and its first read also writes `block_verified` `{action_id,
         product_id}`, once; a summary send (`notification_sent`) verifies only while its latest delivery is not in

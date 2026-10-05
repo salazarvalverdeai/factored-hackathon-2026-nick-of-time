@@ -172,7 +172,7 @@ class MemoryStore:
             if delivery in UNDELIVERED:
                 raise NotVerified(f"summary {action_id} {delivery}; nothing is verified")
         payload = {"action_id": action_id, "verification_id": ids.new_id("verification"),
-                   "read_at": self._now().isoformat()}
+                   "read_at": self._now().isoformat(), "read": read}
         verified = self._append(case_id, "action_verified", actor, trace_id, payload)
         if first_block_read:                                # the customer milestone, once per block
             self._append(case_id, "block_verified", actor, trace_id,
