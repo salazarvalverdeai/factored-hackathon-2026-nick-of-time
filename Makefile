@@ -6,7 +6,7 @@ PYTHON ?= python3
 PY := .venv/bin/python
 SOURCE ?= s3
 
-.PHONY: setup deps pipeline fixture report test lint hooks check-bedrock check-telegram check-resend check-jev check-all telegram-profile env-pull gold-pull labels-pull
+.PHONY: setup deps pipeline fixture report test lint hooks check-bedrock check-telegram check-resend check-jev check-all telegram-profile env-pull gold-pull labels-pull eval eval-stub
 
 setup: deps pipeline fixture report
 
@@ -71,3 +71,17 @@ gold-pull:
 labels-pull:
 	aws s3 cp $(GOLD_BUCKET)/labels/v1/transaction_labels.parquet data/gold_eval/transaction_labels.parquet --profile $(AWS_TEAM_PROFILE) --only-show-errors
 	$(PY) scripts/verify_gold.py
+
+# Evaluation harness (spec 10 §6, T6): the dev set on S0 and S1 against a running api with EVAL_MODE=true. Results go
+# to eval/.runs/ (git-ignored); the held-out runs only after the seal (AC-07). EVAL_CASES points at another case file.
+EVAL_API ?= http://localhost:8000
+EVAL_ARMS ?= S0,S1
+EVAL_RUNS ?= 4
+EVAL_CASES ?=
+
+eval: $(PY)
+	PYTHONPATH=packages $(PY) -m eval.harness run --set dev --arms $(EVAL_ARMS) --runs $(EVAL_RUNS) --api $(EVAL_API) $(if $(EVAL_CASES),--cases $(EVAL_CASES),)
+
+# The api stub with the evaluation hooks on and the fake LLM, on EVAL_API's default port, for `make eval` offline.
+eval-stub: $(PY)
+	cd apps/api && PYTHONPATH=../../packages:../.. EVAL_MODE=true LLM_PROVIDER=fake ../../$(PY) -m uvicorn app.main:create_app --factory --port 8000
