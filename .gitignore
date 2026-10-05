@@ -23,6 +23,8 @@ __pycache__/
 
 # evaluation runs on the dev set or the stub; held-out results go to eval/results/ and are committed (spec 10 §7.1)
 eval/.runs/
+# robustness suite reports (task ROBUST), scripted or live: never committed
+eval/robustness/results/
 
 # system
 .DS_Store
