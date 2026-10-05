@@ -149,7 +149,7 @@ is written once by the evaluation script (T6) from the frozen test split, never 
   "label": "[simulated]",
   "protocol": {"status": "SEALED", "sha256": "…", "split_manifest_sha256": "…"},
   "test_split": {"sentences": {"es": null, "pt": null}, "injection_rows": null},
-  "tau": null,
+  "tau": null, "test_review": "rules-v1",
   "chosen_arm": "B0",
   "arms": [
     {"arm": "B1", "version": "…", "p50_ms": null, "p95_ms": null, "cost_per_1000_usd": null,
@@ -171,7 +171,8 @@ is written once by the evaluation script (T6) from the frozen test split, never 
 - `label` is `[simulated]` (the spec 09 sentences are generated). `protocol.status` is `SEALED` or `UNSEALED`;
   `sha256` and `split_manifest_sha256` are hex strings from the seal block. `test_split` counts sentences, injection
   rows apart (AC-06, D-022). `tau` is a score in 0–1 chosen on validation (AC-07) `[simulated]`; only its precision
-  target of 0.95 is `[assumption]`. `chosen_arm` is one of B0–B3 by the rule of §4.1.
+  target of 0.95 is `[assumption]`. `chosen_arm` is one of B0–B3 by the rule of §4.1. `test_review` is `human` or `rules-v1` (ADR 0028); `/evaluation`
+  shows the label "test split decided by fixed rules, without independent human review" when it is `rules-v1`.
 - `arms[]` (AC-02, AC-03): `arm` B0–B3; `p50_ms` and `p95_ms` in milliseconds per message; `cost_per_1000_usd` in USD
   per 1,000 messages; `meets_floors` bool; `mcnemar_p_vs_best` p-value of the paired test; `human_request_answered_out_of_scope`
   integer count of person requests the arm answered `out_of_scope` (AC-10, must be 0); `same_family_as_generator` bool,

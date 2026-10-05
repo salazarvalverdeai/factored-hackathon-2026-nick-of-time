@@ -65,6 +65,11 @@ Sentence set of spec 09 (`eval/classifier/*.jsonl`), about 800 sentences in ES a
 - B2 (LLM) gets the label definitions and no example from the test split (spec 11 §4).
 - Results from a candidate of the same family as the generator of the split being scored are flagged (spec 11 §8,
   ADR 0025).
+- Train and validation are reviewed line by line by the lead. The test split is decided by the fixed rules `rules-v1`
+  (ADR 0028: drop rows whose text contradicts their slots, language or label; null or correct the slots; keep the
+  rest), because no person other than the classifier's developer could review it before the seal. Every test result
+  is labeled "test split decided by fixed rules, without independent human review" (`test_review` in
+  `classifier.json`).
 
 ### 1.2 Arms and metrics
 Arms: B0 rules, B1 TF-IDF + LR, B2 LLM, B3 cascade (B1, below τ then B2); injection detector rules vs rules + LR

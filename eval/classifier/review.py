@@ -49,7 +49,9 @@ DECISIONS = ("keep", "fix", "drop")
 # be decided by these fixed rules, signed RULE_REVIEWER, only with `promote --allow-rule-review`. The classifier
 # developer may still never review test. Results on such a split are labeled "without independent human review".
 RULE_REVIEWER = "rules-v1"
-RULE_DROP = ("duplicate", "same_as_seed", "near_duplicate", "language_leak", "injection_without_marker")
+RULE_DROP = ("duplicate", "same_as_seed", "near_duplicate", "language_leak", "language_drift", "injection_without_marker",
+             "unplanned_amount", "unplanned_date", "unplanned_merchant", "unplanned_card_type")
+# ^ the text would contradict its gold slots, card, language or label, so the row goes (ADR 0028)
 RULE_SLOT_MISSING = {"amount_missing": "fixed_amount", "currency_missing": "fixed_currency", "date_missing": "fixed_date",
                      "merchant_missing": "fixed_merchant", "card_missing": "fixed_card"}
 SLOT_FIELDS = ("amount", "currency", "date", "merchant")
@@ -101,8 +103,9 @@ def _fold(text: str) -> str:
 
 
 def rule_decision(draft: dict) -> dict:
-    """RULE_REVIEWER decision: drop copies, language leaks and unmarked injections; null a planned slot the text does not
-    carry; take the card type the text names; keep the rest. Deterministic, no model."""
+    """RULE_REVIEWER decision (ADR 0028): drop a row whose text contradicts its slots, card, language or label; null a
+    planned slot or card wording the text does not carry; set `also_dispute` from the text; keep the rest. Deterministic,
+    no model; it reads only the row and its `checks`."""
     hints = {h.split(":")[0] for h in draft.get("checks", [])}
     if hints & set(RULE_DROP):
         return {"decision": "drop"}
@@ -116,13 +119,10 @@ def rule_decision(draft: dict) -> dict:
         fixed["fixed_amount"], fixed["fixed_currency"] = "null", "null"
     if slots.get("merchant") and _fold(slots["merchant"]).split()[0] not in text:
         fixed["fixed_merchant"] = "null"
-    named = "credit" if "credito" in text else ("debit" if "debito" in text else None)
-    if draft.get("card") and named != draft["card"]:
-        fixed["fixed_card"] = named or "null"
-    elif not draft.get("card") and named:
-        fixed["fixed_card"] = named
     if "dispute_missing" in hints:
         fixed["fixed_also_dispute"] = "false"
+    if "unplanned_dispute" in hints:
+        fixed["fixed_also_dispute"] = "true"
     return {"decision": "fix", **fixed} if fixed else {"decision": "keep"}
 
 
@@ -133,7 +133,7 @@ def auto_review(root: Path = ROOT, split: str = "test", force: bool = False) -> 
         rows = list(csv.DictReader(fh))
     by_id = {d["id"]: d for d in _drafts(root, split)}
     for r in rows:
-        r.update(rule_decision(by_id[r["id"]]), reviewer=RULE_REVIEWER, note="rules-v1: no independent human review")
+        r.update(rule_decision(by_id[r["id"]]), reviewer=RULE_REVIEWER, note="rules-v1: no independent human review (ADR 0028)")
     with out.open("w", newline="", encoding="utf-8") as fh:
         w = csv.DictWriter(fh, fieldnames=CSV_FIELDS)
         w.writeheader()
@@ -292,7 +292,7 @@ def promote(root: Path = ROOT, dry_run: bool = False, force: bool = False, allow
     return {**counts, "manifest_sha256": manifest_sha256(blobs), "files": sorted(blobs), "written": not dry_run,
             "status": {s: {k: sum(r["review_status"] == k for r in v) for k in ("kept", "fixed")}
                        for s, v in rows.items()},
-            "test_review": ("rules-v1: no independent human review (ADR 0025 amendment)"
+            "test_review": ("rules-v1: test split decided by fixed rules, without independent human review (ADR 0028)"
                             if any(r["reviewer"] == RULE_REVIEWER for r in rows["test"]) else "human")}
 
 
