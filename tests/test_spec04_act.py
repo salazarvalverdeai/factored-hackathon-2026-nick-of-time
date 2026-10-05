@@ -143,6 +143,10 @@ def test_ac_18_d_050_open_case_duplicate_of_blocks_nothing_and_reports_as_duplic
     turn = Chat(mcp_transport=server(calls, open_case=dup)).say(text, language="es")
     assert "block_card" not in calls and turn.decision == decision and turn.case_id == "K-104233"
     assert "Este cargo ya está en tu caso K-104233" in turn.reply and "Tarjeta terminada" not in turn.reply
+    if text == CALL:     # D-029: a call request plans no block, so there is no block line to answer
+        assert [(a.tool, a.state) for a in turn.actions][:1] == [("open_case", "verified")]
+        assert "block_card" not in [a.tool for a in turn.actions] and "Bloqueo de la tarjeta" not in turn.reply
+        return
     assert [(a.tool, a.state) for a in turn.actions][:2] == [("open_case", "verified"), ("block_card", "not_confirmed")]
     # the planned block: no escalation on this turn (D-050), so the person on that case decides it, never "revisará"
     assert ("Bloqueo de la tarjeta: SIN CONFIRMAR. La persona a cargo del caso K-104233 decide el bloqueo."
@@ -183,10 +187,9 @@ def test_ac_18_the_four_action_states_and_only_verified_carries_the_read_time():
     assert [s.id for s in turn.suggestions] == ["view_case", "add_info", "request_call"]
 
 
-def test_ac_18_d_029_only_the_writes_decide_allowed_run(monkeypatch):
-    """With the D-029 flip the engine withholds the block on a call request: the graph opens the case, registers the
+def test_ac_18_d_029_only_the_writes_decide_allowed_run():
+    """D-029 (ADR 0024): the engine withholds the block on a call request: the graph opens the case, registers the
     call on it and never calls block_card."""
-    monkeypatch.setattr("nick_of_time.policy.engine.D029_CALL_WITHHOLDS_BLOCK_REASON", "supervised_mode")
     calls = []
     turn = Chat(mcp_transport=server(calls)).say(CALL, language="es")
     assert record(turn)["decision"]["allowed_actions"] == ["open_case"] and "block_card" not in calls
@@ -217,7 +220,7 @@ def test_ac_04_ac_18_the_reply_answers_every_planned_action_in_exactly_one_state
     down_then_expired.n = 0
     turn = Chat(mcp_transport=server(seen=seen, **OPEN_CASE[opened], **BLOCK_CARD[block])).say(text, language="es")
     allowed = record(turn)["decision"]["allowed_actions"]
-    assert allowed == ["open_case", "block_card"]
+    assert allowed == (["open_case"] if text == CALL else ["open_case", "block_card"])     # D-029: a call never blocks
     records = [a for a in turn.actions if a.tool != "request_call"]
     assert [a.tool for a in records] == allowed
     assert all(a.state in ("in_progress", "requested", "verified", "not_confirmed") for a in turn.actions)
@@ -237,7 +240,8 @@ def test_ac_04_ac_18_the_reply_answers_every_planned_action_in_exactly_one_state
             assert a.verification_id is None
     verified = {a.tool for a in records if a.state == "verified"}
     assert verified == {tool for tool, holds in (("open_case", opened in ("ok", "duplicate_of")),     # the cell's oracle
-                                                ("block_card", block == "ok" and opened in ("ok", "DOWN"))) if holds}
+                                                ("block_card", block == "ok" and opened in ("ok", "DOWN")))
+                if holds and tool in allowed}
     assert ("bloqueada" in "\n".join(after)) == ("block_card" in verified)
     assert ("open_case" in verified) == (turn.case_id is not None)
     if turn.case_id is None:
@@ -247,7 +251,7 @@ def test_ac_04_ac_18_the_reply_answers_every_planned_action_in_exactly_one_state
     for tool in allowed:
         assert len({args["idempotency_key"] for name, args in seen if name == tool}) <= 1
     # block_card follows open_case only when it was accepted (not as a duplicate) or got no answer
-    assert any(name == "block_card" for name, _ in seen) == (opened in ("ok", "DOWN"))
+    assert any(name == "block_card" for name, _ in seen) == ("block_card" in allowed and opened in ("ok", "DOWN"))
     assert not (text == CALL and "Pide que te llame" in turn.reply)   # never asks for the call it registers
     if "SESSION_EXPIRED" in opened:          # sign in again; "nothing changed" only if no attempt went unanswered
         assert turn.decision == "reauthenticate" and lines[-1].startswith("Necesito que verifiques tu sesión")
