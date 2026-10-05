@@ -25,12 +25,13 @@ from fastapi import Body, Cookie, Depends, FastAPI, Header, Query, Request, Resp
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse, RedirectResponse, StreamingResponse
 
+from app import demo
 from app.auth import AuthError, CognitoVerifier
 from app.catalog import Catalog, FixtureCatalog, catalog_from_env
 from app.main import (COOKIE, SESSION_TTL, AckOut, ApiError, CallIn, CallOut, ConsoleCaseOut, EmailIn,
                       EmailOut, EventOut, HealthOut, InfoIn, NotificationOut, PrefsIn, PrefsOut, ReevalIn, ReevalOut,
-                      SessionIn, SessionOut, SettingsIn, SettingsOut, TelegramOut, ThreadOut, VerifyIn,
-                      VerifyOut, DemoCustomerOut, _is_analyst_path, today)
+                      RecentTransactionOut, ScenarioOut, SessionIn, SessionOut, SettingsIn, SettingsOut, TelegramOut,
+                      ThreadOut, VerifyIn, VerifyOut, DemoCustomerOut, _is_analyst_path, today)
 from app.notify import ChannelFailed, HttpNotifier, Notifier, mask_chat, mask_email
 from app.platform import HttpPlatform, Platform, PlatformError
 from nick_of_time import CONTRACT_VERSION, ids
@@ -298,15 +299,44 @@ def create_live_app(store: Store, *, catalog: Optional[Catalog] = None, verifier
     def demo_customers():
         return catalog.customers()
 
+    def demo_scenarios() -> list[dict]:
+        """Built once per app (gold is read-only at runtime, ADR 0004); a customer gold does not serve is not listed."""
+        if not hasattr(app.state, "scenarios"):
+            customers = catalog.customers()
+            built = demo.scenarios(customers, {c["customer_id"]: catalog.first_name(c["customer_id"]) for c in customers})
+            app.state.scenarios = [s for s in built if s["customer_name"] is not None]
+        return app.state.scenarios
+
+    @app.get("/api/demo/scenarios", response_model=list[ScenarioOut])
+    def scenarios(country: Optional[str] = None, language: Optional[Literal["es", "pt"]] = None):
+        return [demo.public(s) for s in demo_scenarios()
+                if country in (None, s["country"]) and language in (None, s["language"])]
+
     @app.post("/api/sessions", status_code=201, response_model=SessionOut)
     def create_session(body: SessionIn):
-        customer = catalog.customer(body.customer_id)
+        try:
+            name = demo.clean_name(body.display_name)
+        except ValueError as error:
+            raise ApiError(422, "INVALID", str(error)) from None
+        run_id = None
+        if body.customer_id is not None:                         # the original picker: no scenario, production run
+            if body.scenario or body.country:
+                raise ApiError(422, "INVALID", "Send a scenario or a customer, not both")
+            customer = catalog.customer(body.customer_id)
+        else:                                                    # D-068: the customer is chosen here, never sent (#3)
+            if body.language is None:
+                raise ApiError(422, "INVALID", "language is required for a demo session")
+            picked = demo.choose(demo_scenarios(), body.scenario, body.country, body.language)
+            if picked is None:
+                raise ApiError(404, "NOT_FOUND", "Unknown scenario")
+            customer, run_id = catalog.customer(picked["customer_id"]), demo.new_run_id(app.state.now())
         if customer is None:
             raise ApiError(404, "NOT_FOUND", "Unknown customer")
         mode = body.mode or os.getenv("DEFAULT_SESSION_MODE") or "live"
         otp = os.getenv("OTP_FIXED") or f"{secrets.randbelow(10**6):06d}"            # mock OTP, shown on screen (ADR 0017)
-        row = store.create_session(customer_id=body.customer_id, otp_hash=_sha(otp),
-                                   expires_at=app.state.now() + SESSION_TTL, language=customer["language"], mode=mode,
+        row = store.create_session(customer_id=customer["customer_id"], otp_hash=_sha(otp), run_id=run_id,
+                                   expires_at=app.state.now() + SESSION_TTL, language=body.language or
+                                   customer["language"], mode=mode, display_name=name,
                                    arm=os.getenv("DEFAULT_ARM") or None)   # demo sessions: S1 in prod; eval seeds set their own
         return {"session_id": row.session_id, "mode": mode, "today": today(mode, customer["country"]),
                 "otp_demo": otp, "expires_at": row.expires_at}
@@ -397,6 +427,14 @@ def create_live_app(store: Store, *, catalog: Optional[Catalog] = None, verifier
                  "masked_address": n.masked_address, "text": n.text, "delivery_status": n.delivery_status,
                  "created_at": n.created_at}
                 for n in store.list_notifications(s["customer_id"], run_id=s["run_id"])]
+
+    @app.get("/api/sessions/{session_id}/recent-transactions", response_model=list[RecentTransactionOut])
+    def recent_transactions(session_id: str, limit: int = Query(10, ge=1, le=20), s: dict = Depends(session)):
+        """D-068: the session's own customer's latest card transactions up to its `today`, for the visitor to pick;
+        only the session in the cookie, and no score or label (D-013, constitution #7)."""
+        if session_id != s["session_id"]:
+            raise ApiError(404, "NOT_FOUND", "Unknown session")
+        return catalog.recent_transactions(s["customer_id"], today(s["mode"], s["country"]), limit)
 
     @app.get("/api/me/products", response_model=list[ProductView])
     def products(s: dict = Depends(session)):
@@ -543,7 +581,7 @@ def create_live_app(store: Store, *, catalog: Optional[Catalog] = None, verifier
             return {"ok": True}                                  # anything but a link request is ignored
         token = text[7:].strip()
         got = tokens.read("tg", token, app.state.now())
-        record = store.get_case(got[0], run_id=None, customer_id=None) if got else None
+        record = store.get_case(got[0], run_id=None, customer_id=None, demo_runs=True) if got else None
         if record is None:
             raise ApiError(401, "UNAUTHENTICATED", "Invalid or expired token")
         try:
@@ -572,7 +610,7 @@ def create_live_app(store: Store, *, catalog: Optional[Catalog] = None, verifier
     @app.get("/api/console/cases", response_model=list[CaseSummary])
     def console_cases(status: Optional[str] = None, zone: Optional[str] = None, country: Optional[str] = None,
                       _: str = Depends(analyst)):
-        rows = [summary(r) for r in store.list_all_cases(run_id=None)]
+        rows = [summary(r) for r in store.list_all_cases(run_id=None, demo_runs=True)]
         rows = [r for r in rows if status in (None, r.queue_status) and zone in (None, r.zone)
                 and country in (None, r.country)]
         far = dt.datetime.max.replace(tzinfo=dt.timezone.utc)                  # §6.2: SLA due first, then zone
@@ -580,7 +618,7 @@ def create_live_app(store: Store, *, catalog: Optional[Catalog] = None, verifier
 
     @app.get("/api/console/cases/{case_id}", response_model=ConsoleCaseOut)
     def console_case(case_id: str, _: str = Depends(analyst)):
-        record = store.get_case(case_id, run_id=None, customer_id=None)
+        record = store.get_case(case_id, run_id=None, customer_id=None, demo_runs=True)
         if record is None:
             raise ApiError(404, "NOT_FOUND", "Case not found")
         events = store.events(case_id)
@@ -591,7 +629,7 @@ def create_live_app(store: Store, *, catalog: Optional[Catalog] = None, verifier
 
     @app.post("/api/cases/{case_id}/action", response_model=AnalystActionOut)
     def analyst_action(case_id: str, body: AnalystActionIn, sub: str = Depends(analyst)):
-        record = store.get_case(case_id, run_id=None, customer_id=None)
+        record = store.get_case(case_id, run_id=None, customer_id=None, demo_runs=True)
         if record is None:
             raise ApiError(404, "NOT_FOUND", "Case not found")
         if body.case_id != case_id:

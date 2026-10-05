@@ -5,7 +5,7 @@
 - **Owner:** @gianzk · **Priority:** P0 · **Size:** L
 - **Challenge dimension:** Technical Judgment
 - **Depends on:** 01 · **Enables:** 07, 08, 13, 14
-- **ADRs:** [0010](../docs/adr/0010-postgres-for-case-state-and-audit.md), [0017](../docs/adr/0017-identity-mock-otp-customers-cognito-analysts.md), [0020](../docs/adr/0020-two-time-modes-historical-and-live.md)
+- **ADRs:** [0010](../docs/adr/0010-postgres-for-case-state-and-audit.md), [0017](../docs/adr/0017-identity-mock-otp-customers-cognito-analysts.md), [0020](../docs/adr/0020-two-time-modes-historical-and-live.md), [0026](../docs/adr/0026-demo-sessions-isolated-by-run-id.md)
 - **Issue:** #7
 
 > **Profile.** Minimal: sections 1, 3, 8, 9 and 10. The routes and shapes belong to spec 01 §6.2; this spec makes them real.
@@ -21,7 +21,7 @@ nothing about a dispute: transitions go through `policy.transition`, deadlines w
 closes. `customer_id` and `mode` come only from the session row; the analyst's identity is the verified Cognito `sub`.
 
 ## 3. Acceptance criteria (EARS)
-AC-01 to AC-08 are copied from issue #7 with the same numbers. AC-09 to AC-13 are added by the owner; AC-03 was amended by the lead (review of PR #111). None is dropped or weakened.
+AC-01 to AC-08 are copied from issue #7 with the same numbers. AC-09 to AC-13 are added by the owner, AC-14 to AC-17 by the lead (D-068); AC-03 was amended by the lead (review of PR #111). None is dropped or weakened.
 
 - AC-01 — When a customer session is requested and the OTP verified, the session shall last 15 minutes; once expired, every protected route shall answer `SESSION_EXPIRED`. · [T] `tests/test_spec05_api.py`
 - AC-02 — A case's status shall be its last event in `case_events`; no row shall be updated or deleted. · [T]
@@ -36,6 +36,10 @@ AC-01 to AC-08 are copied from issue #7 with the same numbers. AC-09 to AC-13 ar
 - AC-11 — The api shall serve the channels of spec 13: a signed Telegram link (TTL 15 min) and webhook (secret header, 401 otherwise), e-mail sent only to a typed and confirmed address, and a failing channel shall leave the in-app notification and the case unaffected. · [T]
 - AC-12 — `POST /api/cases/{id}/reevaluation` shall move a resolved case back to `review` with `reevaluation_requested` (spec 03 AC-19), refuse an active case as `already_in_progress`, and open one related case for a closed case with deadlines derived by the clock from the new notice (never copied); repeating the request shall not open a second case. · [T]
 - AC-13 — The api image shall ship an executable `/app/migrate.sh` (`alembic upgrade head`, baseline = `store/schema.sql`) for the deploy's migration hook (spec 06 FR-04). · [T] `tests/test_spec05_migrations.py` (offline `--sql`; the live run is Task 7)
+- AC-14 — When a demo session is requested with a `display_name`, the api shall store it trimmed on the session row, refuse with 422 a name that is longer than 40 characters or is not a plain name (digits, URL, e-mail, control characters, an injection pattern), and `get_customer_profile` shall return it, else gold's first name. · [T] `tests/test_spec05_demo.py`
+- AC-15 — `GET /api/demo/scenarios?country&language` shall list one scenario per demo customer gold serves (`scenario_id`, `title`, `country`, `language`, `segment`, `customer_name` = gold's synthetic first name, spec 09 dev/sample `cases` and `tags`), with no `customer_id`, score or zone; a held-out or test file or row shall never be read. · [T]
+- AC-16 — When `POST /api/sessions` carries no `customer_id`, it shall require `language` (`es` or `pt`), choose the customer server-side from `scenario` (an id, or `auto`/none: random within `country`, preferring the language; 404 when nothing matches) and store a fresh `run_id = demo-<UTC yyyymmddThhmmssZ>-<6 base32>`, so two demo sessions of one customer never see each other's cases or blocks; a body with both `customer_id` and `scenario`/`country` is refused with 422. · [T] (memory and `-m postgres`)
+- AC-17 — `GET /api/sessions/{id}/recent-transactions?limit` (1–20, default 10) shall answer only for the verified session in the cookie (another id → 404) with its customer's latest card transactions (Approved or Pending) up to the session's `today`: `transaction_id`, `date`, `amount`, `currency`, `merchant`, and no score or label. · [T]
 
 ## 8. Assumptions and open questions
 - Decided (lead): AC-03 is amended as above; notifications go out on status changes only, and the customer text carries a fixed outcome label from `messages.yaml` `status.label`, never the analyst's free-text reason.
@@ -47,6 +51,8 @@ AC-01 to AC-08 are copied from issue #7 with the same numbers. AC-09 to AC-13 ar
 - `[assumption]` The Platform stream is normalized to `progress` items plus one final `turn` (the last `values`), and only the customer projection of the turn leaves the api.
 - `[assumption]` `POL-REEVAL-WINDOW`: `policies.yaml` has no `reevaluation.window_days` yet, so a resolved case is reopened by status alone; the window check lands when the lead adds the value (spec 02 `reevaluation_allowed`).
 - `/api/console/demo/reset` is not served by the live app until `demo_transactions` exist (spec 03 task 03b).
+- Decided (lead, D-068, 2026-10-05; ADR 0026): public demo sessions, types A+B. The visitor's name, language, country and scenario open the session; the customer is chosen server-side (constitution #3) and the session runs under its own `demo-…` `run_id`, which the MCP server reads from the session row exactly as for eval runs (spec 01 §6.8). The analyst console lists and acts on production and demo-run cases (`demo_runs=True`), never eval runs; Telegram links resolve demo-run cases too. The original picker (`customer_id`) keeps a production-run session until the web moves to scenarios.
+- `[assumption]` Scenario ids are `SCN-<country>-<n>` in `customers.json` order; `language` filters the list strictly, while `auto` falls back to any language of the country. A name with digits is refused outright (a card number, a document or a phone). In `live` mode the recent transactions are gold's up to the real date until `demo_transactions` exist.
 - Open question: eval hooks (`/api/eval/*`) stay on the stub; the live app does not register them until spec 10 needs them on Postgres.
 
 ## 9. Out of scope
@@ -61,6 +67,7 @@ AC-01 to AC-08 are copied from issue #7 with the same numbers. AC-09 to AC-13 ar
 - [x] Task 5 — Telegram, e-mail and webhooks · covers AC-11 · done when: the tests pass
 - [x] Task 6 — accounts in the README · covers AC-08 · done when: the README lists them without the password
 - [ ] Task 7 — run on Postgres and the public URL; Cognito pool values; gold catalog · covers AC-01 to AC-07 · done when: same flows on the public URL
+- [x] Task 8 — demo sessions (D-068): name, scenarios, server-side customer, `demo-…` run_id, recent transactions; `sessions.display_name` (migration 0002) · covers AC-14 to AC-17 · done when: the tests pass on memory and Postgres
 
 **Closing checklist** (last PR): every AC has a passing test or check that cites it · status → Implemented · ADR for
 any decision taken · lessons added to `CLAUDE.md`.

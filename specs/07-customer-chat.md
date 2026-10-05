@@ -41,6 +41,17 @@ AC-01 to AC-05 are copied from issue #9 with the same numbers. None is dropped o
 ## 8. Assumptions and open questions
 - Assumption `[assumption]`: the scripted agent in `lib/mock/agent.ts` stands in for the LangGraph graph; refusal,
   clarify and cancel texts are local until spec 04 adds them to `contracts/messages.yaml`.
+- Decided (lead, D-068, 2026-10-05; ADR 0026): the `/chat` start screen of demo mode, beside live mode. The web
+  builds it on spec 05 AC-14 to AC-17 and never sends a `customer_id`:
+  1. optional name field (≤ 40 characters, letters only; a 422 `INVALID` shows the api's message);
+  2. language ES or PT, required (the session language);
+  3. country MX, CO or AR, optional (filters the scenarios);
+  4. a scenario card from `GET /api/demo/scenarios?country&language` showing `title` and `customer_name` (gold's
+     synthetic name), or "assign me one" (`scenario: "auto"`);
+  5. `POST /api/sessions {display_name?, language, country?, scenario, mode?}`, then the OTP as today;
+  6. after the OTP, the cards of `GET /api/sessions/{id}/recent-transactions` as chips the visitor can pick (the chip
+     sends a message naming the date, amount and merchant), or free text.
+  The agent greets with the typed name, else the gold name, from `get_customer_profile`. Each session starts clean.
 - Open question: the receipt deadline line uses `status.credit_deadline` until the stub returns `source_url` and
   `verified_on` (ADR 0019); then it uses `receipt.credit_deadline`.
 
@@ -52,6 +63,8 @@ AC-01 to AC-05 are copied from issue #9 with the same numbers. None is dropped o
 - [x] Task 1 — OTP picker, chat, receipt widget, trace panel · covers AC-01 to AC-04 · done when: browser walk-through passes
 - [x] Task 2 — mobile layout at 390 px · covers AC-05 · done when: no horizontal scroll
 - [x] Task 3 — confirm-first flow and session-only identity · covers AC-06 · done when: the two tests pass
+- [ ] Task 5 — demo-mode start screen (D-068, the contract in §8) · covers AC-01 · done when: a visitor opens a demo
+  session by scenario and picks a recent transaction on the public URL
 - [ ] Task 4 — call the live agent proxy (`/api/agent/...`, spec 05 M05) · covers AC-01 to AC-04 · done when: same flow on the public URL
 
 **Closing checklist** (last PR): every AC has a passing test or check that cites it · status → Implemented · ADR for
