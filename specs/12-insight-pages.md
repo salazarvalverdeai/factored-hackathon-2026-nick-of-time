@@ -115,7 +115,8 @@ Implementation goes in `feat/12-…` branches once this spec is approved.
       (Q3 decided: teal step recorded in `docs/brand/BRAND.md`) · covers AC-08 · follow-ups of PR #72
 - [x] T3 — `/evaluation` run header, headline figures, arm comparison and breakdown from `evaluation_summary.json`,
       with the empty state and the development notice · covers AC-01 (part), AC-04, AC-05, AC-06, AC-07
-- [ ] T4 — `/evaluation` benchmark, classifier and fraud sections · covers AC-01 · needs Q1
+- [x] T4 — `/evaluation` benchmark, classifier and fraud sections · covers AC-01 · needs Q1 · [T] `apps/web/lib/evaluation.test.ts`
+      (sample files under `app/evaluation/__fixtures__/`; the sections show the empty state until the real files exist)
 - [x] T5 — `data_quality.json` (`python -m data.pipeline report --json`) and `/data` · covers AC-03 ([T]
       `tests/test_spec12_data_quality.py`; [U] comes with T7)
 - [ ] T6 — operational KPIs on `/analytics` · covers AC-02 · needs spec 14

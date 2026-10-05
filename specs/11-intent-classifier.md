@@ -149,6 +149,7 @@ is written once by the evaluation script (T6) from the frozen test split, never 
   "arms": [
     {"arm": "B1", "version": "…", "p50_ms": null, "p95_ms": null, "cost_per_1000_usd": null,
      "meets_floors": null, "mcnemar_p_vs_best": null, "human_request_answered_out_of_scope": null,
+     "same_family_as_generator": null,
      "by_language": {
        "es": {"macro_f1": null, "macro_f1_ci": [null, null],
               "per_class_f1": {"unrecognized_charge": null, "wrongful_charge": null, "status_inquiry": null,
@@ -168,7 +169,9 @@ is written once by the evaluation script (T6) from the frozen test split, never 
   target of 0.95 is `[assumption]`. `chosen_arm` is one of B0–B3 by the rule of §4.1.
 - `arms[]` (AC-02, AC-03): `arm` B0–B3; `p50_ms` and `p95_ms` in milliseconds per message; `cost_per_1000_usd` in USD
   per 1,000 messages; `meets_floors` bool; `mcnemar_p_vs_best` p-value of the paired test; `human_request_answered_out_of_scope`
-  integer count of person requests the arm answered `out_of_scope` (AC-10, must be 0).
+  integer count of person requests the arm answered `out_of_scope` (AC-10, must be 0); `same_family_as_generator` bool,
+  true when the arm's LLM is of the family that wrote the test split (DeepSeek V3.2), so its result is flagged (ADR
+  0025; false for B0 and B1).
 - `by_language` is keyed `es` and `pt`: `macro_f1` with its 95% bootstrap interval, `per_class_f1`, `dispute_recall`,
   `dispute_detected_recall` (recall of the `dispute_detected` flag, D-020 (d)), `human_request_recall`, `slot_accuracy`,
   `coverage_at_tau`, `precision_at_tau` as rate objects, and `ece` (0–1). All `[simulated]`.
