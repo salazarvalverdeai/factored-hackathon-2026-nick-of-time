@@ -141,7 +141,7 @@ gold (a small fixture). Target: under 5 minutes per job. The evaluation harness 
   no secrets · listed in the changelog when released.
 - **Priorities:** **P0** no submission without it · **P1** adds points · **P2** only if time allows.
 - **Sizes:** **S** under 1 h · **M** 1–2 h · **L** 2–4 h (senior engineer with an AI assistant).
-- **Freeze:** Sunday 2026-10-04 20:00 — after that only `fix/` and `docs/` branches.
+- **Freeze:** when v0.4.0 is on the public URL — after that only `fix/` and `docs/` branches.
 
 ## 10. Team rules
 - **Contracts first.** Nobody codes against something that is not in `contracts/` or in an approved spec.
