@@ -26,7 +26,10 @@ def upgrade() -> None:
     if context.is_offline_mode():                      # `--sql`: the script is printed, not run
         op.execute(sql)
     else:
-        op.get_bind().exec_driver_sql(sql)
+        # psycopg 3 parses %-placeholders whenever params are passed (exec_driver_sql passes them); a bare
+        # cursor.execute(sql) with no params sends the file as is, so the `%I` formats in the trigger block survive.
+        with op.get_bind().connection.dbapi_connection.cursor() as cursor:
+            cursor.execute(sql)
 
 
 def downgrade() -> None:
