@@ -14,7 +14,7 @@
 #   (request_call, YYYY-MM-DD computed by the tool)
 # - Optional facts: a template that needs a fact the tool did not return is not rendered (null merchant uses the
 #   *_no_merchant variants; a null deadline uses the deadline_unknown lines).
-# - Tasks T2-T7 of spec 04 extend this file (clarify, refuse, progress labels AC-17, duplicate case AC-23,
+# - Tasks T2-T7 of spec 04 extend this file (clarify, refuse, cancel, progress labels AC-17, duplicate case AC-23,
 #   re-evaluation AC-24, reversed charge); each extension is a contract change approved by the lead.
 # - Chips: `kind` is static here; the action payload ({type}, spec 01 §6.4) is set by the server code.
 # - Never a placeholder or text for the fraud score, policy ids, rule ids, zones or the transcript
@@ -300,3 +300,21 @@ notify:
   send_delivered:
     es: "El comprobante figura como enviado a {channel}."
     pt: "O comprovante consta como enviado para {channel}."
+
+refuse:
+  # AC-03: injection or another customer's data. Never says why in policy terms; offers only the customer's own account.
+  deny:
+    es: "No puedo ayudarte con eso. Si quieres, cuéntame del cargo que no reconoces en tu propia cuenta."
+    pt: "Não posso ajudar com isso. Se quiser, conte sobre a cobrança que você não reconhece na sua própria conta."
+
+clarify:
+  # Intent unclear: one question, no tool called yet.
+  ask_what:
+    es: "Cuéntame qué cargo no reconoces: comercio, monto y fecha aproximada."
+    pt: "Conte qual cobrança você não reconhece: estabelecimento, valor e data aproximada."
+
+cancel:
+  # AC-11: the customer did not confirm the plan; nothing was executed.
+  not_confirmed:
+    es: "Entendido, no hice ningún cambio. Si cambias de idea, escríbeme de nuevo."
+    pt: "Entendido, não fiz nenhuma alteração. Se mudar de ideia, escreva de novo."

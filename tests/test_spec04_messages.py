@@ -1,7 +1,7 @@
 """Spec 04 — contracts/messages.yaml (offline, no network).
 
 These tests support AC-06, AC-10, AC-11, AC-15, AC-16, AC-18, AC-19, AC-21, AC-25, AC-26, AC-28, AC-29, AC-31,
-AC-32 by checking the contract file only; the behavior itself is tested in T2-T6.
+AC-32, AC-03, AC-11 by checking the contract file only; the behavior itself is tested in T2-T6.
 """
 import re
 from pathlib import Path
@@ -100,7 +100,7 @@ def test_adr_0016_every_placeholder_is_allowed_and_documented_in_header():
         assert name in header, name
 
 
-@pytest.mark.parametrize("top", ["greet", "plan", "connect", "suggest", "status", "receipt", "notify"])
+@pytest.mark.parametrize("top", ["greet", "plan", "connect", "suggest", "status", "receipt", "notify", "refuse", "clarify", "cancel"])
 def test_ac_15_ac_16_ac_29_ac_26_spec_names_top_level_keys(top):
     assert top in load()
 
@@ -236,3 +236,14 @@ def test_rule_6_no_promise_of_outcome_or_credit():
     """CLAUDE.md rule 6: provisional credit is always a human decision; templates never promise it."""
     for key, leaf in leaves(load()):
         assert not PROMISE.search(leaf["es"] + " " + leaf["pt"]), key
+
+
+def test_ac_03_ac_11_refuse_clarify_cancel_exist_without_placeholders_or_promises():
+    """MSG2: the texts the web mock held locally. Each one asks or declines; none states an action."""
+    data = load()
+    for group, key in (("refuse", "deny"), ("clarify", "ask_what"), ("cancel", "not_confirmed")):
+        for lang in ("es", "pt"):
+            assert not PLACEHOLDER.search(data[group][key][lang]), (group, lang)
+            assert "48" not in data[group][key][lang], (group, lang)
+    for lang in ("es", "pt"):
+        assert not re.search(r"bloque[eé]|bloquei|abr[ií]|abri", data["cancel"]["not_confirmed"][lang], re.I)

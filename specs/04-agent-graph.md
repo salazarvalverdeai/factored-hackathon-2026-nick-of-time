@@ -235,7 +235,8 @@ messages.
       receipt and notify (placeholders `{name}`, tool facts only). Supports AC-06, AC-10, AC-11, AC-15, AC-16, AC-18,
       AC-19, AC-21, AC-25, AC-26, AC-28, AC-29, AC-31, AC-32; behavior tested in T2–T6. T2–T7 extend the file (clarify,
       refuse, progress AC-17, duplicate AC-23, re-evaluation AC-24, reversed charge); each extension is a contract
-      change that needs the lead's approval.
+      change that needs the lead's approval. MSG2 added refuse.deny, clarify.ask_what and cancel.not_confirmed
+      (ES/PT) for the web mock (AC-03, AC-11).
 - [ ] Tests `tests/test_spec04_*.py` with the `fake` LLM and the fake MCP; EV-0001 end to end in historical mode
 
 **Closing checklist:** every AC has a passing test or check · status → Implemented · ADR if a question changes a
