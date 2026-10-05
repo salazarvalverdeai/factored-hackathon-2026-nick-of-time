@@ -122,8 +122,8 @@ regulatory_clock:                        # [external] spec 02 §4.3; amount_gate
         source: "Banxico Circular 3/2012, arts. 19 Bis 3 and 19 Bis 4 (as amended by Circular 14/2018)"
         source_url: https://www.banxico.org.mx/marco-normativo/normativa-emitida-por-el-banco-de-mexico/circular-3-2012/%7B4E0281A4-7AD8-1462-BC79-7F2925F3171D%7D.pdf
         verified_on: 2026-10-04
-      # LTOSF art. 23 fr. II (text in force, last reform DOF 2024-01-24): ruling within 45 days ("días", counted as calendar
-      # days: the earlier date), 180 calendar days for operations abroad; claim within 90 calendar days of the statement
+      # LTOSF art. 23 fr. II (text in force, last reform DOF 2024-01-24): ruling within 45 days ("días": art. 23 does not define them,
+      # counted as calendar days [assumption], the earlier date), 180 calendar days for operations abroad; claim within 90 calendar days of the statement
       # cut-off or the operation (fr. I; the cut-off date is not in the data, so the ruling is always given).
       - &ltosf_23
         ruling: {days: 45, calendar: calendar}
@@ -133,7 +133,8 @@ regulatory_clock:                        # [external] spec 02 §4.3; amount_gate
         verified_on: 2026-10-04
     credit:
       # Circular 34/2010 (compiled text through Circular 13/2018): numeral 3.4 b) (90 días naturales) and numeral 3.6
-      # (ruling within 45 Días of the notice, counted as calendar days; 180 días naturales abroad).
+      # (ruling within 45 "días" of the notice, counted as calendar days [assumption: the numeral does not define them];
+      # 180 días naturales abroad).
       - when_charged_within: {days: 90}
         credit: {days: 2, calendar: business}
         ruling: {days: 45, calendar: calendar}

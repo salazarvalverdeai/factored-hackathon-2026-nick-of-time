@@ -142,9 +142,9 @@ test, no code change.** A country without a verified entry falls back to `POL-CL
 | Country · product | `credit_deadline` | `ruling_deadline` | Legal basis | Official public source | Verified |
 |---|---|---|---|---|---|
 | MX · debit, charge within the **90 calendar days** before the notice | opened + **2 business days** (provisional credit) | opened + **45 calendar days** (ruling; 180 if the charge was abroad) | Banxico Circular 3/2012, arts. 19 Bis 3 fr. II and 19 Bis 4, as amended by Circular 14/2018 (in force since 2019-09-26) | [Banxico, compiled text](https://www.banxico.org.mx/marco-normativo/normativa-emitida-por-el-banco-de-mexico/circular-3-2012/%7B4E0281A4-7AD8-1462-BC79-7F2925F3171D%7D.pdf) · [DOF, Circular 14/2018](https://dof.gob.mx/nota_detalle.php?codigo=5539863&fecha=03/10/2018) | 2026-10-04 |
-| MX · debit, older charge | — | opened + **45 calendar days** (180 if the charge was abroad) | LTOSF art. 23 fr. II (clarifications) | [Orden Jurídico Nacional, LTOSF](https://www.ordenjuridico.gob.mx/Documentos/Federal/pdf/wo46.pdf) | 2026-10-04 |
-| MX · credit, charge within the **90 calendar days** before the notice | opened + **2 business days** (provisional credit) | opened + **45 calendar days** (ruling; 180 if the charge was abroad) | Banxico Circular 34/2010, numerals 3.4 b) and 3.6, as amended by Circular 13/2018 | [Banxico, compiled text](https://www.banxico.org.mx/marco-normativo/normativa-emitida-por-el-banco-de-mexico/circular-34-2010/%7B0C55B906-6DB4-6B88-FED0-67987E9FB3CC%7D.pdf) | 2026-10-04 |
-| MX · credit, older charge | — | opened + **45 calendar days** (180 if the charge was abroad) | LTOSF art. 23 fr. II | [Orden Jurídico Nacional, LTOSF](https://www.ordenjuridico.gob.mx/Documentos/Federal/pdf/wo46.pdf) | 2026-10-04 |
+| MX · debit, older charge | — | opened + **45 calendar days** `[assumption]`: art. 23 says "días" without defining them (180 if the charge was abroad) | LTOSF art. 23 fr. II (clarifications) | [Orden Jurídico Nacional, LTOSF](https://www.ordenjuridico.gob.mx/Documentos/Federal/pdf/wo46.pdf) | 2026-10-04 |
+| MX · credit, charge within the **90 calendar days** before the notice | opened + **2 business days** (provisional credit) | opened + **45 calendar days** `[assumption]`: numeral 3.6 says "días" without defining them (ruling; 180 if the charge was abroad) | Banxico Circular 34/2010, numerals 3.4 b) and 3.6, as amended by Circular 13/2018 | [Banxico, compiled text](https://www.banxico.org.mx/marco-normativo/normativa-emitida-por-el-banco-de-mexico/circular-34-2010/%7B0C55B906-6DB4-6B88-FED0-67987E9FB3CC%7D.pdf) | 2026-10-04 |
+| MX · credit, older charge | — | opened + **45 calendar days** `[assumption]`: art. 23 says "días" without defining them (180 if the charge was abroad) | LTOSF art. 23 fr. II | [Orden Jurídico Nacional, LTOSF](https://www.ordenjuridico.gob.mx/Documentos/Federal/pdf/wo46.pdf) | 2026-10-04 |
 | AR · any card | — (item 2.3.5.1's 10-day reimbursement lists charges the bank itself generates, not a third party's unrecognized charge) | opened + **10 business days** (resolution, item 3.1.6) | BCRA, Protección de los Usuarios de Servicios Financieros (texto ordenado al 2026-05-06) | [BCRA t-pusf](https://www.bcra.gob.ar/archivos/Pdfs/texord/t-pusf.pdf) | 2026-10-04 |
 | CO · any card | — | opened + **15 business days** | SFC: petitions to supervised entities | [SFC FAQ](https://www.superfinanciera.gov.co/preguntas-frecuentes/3/3-derechos-de-peticion-ante-entidades-vigiladas/) | 2026-10-04 |
 | BR · any card (PT demo only) | — | opened + **10 business days**, extendable once by an equal period | Resolução CMN 4.860/2020 (ouvidoria) | [BCB · Ouvidoria](https://www3.bcb.gov.br/sisorf_externo/manual/06-01-030-160.htm) | 2026-10-04 |
@@ -170,7 +170,8 @@ test, no code change.** A country without a verified entry falls back to `POL-CL
 - The charge's age is counted between local dates in the country's time zone; day 90 still qualifies `[assumption]`.
   `charged_at` is a timezone-aware datetime (spec 01: timestamps are UTC) or a date; a naive datetime is rejected.
   A date one day after the notice date counts as the same day, since a UTC date can lead the local date
-  `[assumption]`. The clock raises if a charge-age row (MX) gets no charge date.
+  `[assumption]`; a UTC charge date likewise shifts the 90-day boundary by one day, so a charge on local day 91 may
+  be counted as day 90 and qualify, which gives an earlier deadline, never a later one. The clock raises if a charge-age row (MX) gets no charge date.
 - Product mapping from gold: `Tarjeta Débito` → `debit`, `Tarjeta Crédito` → `credit`; any other product type is not a
   card (rule 4).
 - MX debit SLA (`case_queue.deadline_sla.mx_debit`): priority `high` from business day 1; `alert_due_at` = start of
@@ -283,9 +284,12 @@ fx.convert(amount=1250.0, from_currency="USD", to_currency="MXN") -> {amount, ra
 - **Rules 3a–3b (added 2026-10-04 with the five intents of spec 11):** a request for a person and a status question
   are answered after the security checks (rules 1–3) and before the dispute rules; every reply, including
   `reauthenticate` and `deny`, still offers a way to a person (spec 04 AC-20).
-- **Q7 — demo date:** ~~move `DEMO_TODAY` to 2026-06-01?~~ **Decided (lead, 2026-10-04):** two time modes (ADR 0020,
-  proposed). `replay` uses `DEMO_TODAY = 2026-06-01` (Monday), so charges of May 30–31 qualify for the MX 48 h rule;
-  `live` uses the real date with labeled synthetic transactions. The clock receives "today" from the mode (AC-16).
+- **Q7 — demo date:** ~~move `DEMO_TODAY` to 2026-06-01?~~ **Decided (lead, 2026-10-04):** two time modes (ADR 0020).
+  `replay` uses `DEMO_TODAY = 2026-06-01` (Monday, the first day after the gold window), so every MX
+  charge dated 2026-03-03 to 2026-05-31 (≤ 90 calendar days before) gets the business-day-2 credit, debit and credit
+  alike (ADR 0023, proposed, which replaces the earlier 48 h rationale); `live` uses the real date with labeled
+  synthetic transactions (in October every gold charge is more than 90 days old, so only these show the
+  business-day-2 credit). The clock receives "today" from the mode (AC-16).
 - Assumption: MXN 18.0 per USD for the MX amount tiers (`[assumption]`, already in `policies.yaml`); it is never shown to
   a customer — customer-facing conversions use the official reference rate of §4.4.
 - Assumption: holiday lists are verified against official sources while implementing; each file cites its URL.

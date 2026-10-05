@@ -117,6 +117,9 @@ def deadline(country: str, product: str, opened_on: date, *, abroad: bool = Fals
     `charged_at` (an aware datetime, or a date) is required when the entry depends on the charge's age (MX). No
     verified entry, or a business-day term past the last holiday file → no date at all and POL-CLOCK-UNKNOWN (AC-14).
     """
+    for moment in (charged_at, noticed_at):          # every country rejects a naive datetime, not only the hours windows
+        if isinstance(moment, datetime):
+            _aware(moment)
     p = policies or load_policies()
     base = dict(country=country, product=product, opened_on=opened_on, policies_version=p.version)
     by_product = p.regulatory_clock.get(country, {})

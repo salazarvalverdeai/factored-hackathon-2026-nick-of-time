@@ -66,6 +66,7 @@ def test_regulatory_clock_cites_a_source_per_country():
     assert set(clock) == {"MX", "AR"}
     assert all(rule["source"] and rule["source_url"] and rule["verified_on"] for rule in rules)   # ADR 0019
     assert clock["MX"]["debit"][0]["credit"] == {"days": 2, "calendar": "business"}
+    assert clock["MX"]["credit"][0]["credit"] == {"days": 2, "calendar": "business"}      # ADR 0023
     assert POLICIES["approval"]["per_action"]["provisional_credit"] == dict.fromkeys(POLICIES["zones"], "human_required")
 
 

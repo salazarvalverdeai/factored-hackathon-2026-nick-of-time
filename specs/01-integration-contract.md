@@ -434,8 +434,8 @@ must stay isolated by `run_id`.
 `expected.decision` and `expected.intent` use the `TurnResult` vocabulary of §6.4, so `answer_status` and
 `connect_person` are added and `status_inquiry` replaces `inquiry` (spec 11 Q4), plus `human_request`. The example
 cases use charge dates inside the gold window, since eval sessions are always `replay` (`DEMO_TODAY` 2026-06-01,
-ADR 0020), and gold-format placeholder ids (`CLI-`, `TRX-`, `PRD-`). EV-0001's charge falls within the 48 h before
-the notice (spec 02 §4.3); an older-charge case is added once spec 02 T3 verifies that row.
+ADR 0020), and gold-format placeholder ids (`CLI-`, `TRX-`, `PRD-`). EV-0001's charge falls within the 90 calendar days
+before the notice (spec 02 §4.3, ADR 0023); an older-charge case is added once spec 02 T3 verifies that row.
 
 ### 6.9 Configuration names
 `DEMO_TODAY` · `DATABASE_URL` · `GOLD_PATH` / `GOLD_S3_URI` · `MCP_URL` · `MCP_API_KEY` · `LANGGRAPH_API_URL` ·

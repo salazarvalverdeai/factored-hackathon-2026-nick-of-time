@@ -4,7 +4,11 @@ from __future__ import annotations
 import copy
 import inspect
 import logging
+import os
 import re
+import shutil
+import subprocess
+import sys
 from datetime import date as D, datetime, timedelta, timezone
 from pathlib import Path
 
@@ -127,6 +131,22 @@ def test_ac_03_a_notice_on_a_weekend_or_holiday_counts_from_the_next_business_da
     assert (d.credit_deadline, d.ruling_deadline) == (credit, ruling)
 
 
+def test_ac_03_mx_credit_card_credit_skips_the_holiday():
+    """AC-03 (ADR 0023): opened 2026-09-15, business day 1 is 09-17 (09-16 is a holiday), so the credit is 09-18;
+    calendar days would give 09-17."""
+    d = clock.deadline("MX", "credit", D(2026, 9, 15), charged_at=D(2026, 9, 14))
+    assert d.credit_deadline == D(2026, 9, 18) and d.holidays_skipped == [D(2026, 9, 16)]
+
+
+def test_ac_03_a_naive_datetime_is_rejected_for_every_country():
+    """§4.3: charged_at and noticed_at are checked up front, even where no window reads them (AR has none)."""
+    aware = datetime(2026, 5, 31, 12, tzinfo=timezone.utc)
+    for kwargs in ({"charged_at": aware.replace(tzinfo=None)}, {"noticed_at": aware.replace(tzinfo=None)}):
+        with pytest.raises(ValueError, match="timezone-aware"):
+            clock.deadline("AR", "debit", OPENED, **kwargs)
+    assert clock.deadline("AR", "debit", OPENED, charged_at=aware, noticed_at=aware).ruling_deadline == D(2026, 6, 16)
+
+
 ADD = [("MX", D(2026, 6, 1), 1, D(2026, 6, 2)),       # D-008
        ("MX", D(2026, 5, 29), 1, D(2026, 6, 1)),      # Friday → Monday
        ("MX", D(2026, 5, 30), 2, D(2026, 6, 2)),      # notice on a Saturday
@@ -214,7 +234,12 @@ def test_ac_03_holiday_files_cite_their_source_and_cover_2026():
         assert f.source_url.startswith("https://") and f.verified_on == VERIFIED
     mondays = lambda month: [d for d in (D(2026, month, x) for x in range(1, 29)) if d.weekday() == 0]
     mx = set(clock.holidays("MX")[2026].holidays)
-    assert {mondays(2)[0], mondays(3)[2], mondays(11)[2]} <= mx and len(mx) == 11
+    assert {mondays(2)[0], mondays(3)[2], mondays(11)[2]} <= mx
+    assert mx == {D(2026, m, d) for m, d in [(1, 1), (2, 2), (3, 16), (4, 2), (4, 3), (5, 1), (9, 16), (11, 2), (11, 16),
+                                             (12, 12), (12, 25)]}
+    assert set(clock.holidays("AR")[2026].holidays) == {D(2026, m, d) for m, d in [
+        (1, 1), (2, 16), (2, 17), (3, 24), (4, 2), (4, 3), (5, 1), (5, 25), (6, 15), (6, 20), (7, 9), (8, 17), (10, 12),
+        (11, 9), (11, 23), (12, 8), (12, 25)]}
 
 
 INVALID = [
@@ -247,13 +272,35 @@ def test_fr_01_holiday_files_are_validated_with_the_policies(monkeypatch, tmp_pa
     """FR-01: a missing or unverified holiday file fails at startup, not on the first deadline of a turn."""
     monkeypatch.setattr(calendars, "HOLIDAYS_DIR", tmp_path)
     calendars.holidays.cache_clear()
+    real = Path(calendars.__file__).parent / "holidays"
     try:
         with pytest.raises(ValidationError, match="no holiday file"):
             Policies.model_validate(RAW)
+        shutil.copy(real / "mx_2026.yaml", tmp_path)                 # MX alone is not enough: AR also counts business days
+        calendars.holidays.cache_clear()
+        with pytest.raises(ValidationError, match="regulatory_clock AR"):
+            Policies.model_validate(RAW)
+        shutil.copy(real / "ar_2026.yaml", tmp_path)
+        calendars.holidays.cache_clear()
+        Policies.model_validate(RAW)
         (tmp_path / "mx_2026.yaml").write_text("source: CNBV\nsource_url: http://dof.gob.mx/\nverified_on: 2026-10-04\n"
                                                "holidays: {2026-01-01: New Year}\n")
         calendars.holidays.cache_clear()
         with pytest.raises(ValidationError, match="holiday file of MX"):
+            Policies.model_validate(RAW)
+    finally:
+        calendars.holidays.cache_clear()
+
+
+def test_fr_01_a_holiday_outside_the_year_of_its_file_is_rejected(monkeypatch, tmp_path):
+    monkeypatch.setattr(calendars, "HOLIDAYS_DIR", tmp_path)
+    calendars.holidays.cache_clear()
+    try:
+        (tmp_path / "mx_2026.yaml").write_text("source: CNBV\nsource_url: https://dof.gob.mx/\nverified_on: 2026-10-04\n"
+                                               "holidays: {2027-01-01: New Year}\n")
+        with pytest.raises(ValueError, match="outside 2026"):
+            calendars.holidays("MX")
+        with pytest.raises(ValidationError, match="outside 2026"):
             Policies.model_validate(RAW)
     finally:
         calendars.holidays.cache_clear()
@@ -269,3 +316,15 @@ def test_ac_16_a_stale_demo_today_variable_only_warns(monkeypatch, caplog):
     monkeypatch.setenv("DEMO_TODAY", "2026-06-01")
     clock.warn_if_demo_today_env_differs()
     assert not caplog.records
+
+
+def test_ac_16_importing_the_clock_with_a_stale_demo_today_warns():
+    """ADR 0020: the warning fires at import time, not only when the function is called again."""
+    packages = Path(clock.__file__).parents[2]
+    env = {**os.environ, "DEMO_TODAY": "2026-06-03", "PYTHONPATH": f"{packages.parent}{os.pathsep}{packages}"}
+    code = "from nick_of_time.policy import clock; print(clock.DEMO_TODAY)"
+    run = subprocess.run([sys.executable, "-c", code], env=env, capture_output=True, text=True, check=True)
+    assert run.stdout.strip() == "2026-06-01" and "DEMO_TODAY=2026-06-03 is ignored" in run.stderr
+    env["DEMO_TODAY"] = "2026-06-01"
+    assert subprocess.run([sys.executable, "-c", code], env=env, capture_output=True, text=True,
+                          check=True).stderr == ""
