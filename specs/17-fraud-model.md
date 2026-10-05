@@ -107,21 +107,28 @@ Implementation choices (`scripts/ml/fraud_features.py`) `[assumption]`:
   customer (|ROC-AUC| 0.522 on train+validation `[data]`, probably from the extra frauds of 2025-06).
 
 Signal search before the test window (D-015, `scripts/ml/fraud_signal_search.py`; reproduce with `python -m
-scripts.ml.fraud_signal_search --gold $GOLD --eval $GOLD_EVAL --out <dir outside the repo>`). 32 more candidates, built
+scripts.ml.fraud_signal_search --gold $GOLD --eval $GOLD_EVAL --out <dir outside the repo>`). 31 more candidates, built
 only from fields known at transaction time and from strictly earlier rows (DuckDB RANGE frames that end 1 µs before the
-row), in eleven families: customer and card velocity; declines before; novelty (first country, city, channel or
-merchant category; time since the last visit to the merchant); geo jumps (km and km/h from the previous located
-transaction, km from the customer's mean location); amount against the customer's history; hour and weekday habit;
-product age, customer tenure and age; merchant and city load in the last hour; complaints created and processed in the
-90 days before; and smoothed fraud rates of merchant, city, branch and merchant category × country learned on train
-labels only. A candidate counts as signal only if its train and validation 95% bootstrap CIs (stratified, 2,000
-replicates) exclude 0.5 on the same side and its validation ROC-AUC is at least 0.02 from 0.5 `[assumption]`.
-Result on gold v1 `[data]`: **none passes**. Validation ROC-AUC spans 0.465–0.547; the largest deviation, time since
-the card's previous transaction (0.547 [0.505, 0.590]), has train AUC 0.494 [0.475, 0.514], and every deviation is
-below 0.062, the 95th percentile of the largest deviation under permuted validation labels. The bank score, as a
-positive control, gives 0.728 [0.673, 0.780]. Reversals before the transaction are not candidates: gold keeps each
-row's final status with no reversal time, so a reversal is not known at transaction time (D-009). The features above
-stay as they are; §4.4 rule 5 covers the outcome.
+row), in eleven families: customer velocity; card velocity; declines before (earlier Declined rows only: the decline
+codes on Reversed and Pending rows go with a final status that is not known at transaction time, D-009); novelty (first
+country, city, channel or merchant category; time since the last visit to the merchant); geo jumps (km and km/h from the
+previous located transaction, km from the customer's mean location); amount against the customer's history; hour and
+weekday habit; product age, customer tenure and age in complete years; merchant and city load in the last hour;
+complaints created in the 90 days before and in an earlier daily file (gold has no late arrivals,
+`docs/eda/data_quality.md` §B4); and category rates: smoothed fraud rates of merchant, city, branch and merchant
+category × country learned on train labels only. A candidate counts as signal only if its train and validation 95%
+bootstrap CIs (stratified, 2,000 replicates) exclude 0.5 on the same side and its validation ROC-AUC is at least 0.02
+from 0.5 `[assumption]`. Result on gold v1 `[data]`, stated as a bound: **none passes**. Every non-degenerate train CI
+includes 0.5 and lies within [0.469, 0.525] (29 of 31; `card_n_1h` and `declines_24h` have zero-width CIs because no
+train fraud has a non-zero value), and so does every non-degenerate CI on late train (2025-09 → 2026-01, past the cold
+start, 531 frauds), within [0.462, 0.534]. Validation ROC-AUC spans 0.465–0.547; its largest deviation from 0.5, 0.047
+(time since the card's previous transaction: 0.547 [0.505, 0.590], train 0.494), is below 0.062, the 95th percentile of
+the largest deviation over the 31 candidates under permuted validation labels, so the family-wise test does not reject.
+With 182 validation frauds a full-coverage candidate's CI is about ±0.04, so the rule cannot detect |AUC − 0.5| below
+about 0.04: a weaker single-feature signal is not ruled out. The bank score, as a positive control, gives 0.728 [0.673,
+0.780]. Reversals before the transaction are not candidates: gold keeps each row's final status with no reversal time,
+so a reversal is not known at transaction time (D-009). The features above stay as they are; §4.4 rule 5 covers the
+outcome.
 
 ### 4.3 Arms — a lean scikit-learn screen
 The dataset is large enough for all of these (about 1.39 million Approved/Pending transactions, 896 frauds to train).
@@ -221,8 +228,9 @@ versioned queries under `queries/fraud/`.
 - **D-017d — rule-2 wording (2026-10-04, lead):** "at an alert budget of 1% of those transactions (AC-04)" (§4.4).
 - **D-017e — split shares (2026-10-04, lead):** within 3 points of 60/15/25 `[assumption]`; it applies to spec 11 and
   is listed here because it was decided with D-017a–d.
-- **D-022 — scope of the rule (2026-10-04, lead):** rules 1-2 judged on all products; the card subset reported with its
-  CI and not gating; country is `customer_country` `[assumption]` (§4.4).
+- **D-022 — scope of the rule (2026-10-04; default applied by the orchestrator, pending lead confirmation):** rules 1-2
+  judged on all products; the card subset reported with its CI and not gating; country is `customer_country`
+  `[assumption]` (§4.4).
 
 ## 9. Out of scope
 Deep learning or graph features; streaming features; using the model for automation in the submission; scheduled
@@ -235,8 +243,8 @@ retraining (ADR 0021, P2).
       fraud in train only, plus class weights where available `[assumption]`), cost and efficiency harness
       (`scripts/ml/fraud_screen.py`; models and outputs outside the repo, the protocol seal forbids results inside it);
       train and validation only, so the test-window part of AC-03 is task 17c · AC-03 (screen), AC-05
-- [x] T3b [P0] — lean rule in `eval/PROTOCOL.md` · AC-06 · #47 (merged); PROTOCOL §3.1 and §3.3 synced with §4.3–4.4
-      by PR #60 (task PROT2; D-017a–e, D-022), and §4.4 rules 1–2 copied back from PROTOCOL §3.3
+- [ ] T3b [P0] — lean rule in `eval/PROTOCOL.md` · AC-06 · #47 (merged); PROTOCOL §3.1 and §3.3 synced with §4.3–4.4
+      by PR #60 (open; task PROT2; D-017a–e, D-022), and §4.4 rules 1–2 copied back from PROTOCOL §3.3
 - [x] T3c [P0] — signal search beyond §4.2 on train and validation (`scripts/ml/fraud_signal_search.py`, D-015): no
       candidate passes, the feature list is unchanged · AC-02, AC-05
 - [ ] T4 [P0] — test-window evaluation, report, `fraud_benchmark.json` for `/evaluation` · AC-04

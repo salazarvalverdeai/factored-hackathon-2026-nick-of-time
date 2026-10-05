@@ -32,7 +32,7 @@ def candidates(rows, complaints=()):
     con = duckdb.connect()
     con.register("transactions_enriched", pl.DataFrame(rows, infer_schema_length=None).to_arrow())
     con.register("customers", pl.DataFrame({"customer_id": ["C1"], "registration_date": [datetime(2020, 1, 1)],
-                                            "date_of_birth": [date(1990, 6, 1)]}).to_arrow())
+                                            "date_of_birth": [date(1990, 12, 1)]}).to_arrow())
     comp = pl.DataFrame(list(complaints) or [{"customer_id": "X", "creation_date": T0, "process_date": T0.date()}])
     con.register("complaints", comp.to_arrow())
     return {d["transaction_id"]: d for d in ss.build_candidates(con).select(OUT).to_dicts()}
@@ -52,7 +52,7 @@ COMPLAINTS = [{"customer_id": "C1", "creation_date": T0 - timedelta(days=2), "pr
 def test_ac_02_candidates_use_only_strictly_earlier_rows():
     f = candidates(BASE, COMPLAINTS)
     assert set(f) == {"t2", "t3", "t4", "t5"}  # Declined t1 is history, not a row
-    assert (f["t2"]["card_n_1h"], f["t2"]["declines_24h"], f["t2"]["decline_codes_7d"]) == (1, 1, 1)
+    assert (f["t2"]["card_n_1h"], f["t2"]["declines_24h"], f["t2"]["declines_7d"]) == (1, 1, 1)
     assert (f["t2"]["first_country"], f["t2"]["card_first_use"], f["t2"]["secs_since_merchant"]) == (0, 0, 1800)
     t3 = f["t3"]  # t4 shares its timestamp: never history, so t3 sees only t1 and t2
     assert (t3["card_n_24h"], t3["first_country"], t3["first_city"], t3["secs_since_merchant"]) == (2, 1, 1, 5400)
@@ -60,6 +60,11 @@ def test_ac_02_candidates_use_only_strictly_earlier_rows():
     assert t3["speed_kmh"] == pytest.approx(t3["km_prev_located"] / 1.5)
     assert t3["complaints_90d"] == 1  # created 2 days before and processed: counted; late or same-time ones are not
     assert f["t4"]["card_n_24h"] == 2 and f["t5"]["card_n_24h"] == 4
+    assert t3["customer_age_years"] == 34  # complete years at 2025-09-01 for a 1990-12-01 birth date (not 35)
+    g = candidates([r("rv", T0, transaction_status="Reversed", response_code="05"), r("now", T0 + timedelta(hours=1)),
+                    r("solo", T0, cust="C9")])
+    assert (g["now"]["declines_24h"], g["now"]["declines_7d"]) == (0, 0)  # a Reversed row is not a decline
+    assert (g["solo"]["declines_24h"], g["solo"]["declines_7d"]) == (0, 0)  # no history: 0, not null
 
 
 def test_ac_02_changing_same_time_or_later_rows_or_forbidden_fields_does_not_change_a_candidate():
@@ -114,7 +119,9 @@ def test_ac_05_search_reads_labels_only_through_the_guard_and_writes_outside_the
     df, h = ss.load(gold, lab)
     assert asked == [{fs.TRAIN, fs.VALIDATION}] and set(df["split_window"]) == {fs.TRAIN, fs.VALIDATION}
     assert not set(split.filter(pl.col("split_window") == fs.TEST)["transaction_id"]) & set(df["transaction_id"])
-    rows = {x["candidate"]: x for x in ss.search(df)["rows"]}
+    res = ss.search(df)
+    rows = {x["candidate"]: x for x in res["rows"]}
+    assert res["n_candidates"] == len(rows) - 1  # the yardstick covers every candidate and not the reference
     assert rows["amount_over_max"]["signal"]  # positive control: synthetic frauds are large foreign purchases
     src = Path(ss.__file__).read_text()
     assert src.count("read_parquet") == 1 and "gold_eval" not in src  # one reader, for the gold views
@@ -130,11 +137,27 @@ def test_ac_05_search_reads_labels_only_through_the_guard_and_writes_outside_the
     assert rec["split_hash"] == h and rec["label_windows"] == ["train", "validation"]
 
 
-@pytest.mark.skipif(not GOLD or not GOLD_EVAL.exists(), reason="opt-in: set GOLD_PATH and GOLD_EVAL_PATH")
-def test_ac_02_real_gold_no_candidate_beyond_the_bank_score_opt_in():
+REAL = pytest.mark.skipif(not GOLD or not GOLD_EVAL.exists(), reason="opt-in: set GOLD_PATH and GOLD_EVAL_PATH")
+
+
+@pytest.fixture(scope="module")
+def real():
     df, h = ss.load(GOLD, GOLD_EVAL / "transaction_labels.parquet")
-    rec = ss.search(df)
-    assert h == REAL_SPLIT_HASH and rec["n_fraud"] == {"train": 896, "validation": 182}
-    rows = {x["candidate"]: x for x in rec["rows"]}
-    assert rows.pop("bank_fraud_score")["signal"]  # positive control on real data
-    assert not [k for k, v in rows.items() if v["signal"]]  # spec 17 §4.2: no transaction-time signal on gold v1
+    return h, ss.search(df)
+
+
+@REAL
+def test_ac_05_real_gold_positive_control_opt_in(real):
+    h, rec = real
+    assert h == REAL_SPLIT_HASH and rec["n_fraud"] == {"train": 896, "validation": 182, "train_late": 531}
+    bank = next(x for x in rec["rows"] if x["candidate"] == "bank_fraud_score")
+    assert bank["signal"] and rec["n_candidates"] == len(rec["rows"]) - 1  # the harness detects a real signal
+
+
+@REAL
+def test_ac_02_real_gold_claim_of_spec_17_section_4_2_opt_in(real):
+    rows = [x for x in real[1]["rows"] if x["family"] != ss.REFERENCE]
+    passed = [x["candidate"] for x in rows if x["signal"]]
+    assert not passed, f"candidates now pass the signal rule: {passed}; update spec 17 §4.2 (and the screen) first"
+    top = max(abs(x["auc_validation"] - 0.5) for x in rows)
+    assert top < real[1]["familywise_max_abs_dev_95"], "the family-wise test now rejects; update spec 17 §4.2"

@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import argparse
 import json
+from datetime import datetime
 from pathlib import Path
 
 import numpy as np
@@ -22,6 +23,8 @@ from scripts.ml import fraud_split as fs
 H, D = 3_600_000_000, 86_400_000_000  # one hour and one day in microseconds
 SMOOTH = 100.0  # pseudo-count of the train-only category rates [assumption]
 N_BOOT, N_PERM, SEED = 2000, 500, 17
+LATE_TRAIN = "2025-09-01"  # late-train replication check: past the cold start of §4.2 (2025-06 to 2025-08)
+REFERENCE = "reference (not a candidate)"
 MIN_DEV = 0.02  # materiality [assumption]: a rare flag no fraud carries has AUC 0.4999 with a zero-width CI
 
 
@@ -42,7 +45,6 @@ WINDOWS = {  # stage 1; e = customer, else product (as in fraud_features)
     "w_card_1h": _w("count(*)", "product_id", H), "w_card_24h": _w("count(*)", "product_id", D),
     "w_card_7d": _w("count(*)", "product_id", 7 * D), "w_card_last": _w("max(us)", "product_id"),
     "w_decl_24h": _w("sum((st = 'Declined')::INT)", "e", D), "w_decl_7d": _w("sum((st = 'Declined')::INT)", "e", 7 * D),
-    "w_bad_7d": _w("sum((rc <> '00')::INT)", "e", 7 * D),
     "w_n_tc": _w("count(*)", "e, tc"), "w_n_city": _w("count(*)", "e, city"), "w_n_ch": _w("count(*)", "e, channel"),
     "w_n_mcat": _w("count(*)", "e, mcat"), "w_last_m": _w("max(us)", "e, mname"),
     "w_loc": _w(_LOC, "e"), "w_hlat": _w("avg(CASE WHEN lon IS NOT NULL THEN lat END)", "e"),
@@ -60,8 +62,8 @@ CANDIDATES = {  # stage 2: name -> (family, expression over base + WINDOWS colum
     "card_n_7d": ("velocity (card)", "w_card_7d"),
     "card_secs_since_prev": ("velocity (card)", "(us - w_card_last) / 1e6"),
     "card_first_use": ("velocity (card)", "(w_card_last IS NULL)::INT"),
-    "declines_24h": ("declines before", "w_decl_24h"), "declines_7d": ("declines before", "w_decl_7d"),
-    "decline_codes_7d": ("declines before", "w_bad_7d"),
+    "declines_24h": ("declines before", "coalesce(w_decl_24h, 0)"),  # an empty frame sums to NULL
+    "declines_7d": ("declines before", "coalesce(w_decl_7d, 0)"),
     "first_country": ("novelty", "(w_n_tc = 0)::INT"),
     "first_city": ("novelty", "CASE WHEN city IS NOT NULL THEN (w_n_city = 0)::INT END"),
     "first_channel": ("novelty", "(w_n_ch = 0)::INT"),
@@ -77,13 +79,13 @@ CANDIDATES = {  # stage 2: name -> (family, expression over base + WINDOWS colum
     "same_weekday_share": ("time habit", "w_same_dow / nullif(w_n, 0)"),
     "product_age_days": ("product / customer", "date_diff('day', product_opening_date, td::DATE)"),
     "customer_tenure_days": ("product / customer", "date_diff('day', registration_date::DATE, td::DATE)"),
-    "customer_age_years": ("product / customer", "date_diff('year', date_of_birth, td::DATE)"),
+    "customer_age_years": ("product / customer", "date_sub('year', date_of_birth, td::DATE)"),  # complete years
     "merchant_n_1h": ("merchant / city load", "CASE WHEN mname IS NOT NULL THEN w_m_1h END"),
     "city_n_1h": ("merchant / city load", "CASE WHEN city IS NOT NULL THEN w_city_1h END"),
 }
 RATES = {"merchant_name_rate": ["mname"], "city_rate": ["city"], "branch_rate": ["branch_id"],
          "merchant_category_x_country_rate": ["mcat", "tc"]}  # train-only smoothed fraud rate per level
-COMPLAINTS = "complaints_90d"  # complaints created in the 90 days before, already processed (late arrivals unknown)
+COMPLAINTS = "complaints_90d"  # created in the 90 days before and in an earlier daily file (process_date < tx date)
 
 
 def build_candidates(con, cutoff: str = fs.WINDOWS[fs.VALIDATION][1]) -> pl.DataFrame:
@@ -107,7 +109,7 @@ def build_candidates(con, cutoff: str = fs.WINDOWS[fs.VALIDATION][1]) -> pl.Data
       cmp AS (SELECT s2.transaction_id, count(*) AS n FROM s2 JOIN complaints c ON c.customer_id = s2.customer_id
               AND c.creation_date < s2.td AND c.creation_date >= s2.td - INTERVAL 90 DAY
               AND c.process_date < s2.td::DATE GROUP BY 1)
-      SELECT s2.* EXCLUDE (customer_id, td), coalesce(cmp.n, 0) AS {COMPLAINTS}
+      SELECT s2.* EXCLUDE (customer_id), coalesce(cmp.n, 0) AS {COMPLAINTS}
       FROM s2 LEFT JOIN cmp USING (transaction_id)""").pl()
 
 
@@ -158,11 +160,13 @@ def train_rates(key_tr: list, y_tr: np.ndarray, key_va: list, folds: int = 5) ->
 
 
 def search(df: pl.DataFrame) -> dict:
-    """Single-candidate AUC with CI on train and validation, `is_signal` per candidate, and the 95th percentile of the
-    largest |AUC - 0.5| over the numeric candidates under permuted validation labels (a family-wise yardstick)."""
+    """Single-candidate AUC with CI on train, late train (from LATE_TRAIN, past the cold start) and validation;
+    `is_signal` per candidate; and the 95th percentile of the largest |AUC - 0.5| over every candidate (not the
+    reference) under permuted validation labels, a family-wise yardstick."""
     df = df.sort("transaction_id")  # the out-of-fold folds and the permutations depend on row order
     tr, va = df.filter(pl.col("split_window") == fs.TRAIN), df.filter(pl.col("split_window") == fs.VALIDATION)
     ytr, yva = tr["is_fraud"].cast(pl.Int8).to_numpy(), va["is_fraud"].cast(pl.Int8).to_numpy()
+    late = (tr["td"] >= datetime.fromisoformat(LATE_TRAIN)).to_numpy()
     num = lambda d, c: d[c].cast(pl.Float64).fill_nan(None).to_numpy().astype(float)  # noqa: E731
     pairs = [(f, c, num(tr, c), num(va, c)) for c, (f, _) in CANDIDATES.items()]
     pairs.append(("complaints before", COMPLAINTS, num(tr, COMPLAINTS), num(va, COMPLAINTS)))
@@ -170,21 +174,22 @@ def search(df: pl.DataFrame) -> dict:
         key = pl.concat_str([pl.col(c).cast(pl.Utf8).fill_null("<null>") for c in cols], separator="|")
         pairs.append(("category rate (train only)", name, *train_rates(tr.select(key).to_series().to_list(), ytr,
                                                                       va.select(key).to_series().to_list())))
-    pairs.append(("reference (not a candidate)", "bank_fraud_score", num(tr, sc.BANK), num(va, sc.BANK)))
+    pairs.append((REFERENCE, "bank_fraud_score", num(tr, sc.BANK), num(va, sc.BANK)))
     rows = []
     for fam, name, xtr, xva in pairs:
-        a_tr, a_va = auc_ci(ytr, xtr), auc_ci(yva, xva)
+        a_tr, a_late, a_va = auc_ci(ytr, xtr), auc_ci(ytr[late], xtr[late]), auc_ci(yva, xva)
         rows.append({"family": fam, "candidate": name, "coverage_validation": float(np.mean(~np.isnan(xva))),
-                     "auc_train": a_tr[0], "ci_train": list(a_tr[1:]), "auc_validation": a_va[0],
-                     "ci_validation": list(a_va[1:]), "signal": is_signal(a_va, a_tr)})
+                     "auc_train": a_tr[0], "ci_train": list(a_tr[1:]), "auc_train_late": a_late[0],
+                     "ci_train_late": list(a_late[1:]), "auc_validation": a_va[0], "ci_validation": list(a_va[1:]),
+                     "signal": is_signal(a_va, a_tr)})
     ranks = np.vstack([pl.Series(np.where(np.isnan(x), -np.inf, x)).rank("average").to_numpy()
-                       for _, _, _, x in pairs[:len(CANDIDATES) + 1]])  # numeric only
+                       for fam, _, _, x in pairs if fam != REFERENCE])
     m, n, rng = int(yva.sum()), len(yva) - int(yva.sum()), np.random.default_rng(SEED)
     perm = [np.abs((ranks[:, rng.choice(len(yva), m, replace=False)].sum(1) - m * (m + 1) / 2) / (m * n) - 0.5).max()
             for _ in range(N_PERM)]
-    return {"n": {fs.TRAIN: tr.height, fs.VALIDATION: va.height},
-            "n_fraud": {fs.TRAIN: int(ytr.sum()), fs.VALIDATION: int(yva.sum())},
-            "familywise_max_abs_dev_95": float(np.percentile(perm, 95)), "rows": rows}
+    return {"n": {fs.TRAIN: tr.height, fs.VALIDATION: va.height, "train_late": int(late.sum())},
+            "n_fraud": {fs.TRAIN: int(ytr.sum()), fs.VALIDATION: int(yva.sum()), "train_late": int(ytr[late].sum())},
+            "familywise_max_abs_dev_95": float(np.percentile(perm, 95)), "n_candidates": int(len(ranks)), "rows": rows}
 
 
 def load(gold: str | Path, labels_path: str | Path) -> tuple[pl.DataFrame, str]:
@@ -212,9 +217,11 @@ def main() -> None:
     for r in rec["rows"]:
         print(f"{r['family']:28s} {r['candidate']:34s} cov={r['coverage_validation']:.2f} "
               f"train={r['auc_train']:.3f} [{r['ci_train'][0]:.3f}, {r['ci_train'][1]:.3f}] "
+              f"late={r['auc_train_late']:.3f} [{r['ci_train_late'][0]:.3f}, {r['ci_train_late'][1]:.3f}] "
               f"val={r['auc_validation']:.3f} [{r['ci_validation'][0]:.3f}, {r['ci_validation'][1]:.3f}]"
               f"{'  SIGNAL' if r['signal'] else ''}")
-    print(f"family-wise 95% max |AUC-0.5| under permuted validation labels: {rec['familywise_max_abs_dev_95']:.3f}")
+    print(f"family-wise 95% max |AUC-0.5| over {rec['n_candidates']} candidates under permuted validation labels: "
+          f"{rec['familywise_max_abs_dev_95']:.3f}")
 
 
 if __name__ == "__main__":
