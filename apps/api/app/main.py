@@ -22,7 +22,8 @@ from pydantic import BaseModel, ConfigDict
 from app import fixtures as fx
 from nick_of_time import CONTRACT_VERSION, ids
 from nick_of_time.contracts import (AnalystActionIn, AnalystActionOut, CaseSummary, CaseView, CustomerCaseSummary,
-                                    CustomerCaseView, CustomerTurn, FinalState, Mode, ProductView, ProgressItem)
+                                    CustomerCaseView, CustomerTurn, FinalState, Mode, ProductView, ProgressItem,
+                                    Suggestion)
 
 COOKIE = "not_session"
 SESSION_TTL = dt.timedelta(minutes=fx.SESSION_TTL_MINUTES)       # policies.yaml identity.session_ttl_minutes
@@ -338,8 +339,16 @@ def create_app(eval_mode: Optional[bool] = None) -> FastAPI:
     def _turn(s: dict) -> CustomerTurn:
         turn = fx.turn_result().for_customer().model_copy(update={"mode": s["mode"]})
         if session_state(s) != "verified":                 # the stub's stand-in for the graph's reauthenticate rule
-            turn = turn.model_copy(update={"decision": "reauthenticate", "case_id": None, "receipt": None,
-                                           "suggestions": []})
+            # No data: no case, receipt or action claim. The line is the session line of messages.yaml (spec 04 §4.5).
+            lang = next((c["language"] for c in fx.CUSTOMERS if c["customer_id"] == s["customer_id"]), "es")
+            chips = fx.MESSAGES["suggest"]
+            turn = turn.model_copy(update={
+                "decision": "reauthenticate", "case_id": None, "receipt": None, "language": lang,
+                "reply": fx.MESSAGES["connect"]["general_contact"][lang],
+                "suggestions": [      # [assumption] the link goes to "/" (the verify screen); labels from messages.yaml
+                    Suggestion(id="s1", label=chips["reauthenticate"][lang], kind="link", href="/"),
+                    Suggestion(id="s2", label=chips["request_call"][lang], kind="action",
+                               action={"type": "request_call"})]})
         return turn
 
     def _sse(event: str, data: dict) -> str:
@@ -350,12 +359,17 @@ def create_app(eval_mode: Optional[bool] = None) -> FastAPI:
                      s: dict = Depends(own_thread)):
         # AC-06: the configurable comes from the cookie's session; the body (including config.configurable) is never read.
         request.app.state.runs.append(run_config(s))
-        progress = ProgressItem(step="block_card", label="Bloqueando la tarjeta", state="in_progress", at=now())
-        events = [("progress", progress.model_dump(mode="json")), ("turn", _turn(s).model_dump(mode="json"))]
+        events = [("turn", _turn(s).model_dump(mode="json"))]
+        if session_state(s) == "verified":                 # a reauthenticate turn has no action, so no progress event
+            progress = ProgressItem(step="block_card", label="Bloqueando la tarjeta", state="in_progress", at=now())
+            events.insert(0, ("progress", progress.model_dump(mode="json")))
         return StreamingResponse((_sse(e, d) for e, d in events), media_type="text/event-stream")
 
     @app.get("/api/agent/threads/{thread_id}/state", response_model=CustomerTurn)
     def agent_state(thread_id: str, s: dict = Depends(own_thread)):
+        # Not forwarded: an expired session gets no thread data (G-SES-01), the same 401 as the data routes.
+        if session_state(s) != "verified":
+            session(s)
         return _turn(s)
 
     # ---------- customer ----------
@@ -488,14 +502,15 @@ def create_app(eval_mode: Optional[bool] = None) -> FastAPI:
             if state not in ("verified", "expired", "none"):
                 raise ApiError(400, "INVALID", "session must be verified, expired or none")
             sid, t = ids.new_id("session"), now()
+            mode = "replay"                                # ADR 0020: seeded sessions are always replay
             cid = None if state == "none" else body.initial_state.get("customer_id")
             country = next((c["country"] for c in fx.CUSTOMERS if c["customer_id"] == cid), None)
             request.app.state.sessions[sid] = {
-                "customer_id": cid, "country": country, "mode": "replay", "verified": state == "verified",
+                "customer_id": cid, "country": country, "mode": mode, "verified": state == "verified",
                 "prefs": {}, "run_id": body.run_id, "arm": body.arm,
                 "expires_at": t - SESSION_TTL if state == "expired" else t + SESSION_TTL}
             return {"session_id": sid, "thread_id": new_thread(sid), "run_id": body.run_id, "arm": body.arm,
-                    "mode": "replay"}
+                    "mode": request.app.state.sessions[sid]["mode"]}
 
         @app.get("/api/eval/final-state/{session_id}", response_model=FinalState)
         def eval_final_state(session_id: str, request: Request):
