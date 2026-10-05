@@ -5,7 +5,8 @@ server refuses to start without one of 32+ characters and never logs it), `DATAB
 in-memory store only with `MCP_DEV_MEMORY_STORE=1`, never by default), `GOLD_PATH` (gold mounted read-only) and
 `GOLD_VERSION` (else the gold manifest's version). One uvicorn worker: the rate limiter's counts live in one process.
 The read handlers (task 03b) are wired here; the other tool modules are imported when present (OPTIONAL_MODULES), so
-the server keeps starting while they merge, and a tool without a handler answers UNAVAILABLE (the gate).
+the server keeps starting while they merge (a tool without a handler answers UNAVAILABLE), but a present module that
+is broken fails closed: the server does not start, so the deploy's health wait fails instead of shipping it.
 """
 from __future__ import annotations
 
@@ -30,7 +31,7 @@ from nick_of_time.policy import load_policies
 
 # Tasks 03c (writes, case reads) and 03d1 (follow-ups, notifications). A module either fills `server.HANDLERS` when
 # imported or defines `<name>_handlers(...)` functions whose parameters are named after DEPENDENCIES and that return
-# {tool name: handler}. [assumption] a module that fails to import is logged and skipped: its tools stay UNAVAILABLE.
+# {tool name: handler}. An absent module is skipped (its tools answer UNAVAILABLE); a broken one stops startup.
 OPTIONAL_MODULES = ("writes", "case_reads", "followups", "notify")
 DEPENDENCIES = ("gold", "policies", "store", "channels", "guardrails")
 MEMORY_FLAG = "MCP_DEV_MEMORY_STORE"
@@ -78,34 +79,38 @@ def gold_version(path: Path, env: Mapping[str, str]) -> Optional[str]:
         return None
 
 
-def optional_handlers(deps: Mapping[str, Any], modules: tuple[str, ...] = OPTIONAL_MODULES) -> dict[str, Handler]:
+def optional_handlers(deps: Mapping[str, Any], modules: tuple[str, ...] = OPTIONAL_MODULES
+                      ) -> tuple[dict[str, Handler], list[str], list[str]]:
+    """The handlers of the tool modules present, the names of those loaded and of those absent. A module that exists
+    but fails to import, a factory missing a dependency or failing, or an unknown tool name stops startup."""
     found: dict[str, Handler] = {}
+    loaded, absent = [], []
     for name in modules:
         qualified = f"{__package__}.{name}"
         try:
             module = importlib.import_module(qualified)
         except ModuleNotFoundError as error:
-            if error.name == qualified:
-                log.info("tool module %s is not present yet", name)
-            else:
-                log.error("tool module %s failed to import: %s", name, type(error).__name__)
+            if error.name != qualified:
+                raise RuntimeError(f"tool module {name} failed to import: {type(error).__name__}") from error
+            absent.append(name)
             continue
-        except Exception as error:                               # its tools stay UNAVAILABLE
-            log.error("tool module %s failed to import: %s", name, type(error).__name__)
-            continue
+        except Exception as error:
+            raise RuntimeError(f"tool module {name} failed to import: {type(error).__name__}") from error
         for attr, factory in vars(module).items():
             if not (attr.endswith("_handlers") and inspect.isfunction(factory) and factory.__module__ == qualified):
                 continue
             params = inspect.signature(factory).parameters.values()
-            missing = [p.name for p in params if p.default is p.empty and p.name not in deps]
-            if missing:
-                log.error("%s.%s needs %s: skipped", name, attr, ", ".join(missing))
-                continue
+            if missing := [p.name for p in params if p.default is p.empty and p.name not in deps]:
+                raise RuntimeError(f"{name}.{attr} needs {', '.join(missing)}, which the entry point does not give")
             try:
-                found.update(factory(**{p.name: deps[p.name] for p in params if p.name in deps}))
+                made = dict(factory(**{p.name: deps[p.name] for p in params if p.name in deps}))
             except Exception as error:
-                log.error("%s.%s failed: %s", name, attr, type(error).__name__)
-    return found
+                raise RuntimeError(f"{name}.{attr} failed: {type(error).__name__}") from error
+            if unknown := sorted(set(made) - set(CUSTOMER_TOOLS)):
+                raise RuntimeError(f"{name}.{attr} returned unknown tools: {', '.join(unknown)}")
+            found.update(made)
+        loaded.append(name)
+    return found, loaded, absent
 
 
 def build(env: Mapping[str, str] = os.environ) -> Starlette:
@@ -117,12 +122,13 @@ def build(env: Mapping[str, str] = os.environ) -> Starlette:
     policies, gold = load_policies(), Gold(Path(gold_path))
     guardrails = {rule_id: rule.guardrail for rule_id, rule in policies.rules.items() if rule.guardrail}
     deps = {"gold": gold, "policies": policies, "store": store, "channels": store.channels, "guardrails": guardrails}
-    extra = optional_handlers(deps)                                  # imports may also fill server.HANDLERS
+    extra, loaded, absent = optional_handlers(deps)                  # imports may also fill server.HANDLERS
+    if unknown := sorted(set(server.HANDLERS) - set(CUSTOMER_TOOLS)):
+        raise RuntimeError(f"server.HANDLERS has unknown tools: {', '.join(unknown)}")
     handlers = {**read_handlers(gold, policies, channels=store.channels), **server.HANDLERS, **extra}
-    handlers = {tool: handler for tool, handler in handlers.items() if tool in CUSTOMER_TOOLS}
     gate = Gate(StoreSessions(store), handlers, denials=store_denials(store), guardrails=guardrails)
     health = {"gold_version": gold_version(Path(gold_path), env), "policies_version": policies.version,
-              "store": backend, "handlers": len(handlers)}
+              "store": backend, "handlers": len(handlers), "modules": {"loaded": loaded, "absent": absent}}
     log.info("MCP server ready: %s", json.dumps(health))
     return server.build_app(server.build_server(gate, info=health), api_key)
 
@@ -135,7 +141,7 @@ def main(argv: Optional[list[str]] = None) -> None:
     parser.add_argument("--port", type=int, default=8001)
     args = parser.parse_args(argv)
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
-    uvicorn.run(build(), host=args.host, port=args.port, workers=1, proxy_headers=True)
+    uvicorn.run(build(), host=args.host, port=args.port, workers=1)
 
 
 if __name__ == "__main__":

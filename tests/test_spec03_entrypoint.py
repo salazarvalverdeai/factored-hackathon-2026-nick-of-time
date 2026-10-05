@@ -17,7 +17,9 @@ from starlette.testclient import TestClient
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "apps/mcp"))
 from mcp_server import __main__ as entry  # noqa: E402
-from mcp_server import server  # noqa: E402
+from mcp_server.gold import Gold  # noqa: E402
+from mcp_server.reads import read_handlers  # noqa: E402
+from nick_of_time.policy import load_policies  # noqa: E402
 from nick_of_time.store.memory import MemoryStore  # noqa: E402
 
 KEY = "test-key-not-a-secret-0123456789abcdef"
@@ -84,9 +86,13 @@ def test_t8_health_reports_versions_and_handlers_without_secrets(gold, monkeypat
     with TestClient(app) as client:
         body = client.get("/health").text
     health = json.loads(body)
-    assert health == {"status": "ok", "tools": 16, "gold_version": "v1", "policies_version": health["policies_version"],
-                      "store": "memory", "handlers": 4}
-    assert isinstance(health["policies_version"], int)
+    reads = read_handlers(Gold(gold), load_policies())                   # grows as 03b adds read tools (PR #120)
+    assert {k: health[k] for k in ("status", "tools", "gold_version", "store")} == {
+        "status": "ok", "tools": 16, "gold_version": "v1", "store": "memory"}
+    assert health["policies_version"] == load_policies().version
+    assert len(reads) <= health["handlers"] <= 16                        # 03c / 03d1 modules add theirs when merged
+    modules = health["modules"]
+    assert sorted(modules["loaded"] + modules["absent"]) == sorted(entry.OPTIONAL_MODULES)
     assert KEY not in body and "not-a-real-password" not in body and str(gold) not in body
     assert entry.gold_version(gold, {"GOLD_VERSION": "v7"}) == "v7"
     assert entry.gold_version(gold / "missing", {}) is None
@@ -118,26 +124,57 @@ def test_ac_02_ac_12_read_handlers_run_over_the_store_sessions_and_denials(gold,
     assert (row.session_id, row.policy_id, row.guardrail_id) == (session.session_id, "POL-DEFAULT-DENY", "G-TOOL-01")
 
 
-def test_t8_optional_tool_modules_register_when_present_and_are_skipped_when_absent(monkeypatch):
-    present = types.ModuleType("mcp_server.present")
-
-    def demo_handlers(gold, store, unused=None):
-        return {"get_case": lambda call, args: (gold, store)}
-    demo_handlers.__module__ = present.__name__
-    present.demo_handlers = demo_handlers
+def _modules(monkeypatch, **fakes):
+    """Fake tool modules: a module object, an exception to raise on import, or absent when not named."""
     real_import = importlib.import_module
 
     def fake_import(name, *args):
-        if name == "mcp_server.present":
-            return present
-        if name == "mcp_server.broken":
-            raise ImportError("a bug inside the module")
+        short = name.removeprefix("mcp_server.")
+        if short in fakes:
+            if isinstance(fakes[short], BaseException):
+                raise fakes[short]
+            return fakes[short]
+        if name.startswith("mcp_server.") and short not in ("gold", "reads", "gate", "server"):
+            raise ModuleNotFoundError(f"No module named {name!r}", name=name)
         return real_import(name, *args)
     monkeypatch.setattr(importlib, "import_module", fake_import)
-    found = entry.optional_handlers({"gold": "G", "store": "S"}, ("absent", "broken", "present"))
+
+
+def _module(name, factory):
+    module = types.ModuleType(f"mcp_server.{name}")
+    factory.__module__ = module.__name__
+    setattr(module, factory.__name__, factory)
+    return module
+
+
+def test_t8_present_tool_modules_register_and_absent_ones_are_skipped(monkeypatch):
+    def demo_handlers(gold, store, unused=None):
+        return {"get_case": lambda call, args: (gold, store)}
+    _modules(monkeypatch, present=_module("present", demo_handlers))
+    found, loaded, absent = entry.optional_handlers({"gold": "G", "store": "S"}, ("absent", "present"))
     assert list(found) == ["get_case"] and found["get_case"](None, None) == ("G", "S")
-    assert entry.optional_handlers({}, ("present",)) == {}                  # a missing dependency skips the factory
-    assert entry.optional_handlers({}) is not None                          # today's real modules, present or not
+    assert (loaded, absent) == (["present"], ["absent"])
+
+
+def test_t8_a_broken_tool_module_stops_startup(monkeypatch, gold):
+    def needs_handlers(clock):
+        return {}
+
+    def failing_handlers(gold):
+        raise ValueError("boom")
+
+    def unknown_handlers(gold):
+        return {"wire_money": lambda call, args: None}
+    inner = ModuleNotFoundError("No module named 'missing_dep'", name="missing_dep")
+    cases = {"broken": ImportError("a bug"), "inner": inner, "needs": _module("needs", needs_handlers),
+             "failing": _module("failing", failing_handlers), "unknown": _module("unknown", unknown_handlers)}
+    _modules(monkeypatch, **cases)
+    for name in cases:
+        with pytest.raises(RuntimeError, match=name):
+            entry.optional_handlers({"gold": "G"}, (name,))
+    monkeypatch.setattr(entry.optional_handlers, "__defaults__", (("broken",),))
+    with pytest.raises(RuntimeError, match="broken"):
+        _app(gold, monkeypatch)
 
 
 def test_t8_entry_point_runs_one_worker_and_the_image_runs_the_real_server(monkeypatch):
@@ -145,8 +182,7 @@ def test_t8_entry_point_runs_one_worker_and_the_image_runs_the_real_server(monke
     monkeypatch.setattr(entry, "build", lambda: "app")
     monkeypatch.setitem(sys.modules, "uvicorn", types.SimpleNamespace(run=lambda app, **kw: ran.update(app=app, **kw)))
     entry.main(["--port", "8123"])
-    assert ran == {"app": "app", "host": "0.0.0.0", "port": 8123, "workers": 1, "proxy_headers": True}
+    assert ran == {"app": "app", "host": "0.0.0.0", "port": 8123, "workers": 1}
     dockerfile = (ROOT / "apps/mcp/Dockerfile").read_text()
     assert '"-m", "mcp_server", "--host"' in dockerfile and "mcp_server.fake" not in dockerfile.split("CMD")[-1]
     assert '"mcp_server.fake"' in (ROOT / "infra/compose.dev.yml").read_text()
-    assert server.HANDLERS == {}

@@ -2,8 +2,8 @@
 
 Each tool publishes its `contracts/tools.py` schemas and runs through `gate.Gate` (session, fault, rate limit, schema,
 audit). The tool handlers land with tasks 03b–03d; a tool without one answers `UNAVAILABLE`. `/health` is the only
-route without the key, and it returns no data: the tool count and, from the entry point (`__main__.py`, T8), the gold
-and policies versions, the store backend and the handler count, never a secret.
+route without the key, and it returns no customer data and no secret: the tool count and, from the entry point
+(`__main__.py`, T8), the gold and policies versions, the store backend, the handler count and the tool module names.
 """
 from __future__ import annotations
 
