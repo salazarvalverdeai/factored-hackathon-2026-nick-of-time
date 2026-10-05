@@ -2,7 +2,7 @@
 
 - **Feature:** the contract the three of us build against — folders, REST API, MCP tools, graph I/O, Postgres schema,
   customer receipt, evaluation hooks — plus stubs so nobody waits for anybody.
-- **Status:** Draft (contract 1.4.0, updated 2026-10-05: 16 customer tools, two time modes, action states, delivery
+- **Status:** Draft (contract 1.5.0, updated 2026-10-05: 16 customer tools, two time modes, action states, delivery
   status, the store's §6.5 rules, the lead's 2026-10-05 follow-ups)
 - **Owner:** @salazarvalverdeai · **Priority:** P0 · **Size:** M
 - **Challenge dimension:** AI Engineering, Technical Judgment
@@ -10,7 +10,7 @@
   0020
 - **Issue:** #3 · **Approval:** all three (@salazarvalverdeai, @gianzk, @vldiego)
 
-> Full profile: this spec *is* the contract. Contract version **1.4.0** (1.0.0 was the first review draft; 1.1.0 adds
+> Full profile: this spec *is* the contract. Contract version **1.5.0** (1.0.0 was the first review draft; 1.1.0 adds
 > the approved improvements #12–#16 before approval; 1.2.0 is additive: the handoff rules of §6.4, `GOLD_PATTERN`, the
 > `zone_medium` and `supervised_mode` handoff reasons; 1.3.0 is additive, from task 01c, §6.5: the `action_verified`
 > event type, `cases.opened_on` and the `on` business date of `status_changed` (D-023), an `action_id` on each customer
@@ -27,7 +27,10 @@
 > lands with PR #80; (5) the store's §6.5 additions of tasks 01g2 and 01g3 (PRs #87, #99): `idempotency` append-only
 > with `args_hash` (a key replayed with other arguments is refused), `row_no` and the latest-row rule (highest
 > `row_no`, never the latest `created_at`), `read` on `action_verified`, and the refusal of NUL and lone surrogates; and
-> D-033's `score_source` and `score_version` in `handoff.schema.json`, already on main).
+> D-033's `score_source` and `score_version` in `handoff.schema.json`, already on main); 1.5.0 is additive, task DLANG:
+> `deadline_source_label` on `ComputeDeadlineOut` and on the case deadlines of `get_case` (`open_case` leaves it
+> null), the clock entry's `source_label` (`policies.yaml`) in the session's language, `es` by default, so the customer
+> reads the legal source in Spanish or Portuguese from a tool result; `deadline_source` keeps the analyst's name.
 > Any change after approval is a PR that all three approve and that bumps the version (minor = additive, major =
 > breaking).
 
@@ -184,12 +187,12 @@ shape of `data` is fixed in the producing spec.
 | `get_customer_profile` | R | First name, language, country, display currency, confirmed channels | — | — |
 | `search_transaction` | R | Find the disputed charge (gold; plus `demo_transactions` in `live`) | — | — |
 | `get_fraud_score` | R | The bank's score with its source and version | — | — |
-| `compute_deadline` | R | Legal deadline for a new case, with `source_url` and `verified_on` | — | — |
+| `compute_deadline` | R | Legal deadline for a new case, with `source_url`, `verified_on` and `deadline_source_label` in the session's language (1.5.0) | — | — |
 | `open_case` | W | Open the case; no duplicate active case; closed case → new case with `related_case_id` | `cases`, `case_events` (`case_opened`) | `get_case` |
 | `block_card` | W | Block the card | `product_overrides`, `case_events` (`card_blocked`) | `get_product_status` |
 | `get_product_status` | R | One card: type, last 4, status, `read_at`; `action_id` + `verification_id` only when called with a write's `action_id` (D-025) | — | — |
 | `list_my_cards` | R | The customer's cards with status; never a `V-` (plain reads); the listing's own `read_at`, set even with no cards (1.4.0) | — | — |
-| `get_case` | R | Customer view of a case: status label, stored deadlines with source and `deadline_verified_on`, visible timeline, `taken_by_person`, `related_case_id`, `read_at` (replaces `get_case_status`) | — | — |
+| `get_case` | R | Customer view of a case: status label, stored deadlines with source, `deadline_source_label` in the session's language (1.5.0) and `deadline_verified_on`, visible timeline, `taken_by_person`, `related_case_id`, `read_at` (replaces `get_case_status`) | — | — |
 | `list_my_cases` | R | The customer's cases | — | — |
 | `add_case_info` | W | Customer adds information to an active case | `case_events` (`customer_info_added`) | `get_case` |
 | `request_call` | W | Customer asks a person to call; with no `case_id` it is reported only as `requested`, since no read verifies it (D-026) | `case_events` (`call_requested`); with no case, a `call_requests` row (task 03d) | `get_case` |
@@ -208,7 +211,10 @@ shape of `data` is fixed in the producing spec.
   and return it with a `verification_id` only when its post-condition holds; a plain status read returns `read_at`
   only. `search_transaction` returns no `fraud_score` or `split`: the zone comes only
   from `get_fraud_score` (D-026 `[assumption]`). The fake server (`apps/mcp/mcp_server/fake.py`) answers each tool
-  with fixtures built from these models.
+  with fixtures built from these models. **Compatibility:** inputs forbid unknown fields (G-TOOL-01), while a
+  consumer of an output ignores a field it does not know (the published output schema stays closed), so an additive
+  minor version is backward compatible for consumers: the MCP server, deployed on merge, may run one minor version
+  ahead of the agent revision on Platform, deployed by hand, and a new output field never fails an older agent.
 
 - **Errors:** every tool returns `ToolError` (`DENY`, `NOT_FOUND`, `SESSION_EXPIRED`, `UNAVAILABLE`) instead of raising;
   a `DENY` is also written to `policy_denials` with its `policy_id`. A request for another customer's transaction,
@@ -234,7 +240,8 @@ shape of `data` is fixed in the producing spec.
   — `action` carries a button or chip press and skips the classifier (`confirm` takes `yes|no`, `choose_option` takes a
   transaction id or `none`). **Config** (injected by the api, never by the client):
   `configurable.session_id` (required), `configurable.session_state`, `configurable.mode`, `configurable.arm` and
-  `configurable.case_id` (optional, for a returning customer).
+  `configurable.case_id` (optional, for a returning customer); `configurable.llm_day_spent_usd` and
+  `configurable.llm_day_cap_usd` (optional: the day's `llm_calls` spend and the G-OPS-01 daily cap, spec 05 AC-18).
 - **Output state** (`TurnResult`, also the last item of a streamed run):
 
 ```json
@@ -377,7 +384,7 @@ and never the address (task 01g).
   "mode": "replay | live", "product_last4": "4417",
   "amount": {"original": {"amount": "1250.00", "currency": "USD"}, "display": {"amount": "22500", "currency": "MXN", "rate": "18.0", "rate_source": "…", "as_of": "YYYY-MM-DD"} },
   "actions": [{"label": "Tarjeta bloqueada", "action_id": "A-…", "state": "verified", "verification_id": "V-…", "verified_at": "ISO-8601"}],
-  "deadline": {"country": "MX", "product": "debit", "credit_deadline": "YYYY-MM-DD", "ruling_deadline": "YYYY-MM-DD", "deadline_source": "Banxico Circular 3/2012, as amended by Circular 14/2018", "source_url": "https://…", "verified_on": "YYYY-MM-DD"},
+  "deadline": {"country": "MX", "product": "debit", "credit_deadline": "YYYY-MM-DD", "ruling_deadline": "YYYY-MM-DD", "deadline_source": "Banxico, Circular 3/2012, arts. 19 Bis 3 y 19 Bis 4 (modificada por la Circular 14/2018)", "source_url": "https://…", "verified_on": "YYYY-MM-DD"},
   "what_ai_did": "string (template)", "what_a_person_does": "string (template)",
   "next_steps": ["string"], "case_url": "https://nickoftime.salazarvalverdeai.com/case/K-…"
 }
@@ -385,7 +392,8 @@ and never the address (task 01g).
 Required: `receipt_id, case_id, language, issued_at, verified_facts, actions, deadline, what_ai_did,
 what_a_person_does`. Never contains score, policy ids or transcript (`notifications.never_send`). `amount.display` is
 an approximation from `convert_amount` and is omitted when no verified rate exists (ADR 0019); `deadline` is null for a
-country without a verified clock entry (`POL-CLOCK-UNKNOWN`). Optional fields may be null or absent, except
+country without a verified clock entry (`POL-CLOCK-UNKNOWN`), and its `deadline_source` is the source in the receipt's
+language, `get_case`'s `deadline_source_label` (1.5.0), not the analyst's `source`. Optional fields may be null or absent, except
 `next_steps`, an array that is empty by default. Structural rules, in the schema and the model alike:
 - accepted ≠ verified: an action with `state: "verified"` carries a `V-` `verification_id` and `verified_at`;
 - a non-null `deadline` has at least one non-null date, an `https://` `source_url` and `verified_on`;
@@ -530,7 +538,8 @@ Implementation goes in one `feat/01-*` branch per task (for example `feat/01-pac
       (concurrent writers and first reads, the unique-index backstop). Owners of the other §6.5 accessors: `sessions`
       (read), `policy_denials` (insert), `customer_channels` and `idempotency` → task 01g's second PR
       (`feat/01-store-accessors`); `llm_calls` → task 01h (`add_llm_call` and
-      `list_llm_calls(run_id, trace_id?)` on both backends, `store/accounts.py`, `tests/test_spec01_store_llm_calls.py`:
+      `list_llm_calls(run_id, trace_id?)` on both backends, plus `llm_spend_since(since)`, the summed `cost_usd` of
+      every run's rows created at or after `since`, which the api reads for the G-OPS-01 daily cap (spec 05 AC-18), `store/accounts.py`, `tests/test_spec01_store_llm_calls.py`:
       a store-made `LC-` id `[assumption]`, non-negative integer counts, a finite `cost_usd` in [0, 10^6] per call
       `[assumption]` with a scale Postgres `numeric` holds, kept as a decimal (`-0` stored as `0`), `run_id` required
       with no default so `None` (production) is passed on purpose (D-023), no update or delete, oldest first; the api

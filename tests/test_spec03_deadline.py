@@ -59,10 +59,10 @@ def _sid(customer, mode="replay"):
 
 
 class Run:
-    def __init__(self, gold_dir, utc_now=None):
+    def __init__(self, gold_dir, utc_now=None, language="es"):
         self.denials, policies = [], load_policies()
         sessions = {_sid(customer, mode): gate.SessionRow(
-            session_id=_sid(customer, mode), customer_id=customer, verified_at=NOW, language="es",
+            session_id=_sid(customer, mode), customer_id=customer, verified_at=NOW, language=language,
             mode=mode, expires_at=NOW + dt.timedelta(minutes=15)) for customer in NAMES for mode in ("replay", "live")}
         handlers = reads.read_handlers(Gold(gold_dir), policies, utc_now=utc_now and (lambda: utc_now))
         guardrails = {rule_id: rule.guardrail for rule_id, rule in policies.rules.items() if rule.guardrail}
@@ -80,6 +80,7 @@ def _expected(country, product, opened_on, charged_on, abroad=False):
         return UNKNOWN
     return tools.ComputeDeadlineOut(country=country, product=product, credit_deadline=found.credit_deadline,
                                     ruling_deadline=found.ruling_deadline, deadline_source=found.deadline_source,
+                                    deadline_source_label=clock.source_label(found.deadline_source, "es"),
                                     source_url=found.source_url, verified_on=found.verified_on)
 
 

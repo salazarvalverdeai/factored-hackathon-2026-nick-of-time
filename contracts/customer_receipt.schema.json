@@ -69,7 +69,7 @@
         "product": {"enum": ["debit", "credit"]},
         "credit_deadline": {"$ref": "#/$defs/date_or_null"},
         "ruling_deadline": {"$ref": "#/$defs/date_or_null"},
-        "deadline_source": {"type": "string"},
+        "deadline_source": {"type": "string", "description": "in the receipt's language: get_case's deadline_source_label when it has one (contract 1.5.0)"},
         "source_url": {"type": "string", "pattern": "^https://\\S+$"},
         "verified_on": {"type": "string", "format": "date"}
       }
@@ -108,7 +108,7 @@
       ],
       "deadline": {
         "country": "MX", "product": "debit", "credit_deadline": "2026-06-03", "ruling_deadline": null,
-        "deadline_source": "Banxico Circular 3/2012, as amended by Circular 14/2018",
+        "deadline_source": "Banxico, Circular 3/2012 (modificada por la Circular 14/2018)",
         "source_url": "https://www.gob.mx/condusef/prensa/cargos-no-reconocidos-en-tarjeta-de-debito-se-restituiran-en-dos-dias-habiles-bancarios?idiom=es",
         "verified_on": "2026-10-04"
       },

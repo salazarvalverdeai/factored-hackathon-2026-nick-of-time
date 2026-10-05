@@ -26,7 +26,18 @@
 #   (notifications.never_send in policies.yaml).
 # - Never promise an outcome or a provisional credit: a person reviews and decides (CLAUDE.md rule 6).
 # - Dates are absolute (YYYY-MM-DD) and come from tools; the template never computes them.
-version: "0.6.2"
+version: "0.6.3"
+
+system:
+  # The agent platform is unreachable, timed out, answered an error or dropped the stream (spec 05 AC-05). Calm, no
+  # cause, no promise about any action in flight; the chips retry or reach a person. Served by the api, not the graph.
+  agent_unavailable:
+    es: "No pude responder en este momento. Inténtalo de nuevo en unos segundos."
+    pt: "Não consegui responder neste momento. Tente novamente em alguns segundos."
+  retry_chip:
+    # Text chip: sends its label as the next message, so the customer retries in one tap.
+    es: "Intentar de nuevo"
+    pt: "Tentar de novo"
 
 greet:
   # AC-15: first name from get_customer_profile, at most 3 capabilities, a person reviews what needs it.
