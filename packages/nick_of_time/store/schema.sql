@@ -140,13 +140,14 @@ create table notification_deliveries (                               -- AO; deli
   row_no bigint not null generated always as identity                -- insertion order: "latest" (T9)
 );
 
-create table customer_channels (                                     -- AO; latest row per channel wins
+create table customer_channels (                                     -- AO; latest row_no per channel wins
   channel_id text primary key,
   customer_id text not null,
   channel text not null,
   address text not null,
   event text not null check (event in ('linked', 'confirmed', 'revoked')),
-  created_at timestamptz not null default now()
+  created_at timestamptz not null default now(),
+  row_no bigint not null generated always as identity                -- insertion order: "latest" (T9)
 );
 
 create table link_tokens (                                           -- one-time

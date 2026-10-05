@@ -16,6 +16,10 @@ from nick_of_time.store import (CUSTOMER_VISIBLE, RESERVED_EVENTS, UNDELIVERED, 
                                 NotVerified, ProductOverride, StoreError, VerifyingRead, _check_writer, _json,
                                 _utc_now, check_action_id, check_business_date, check_text, check_transition,
                                 insert_with_fresh_case_id)
+from nick_of_time.store.accounts import (CHANNEL_CASE_EVENT, CHANNEL_ID, DENIAL_ID, ChannelEvent, CustomerChannel,
+                                         LinkedChannel, NewDenial, NewSession, PolicyDenial, SessionRecord,
+                                         check_channel_event, check_denial_session, check_key, new_row_id, parse,
+                                         window_start)
 
 
 class MemoryStore:
@@ -27,6 +31,9 @@ class MemoryStore:
         self._notifications: list[Notification] = []
         self._deliveries: dict[str, list[tuple[DeliveryStatus, Optional[dict[str, Any]]]]] = {}
         self._writes: dict[str, str] = {}                   # action id -> case id (Postgres: the unique index)
+        self._sessions: dict[str, SessionRecord] = {}
+        self._denials: list[PolicyDenial] = []
+        self._channels: list[CustomerChannel] = []
 
     # ---------- cases ----------
     def create_case(self, case: NewCase, *, actor: str, action_id: str) -> CaseRecord:
@@ -251,3 +258,53 @@ class MemoryStore:
         if type in WRITE_EVENTS and "action_id" in payload:
             self._writes[payload["action_id"]] = case_id
         return event.model_copy(deep=True)
+
+
+    # ---------- sessions, policy denials and customer channels (task 01g; arguments as in `Store`) ----------
+    def create_session(self, **fields: Any) -> SessionRecord:
+        session = parse(NewSession, fields)
+        record = SessionRecord(**session.model_dump(), session_id=ids.new_id("session"), created_at=self._now())
+        self._sessions[record.session_id] = record
+        return record
+
+    def get_session(self, session_id: str) -> Optional[SessionRecord]:
+        return self._sessions.get(check_key(session_id))
+
+    def summary_sends(self, session_id: str, *, since: dt.datetime) -> int:
+        session = self.get_session(session_id)
+        start = window_start(session, session_id, since)
+        return sum(1 for n in self._notifications if n.customer_id == session.customer_id and n.trigger == "on_request"
+                   and self._cases[n.case_id].run_id == session.run_id and n.created_at >= start)
+
+    def add_denial(self, **fields: Any) -> PolicyDenial:
+        denial = parse(NewDenial, fields)
+        detail = _json(denial.detail)
+        check_denial_session(denial, self.get_session(denial.session_id) if denial.session_id else None)
+        row = PolicyDenial(**{**denial.model_dump(), "detail": detail}, denial_id=new_row_id(DENIAL_ID),
+                           created_at=self._now())
+        self._denials.append(row)
+        return row.model_copy(deep=True)
+
+    def list_denials(self, *, run_id: Optional[str], session_id: Optional[str] = None) -> list[PolicyDenial]:
+        check_key(run_id)
+        check_key(session_id)
+        rows = [d for d in self._denials if d.run_id == run_id and session_id in (None, d.session_id)]
+        return [d.model_copy(deep=True) for d in sorted(rows, key=lambda d: (d.created_at, d.denial_id))]
+
+    def add_channel_event(self, case_id: str, channel: LinkedChannel, address: str, event: ChannelEvent, *,
+                          actor: str, trace_id: str) -> CustomerChannel:
+        _check_writer(actor, trace_id)
+        customer_id = self._case(check_key(case_id)).customer_id
+        check_channel_event({c.channel: c for c in self.channels(customer_id)}.get(channel), channel, address, event)
+        row = CustomerChannel(channel_id=new_row_id(CHANNEL_ID), customer_id=customer_id, channel=channel,
+                              address=address, event=event, created_at=self._now())
+        self._channels.append(row)
+        if (channel, event) in CHANNEL_CASE_EVENT:
+            self._append(case_id, CHANNEL_CASE_EVENT[channel, event], actor, trace_id,
+                         {"channel_id": row.channel_id, "channel": channel})
+        return row
+
+    def channels(self, customer_id: str) -> list[CustomerChannel]:
+        check_key(customer_id)
+        latest = {c.channel: c for c in self._channels if c.customer_id == customer_id}     # the row inserted last
+        return [latest[name] for name in sorted(latest)]
