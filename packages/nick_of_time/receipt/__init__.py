@@ -34,8 +34,8 @@ ACTION = {"none_of_these": {"type": "choose_option", "value": "none"}, "talk_to_
           "request_reevaluation": {"type": "request_reevaluation"}}
 REAUTH_HREF = "/login"          # [assumption] the web's sign-in route (apps/web/app/login)
 
-# §4.5 rows the graph reaches so far (T2, T3, T6); T4 and T5 add theirs. At most 3 chips, a person always reachable except
-# right after connect_person.
+# §4.5 rows the graph reaches so far (T2, T3, T4, T6); T5 adds its own. At most 3 chips, a person always reachable
+# except right after connect_person.
 ROWS: dict[str, tuple[str, ...]] = {
     "greet": ("report_unrecognized", "report_duplicate", "check_case"),
     "ask_details": ("show_recent", "dont_remember_amount", "talk_to_person"),

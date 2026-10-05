@@ -121,7 +121,7 @@ def test_ac_11_a_call_request_that_reports_a_charge_opens_the_case_without_askin
     assert turn.decision == "connect_person" and turn.zone == "medium"
     assert record(turn)["decision"]["request_call"] == "opened_case" and turn.plan       # no confirm question
     assert not any(s.id == "confirm_yes" for s in turn.suggestions)
-    assert [(a.tool, a.state) for a in turn.actions] == [("open_case", "verified"), ("request_call", "requested")]
+    assert [(a.tool, a.state) for a in turn.actions] == [("open_case", "verified"), ("request_call", "verified")]
     assert turn.case_id == "K-104233" and "Registré tu solicitud en el caso K-104233" in turn.reply   # T4: on the case
 
 

@@ -103,10 +103,8 @@ class Internal(TypedDict, total=False):     # spec 04 §4.1 fields outside TurnR
     next_node: str                          # where decide sends the turn
     read_failed: Optional[str]              # the read retrieve or status could not do this turn (its tool), or None
     path: list[str]                         # nodes run after route, for the trace
-    writes: dict[str, Any]                  # act's accepted write results by tool, for verify (task 04c)
+    writes: dict[str, Any]                  # act's accepted write results by tool, and `errors` codes (task 04c)
     unconfirmed: list[str]                  # tools whose action ended not_confirmed this turn, for the trace
-    acted: list[dict[str, Any]]             # verify's action records, kept when connect sets its own (task 04c)
-
 
 State = TypedDict("State", {**InputState.__annotations__, **OutputState.__annotations__, **Internal.__annotations__},
                   total=False)
@@ -114,7 +112,7 @@ State = TypedDict("State", {**InputState.__annotations__, **OutputState.__annota
 RESET = {"decision": None, "zone": None, "case_id": None, "actions": [], "denials": [], "guardrails_triggered": [],
          "body": [], "row": None, "route": None, "active_case": None, "greet_pending": False, "plan": [], "options": [],
          "answer": None, "decision_record": None, "path": [], "read_failed": None, "writes": {},
-         "unconfirmed": [], "acted": []}
+         "unconfirmed": []}
 
 
 async def call(config: RunnableConfig, tool: str, **args: Any) -> BaseModel:
@@ -401,20 +399,24 @@ async def act(state: State, config: RunnableConfig) -> dict[str, Any]:
     """Runs only what decide() allowed, in spec 03's order (Q3): open_case first, then block_card when allowed_actions
     lists it (D-029: the engine, never the graph, decides whether a call request blocks). The idempotency key is
     session:transaction:action:run. A write the tool accepted is "requested" until verify reads it; one the tool never
-    answered gets a graph-minted id and "not_confirmed" (§4.1). Nothing is told to the customer here."""
-    trx, policy, writes, actions = state["selected_transaction"], state["route"], {}, []
+    answered gets a graph-minted id and "not_confirmed" (§4.1). block_card follows an open_case error only when it was
+    UNAVAILABLE (the case may exist; the server re-checks it, spec 03 AC-10). Nothing is told to the customer here."""
+    trx, policy, writes, actions = state["selected_transaction"], state["route"], {"errors": {}}, []
     # [assumption] a call request that reports a charge (intent human_request) opens an unrecognized_charge case
     dispute = state["intent"] if state.get("intent") in DISPUTES else "unrecognized_charge"
     planned = {"open_case": {"transaction_id": trx["transaction_id"], "dispute_type": dispute, "zone": policy["zone"]},
                "block_card": {"product_id": trx["product_id"],
                               "reason": "high_zone_dispute" if policy["zone"] == "high" else "confirmed_dispute"}}
     for tool in [t for t in planned if t in policy["allowed_actions"]]:
-        if tool == "block_card" and (writes.get("open_case") or {}).get("duplicate_of"):
-            break                           # [assumption] as AC-23: no new block on an existing case; its person decides
+        if tool == "block_card" and ((writes.get("open_case") or {}).get("duplicate_of")
+                                     or writes["errors"].get("open_case") not in (None, "UNAVAILABLE")):
+            break   # [assumption] no block on an existing case (as AC-23) nor after a final open_case error
+        # run = the LangGraph run id (trace_id); policies.yaml's template has no run part (follow-up for the lead)
         key = f"{state['session_id']}:{trx['transaction_id']}:{tool}:{state['trace_id']}"
         out = await attempt(config, tool, idempotency_key=key, **planned[tool])
         if isinstance(out, ToolError):
             actions.append({"tool": tool, "action_id": new_id("action"), "state": "not_confirmed"})
+            writes["errors"][tool] = out.code
             continue
         writes[tool] = out.model_dump(mode="json")
         actions.append({"tool": tool, "action_id": out.action_id, "state": "requested"})
@@ -443,17 +445,25 @@ async def verify(state: State, config: RunnableConfig) -> dict[str, Any]:
                          "read_at": readings[tool]["read_at"]})
         else:
             done.append({**action, "state": "not_confirmed"})
-    case = readings.get("open_case")
-    lines = verified_lines(case, readings.get("block_card"), writes.get("open_case"), language)
+    case, calls = readings.get("open_case"), state["route"]["request_call"]
     unconfirmed = [a["tool"] for a in done if a["state"] == "not_confirmed"]
-    if unconfirmed:                         # [assumption] with no verified case, no line promises a person's review
-        lines += ([msg.action_line(tool, "not_confirmed", language) for tool in unconfirmed] if case
-                  else [msg.text("act.case_not_confirmed", language)])
-    row = (("escalate_unconfirmed" if case else "case_unconfirmed") if unconfirmed
+    if writes["errors"].get("open_case") == "SESSION_EXPIRED":   # nothing written: sign in again (spec 02 rule 1)
+        return {"actions": done, "unconfirmed": unconfirmed, "body": [msg.text("refuse.reauthenticate", language)],
+                "row": "reauthenticate", "decision": "reauthenticate", "path": state["path"] + ["verify"]}
+    lines = verified_lines(case, readings.get("block_card"), writes.get("open_case"), language)
+    for tool in unconfirmed:                # [assumption] with no verified case, no line promises a person's review
+        lines.append(msg.text("act.case_not_confirmed", language) if tool == "open_case" and not calls else
+                     msg.action_line(tool, "not_confirmed", language) if case else
+                     msg.text("act.not_confirmed", language, action_label=msg.text(
+                         f"status.action_label.{tool}", language)))
+    duplicate = (writes.get("open_case") or {}).get("duplicate_of") and not unconfirmed
+    row = (("escalate_unconfirmed" if case else "case_unconfirmed") if unconfirmed else "case_active" if duplicate
            else "receipt" if state["route"]["decision"] == "block_and_open_case" else "handoff")
-    return {"actions": done, "acted": done, "unconfirmed": unconfirmed, "body": [*state["body"], *lines], "row": row,
-            "case_id": case["case_id"] if case else None, "path": state["path"] + ["verify"],
-            **({"decision": "escalate_unconfirmed_action"} if unconfirmed else {})}
+    # an unconfirmed action escalates; a duplicate_of case reports as the duplicate node does (D-050)
+    decision = ({"decision": "escalate_unconfirmed_action"} if unconfirmed else
+                {"decision": "connect_person" if calls else None} if duplicate else {})
+    return {"actions": done, "unconfirmed": unconfirmed, "body": [*state["body"], *lines], "row": row,
+            "case_id": case["case_id"] if case else None, "path": state["path"] + ["verify"], **decision}
 
 
 def holds(tool: str, action_id: str, target: dict[str, str], reading: BaseModel) -> bool:
@@ -593,13 +603,12 @@ def respond(state: State) -> dict[str, Any]:
     row = state.get("row") or ("greet" if lines else "ask_details")
     body = state.get("body") or ([] if lines else [msg.text("clarify.ask_what", language)])
     nodes = ["identity", "greet", "understand", "route", *(state.get("path") or []), "respond"]
-    record, acted = state.get("decision_record") or {}, state.get("acted") or []
-    actions = [*acted, *[a for a in state.get("actions") or [] if a not in acted]]   # verify's, then connect's
+    record = state.get("decision_record") or {}
     turn = TurnResult(
         reply="\n".join(lines + body), language=language, decision=state.get("decision"), intent=state.get("intent"),
         intent_confidence=state.get("intent_confidence"), case_id=state.get("case_id"), zone=state.get("zone"),
         plan=state.get("plan") or [], options=state.get("options") or [],
-        actions=actions, suggestions=msg.suggestions(row, language, state.get("case_id")),
+        actions=state.get("actions") or [], suggestions=msg.suggestions(row, language, state.get("case_id")),
         guardrails_triggered=state.get("guardrails_triggered") or [], denials=state.get("denials") or [],
         mode=state["mode"], trace_id=state["trace_id"],
         trace=[step(n, record, state.get("read_failed"), state.get("unconfirmed")) for n in nodes])
@@ -636,7 +645,8 @@ builder.add_conditional_edges("decide", lambda state: state["next_node"],
 builder.add_conditional_edges("plan", lambda state: "respond" if state["route"]["decision"] == "confirm" else "act",
                               ["act", "respond"])
 builder.add_edge("act", "verify")
-builder.add_conditional_edges("verify", call_or_respond, ["connect", "respond"])
+builder.add_conditional_edges("verify", lambda state: "respond" if state["row"] == "reauthenticate"
+                              else call_or_respond(state), ["connect", "respond"])
 builder.add_conditional_edges("duplicate", call_or_respond, ["connect", "respond"])
 for _node in ("refuse", "connect", "clarify", "status"):
     builder.add_edge(_node, "respond")

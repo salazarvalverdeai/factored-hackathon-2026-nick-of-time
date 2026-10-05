@@ -17,13 +17,14 @@
 # - Tasks T2-T7 of spec 04 extend this file (clarify, refuse, progress labels AC-17, duplicate case AC-23,
 #   re-evaluation AC-24, reversed charge); each extension is a contract change approved by the lead. Task 04b
 #   (T3) added clarify.pick_one, clarify.exhausted, clarify.read_failed and duplicate.case_exists; task 04e (T6)
-#   added status.no_cases, status.no_cards and status.case_done.
+#   added status.no_cases, status.no_cards and status.case_done; task 04c (T4) added act.case_opened,
+#   act.case_not_confirmed and act.not_confirmed.
 # - Chips: `kind` is static here; the action payload ({type}, spec 01 §6.4) is set by the server code.
 # - Never a placeholder or text for the fraud score, policy ids, rule ids, zones or the transcript
 #   (notifications.never_send in policies.yaml).
 # - Never promise an outcome or a provisional credit: a person reviews and decides (CLAUDE.md rule 6).
 # - Dates are absolute (YYYY-MM-DD) and come from tools; the template never computes them.
-version: "0.4.0"
+version: "0.5.0"
 
 greet:
   # AC-15: first name from get_customer_profile, at most 3 capabilities, a person reviews what needs it.
@@ -368,9 +369,14 @@ act:
     pt: "Caso {case_id} aberto e verificado (verificação {verification_id}, {verified_at})."
   case_not_confirmed:
     # open_case got no answer, or get_case did not confirm it: no case id is given and nobody is said to review it;
-    # the first chip asks for a call.
-    es: "No pude confirmar la apertura de tu caso, así que no te doy datos que no verifiqué. Pide que te llame una persona para revisarlo."
-    pt: "Não consegui confirmar a abertura do seu caso, então não informo dados que não verifiquei. Peça que uma pessoa ligue para você para revisar."
+    # the first chip asks for a call. A turn that registers a call uses act.not_confirmed instead.
+    es: "Apertura del caso: SIN CONFIRMAR. Pide que te llame una persona para revisarlo."
+    pt: "Abertura do caso: SEM CONFIRMAÇÃO. Peça que uma pessoa ligue para você para revisar."
+  not_confirmed:
+    # Any action not confirmed when no case is verified (so no review is promised), or the case itself on a turn
+    # that registers a call. action_label is status.action_label.
+    es: "{action_label}: SIN CONFIRMAR."
+    pt: "{action_label}: SEM CONFIRMAÇÃO."
 
 duplicate:
   # Spec 04 task 04b (pending the lead): AC-23. The charge already has an active case (get_case); no second case is
