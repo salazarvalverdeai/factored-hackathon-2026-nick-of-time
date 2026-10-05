@@ -26,6 +26,10 @@ def no_tracing(monkeypatch):
         monkeypatch.delenv(name, raising=False)
 
 
+# Customer-facing words the reply and the first chip must use in each language (written here, not read from the graph).
+WORDS = {"es": ("Recibí tu mensaje", "Ver mi caso"), "pt": ("Recebi sua mensagem", "Ver meu caso")}
+
+
 @pytest.mark.parametrize("language", ["es", "pt"])
 def test_ac_04_echo_graph_returns_a_turn_result_with_the_sample_receipt(language):
     text = "No reconozco un cargo de 1,250 dólares"
@@ -38,6 +42,7 @@ def test_ac_04_echo_graph_returns_a_turn_result_with_the_sample_receipt(language
     jsonschema.Draft202012Validator(RECEIPT, format_checker=jsonschema.Draft202012Validator.FORMAT_CHECKER).validate(
         out["receipt"])
     assert 2 <= len(turn.suggestions) <= 3
+    assert turn.reply.startswith(WORDS[language][0]) and turn.suggestions[0].label == WORDS[language][1]
     assert "receipt" in turn.for_customer().model_dump()        # the projection the browser gets still validates
 
 
@@ -48,10 +53,16 @@ def test_ac_04_echo_graph_takes_a_chip_press_and_defaults_to_spanish():
 
 
 def test_ac_04_echo_graph_needs_the_session_the_api_injects_and_a_known_language():
-    with pytest.raises(ValueError, match="session_id"):
-        graph.invoke({"messages": [{"role": "user", "content": "hola"}]}, {"configurable": {}})
+    for settings in ({}, {"session_id": ""}):
+        with pytest.raises(ValueError, match="session_id"):
+            graph.invoke({"messages": [{"role": "user", "content": "hola"}]}, {"configurable": settings})
     with pytest.raises(ValueError, match="language"):
         graph.invoke({"messages": [{"role": "user", "content": "hello"}], "language": "en"}, CONFIG)
+
+
+def test_ac_04_each_turn_has_its_own_trace_id():
+    turns = [graph.invoke({"messages": [{"role": "user", "content": "hola"}]}, CONFIG) for _ in range(2)]
+    assert turns[0]["trace_id"] and turns[0]["trace_id"] != turns[1]["trace_id"]
 
 
 def test_ac_04_output_schema_is_typed_from_turn_result():
@@ -68,4 +79,4 @@ def test_ac_04_langgraph_json_serves_the_echo_graph():
     spec.loader.exec_module(module)
     assert getattr(module, attr).name == graph.name == "dispute_intake"
     assert config["python_version"] == "3.13"                       # spec 01 §6.1 (Platform defaults to 3.11)
-    assert {".", "./packages"} <= set(config["dependencies"])          # "." carries the graph and contracts
+    assert config["dependencies"] == [".", "./packages"]               # "." carries the graph and contracts
