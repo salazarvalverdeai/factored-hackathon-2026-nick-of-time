@@ -7,6 +7,7 @@ tests and the stub. A lookup that finds nothing returns None and the api answers
 """
 from __future__ import annotations
 
+import datetime as dt
 import json
 import os
 import threading
@@ -19,6 +20,7 @@ from app import fixtures as fx
 DEMO_CUSTOMERS = Path(__file__).resolve().parents[3] / "eval/demo/customers.json"   # /srv/eval/... in the image
 DEMO_KEYS = ("customer_id", "display_name", "country", "segment", "scenario", "language")   # spec 01 §6.2, no score
 CARD_TYPES = ("Tarjeta Débito", "Tarjeta Crédito")           # spec 02 §4.3 product mapping, as apps/mcp gold.py
+STATUSES = ("Approved", "Pending")                            # what search_transaction can find (apps/mcp reads.py)
 # gold customers.country, folded -> ISO code, as apps/mcp reads.py COUNTRY
 COUNTRY = {"mexico": "MX", "argentina": "AR", "colombia": "CO", "brasil": "BR", "brazil": "BR", "peru": "PE",
            "chile": "CL"}
@@ -41,6 +43,13 @@ class Catalog(Protocol):
     def products(self, customer_id: str) -> list[dict[str, Any]]:
         """`{product_id, type, last4, status}` of the customer's cards (gold status, before any override)."""
 
+    def first_name(self, customer_id: str) -> Optional[str]:
+        """Gold's (synthetic) first name, the one `get_customer_profile` greets with when no name was typed."""
+
+    def recent_transactions(self, customer_id: str, until: dt.date, limit: int) -> list[dict[str, Any]]:
+        """The customer's latest card transactions dated on or before `until`, newest first, as
+        `{transaction_id, product_id, date, amount, currency, merchant}` (no score, no label)."""
+
 
 class FixtureCatalog:
     def customers(self) -> list[dict[str, Any]]:
@@ -59,6 +68,16 @@ class FixtureCatalog:
         if customer_id != fx.OWNER:
             return []
         return [{"product_id": fx.PRODUCT_ID, "type": "debit", "last4": "4417", "status": "Active"}]
+
+    def first_name(self, customer_id: str) -> Optional[str]:
+        c = self.customer(customer_id)
+        return c["display_name"].split()[0] if c else None
+
+    def recent_transactions(self, customer_id: str, until: dt.date, limit: int) -> list[dict[str, Any]]:
+        txn = self.transaction(fx.TRANSACTION_ID)
+        keep = customer_id == fx.OWNER and dt.date.fromisoformat(txn["date"]) <= until and limit > 0
+        row = {k: txn[k] for k in ("transaction_id", "date", "amount", "currency", "merchant")}
+        return [{**row, "product_id": fx.PRODUCT_ID}] if keep else []
 
 
 class GoldCatalog:
@@ -112,6 +131,23 @@ class GoldCatalog:
                           "AND product_type IN (?, ?) AND regexp_full_match(right(product_number, 4), '[0-9]{4}') "
                           "ORDER BY product_id", [debit, self._files["products"], customer_id, *CARD_TYPES])
         return [{"product_id": p, "type": t, "last4": last4, "status": status} for p, t, last4, status in rows]
+
+    def first_name(self, customer_id: str) -> Optional[str]:
+        if self.customer(customer_id) is None:
+            return None
+        rows = self._rows("SELECT first_name FROM read_parquet(?) WHERE customer_id = ?",
+                          [self._files["customers"], customer_id])
+        return rows[0][0] if rows and rows[0][0] else None
+
+    def recent_transactions(self, customer_id: str, until: dt.date, limit: int) -> list[dict[str, Any]]:
+        rows = self._rows("SELECT transaction_id, product_id, CAST(transaction_date AS DATE), amount, currency, "
+                          "merchant_name "
+                          "FROM read_parquet(?) WHERE customer_id = ? AND product_type IN (?, ?) AND "
+                          "transaction_status IN (?, ?) AND CAST(transaction_date AS DATE) <= ? "
+                          "ORDER BY transaction_date DESC, transaction_id LIMIT ?",
+                          [self._files["transactions_enriched"], customer_id, *CARD_TYPES, *STATUSES, until, limit])
+        return [{"transaction_id": tid, "product_id": pid, "date": date.isoformat(), "amount": float(amount),
+                 "currency": currency, "merchant": merchant} for tid, pid, date, amount, currency, merchant in rows]
 
 
 def catalog_from_env() -> Catalog:

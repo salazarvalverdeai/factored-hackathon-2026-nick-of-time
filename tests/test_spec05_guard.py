@@ -10,6 +10,7 @@ import httpx
 import pytest
 from fastapi.testclient import TestClient
 
+from app import demo
 from app import fixtures as fx
 from app.guard import MESSAGE
 from app.main import COOKIE, create_app
@@ -27,6 +28,7 @@ def env(monkeypatch):
     monkeypatch.setenv("TELEGRAM_WEBHOOK_SECRET", SECRET)
     monkeypatch.delenv("TRUSTED_PROXY_CIDRS", raising=False)
     monkeypatch.delenv("DAILY_LLM_CAP_USD", raising=False)
+    monkeypatch.setattr(demo, "new_run_id", lambda now: None)       # production-run sessions, as test_spec05_api
     return Env()
 
 

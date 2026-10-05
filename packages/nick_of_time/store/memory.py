@@ -19,7 +19,7 @@ from nick_of_time.store import (CUSTOMER_VISIBLE, RESERVED_EVENTS, UNDELIVERED, 
                                 CallRequest, CaseEvent, CaseRecord, Channel, DeliveryStatus, EventType, NewCase, Notification,
                                 NotVerified, ProductOverride, StoreError, VerifyingRead, _check_writer, _json,
                                 _utc_now, check_action_id, check_actor, check_business_date, check_text, check_transition,
-                                insert_with_fresh_case_id)
+                                in_runs, insert_with_fresh_case_id)
 from nick_of_time.store.accounts import (CHANNEL_CASE_EVENT, CHANNEL_ID, DENIAL_ID, LLM_CALL_ID, ChannelEvent, CustomerChannel,
                                          LinkedChannel, LLMCall, NewDenial, NewLLMCall, NewSession, Once, PolicyDenial,
                                          SessionRecord, check_channel_event, check_denial_session, check_key,
@@ -68,17 +68,18 @@ class MemoryStore:
             self._append(related, "related_case_opened", actor, case.trace_id, {"case_id": case_id})
         return self._cases[case_id]
 
-    def get_case(self, case_id: str, *, run_id: Optional[str], customer_id: Optional[str]) -> Optional[CaseRecord]:
+    def get_case(self, case_id: str, *, run_id: Optional[str], customer_id: Optional[str],
+                 demo_runs: bool = False) -> Optional[CaseRecord]:
         case = self._cases.get(case_id)
-        if case is None or case.run_id != run_id or customer_id not in (None, case.customer_id):
+        if case is None or not in_runs(case.run_id, run_id, demo_runs) or customer_id not in (None, case.customer_id):
             return None
         return self._read(case)
 
     def list_cases(self, customer_id: str, *, run_id: Optional[str]) -> list[CaseRecord]:
         return self._listed(lambda c: c.customer_id == customer_id and c.run_id == run_id)
 
-    def list_all_cases(self, *, run_id: Optional[str]) -> list[CaseRecord]:
-        return self._listed(lambda c: c.run_id == run_id)
+    def list_all_cases(self, *, run_id: Optional[str], demo_runs: bool = False) -> list[CaseRecord]:
+        return self._listed(lambda c: in_runs(c.run_id, run_id, demo_runs))
 
     def _listed(self, keep: Callable[[CaseRecord], bool]) -> list[CaseRecord]:
         mine = [c for c in self._cases.values() if keep(c)]

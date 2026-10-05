@@ -8,7 +8,9 @@ RUN pip install --no-cache-dir "fastapi>=0.115,<1" "uvicorn>=0.30,<1" "pydantic>
 COPY contracts ./contracts
 COPY packages ./packages
 COPY apps/api/app ./apps/api/app
-COPY eval/demo/customers.json ./eval/demo/customers.json
+COPY eval/demo/customers.json eval/demo/sample_cases.jsonl ./eval/demo/
+# the dev cases tag the demo scenarios (D-068); the held-out set never enters the image (spec 09)
+COPY eval/cases/dev.jsonl ./eval/cases/dev.jsonl
 COPY apps/api/alembic.ini apps/api/migrate.sh ./apps/api/
 COPY apps/api/migrations ./apps/api/migrations
 # infra/deploy.sh runs /app/migrate.sh once before `up` (spec 06 FR-04)

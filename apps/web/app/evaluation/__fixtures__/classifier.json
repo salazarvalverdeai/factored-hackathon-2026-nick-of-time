@@ -1,0 +1,441 @@
+{
+  "generated_at": "2026-10-05T12:00:00Z",
+  "git_sha": "0000000",
+  "source": "SAMPLE FOR TESTS ONLY — invented values in the shape of spec 11 §7.1; never shown on the site",
+  "data": {
+    "label": "[simulated]",
+    "protocol": {
+      "status": "UNSEALED",
+      "sha256": null,
+      "split_manifest_sha256": null
+    },
+    "test_split": {
+      "sentences": {
+        "es": 100,
+        "pt": 100
+      },
+      "injection_rows": 40
+    },
+    "tau": 0.82,
+    "chosen_arm": "B1",
+    "arms": [
+      {
+        "arm": "B0",
+        "version": "v0",
+        "p50_ms": 20,
+        "p95_ms": 3,
+        "cost_per_1000_usd": 0,
+        "meets_floors": false,
+        "mcnemar_p_vs_best": 0.001,
+        "human_request_answered_out_of_scope": 0,
+        "by_language": {
+          "es": {
+            "macro_f1": 0.7,
+            "macro_f1_ci": [
+              0.66,
+              0.74
+            ],
+            "per_class_f1": {
+              "unrecognized_charge": 0.7,
+              "wrongful_charge": 0.65,
+              "status_inquiry": 0.72,
+              "human_request": 0.97,
+              "out_of_scope": 0.6
+            },
+            "dispute_recall": {
+              "value": 0.95,
+              "numerator": 95,
+              "denominator": 100,
+              "ci_low": 0.8882,
+              "ci_high": 0.9785
+            },
+            "dispute_detected_recall": {
+              "value": 0.9,
+              "numerator": 18,
+              "denominator": 20,
+              "ci_low": 0.699,
+              "ci_high": 0.9721
+            },
+            "human_request_recall": {
+              "value": 1.0,
+              "numerator": 50,
+              "denominator": 50,
+              "ci_low": 0.9286,
+              "ci_high": 1.0
+            },
+            "slot_accuracy": {
+              "value": 0.82,
+              "numerator": 82,
+              "denominator": 100,
+              "ci_low": 0.7333,
+              "ci_high": 0.883
+            },
+            "ece": 0.043,
+            "coverage_at_tau": {
+              "value": 0.7,
+              "numerator": 70,
+              "denominator": 100,
+              "ci_low": 0.6041,
+              "ci_high": 0.7811
+            },
+            "precision_at_tau": {
+              "value": 0.9714,
+              "numerator": 68,
+              "denominator": 70,
+              "ci_low": 0.9017,
+              "ci_high": 0.9921
+            }
+          },
+          "pt": {
+            "macro_f1": 0.67,
+            "macro_f1_ci": [
+              0.63,
+              0.71
+            ],
+            "per_class_f1": {
+              "unrecognized_charge": 0.67,
+              "wrongful_charge": 0.62,
+              "status_inquiry": 0.69,
+              "human_request": 0.97,
+              "out_of_scope": 0.57
+            },
+            "dispute_recall": {
+              "value": 0.95,
+              "numerator": 95,
+              "denominator": 100,
+              "ci_low": 0.8882,
+              "ci_high": 0.9785
+            },
+            "dispute_detected_recall": {
+              "value": 0.9,
+              "numerator": 18,
+              "denominator": 20,
+              "ci_low": 0.699,
+              "ci_high": 0.9721
+            },
+            "human_request_recall": {
+              "value": 1.0,
+              "numerator": 50,
+              "denominator": 50,
+              "ci_low": 0.9286,
+              "ci_high": 1.0
+            },
+            "slot_accuracy": {
+              "value": 0.82,
+              "numerator": 82,
+              "denominator": 100,
+              "ci_low": 0.7333,
+              "ci_high": 0.883
+            },
+            "ece": 0.043,
+            "coverage_at_tau": {
+              "value": 0.7,
+              "numerator": 70,
+              "denominator": 100,
+              "ci_low": 0.6041,
+              "ci_high": 0.7811
+            },
+            "precision_at_tau": {
+              "value": 0.9714,
+              "numerator": 68,
+              "denominator": 70,
+              "ci_low": 0.9017,
+              "ci_high": 0.9921
+            }
+          }
+        },
+        "same_family_as_generator": false
+      },
+      {
+        "arm": "B1",
+        "version": "v0",
+        "p50_ms": 20,
+        "p95_ms": 40,
+        "cost_per_1000_usd": 0,
+        "meets_floors": true,
+        "mcnemar_p_vs_best": 1.0,
+        "human_request_answered_out_of_scope": 0,
+        "by_language": {
+          "es": {
+            "macro_f1": 0.9,
+            "macro_f1_ci": [
+              0.86,
+              0.94
+            ],
+            "per_class_f1": {
+              "unrecognized_charge": 0.9,
+              "wrongful_charge": 0.85,
+              "status_inquiry": 0.92,
+              "human_request": 0.97,
+              "out_of_scope": 0.8
+            },
+            "dispute_recall": {
+              "value": 0.95,
+              "numerator": 95,
+              "denominator": 100,
+              "ci_low": 0.8882,
+              "ci_high": 0.9785
+            },
+            "dispute_detected_recall": {
+              "value": 0.9,
+              "numerator": 18,
+              "denominator": 20,
+              "ci_low": 0.699,
+              "ci_high": 0.9721
+            },
+            "human_request_recall": {
+              "value": 1.0,
+              "numerator": 50,
+              "denominator": 50,
+              "ci_low": 0.9286,
+              "ci_high": 1.0
+            },
+            "slot_accuracy": {
+              "value": 0.82,
+              "numerator": 82,
+              "denominator": 100,
+              "ci_low": 0.7333,
+              "ci_high": 0.883
+            },
+            "ece": 0.043,
+            "coverage_at_tau": {
+              "value": 0.7,
+              "numerator": 70,
+              "denominator": 100,
+              "ci_low": 0.6041,
+              "ci_high": 0.7811
+            },
+            "precision_at_tau": {
+              "value": 0.9714,
+              "numerator": 68,
+              "denominator": 70,
+              "ci_low": 0.9017,
+              "ci_high": 0.9921
+            }
+          },
+          "pt": {
+            "macro_f1": 0.87,
+            "macro_f1_ci": [
+              0.83,
+              0.91
+            ],
+            "per_class_f1": {
+              "unrecognized_charge": 0.87,
+              "wrongful_charge": 0.82,
+              "status_inquiry": 0.89,
+              "human_request": 0.97,
+              "out_of_scope": 0.77
+            },
+            "dispute_recall": {
+              "value": 0.95,
+              "numerator": 95,
+              "denominator": 100,
+              "ci_low": 0.8882,
+              "ci_high": 0.9785
+            },
+            "dispute_detected_recall": {
+              "value": 0.9,
+              "numerator": 18,
+              "denominator": 20,
+              "ci_low": 0.699,
+              "ci_high": 0.9721
+            },
+            "human_request_recall": {
+              "value": 1.0,
+              "numerator": 50,
+              "denominator": 50,
+              "ci_low": 0.9286,
+              "ci_high": 1.0
+            },
+            "slot_accuracy": {
+              "value": 0.82,
+              "numerator": 82,
+              "denominator": 100,
+              "ci_low": 0.7333,
+              "ci_high": 0.883
+            },
+            "ece": 0.043,
+            "coverage_at_tau": {
+              "value": 0.7,
+              "numerator": 70,
+              "denominator": 100,
+              "ci_low": 0.6041,
+              "ci_high": 0.7811
+            },
+            "precision_at_tau": {
+              "value": 0.9714,
+              "numerator": 68,
+              "denominator": 70,
+              "ci_low": 0.9017,
+              "ci_high": 0.9921
+            }
+          }
+        },
+        "same_family_as_generator": false
+      },
+      {
+        "arm": "B2",
+        "version": "v0",
+        "p50_ms": 20,
+        "p95_ms": 900,
+        "cost_per_1000_usd": 0.45,
+        "meets_floors": true,
+        "mcnemar_p_vs_best": 0.4,
+        "human_request_answered_out_of_scope": 0,
+        "by_language": {
+          "es": {
+            "macro_f1": 0.88,
+            "macro_f1_ci": [
+              0.84,
+              0.92
+            ],
+            "per_class_f1": {
+              "unrecognized_charge": 0.88,
+              "wrongful_charge": 0.83,
+              "status_inquiry": 0.9,
+              "human_request": 0.97,
+              "out_of_scope": 0.78
+            },
+            "dispute_recall": {
+              "value": 0.95,
+              "numerator": 95,
+              "denominator": 100,
+              "ci_low": 0.8882,
+              "ci_high": 0.9785
+            },
+            "dispute_detected_recall": {
+              "value": 0.9,
+              "numerator": 18,
+              "denominator": 20,
+              "ci_low": 0.699,
+              "ci_high": 0.9721
+            },
+            "human_request_recall": {
+              "value": 1.0,
+              "numerator": 50,
+              "denominator": 50,
+              "ci_low": 0.9286,
+              "ci_high": 1.0
+            },
+            "slot_accuracy": {
+              "value": 0.82,
+              "numerator": 82,
+              "denominator": 100,
+              "ci_low": 0.7333,
+              "ci_high": 0.883
+            },
+            "ece": 0.043,
+            "coverage_at_tau": {
+              "value": 0.7,
+              "numerator": 70,
+              "denominator": 100,
+              "ci_low": 0.6041,
+              "ci_high": 0.7811
+            },
+            "precision_at_tau": {
+              "value": 0.9714,
+              "numerator": 68,
+              "denominator": 70,
+              "ci_low": 0.9017,
+              "ci_high": 0.9921
+            }
+          },
+          "pt": {
+            "macro_f1": 0.85,
+            "macro_f1_ci": [
+              0.81,
+              0.89
+            ],
+            "per_class_f1": {
+              "unrecognized_charge": 0.85,
+              "wrongful_charge": 0.8,
+              "status_inquiry": 0.87,
+              "human_request": 0.97,
+              "out_of_scope": 0.75
+            },
+            "dispute_recall": {
+              "value": 0.95,
+              "numerator": 95,
+              "denominator": 100,
+              "ci_low": 0.8882,
+              "ci_high": 0.9785
+            },
+            "dispute_detected_recall": {
+              "value": 0.9,
+              "numerator": 18,
+              "denominator": 20,
+              "ci_low": 0.699,
+              "ci_high": 0.9721
+            },
+            "human_request_recall": {
+              "value": 1.0,
+              "numerator": 50,
+              "denominator": 50,
+              "ci_low": 0.9286,
+              "ci_high": 1.0
+            },
+            "slot_accuracy": {
+              "value": 0.82,
+              "numerator": 82,
+              "denominator": 100,
+              "ci_low": 0.7333,
+              "ci_high": 0.883
+            },
+            "ece": 0.043,
+            "coverage_at_tau": {
+              "value": 0.7,
+              "numerator": 70,
+              "denominator": 100,
+              "ci_low": 0.6041,
+              "ci_high": 0.7811
+            },
+            "precision_at_tau": {
+              "value": 0.9714,
+              "numerator": 68,
+              "denominator": 70,
+              "ci_low": 0.9017,
+              "ci_high": 0.9921
+            }
+          }
+        },
+        "same_family_as_generator": false
+      }
+    ],
+    "injection": [
+      {
+        "arm": "rules",
+        "recall": {
+          "value": 0.75,
+          "numerator": 30,
+          "denominator": 40,
+          "ci_low": 0.5981,
+          "ci_high": 0.8581
+        },
+        "false_positive_rate": {
+          "value": 0.01,
+          "numerator": 1,
+          "denominator": 100,
+          "ci_low": 0.0018,
+          "ci_high": 0.0545
+        }
+      },
+      {
+        "arm": "rules_lr",
+        "recall": {
+          "value": 0.925,
+          "numerator": 37,
+          "denominator": 40,
+          "ci_low": 0.8014,
+          "ci_high": 0.9742
+        },
+        "false_positive_rate": {
+          "value": 0.02,
+          "numerator": 2,
+          "denominator": 100,
+          "ci_low": 0.0055,
+          "ci_high": 0.07
+        }
+      }
+    ]
+  }
+}

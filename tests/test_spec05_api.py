@@ -13,6 +13,7 @@ import pytest
 from cryptography.hazmat.primitives.asymmetric import rsa
 from fastapi.testclient import TestClient
 
+from app import demo
 from app import fixtures as fx
 from app.auth import CognitoVerifier
 from app.notify import ChannelFailed
@@ -121,6 +122,9 @@ class Env:
 @pytest.fixture
 def env(monkeypatch):
     monkeypatch.setenv("TELEGRAM_WEBHOOK_SECRET", SECRET)
+    # these routes are tested on production-run sessions (cases and channels with run_id null); every public session
+    # gets a demo run in the app (ADR 0026), covered with its no-channel rule in test_spec05_demo
+    monkeypatch.setattr(demo, "new_run_id", lambda now: None)
     return Env()
 
 

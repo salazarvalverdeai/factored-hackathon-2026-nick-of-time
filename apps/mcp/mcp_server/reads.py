@@ -15,6 +15,7 @@ from mcp_server.gate import UNAVAILABLE, Call, Handler
 from mcp_server.gold import Gold, GoldCustomer, GoldTransaction
 from nick_of_time.nlu.text import fold
 from nick_of_time.policy import Policies, clock
+from nick_of_time.store import is_demo_run
 
 # gold customers.country, folded → the code of policies.yaml `countries` (spec 03 §6, compute_deadline)
 COUNTRY = {"mexico": "MX", "argentina": "AR", "colombia": "CO", "brasil": "BR", "brazil": "BR", "peru": "PE",
@@ -82,9 +83,13 @@ def read_handlers(gold: Gold, policies: Policies, *, channels: Optional[Callable
         if found is None or call.session.language not in ("es", "pt"):
             return UNAVAILABLE                              # no fact to state: never a guess
         row, country = found
+        # channels are per customer, and a demo customer is shared by every visitor: a demo run lists none (ADR 0026)
+        linked = channels(row.customer_id) if channels and not is_demo_run(call.session.run_id) else ()
         listed = [t.ConfirmedChannel(channel=c.channel, masked_address=mask(c.channel, c.address))
-                  for c in (channels(row.customer_id) if channels else ()) if c.confirmed]
-        return t.GetCustomerProfileOut(first_name=row.first_name, language=call.session.language, country=country,
+                  for c in linked if c.confirmed]
+        # the name the demo visitor typed (stored on the session, ADR 0026), else gold's: a tool fact either way
+        name = call.session.display_name or row.first_name
+        return t.GetCustomerProfileOut(first_name=name, language=call.session.language, country=country,
                                        display_currency=display_currency(call, country), channels=listed)
 
     def usd(trx: GoldTransaction) -> Optional[float]:

@@ -22,7 +22,7 @@ from mcp_server.reads import mask
 from nick_of_time import ids
 from nick_of_time.policy import clock
 from nick_of_time.receipt import amount_text, text
-from nick_of_time.store import CaseRecord, NotVerified, Store
+from nick_of_time.store import CaseRecord, NotVerified, Store, is_demo_run
 
 log = logging.getLogger("nickoftime.mcp")
 SENDS_PER_HOUR = 3                                        # D-041, the gate's notifications_per_hour
@@ -30,6 +30,10 @@ UNCONFIRMED = t.ToolError(code="DENY", policy_id="POL-DEFAULT-DENY",
                           message="That channel is not confirmed by the customer; nothing was sent.")
 TOO_MANY = t.ToolError(code="DENY", policy_id="POL-DEFAULT-DENY",
                        message="Too many summaries in this session; try again later.")
+# ADR 0026: a demo customer is shared by every visitor, so a demo run never sends to a Telegram chat or an inbox
+DEMO_NO_CHANNELS = t.ToolError(code="DENY", policy_id="POL-DEFAULT-DENY",
+                               message="Summaries by Telegram or e-mail are off in the demo; the case page shows every "
+                                       "update.")
 
 
 class Sender(Protocol):
@@ -98,6 +102,8 @@ def notify_handlers(store: Store, gold: Optional[Gold] = None, *, sender: Option
 
     def send_case_summary(call: Call, args: t.SendCaseSummaryIn):
         session, pending = call.session, {}
+        if is_demo_run(session.run_id):                      # refused before any read or write; the gate logs the DENY
+            return DEMO_NO_CHANNELS
 
         def write() -> dict:
             found = owned(call, args.case_id)

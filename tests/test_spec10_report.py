@@ -254,3 +254,17 @@ def test_ac_12_run_set_closes_the_client_it_opens(monkeypatch):
     given = api_with()
     run_set(EXAMPLES[:1], ["S1"], runs=1, api=given)
     assert not given.http.is_closed                                      # a client the caller gave stays open
+
+
+def test_ac_01_make_eval_runs_the_dev_set_on_s0_and_s1():
+    """AC-01 (T6, §6): `make eval` runs the dev set on S0 and S1 against the local api; never the held-out."""
+    import shutil
+    import subprocess
+    if not shutil.which("make"):
+        pytest.skip("make is not installed")
+    dry = subprocess.run(["make", "-n", "eval"], cwd=ROOT, capture_output=True, text=True, check=True).stdout
+    assert "-m eval.harness run --set dev --arms S0,S1 --runs 4 --api http://localhost:8000" in dry
+    assert "heldout" not in dry and "--cases" not in dry
+    other = subprocess.run(["make", "-n", "eval", "EVAL_CASES=eval/examples.jsonl", "EVAL_RUNS=2"], cwd=ROOT,
+                           capture_output=True, text=True, check=True).stdout
+    assert "--runs 2" in other and "--cases eval/examples.jsonl" in other
