@@ -170,6 +170,59 @@ measures it (D-012).
 ## 7. Data model touched
 Reads the frozen sentence split and the dev agent cases; writes only result files.
 
+### 7.1 Web export shape (`benchmark.json`, answers spec 12 Q1)
+`apps/web/public/data/benchmark.json` is `{generated_at, git_sha, source, data}` (spec 01 §6.2); `data` is below,
+written once by T5 after the run. `protocol` comes from the seal block of `eval/PROTOCOL.md`, so `/evaluation` can apply the guard of spec 12 AC-05 (status other than `SEALED`: "development run" notice). A proportion is the rate object of spec 10 §7.2, `{value, numerator, denominator, ci_low, ci_high}`, with the 95% Wilson interval of spec 10 §4.1, computed by the exporter (the browser computes nothing, spec 12 §9; spec 12 AC-06). `null` marks a figure the run fills in.
+
+```json
+{
+  "label": "[simulated]",
+  "protocol": {"status": "SEALED", "sha256": "…"},
+  "mode": "replay", "demo_today": "2026-06-01", "run_date": "…",
+  "b1": {"arms": [
+    {"arm": "…", "model_id": "…", "version": "…", "prompt_hash": "…", "tool_choice_mode": "tool",
+     "temperature": 0, "status": "ok", "unavailable_reason": null,
+     "price": {"label": "[external]", "input_per_1m_usd": null, "output_per_1m_usd": null, "source": "…", "date": "…"},
+     "macro_f1": {"es": null, "pt": null}, "macro_f1_ci": {"es": [null, null], "pt": [null, null]},
+     "dispute_recall": {"value": null, "numerator": null, "denominator": null, "ci_low": null, "ci_high": null}, "human_request_recall": {"value": null, "numerator": null, "denominator": null, "ci_low": null, "ci_high": null}, "slot_accuracy": {"value": null, "numerator": null, "denominator": null, "ci_low": null, "ci_high": null}, "missing_tool_calls": null,
+     "p50_ms": null, "p95_ms": null, "cost_per_1000_usd": null, "meets_bar": null, "pareto": null,
+     "gate": {"benchmark_pass": null, "production_pass": null, "criteria": [
+       {"criterion": "…", "needed_benchmark": null, "needed_production": null, "verdict": "pass",
+        "evidence_url": "…", "checked_on": "…"}]}}
+  ]},
+  "word": {"arms": [
+    {"arm": "…", "grounding_pass_rate": {"value": null, "numerator": null, "denominator": null, "ci_low": null, "ci_high": null}, "language_check": {"value": null, "numerator": null, "denominator": null, "ci_low": null, "ci_high": null}, "length_check": {"value": null, "numerator": null, "denominator": null, "ci_low": null, "ci_high": null}, "blind_preference": {"value": null, "numerator": null, "denominator": null, "ci_low": null, "ci_high": null}}
+  ]},
+  "judge": {"arms": [
+    {"arm": "…", "agreement": {"value": null, "numerator": null, "denominator": null, "ci_low": null, "ci_high": null}, "reasons_kept": {"value": null, "numerator": null, "denominator": null, "ci_low": null, "ci_high": null}}
+  ]},
+  "b2": {"set": "dev", "cases": 20, "runs_per_case": 4, "arms": [
+    {"arm": "S0", "safe_automated_resolution": {"value": null, "numerator": null, "denominator": null, "ci_low": null, "ci_high": null}, "unsafe_outcomes": {"value": null, "numerator": null, "denominator": null, "ci_low": null, "ci_high": null}, "receipt_rate": {"value": null, "numerator": null, "denominator": null, "ci_low": null, "ci_high": null},
+     "coherence_rate": {"value": null, "numerator": null, "denominator": null, "ci_low": null, "ci_high": null}, "p50_ms": null, "p95_ms": null, "cost_per_case_usd": null}
+  ]},
+  "model_map": {"understand": {"best_measured": "…", "cheapest_meeting_bar": "…", "chosen": "…"},
+                "word": {}, "judge": {}}
+}
+```
+- `label` is `[simulated]` (dev cases and sentences are generated). `mode` is always `replay` (AC-09), `demo_today` the
+  fixed date (ADR 0020), `run_date` an ISO date (AC-05).
+- `b1.arms[]` (AC-01, AC-03, AC-05, AC-06, AC-10): ids and hashes as stored per row; `status` is `ok`, `unavailable` or
+  `no structured output`, with its reason; `price` in USD per 1M tokens with source and date, `label` `[external]`
+  (`[assumption]` for Jev); `macro_f1` per language with its 95% interval; the recalls and `slot_accuracy` (§4.2) as
+  rate objects; `missing_tool_calls` an integer count, each scored as a wrong prediction (`eval/PROTOCOL.md` §2.1,
+  D-022); `p50_ms` and `p95_ms` in milliseconds per message; `cost_per_1000_usd`; `meets_bar` and `pareto` bools from
+  §4.4 and AC-04 (the chart needs cost, p95, macro-F1 and `pareto`).
+- `gate` (AC-10, §4.5, rows of `bench_gate.csv`): `benchmark_pass` and `production_pass` bools; `criteria[]` one entry
+  per criterion with what each level needs, `verdict` (`pass`, `fail` or `not documented`), evidence URL and check
+  date `[external]`.
+- `word.arms[]` (AC-12): `grounding_pass_rate`, `language_check`, `length_check` and `blind_preference` as rate
+  objects. `judge.arms[]` (§4.2): `agreement` with the expected proposals and `reasons_kept` after grounding, rate
+  objects.
+- `b2` (AC-02, AC-03): `cases` and `runs_per_case` integers; per arm, rate objects, `p50_ms` and `p95_ms` per turn and
+  `cost_per_case_usd`.
+- `model_map` (AC-07): per task, the three rows as arm names (names carry no label); "no LLM" is written `"templates"`
+  or `"none"` `[assumption]`.
+
 ## 8. Decisions (gate 1, lead, 2026-10-04)
 - **Q1 — candidates (§4.1):** **Decided (lead, 2026-10-04):** the ~20 Bedrock models, Jev, and Sonnet 5.5 as the
   preferred ceiling because it is cheaper than Sonnet 4.6.

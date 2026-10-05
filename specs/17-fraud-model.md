@@ -206,6 +206,44 @@ Reads gold `transactions_enriched` and `gold_eval/transaction_labels` (windows o
 `models/fraud-*.joblib`, `eval/results/fraud_benchmark.csv`, `apps/web/public/data/fraud_benchmark.json` and the
 versioned queries under `queries/fraud/`.
 
+### 7.1 Web export shape (`fraud_benchmark.json`, answers spec 12 Q1)
+`apps/web/public/data/fraud_benchmark.json` is `{generated_at, git_sha, source, data}` (spec 01 §6.2); `data` is
+below, written once by T4 after the test window is scored. `protocol` comes from the seal block of `eval/PROTOCOL.md`, so `/evaluation` can apply the guard of spec 12 AC-05 (status other than `SEALED`: "development run" notice). A proportion is the rate object of spec 10 §7.2, `{value, numerator, denominator, ci_low, ci_high}`, with the 95% Wilson interval of spec 10 §4.1, computed by the exporter (the browser computes nothing, spec 12 §9; spec 12 AC-06). `null` marks a figure the run fills in.
+
+```json
+{
+  "label": "[data]",
+  "protocol": {"status": "SEALED", "sha256": "…", "fraud_split_hash": "…"},
+  "windows": {"train": {"from": "…", "to": "…"}, "validation": {"from": "…", "to": "…"},
+              "test": {"from": "…", "to": "…", "transactions": null, "frauds": null}},
+  "machine": {"cpu": "…", "memory_gb": null},
+  "chosen_arm": "S-bank",
+  "arms": [
+    {"arm": "HistGradientBoostingClassifier", "family": "ensemble", "version": "…", "passes_rule": null,
+     "cost": {"train_seconds": null, "score_p95_ms": null, "throughput_per_s": null, "model_mb": null,
+              "peak_memory_mb": null},
+     "subsets": {
+       "all": {
+         "pr_auc": null, "pr_auc_ci": [null, null], "brier": null,
+         "recall_at_bank_precision": {"0.80": {"value": null, "numerator": null, "denominator": null, "ci_low": null, "ci_high": null}, "0.95": {"value": null, "numerator": null, "denominator": null, "ci_low": null, "ci_high": null}},
+         "recall_no_score_at_1pct": {"value": null, "numerator": null, "denominator": null, "ci_low": null, "ci_high": null},
+         "by_score_band": [{"band": "none", "n_fraud": null, "recall": {"value": null, "numerator": null, "denominator": null, "ci_low": null, "ci_high": null}}],
+         "by_country": [{"country": "…", "n_fraud": null, "recall": {"value": null, "numerator": null, "denominator": null, "ci_low": null, "ci_high": null}}],
+         "by_segment": [{"segment": "…", "n_fraud": null, "recall": {"value": null, "numerator": null, "denominator": null, "ci_low": null, "ci_high": null}}]},
+       "card": {}}}
+  ]
+}
+```
+- `label` is `[data]` (gold v1; test labels read once, ADR 0022). `protocol` adds `fraud_split_hash` (spec 17 T1, hex
+  string). `windows` are ISO months of ADR 0022, with the test window's transaction and fraud counts. `machine` is
+  the one machine that measured every arm (§5). `chosen_arm` is the arm of §4.4 or `S-bank` when none passes (rule 5).
+- `arms[]` (AC-03): `arm` is the scikit-learn class, `S-bank` or `stacked`; `passes_rule` is the bool of §4.4.
+- `cost` (AC-04): seconds, milliseconds, transactions per second and megabytes.
+- `subsets.all` and `subsets.card` (AC-04: every metric on both): `pr_auc` with its 95% bootstrap interval, `brier`, the
+  recalls at the bank's precision levels and `recall_no_score_at_1pct` (the 1% alert budget is `[assumption]`) as
+  rate objects, and the breakdowns by score band (`none`, `<30`, `30-49`, `>=50`), country and segment, each with
+  `n_fraud`. Slices below 20 frauds are shown and not enforced (D-017c).
+
 ## 8. Decisions (gate 1, lead, 2026-10-04)
 - **Q1 — owner:** the lead.
 - **Q2 — data and windows:** train on all products (Approved/Pending), report the test on all products and on cards;
