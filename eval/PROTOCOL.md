@@ -13,6 +13,11 @@ new, dated protocol version and a new seal, and the earlier results stay labeled
 - **Figures whose label is missing in the spec** are marked `[assumption]` here, with the note "label missing in the
   spec; to be added to specs 11, 15 and 17 by the lead": the 60/15/25 split, the minimums of 100 and 20 test
   sentences, the 1.5 s and 6 s p95 limits, 20 blind samples, 20 dev cases x 4 runs, tree depth <= 6.
+- **Decided by the lead and binding here whether or not the cited spec records them yet:** the 20-fraud slice floor
+  (D-017c, spec 17) and the 3-point share tolerance (D-017e, spec 11), on 2026-10-04; the three D-022 rules, on
+  `<date set at M02>`: a missing tool call counts as a wrong B1 prediction (spec 15), injection rows sit outside the
+  test minimums and the intent metrics (spec 11), and rules 1-2 are judged on all products with country as
+  `customer_country` (spec 17).
 - **Not done here:** nothing is scored, no held-out sentence is read, no label of `data/gold_eval/` is read.
 
 ## 0. Common rules
@@ -42,10 +47,17 @@ Sentence set of spec 09 (`eval/classifier/*.jsonl`), about 800 sentences in ES a
 | Validation | 15% | τ, hyperparameters, prompt wording of B2, the one calibration split | the final reported score |
 | Test | 25% | the final score of every arm, once, after the arms are frozen | any tuning, prompt edit, threshold or rule change |
 
-- The split is **by author**, never by sentence: all sentences of one author are in one split (AC-06).
+- The split is **by author**, never by sentence: all sentences of one author are in one split (AC-06). The realized
+  shares of train, validation and test must each be within 3 points of 60/15/25 `[assumption]` (D-017e, decided by the
+  lead on 2026-10-04), the same tolerance `tests/test_spec11_protocol.py` checks on the files.
 - At least **100 test sentences per language** and **20 per intent per language** `[assumption]` (AC-06). The [C]
-  check of the split waits for spec 09; `tests/test_spec11_protocol.py` skips it until `eval/classifier` exists.
-- The split files are hashed before training starts (see "Seal").
+  check of the split runs on the spec 09 files; `tests/test_spec11_protocol.py` skips it while `eval/classifier` has
+  no split file.
+- The split files are hashed before training starts (see "Seal"). The injection sentences live **inside the split
+  files**, each with the field `label: injection` and the `author` who wrote it, so the author rule and the manifest
+  hash cover them; they are not in a separate folder `[assumption, spec 11 does not say; confirmed at M02]`.
+- Rows with `label: injection` follow the author rule, the shares and the manifest hash, and are scored only by the
+  injection detector (AC-04); the test minimums and the intent metrics count only the other rows `[assumption]` (D-022).
 - B2 (LLM) gets the label definitions and no example from the test split (spec 11 §4).
 - Results from a candidate of the same family as the LLM that paraphrased the sentences are flagged (spec 11 §8).
 
@@ -95,8 +107,17 @@ Source: `specs/15-model-benchmark.md` §3 (AC-07), §4.2, §4.3, §4.4, §4.5 an
 | 20 dev agent cases x 4 runs (B2, spec 10) `[assumption]` | choosing the model map on development data | scoring the held-out |
 | Held-out agent cases (spec 10) | confirming the chosen map against S0, once | **choosing** a model; never used to choose (Q3) |
 
-Historical mode only (`replay`, fixed `DEMO_TODAY`); live mode is refused (spec 15 AC-09). Same prompt, same
-structured-output schema and temperature 0 for every LLM arm (spec 15 §4.1).
+Historical mode only (`replay`, fixed `DEMO_TODAY`); live mode is refused (spec 15 AC-09). Same prompt and same
+structured-output schema for every LLM arm (spec 15 §4.1).
+
+- **Structured output (D-011, decided by the lead on 2026-10-04):** Converse tool use with the schema, forced with
+  `toolChoice`. Each LLM arm walks the ladder `tool` → `any` → `auto` and steps down only when Bedrock rejects the
+  mode; the first accepted mode decides, and the mode that worked is recorded per arm (`tool_choice_mode`) and reused
+  in B1 (spec 15 §4.1).
+- **Temperature (D-016, decided by the lead on 2026-10-04):** 0 where the model accepts it, otherwise the provider
+  default; the value used is recorded per arm (spec 15 §4.1).
+- **Missing tool call in B1:** a reply with no tool call, or whose tool input fails the schema, is scored as a wrong
+  prediction for that message and stays in the denominator; the count is reported per arm `[assumption]` (D-022).
 
 ### 2.2 Tasks and metrics (spec 15 §4.2, AC-03, AC-12)
 | Task | B1 metric | No-LLM option |
@@ -127,7 +148,8 @@ AC-07).
 
 ### 2.4 Third-party gate (criteria copied from spec 15 §4.5; no verdicts)
 The gate is evaluated per arm when the benchmark runs, from the provider's public documents. "Not documented" fails a
-production criterion.
+production criterion. ES/PT quality is a production-only criterion (D-012, decided by the lead on 2026-10-04) because
+the benchmark itself measures it.
 
 | Criterion | Needed to benchmark | Needed for production |
 |---|---|---|
@@ -139,7 +161,7 @@ production criterion.
 | Credentials outside the repo, least privilege | yes | yes |
 | Version pinning | yes | yes |
 | Availability: GA, SLA or status page | — | yes |
-| ES/PT quality measured on our data | yes | yes |
+| ES/PT quality measured on our data | — (the benchmark measures it) | yes |
 
 ### 2.5 Pre-registered (cannot change after sealing)
 The task list, the metrics, the hard limits, the quality bar, the lean choice and the eligibility order, the gate
@@ -169,8 +191,11 @@ no per-transaction test label and are used in no model or threshold.
 - Features use only fields known at transaction time; `product_status`, `qc_*`, `process_date` and labels are excluded
   (AC-02).
 - Arms: S-bank (the bank's `fraud_score`, null as lowest), IsolationForest, LogisticRegression, SGD (log loss),
-  GaussianNB, DecisionTree (depth ≤ 6 `[assumption]`), RandomForest, ExtraTrees, HistGradientBoosting, small MLP, and the
-  best supervised arm + the bank's score (stacked) (spec 17 §4.3).
+  GaussianNB, DecisionTree (depth ≤ 6 `[assumption]`), RandomForest, ExtraTrees, HistGradientBoosting, small MLP, and
+  the best supervised arm + the bank's score (stacked) (spec 17 §4.3).
+- **Stacked base (D-017a, decided by the lead on 2026-10-04):** the best supervised arm by **validation** PR-AUC; when
+  no supervised arm exceeds twice the validation base rate, the balanced `HistGradientBoostingClassifier`. The 2x
+  threshold is a heuristic `[assumption]`; a base with no signal would only add noise to the bank score.
 
 ### 3.2 Metrics (spec 17 AC-04)
 PR-AUC with a 95% bootstrap CI; recall at the bank's precision levels (0.80 and 0.95); recall on frauds with no bank
@@ -181,14 +206,21 @@ per transaction, throughput, model size and peak memory; every metric on all pro
 ### 3.3 Decision rule (copied from spec 17 §4.4)
 1. **Hard limits:** at the bank's precision levels (0.80 and 0.95), recall is at least the bank's; no country or segment
    has a recall below 80% of the overall recall `[assumption]`; scoring p95 ≤ 50 ms and model size ≤ 200 MB
-   `[assumption]`.
+   `[assumption]`. The overall, per-country and per-segment recall of this floor are measured at the 1% alert budget
+   (the top 1% of the window by score) `[assumption]` (D-017b). The floor applies only to country and segment slices
+   with at least 20 frauds in the window; smaller slices are reported with their fraud count and not enforced
+   `[assumption]` (D-017c).
 2. **Value:** the arm beats S-bank — PR-AUC higher with the 95% bootstrap CI of the difference above zero — **or** it
-   catches at least 30% of the frauds with no bank score at the 1% alert budget `[assumption]`.
+   catches at least 30% of the frauds with no bank score at an alert budget of 1% of those transactions (AC-04)
+   `[assumption]` (D-017d).
 3. **Quality bar:** keep the arms whose PR-AUC is not significantly worse than the best arm (paired bootstrap on the
    same test transactions).
 4. **Lean choice:** among those, the cheapest to run — lowest scoring p95, then smallest model, then shortest training;
    a tie goes to the simpler family (linear < tree < ensemble < neural < stacked).
 5. If no arm passes, the bank's score stays alone and the benchmark is reported as is.
+
+Rules 1-2 are judged on all products; the card subset is reported with its CI and does not gate `[assumption]` (D-022);
+country is `customer_country`.
 
 ### 3.4 Pre-registered (cannot change after sealing)
 Window boundaries, arm list, metrics, thresholds and the rule above. The bank's score keeps deciding the zones; a model
@@ -199,11 +231,13 @@ that passes is only a second signal for the analyst (spec 17 §8, Q4).
 ## Seal
 
 Procedure (manual step M02, Diego): review this file, approve it, then fill the block below **before** any test-split
-or test-window score exists, and pin it with a git tag `protocol-v1` on the sealing commit. The spec 09 sentences are
-not delivered yet, so the split hash cannot be computed today. Once any result exists (`eval/results/*`,
-`models/intent-*`, `models/injection-*`, `models/fraud-*`, `apps/web/public/data/classifier.json`,
-`apps/web/public/data/benchmark.json`, `apps/web/public/data/fraud_benchmark.json`), the status can no longer be
-UNSEALED: the test fails.
+or test-window score exists, and pin it with a git tag `protocol-v1` on the sealing commit. The split hash (b) needs
+the spec 09 sentences and the held-out reference of (c) needs the spec 10 held-out, so M02 waits for both. Diego
+confirms at M02 that the spec 09 layout matches (b) below; until then it stays `[assumption]`. `eval/heldout.sha256`
+holds exactly one sha256 (64 lowercase hex characters); SEALED requires 64-hex values in both reference fields of (c)
+and the test fails otherwise. Once any result exists (`eval/results/*`, `models/intent-*`, `models/injection-*`,
+`models/fraud-*`, `apps/web/public/data/classifier.json`, `apps/web/public/data/benchmark.json`,
+`apps/web/public/data/fraud_benchmark.json`), the status can no longer be UNSEALED: the test fails.
 
 **What is hashed.** (a) Protocol: the sha256 of the bytes of this file with the seal block removed (every line from the
 line that is exactly the begin marker through the line that is exactly the end marker, inclusive; only the trailing
@@ -215,7 +249,9 @@ sed '/^<!-- SEAL:BEGIN -->$/,/^<!-- SEAL:END -->$/d' eval/PROTOCOL.md | shasum -
 
 (b) Classifier splits: the sha256 of a manifest with one line `<sha256 of file>␣␣<path>` per split file (train,
 validation and test) of `eval/classifier/*.jsonl` (top level only; subfolders are not split files), in C-locale path
-order; it fails when no file matches. The layout of spec 09 is `[assumption]` and must be confirmed before M02:
+order; it fails when no file matches. The layout of spec 09 is `[assumption]`: top-level files whose names start with
+`train`, `validation` and `test`, each row with `author`, `language` and `intent` (injection rows carry
+`label: injection`); confirmed at M02 as above:
 
 ```
 files=$(find eval/classifier -maxdepth 1 -name '*.jsonl' | LC_ALL=C sort); test -n "$files" && echo "$files" | xargs shasum -a 256 | shasum -a 256
