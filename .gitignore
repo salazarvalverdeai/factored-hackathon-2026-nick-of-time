@@ -42,3 +42,6 @@ node_modules/
 # local Spanish guides and reviews (never committed)
 habilitar_*.md
 revision_*.md
+
+# generated review pages hold the test split; the CSV is the record
+eval/classifier/draft/review_*.html

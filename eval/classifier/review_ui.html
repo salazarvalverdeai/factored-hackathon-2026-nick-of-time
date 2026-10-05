@@ -1,0 +1,204 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Classifier review</title>
+<style>
+  :root { --bg:#f6f7f9; --card:#fff; --ink:#1b2430; --mute:#5d6877; --line:#d9dee5; --keep:#1f7a4d; --fix:#9a6700;
+          --drop:#b42318; --accent:#2457d6; --warn:#fff4d6; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#12161c; --card:#1a2028; --ink:#e6eaf0; --mute:#9aa6b6;
+          --line:#2c3541; --keep:#4cc38a; --fix:#e0b341; --drop:#ff7b72; --accent:#7aa2ff; --warn:#3a3217; } }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:15px/1.45 Sora, system-ui, -apple-system, "Segoe UI", sans-serif; }
+  header { position:sticky; top:0; z-index:5; background:var(--card); border-bottom:1px solid var(--line); padding:10px 16px; }
+  h1 { font-size:16px; margin:0 0 6px; }
+  .bar { display:flex; flex-wrap:wrap; gap:8px 14px; align-items:center; }
+  .bar label { color:var(--mute); font-size:13px; }
+  input, select, textarea, button { font:inherit; color:inherit; background:var(--bg); border:1px solid var(--line);
+          border-radius:6px; padding:5px 8px; }
+  button { cursor:pointer; } button:hover { border-color:var(--accent); }
+  button.primary { background:var(--accent); color:#fff; border-color:var(--accent); }
+  progress { width:160px; height:10px; } .count { font-size:13px; color:var(--mute); }
+  .notice { background:var(--warn); border:1px solid var(--line); border-radius:6px; padding:6px 10px; margin-top:8px; font-size:13px; display:none; }
+  main { max-width:980px; margin:0 auto; padding:14px 16px 80px; }
+  article { background:var(--card); border:1px solid var(--line); border-left:5px solid var(--line); border-radius:8px; padding:12px 14px; margin-bottom:10px; }
+  article.keep { border-left-color:var(--keep); } article.fix { border-left-color:var(--fix); } article.drop { border-left-color:var(--drop); opacity:.75; }
+  article[hidden] { display:none; }
+  .meta { display:flex; flex-wrap:wrap; gap:6px 12px; font-size:12px; color:var(--mute); margin-bottom:6px; }
+  .tag { border:1px solid var(--line); border-radius:999px; padding:0 8px; } .tag.flag { background:var(--warn); color:var(--ink); }
+  .text { font-size:16px; margin:2px 0 8px; white-space:pre-wrap; }
+  .facts { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:4px 12px; font-size:13px; margin-bottom:8px; }
+  .facts b { color:var(--mute); font-weight:500; }
+  .choices { display:flex; gap:6px; align-items:center; flex-wrap:wrap; }
+  .choices button.on.keep { background:var(--keep); color:#fff; border-color:var(--keep); }
+  .choices button.on.fix { background:var(--fix); color:#fff; border-color:var(--fix); }
+  .choices button.on.drop { background:var(--drop); color:#fff; border-color:var(--drop); }
+  .editor { display:none; margin-top:10px; padding-top:10px; border-top:1px dashed var(--line); }
+  article.fix .editor { display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:8px; }
+  .editor label { display:flex; flex-direction:column; font-size:12px; color:var(--mute); gap:2px; }
+  .editor .wide { grid-column:1/-1; } .editor textarea { min-height:64px; resize:vertical; }
+  .note { margin-top:8px; width:100%; } kbd { border:1px solid var(--line); border-radius:4px; padding:0 4px; font-size:12px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Classifier review · <span id="split"></span> split · no model decides, you do</h1>
+  <div class="bar">
+    <label>Reviewer (GitHub handle) <input id="reviewer" size="16" placeholder="gianzk" autocomplete="off"></label>
+    <progress id="bar" value="0" max="1"></progress><span class="count" id="count"></span>
+    <label>Language <select id="fLang"><option value="">all</option><option>es</option><option>pt</option></select></label>
+    <label>Intent <select id="fIntent"></select></label>
+    <label>Show <select id="fShow"><option value="">all</option><option value="todo">undecided</option>
+      <option value="flag">with checks</option><option value="keep">keep</option><option value="fix">fix</option>
+      <option value="drop">drop</option></select></label>
+    <button id="next">Next undecided</button>
+    <button id="load">Load CSV…</button><input id="file" type="file" accept=".csv,text/csv" hidden>
+    <button id="save" class="primary">Download CSV</button>
+  </div>
+  <div class="notice" id="notice"></div>
+</header>
+<main id="list"></main>
+<script>
+const DATA = /*DATA*/null;
+const KEY = "classifier-review-" + DATA.split;
+const $ = (id) => document.getElementById(id);
+const rows = DATA.rows, byId = Object.fromEntries(rows.map((r) => [r.id, r]));
+let state = { reviewer: "", items: {} };           // items[id] = { decision, edit, note }
+
+try { const saved = localStorage.getItem(KEY); if (saved) state = JSON.parse(saved); } catch (e) { /* no storage: still works */ }
+const persist = () => { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) { /* ignore */ } };
+const intentOf = (r) => r.intent || r.label;
+const item = (id) => (state.items[id] ||= { decision: "", edit: null, note: "" });
+const edit = (r) => { const it = item(r.id); return (it.edit ||= { text: r.text, intent: intentOf(r), also: r.also_dispute === "true",
+  amount: r.amount, currency: r.currency, date: r.date, merchant: r.merchant, card: r.card }); };
+
+$("split").textContent = DATA.split;
+$("reviewer").value = state.reviewer || "";
+$("fIntent").innerHTML = '<option value="">all</option>' + DATA.intents.map((i) => `<option>${i}</option>`).join("");
+
+const el = (tag, attrs = {}, ...kids) => { const n = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) { if (k === "class") n.className = v; else if (k === "text") n.textContent = v; else n.setAttribute(k, v); }
+  kids.forEach((c) => n.append(c)); return n; };
+
+function card(r) {
+  const it = item(r.id), e = edit(r);
+  const a = el("article", { id: "r-" + r.id, tabindex: "0" });
+  const checks = r.checks ? r.checks.split(";").map((c) => el("span", { class: "tag flag", text: c })) : [];
+  a.append(el("div", { class: "meta" }, el("b", { text: r.id }), el("span", { class: "tag", text: r.language }),
+    el("span", { class: "tag", text: intentOf(r) || "?" }), el("span", { class: "tag", text: r.source }), ...checks));
+  a.append(el("div", { class: "text", text: r.text }));
+  const facts = el("div", { class: "facts" });
+  [["also dispute", r.also_dispute], ["amount", r.amount], ["currency", r.currency], ["date", r.date], ["merchant", r.merchant],
+   ["card", r.card]].forEach(([k, v]) => facts.append(el("div", {}, el("b", { text: k + ": " }), v || "—")));
+  a.append(facts);
+  const choices = el("div", { class: "choices" });
+  ["keep", "fix", "drop"].forEach((d) => { const b = el("button", { type: "button", "data-d": d, text: d }); b.onclick = () => decide(r, d); choices.append(b); });
+  choices.append(el("button", { type: "button", "data-d": "", text: "clear" }));
+  choices.lastChild.onclick = () => decide(r, "");
+  a.append(choices);
+  const ed = el("div", { class: "editor" });
+  const field = (label, key, kind, wide) => { const lab = el("label", { class: wide ? "wide" : "" }, label);
+    let inp;
+    if (kind === "area") inp = el("textarea"); else if (kind === "intent") { inp = el("select"); DATA.intents.forEach((i) => inp.append(el("option", { text: i }))); }
+    else if (kind === "bool") { inp = el("input", { type: "checkbox" }); } else inp = el("input", { type: "text" });
+    if (kind === "bool") inp.checked = !!e[key]; else inp.value = e[key] ?? "";
+    inp.oninput = inp.onchange = () => { e[key] = kind === "bool" ? inp.checked : inp.value; persist(); };
+    lab.append(inp); return lab; };
+  ed.append(field("text", "text", "area", true), field("intent", "intent", "intent"), field("also dispute", "also", "bool"),
+    field("amount (decimal)", "amount"), field("currency (ISO)", "currency"), field("date (YYYY-MM-DD)", "date"),
+    field("merchant", "merchant"), field("card wording", "card"));
+  a.append(ed);
+  const note = el("input", { class: "note", type: "text", placeholder: "note (optional)" });
+  note.value = it.note || ""; note.oninput = () => { it.note = note.value; persist(); };
+  a.append(note);
+  a.addEventListener("keydown", (ev) => { if (ev.target !== a) return;
+    const d = { k: "keep", f: "fix", d: "drop", c: "" }[ev.key]; if (d !== undefined) decide(r, d); });
+  return a;
+}
+
+function paint(r) {
+  const a = $("r-" + r.id), d = item(r.id).decision;
+  a.className = d || "";
+  a.querySelectorAll(".choices button").forEach((b) => b.classList.toggle("on", !!d && b.dataset.d === d));
+  a.querySelectorAll(".choices button").forEach((b) => { b.classList.remove("keep", "fix", "drop"); if (b.dataset.d) b.classList.add(b.dataset.d); });
+}
+function decide(r, d) { item(r.id).decision = d; paint(r); persist(); progress(); filter(); }
+
+function progress() {
+  const done = rows.filter((r) => item(r.id).decision).length;
+  $("bar").max = rows.length; $("bar").value = done;
+  const c = { keep: 0, fix: 0, drop: 0 }; rows.forEach((r) => { const d = item(r.id).decision; if (d) c[d]++; });
+  $("count").textContent = `${done}/${rows.length} decided · keep ${c.keep} · fix ${c.fix} · drop ${c.drop}`;
+}
+function filter() {
+  const lang = $("fLang").value, intent = $("fIntent").value, show = $("fShow").value;
+  rows.forEach((r) => { const d = item(r.id).decision;
+    const ok = (!lang || r.language === lang) && (!intent || intentOf(r) === intent) &&
+      (!show || (show === "todo" ? !d : show === "flag" ? !!r.checks : d === show));
+    $("r-" + r.id).hidden = !ok; });
+}
+
+function csvLine(cells) { return cells.map((c) => { const s = String(c ?? ""); return /[",\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; }).join(","); }
+function fixedCells(r, it) {
+  const out = Object.fromEntries(DATA.fixed.map((k) => [k, ""]));
+  if (it.decision !== "fix" || !it.edit) return out;
+  const e = it.edit, diff = (now, was, key) => { const n = (now ?? "").trim(), w = (was ?? "").trim(); if (n === w) return; out[key] = n === "" ? "null" : n; };
+  if (e.text !== r.text) out.fixed_text = e.text;
+  if (e.intent !== intentOf(r)) out.fixed_intent = e.intent;
+  if (String(e.also) !== r.also_dispute) out.fixed_also_dispute = String(e.also);
+  diff(e.amount, r.amount, "fixed_amount"); diff(e.currency, r.currency, "fixed_currency"); diff(e.date, r.date, "fixed_date");
+  diff(e.merchant, r.merchant, "fixed_merchant"); diff(e.card, r.card, "fixed_card");
+  return out;
+}
+function exportCsv() {
+  const reviewer = $("reviewer").value.trim().replace(/^@/, "");
+  const lines = [csvLine(DATA.fields)];
+  rows.forEach((r) => { const it = item(r.id), f = fixedCells(r, it);
+    const row = { ...r, decision: it.decision, ...f, reviewer: it.decision ? reviewer : "", note: it.note || "" };
+    lines.push(csvLine(DATA.fields.map((k) => row[k]))); });
+  const blob = new Blob([lines.join("\r\n") + "\r\n"], { type: "text/csv;charset=utf-8" });
+  const a = el("a", { href: URL.createObjectURL(blob), download: `review_${DATA.split}.csv` }); document.body.append(a); a.click(); a.remove();
+}
+function parseCsv(text) {
+  const out = []; let row = [], cell = "", q = false;
+  for (let i = 0; i < text.length; i++) { const c = text[i];
+    if (q) { if (c === '"') { if (text[i + 1] === '"') { cell += '"'; i++; } else q = false; } else cell += c; }
+    else if (c === '"') q = true; else if (c === ",") { row.push(cell); cell = ""; }
+    else if (c === "\n" || c === "\r") { if (c === "\r" && text[i + 1] === "\n") i++; row.push(cell); cell = ""; if (row.length > 1 || row[0] !== "") out.push(row); row = []; }
+    else cell += c; }
+  if (cell !== "" || row.length) { row.push(cell); out.push(row); }
+  return out;
+}
+function loadCsv(text) {
+  const [head, ...body] = parseCsv(text), at = Object.fromEntries(head.map((h, i) => [h, i]));
+  let n = 0;
+  body.forEach((cells) => { const r = byId[cells[at.id]]; if (!r) return;
+    const it = item(r.id), g = (k) => (at[k] === undefined ? "" : cells[at[k]] ?? "");
+    it.decision = ["keep", "fix", "drop"].includes(g("decision")) ? g("decision") : ""; it.note = g("note");
+    const e = (it.edit = null, edit(r)), apply = (k, fk, cur) => { const v = g(fk); if (v === "") return; e[k] = v === "null" ? "" : v; };
+    if (g("fixed_text")) e.text = g("fixed_text"); if (g("fixed_intent")) e.intent = g("fixed_intent");
+    if (g("fixed_also_dispute")) e.also = g("fixed_also_dispute") === "true";
+    apply("amount", "fixed_amount"); apply("currency", "fixed_currency"); apply("date", "fixed_date");
+    apply("merchant", "fixed_merchant"); apply("card", "fixed_card");
+    if (it.decision && g("reviewer") && !$("reviewer").value) $("reviewer").value = g("reviewer"); n++; });
+  persist(); location.reload();
+}
+
+const list = $("list"); rows.forEach((r) => list.append(card(r))); rows.forEach(paint); progress();
+$("reviewer").oninput = () => { state.reviewer = $("reviewer").value; persist(); warn(); };
+function warn() {
+  const bad = DATA.split === "test" && $("reviewer").value.trim().replace(/^@/, "").toLowerCase() === "salazarvalverdeai";
+  const n = $("notice"); n.style.display = bad ? "block" : "none";
+  n.textContent = bad ? "ADR 0025: the test split is not reviewed by the classifier's developer; promote will refuse this reviewer." : "";
+}
+warn();
+["fLang", "fIntent", "fShow"].forEach((id) => ($(id).onchange = filter));
+$("next").onclick = () => { const r = rows.find((x) => !item(x.id).decision && !$("r-" + x.id).hidden);
+  if (r) { const a = $("r-" + r.id); a.scrollIntoView({ block: "center" }); a.focus(); } };
+$("save").onclick = () => { if (!$("reviewer").value.trim()) { alert("Type your GitHub handle first (promote refuses rows without a reviewer)."); return; } exportCsv(); };
+$("load").onclick = () => $("file").click();
+$("file").onchange = () => { const f = $("file").files[0]; if (f) f.text().then(loadCsv); };
+</script>
+</body>
+</html>
