@@ -1,6 +1,6 @@
-"""Spec 11 task 11b: the B1 arm (TF-IDF + LR), τ on validation, the report and its guarded export.
+"""Spec 11 task 11b: B1 (TF-IDF + LR) and B2 (LLM) arms, τ on validation, the report and its guarded export.
 
-Offline: synthetic sentences in a temporary root, no LLM. AC-02, AC-03, AC-05, AC-07,
+Offline: synthetic sentences in a temporary root, the `fake` LLM provider only (CLAUDE.md). AC-02, AC-03, AC-05, AC-07,
 and the AC-01 guard: no result file while eval/PROTOCOL.md is UNSEALED.
 """
 import json
@@ -11,8 +11,9 @@ import pytest
 
 from eval.classifier import evaluate as ev
 from eval.classifier.review import manifest_sha256
+from nick_of_time import llm
 from nick_of_time.nlu import load_nlu
-from nick_of_time.nlu.learned import B1NLU
+from nick_of_time.nlu.learned import B1NLU, B2NLU
 from tests.test_spec11_protocol import RESULT_GLOBS
 
 TODAY = date(2026, 6, 1)
@@ -52,6 +53,13 @@ def make_root(tmp_path, status="UNSEALED", manifest=True, test_reviewer="gianzk"
     return tmp_path
 
 
+def oracle(split: str) -> llm.FakeClient:
+    """A scripted fake that answers each scored row with its gold intent (forced tool use, D-011)."""
+    script = [{"intent": r["intent"], "confidence": 0.97, "dispute_detected": r["intent"] in ev.DISPUTES, "slots": SLOTS}
+              for r in rows(split, 3 if split == "test" else 4) if r.get("intent")]
+    return llm.FakeClient(script=script, prices={"input_per_1m": 1.1, "output_per_1m": 5.5})
+
+
 def results(root):
     return [p for g in RESULT_GLOBS for p in root.glob(g)]
 
@@ -67,6 +75,31 @@ def test_ac_02_ac_05_b1_trains_parses_and_reloads_with_its_version(tmp_path):
     again = load_nlu("B1", path=str(tmp_path / "intent-b1-v1.joblib"))
     assert again.parse("quero falar com um atendente", today=TODAY).model_dump() == \
         b1.parse("quero falar com um atendente", today=TODAY).model_dump()
+
+
+def test_ac_02_b2_forces_the_tool_and_maps_the_reply():
+    client = llm.FakeClient(script=[{"intent": "human_request", "confidence": 0.9, "dispute_detected": True,
+                                     "slots": {**SLOTS, "amount": "1,250"}}])
+    r = B2NLU(client).parse("quiero una persona, me cobraron dos veces", today=TODAY)
+    call = client.calls[0]
+    assert (call["mode"], call["tool_name"], call["temperature"]) == ("tool", "record_intent", 0)
+    assert json.loads(call["user"]) == {"today": "2026-06-01", "message": "quiero una persona, me cobraron dos veces"}
+    assert (r.arm, r.intent, r.dispute_detected, r.slots.amount) == ("B2", "human_request", True, None)  # bad slot: none
+
+
+def test_ac_02_b2_without_tool_input_is_a_missing_call_kept_in_the_denominator():
+    nlu = B2NLU(llm.FakeClient(script=["texto sin herramienta"]))
+    [p] = ev.run_arm(nlu, [{"text": "hola"}])
+    assert p["intent"] is None and nlu.last is not None               # billed call kept for cost (D-022)
+
+
+@pytest.mark.parametrize("provider, max_usd", [(None, 1.0), ("bedrock", 0.0)])
+def test_ac_02_b2_client_refuses_the_fake_provider_and_a_projected_overspend(monkeypatch, provider, max_usd):
+    monkeypatch.delenv("LLM_PROVIDER", raising=False)
+    if provider:
+        monkeypatch.setenv("LLM_PROVIDER", provider)
+    with pytest.raises(ev.EvalError, match="refused"):
+        ev.b2_client(max_usd, 150, "validation")
 
 
 @pytest.mark.parametrize("conf, ok, tau", [
@@ -93,11 +126,13 @@ def test_ac_02_rule_4_keeps_b0_when_no_learned_arm_beats_it_with_significance():
 
 def test_ac_01_dev_run_writes_only_the_ignored_runs_folder(tmp_path):
     root = make_root(tmp_path)
-    out = ev.evaluate("validation", ["B0", "B1"], root)
+    out = ev.evaluate("validation", ["B0", "B1", "B2"], root, client=oracle("validation"))
     assert out.parent.parent == root / "eval" / ".runs" / "classifier" and not results(root)
     data = json.loads(out.read_text())["data"]
     assert data["run"] == ev.DEV_LABEL and data["protocol"]["status"] == "UNSEALED"
-    assert data["tau"] is not None and [a["arm"] for a in data["arms"]] == ["B0", "B1"]
+    assert data["tau"] is not None and data["llm"]["provider"] == "fake"
+    b2 = next(a for a in data["arms"] if a["arm"] == "B2")
+    assert b2["by_language"]["pt"]["macro_f1"] == 1.0 and b2["missing_tool_calls"] == 0
 
 
 @pytest.mark.parametrize("status, manifest", [("UNSEALED", True), ("SEALED", False)])
@@ -118,7 +153,7 @@ def test_ac_01_sealed_but_untagged_protocol_refuses_the_test_run(tmp_path):
 def test_ac_03_ac_05_sealed_test_run_exports_the_spec_shape(tmp_path, monkeypatch):
     root = make_root(tmp_path, "SEALED", test_reviewer="rules-v1")
     monkeypatch.setattr(ev, "protocol_tagged", lambda root: True)
-    out = ev.evaluate("test", ["B0", "B1"], root)
+    out = ev.evaluate("test", ["B0", "B1", "B2"], root, client=oracle("test"))
     assert out == root / "apps/web/public/data/classifier.json"
     assert (root / "models/intent-b1-v1.joblib").exists() and (root / "eval/results/classifier.csv").exists()
     doc = json.loads(out.read_text())
@@ -133,4 +168,4 @@ def test_ac_03_ac_05_sealed_test_run_exports_the_spec_shape(tmp_path, monkeypatc
         for key in ("dispute_recall", "dispute_detected_recall", "human_request_recall", "slot_accuracy",
                     "coverage_at_tau", "precision_at_tau"):
             assert set(m[key]) == {"value", "numerator", "denominator", "ci_low", "ci_high"}
-    assert data["injection"][0]["arm"] == "rules" and data["chosen_arm"] in ("B0", "B1")
+    assert data["injection"][0]["arm"] == "rules" and data["chosen_arm"] in ("B0", "B1", "B2")

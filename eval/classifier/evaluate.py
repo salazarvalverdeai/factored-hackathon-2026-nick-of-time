@@ -7,8 +7,8 @@
 on validation", never to a path of the protocol's results. `test` is refused unless eval/PROTOCOL.md is SEALED, tagged
 protocol-v1 in HEAD's history, and the promoted split files hash to the sealed manifest; it then writes models/intent-b1-v1.joblib, eval/results/classifier.csv
 and apps/web/public/data/classifier.json (§7.1), once. B1 is fit on train, calibrated on validation, and τ is the lowest
-B1 threshold with precision ≥ 0.95 on validation (AC-07); every arm is reported at that τ [assumption]. Dates resolve
-against DEMO_TODAY (replay, ADR 0020).
+B1 threshold with precision ≥ 0.95 on validation (AC-07); every arm is reported at that τ [assumption]. B2 (opt-in, `--arms
+B0,B1,B2`) uses the S1 model with LLM_PROVIDER=bedrock (`config.resolve("S1")`). Dates resolve against DEMO_TODAY (replay, ADR 0020).
 """
 from __future__ import annotations
 
@@ -30,9 +30,9 @@ from eval.classifier.review import INTENTS, LANGS, manifest_sha256
 from eval.harness.metrics import percentile, wilson
 from eval.harness.report import git_sha, now
 from nick_of_time import llm
-from nick_of_time.config import DEMO_TODAY
+from nick_of_time.config import DEMO_TODAY, price, resolve
 from nick_of_time.nlu import injection_flagged, load_nlu
-from nick_of_time.nlu.learned import DISPUTES, B1NLU, train_b1
+from nick_of_time.nlu.learned import DISPUTES, B1NLU, B2NLU, train_b1
 from nick_of_time.nlu.rules import VERSION as B0_VERSION
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -227,7 +227,19 @@ def choose(arms: list[dict], correct: dict[str, list[bool]]) -> str | None:
     return min(keep, key=ORDER.index) if keep else None
 
 
-def evaluate(split: str, arms: list[str], root: Path = ROOT) -> Path:
+def b2_client(max_usd: float, n: int, split: str):
+    """The S1 model's client. Refused with the unscripted fake provider (it answers nothing, so every row would be a
+    missing call) and, before any call, when the projected spend exceeds `max_usd` (spec 15 AC-08)."""
+    cfg = resolve("S1")
+    if cfg.provider == "fake":
+        raise EvalError("refused: B2 needs a real provider (LLM_PROVIDER=bedrock); the fake one only runs in tests")
+    prices = price(cfg)
+    if llm.cost_usd(prices, 900, 150) * n > max_usd:   # [assumption] about 900 tokens in and 150 out per message
+        raise EvalError(f"refused: projected B2 spend on {split} above {max_usd} USD")
+    return llm.make_client(cfg, prices=prices)
+
+
+def evaluate(split: str, arms: list[str], root: Path = ROOT, client=None, max_usd: float = 1.0) -> Path:
     data, source = load_splits(split, root)
     intent_rows = {s: [r for r in v if r.get("label") != "injection" and r.get("intent")] for s, v in data.items()}
     train, val, scored = intent_rows["train"], intent_rows["validation"], intent_rows[split]
@@ -236,11 +248,15 @@ def evaluate(split: str, arms: list[str], root: Path = ROOT) -> Path:
     val_preds = run_arm(b1, val)
     tau = choose_tau([p["confidence"] for p in val_preds], [r["intent"] == p["intent"] for r, p in zip(val, val_preds)])
     nlus = {"B0": load_nlu("B0"), "B1": b1}
+    if "B2" in arms:
+        nlus["B2"] = B2NLU(client or b2_client(max_usd, len(scored), split))
     out_dir = (root / "apps/web/public/data") if split == "test" else root / "eval/.runs/classifier" / now().replace(":", "")
     model_dir = (root / "models") if split == "test" else out_dir
     model_dir.mkdir(parents=True, exist_ok=True)
     b1.save(model_dir / "intent-b1-v1.joblib")                 # frozen before the scored split is read (§0 rule 1)
     preds = {a: (val_preds if a == "B1" and split == "validation" else run_arm(nlus[a], scored)) for a in arms}
+    if "B2" in preds and client is None and all(p["intent"] is None for p in preds["B2"]):
+        raise EvalError("refused: every B2 call failed (provider unavailable?); nothing written")
     report = [score_arm(a, nlus[a], scored, preds[a], tau) for a in arms]
     correct = {a: [r["intent"] == p["intent"] for r, p in zip(scored, preds[a])] for a in arms}
     chosen = choose(report, correct)
@@ -253,6 +269,10 @@ def evaluate(split: str, arms: list[str], root: Path = ROOT) -> Path:
                "tau": tau, "chosen_arm": chosen, "arms": report,
                "injection": [{"arm": "rules", "recall": rate(sum(inj), len(inj)),
                               "false_positive_rate": rate(sum(legit), len(legit))}]}
+    if "B2" in nlus:
+        c = nlus["B2"].client
+        payload["llm"] = {"provider": c.provider, "model": c.model, "tool_choice_mode": c.mode,
+                          "temperature": c.temperature, "cost_usd": round(sum(p["cost"] for p in preds["B2"]), 4)}
     if split == "test" and any(r.get("reviewer") == "rules-v1" for r in data["test"]):
         payload["review_note"] = RULE_REVIEW
     doc = {"generated_at": now(), "git_sha": git_sha(), "data": payload,
@@ -280,9 +300,10 @@ def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--split", choices=("validation", "test"), default="validation")
     ap.add_argument("--arms", default="B0,B1")
+    ap.add_argument("--max-usd", type=float, default=1.0)
     args = ap.parse_args(argv)
     try:
-        path = evaluate(args.split, [a.strip() for a in args.arms.split(",")])
+        path = evaluate(args.split, [a.strip() for a in args.arms.split(",")], max_usd=args.max_usd)
     except EvalError as exc:
         print(exc, file=sys.stderr)
         return 2
