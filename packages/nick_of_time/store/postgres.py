@@ -25,7 +25,7 @@ from psycopg.types.json import Jsonb
 from nick_of_time import ids
 from nick_of_time.contracts import AnalystActionIn, AnalystActionOut, QueueStatus
 from nick_of_time.store import (DEMO_RUN_PREFIX, CUSTOMER_VISIBLE, RESERVED_EVENTS, UNDELIVERED, VERIFIED_WITH, WRITE_EVENTS, WRITE_TOOL,
-                                CallRequest, CaseEvent, CaseRecord, Channel, DeliveryStatus, EventType, NewCase, Notification,
+                                CallRequest, CaseEvent, CaseRecord, Channel, DemoTransaction, DeliveryStatus, EventType, NewCase, Notification,
                                 NotVerified, ProductOverride, StoreError, VerifyingRead, _check_writer, _json,
                                 _utc_now, check_action_id, check_actor, check_business_date, check_text, check_transition,
                                 insert_with_fresh_case_id)
@@ -300,6 +300,20 @@ class PostgresStore:
                           "and run_id is not distinct from %s order by created_at, event_id collate \"C\"",
                           (check_key(customer_id), check_key(run_id)))
         return [CallRequest(**r) for r in rows]
+
+    def add_demo_transaction(self, row: DemoTransaction) -> DemoTransaction:
+        check_text(*row.model_dump().values())
+        with self._tx():
+            if self._rows("select 1 from demo_transactions where transaction_id = %s", (row.transaction_id,)):
+                raise StoreError(f"transaction {row.transaction_id} already exists")
+            self._insert("demo_transactions", row.model_dump())
+        return row
+
+    def demo_transactions(self, customer_id: str, *, run_id: str) -> list[DemoTransaction]:
+        rows = self._rows(f"select {', '.join(DemoTransaction.model_fields)} from demo_transactions where "
+                          "customer_id = %s and run_id = %s order by generated_at, transaction_id collate \"C\"",
+                          (check_key(customer_id), check_key(run_id)))
+        return [DemoTransaction(**r) for r in rows]
 
     # ---------- internals ----------
     @contextmanager

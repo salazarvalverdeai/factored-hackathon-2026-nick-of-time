@@ -70,8 +70,10 @@ create table if not exists demo_transactions (                                  
   fraud_score double precision null,
   latitude double precision null,
   longitude double precision null,
+  product_type text null,                                                          -- the card type, as transactions_enriched
   synthetic boolean not null default true check (synthetic),
   scenario text not null,
+  run_id text null,                                                                -- the demo session's run (ADR 0026)
   generated_at timestamptz not null default now()
 );
 

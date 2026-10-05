@@ -25,7 +25,7 @@ from starlette.applications import Starlette
 from contracts.tools import CUSTOMER_TOOLS
 from mcp_server import server
 from mcp_server.gate import DenialRow, Gate, Handler, SessionRow
-from mcp_server.gold import Gold
+from mcp_server.gold import Gold, synthetic_from
 from mcp_server.reads import read_handlers
 from nick_of_time.policy import load_policies
 
@@ -125,7 +125,7 @@ def build(env: Mapping[str, str] = os.environ) -> Starlette:
     extra, loaded, absent = optional_handlers(deps)                  # imports may also fill server.HANDLERS
     if unknown := sorted(set(server.HANDLERS) - set(CUSTOMER_TOOLS)):
         raise RuntimeError(f"server.HANDLERS has unknown tools: {', '.join(unknown)}")
-    handlers = {**read_handlers(gold, policies, channels=store.channels), **server.HANDLERS, **extra}
+    handlers = {**read_handlers(gold, policies, channels=store.channels, synthetic=synthetic_from(store)), **server.HANDLERS, **extra}
     gate = Gate(StoreSessions(store), handlers, denials=store_denials(store), guardrails=guardrails)
     health = {"gold_version": gold_version(Path(gold_path), env), "policies_version": policies.version,
               "store": backend, "handlers": len(handlers), "modules": {"loaded": loaded, "absent": absent}}

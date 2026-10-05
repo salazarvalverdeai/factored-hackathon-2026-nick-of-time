@@ -20,6 +20,7 @@ import secrets
 import uuid
 from collections import deque
 from typing import Any, Literal, Optional
+from zoneinfo import ZoneInfo
 
 from fastapi import Body, Cookie, Depends, FastAPI, Header, Query, Request, Response
 from fastapi.exceptions import RequestValidationError
@@ -30,8 +31,9 @@ from app.auth import AuthError, CognitoVerifier
 from app.catalog import Catalog, FixtureCatalog, catalog_from_env
 from app.main import (COOKIE, SESSION_TTL, AckOut, ApiError, CallIn, CallOut, ConsoleCaseOut, EmailIn,
                       EmailOut, EventOut, HealthOut, InfoIn, NotificationOut, PrefsIn, PrefsOut, ReevalIn, ReevalOut,
-                      RecentTransactionOut, ScenarioOut, SessionIn, SessionOut, SettingsIn, SettingsOut, TelegramOut,
-                      ThreadOut, VerifyIn, VerifyOut, DemoCustomerOut, _is_analyst_path, today)
+                      RecentTransactionOut, ScenarioOut, SessionIn, SessionOut, SettingsIn, SettingsOut,
+                      SyntheticChargeIn, SyntheticChargeOut, TelegramOut,
+                      ThreadOut, VerifyIn, VerifyOut, DemoCustomerOut, TIME_ZONES, _is_analyst_path, today)
 from app.notify import ChannelFailed, HttpNotifier, Notifier, mask_chat, mask_email
 from app.platform import HttpPlatform, Platform, PlatformError
 from nick_of_time import CONTRACT_VERSION, ids
@@ -123,6 +125,7 @@ def create_live_app(store: Store, *, catalog: Optional[Catalog] = None, verifier
     app = FastAPI(title="Nick of Time api", docs_url="/api/docs", redoc_url=None, swagger_ui_oauth2_redirect_url=None,
                   openapi_url="/api/openapi.json")
     app.state.store, app.state.runs, app.state.now = store, deque(maxlen=200), now
+    app.state.charges = {}                          # session id -> its last synthetic charge (AC-19)
     notifier = notifier or HttpNotifier.from_env()
 
     @app.exception_handler(ApiError)
@@ -207,8 +210,21 @@ def create_live_app(store: Store, *, catalog: Optional[Catalog] = None, verifier
         found = [e.payload.get(key) for e in events if e.type == kind and isinstance(e.payload.get(key), dict)]
         return found[-1] if found else None
 
+    def run_charges(customer_id: str, run_id: Optional[str], mode: str) -> list:
+        """A live demo run's synthetic charges [simulated], newest first; none in replay or production (AC-19)."""
+        if mode != "live" or not is_demo_run(run_id):
+            return []
+        return [demo.charge_view(r) for r in reversed(store.demo_transactions(customer_id, run_id=run_id))]
+
+    def charge_of(record: CaseRecord) -> Optional[dict]:
+        """The case's charge: gold's, else its demo run's synthetic charge (spec 03 AC-14)."""
+        return catalog.transaction(record.transaction_id) or next(
+            ({k: v for k, v in t.items() if k != "product_id"}
+             for t in run_charges(record.customer_id, record.run_id, record.mode)
+             if t["transaction_id"] == record.transaction_id), None)
+
     def view(record: CaseRecord) -> CaseView:
-        txn = catalog.transaction(record.transaction_id)
+        txn = charge_of(record)
         if txn is None:
             raise ApiError(503, "UNAVAILABLE", "Transaction data unavailable")
         events, status = store.events(record.case_id), store.queue_status(record.case_id)
@@ -437,8 +453,41 @@ def create_live_app(store: Store, *, catalog: Optional[Catalog] = None, verifier
         if session_id != s["session_id"]:
             raise ApiError(404, "NOT_FOUND", "Unknown session")
         last4 = {p["product_id"]: p["last4"] for p in catalog.products(s["customer_id"])}
+        rows = [*run_charges(s["customer_id"], s["run_id"], s["mode"]),        # dated today: the newest
+                *catalog.recent_transactions(s["customer_id"], today(s["mode"], s["country"]), limit)][:limit]
         return [{**{k: v for k, v in t.items() if k != "product_id"}, "last4": last4.get(t["product_id"])}
-                for t in catalog.recent_transactions(s["customer_id"], today(s["mode"], s["country"]), limit)]
+                for t in rows]
+
+    @app.post("/api/sessions/{session_id}/synthetic-charge", status_code=201, response_model=SyntheticChargeOut)
+    def synthetic_charge(session_id: str, body: SyntheticChargeIn, s: dict = Depends(session)):
+        """Demo type C (AC-19): one synthetic charge [simulated] for a live demo session's own run, dated today in its
+        currency, with the fixed synthetic score (D-027); never gold, replay or production, never a visitor's score."""
+        if session_id != s["session_id"]:
+            raise ApiError(404, "NOT_FOUND", "Unknown session")
+        if s["mode"] != "live" or not is_demo_run(s["run_id"]):
+            raise ApiError(403, "DENY", "Synthetic charges exist only in a live demo session")
+        try:
+            merchant = demo.clean_merchant(body.merchant)
+        except ValueError as error:
+            raise ApiError(422, "INVALID", str(error)) from None
+        gate, cards = policies.amount_gate.by_country.get(s["country"]), catalog.products(s["customer_id"])
+        if gate is None or not cards:
+            raise ApiError(503, "UNAVAILABLE", "No card or currency for this customer")
+        if body.amount > demo.CHARGE_MAX_USD * gate.usd_rate:
+            raise ApiError(422, "INVALID", f"amount is above {demo.CHARGE_MAX_USD * gate.usd_rate:,.0f} {gate.currency}")
+        now, last = app.state.now(), app.state.charges.get(s["session_id"])
+        mine = store.demo_transactions(s["customer_id"], run_id=s["run_id"])
+        if (last and now - last < demo.CHARGE_EVERY) or len(mine) >= demo.CHARGES_PER_SESSION:
+            raise ApiError(429, "DENY", "One synthetic charge per minute, three per session")
+        card = next((c for c in cards if c["status"] == "Active"), cards[0])
+        row = store.add_demo_transaction(demo.synthetic_charge(
+            customer_id=s["customer_id"], run_id=s["run_id"], card=card, amount=body.amount, currency=gate.currency,
+            usd_rate=gate.usd_rate, merchant=merchant, generated_at=now,
+            local_now=now.astimezone(ZoneInfo(TIME_ZONES.get(s["country"], "UTC"))),
+            taken=lambda i: catalog.transaction(i) is not None or any(r.transaction_id == i for r in mine)))
+        app.state.charges = {k: v for k, v in app.state.charges.items() if now - v < demo.CHARGE_EVERY}
+        app.state.charges[s["session_id"]] = now
+        return {**{k: v for k, v in demo.charge_view(row).items() if k != "product_id"}, "last4": card["last4"]}
 
     @app.get("/api/me/products", response_model=list[ProductView])
     def products(s: dict = Depends(session)):
@@ -518,7 +567,7 @@ def create_live_app(store: Store, *, catalog: Optional[Catalog] = None, verifier
                       if c.related_case_id == record.case_id and store.queue_status(c.case_id) != "closed"), None)
         if again is not None:                                     # a double click returns the case already opened
             return {"event_id": store.events(again.case_id)[0].event_id, "case_id": again.case_id}
-        txn = catalog.transaction(record.transaction_id)
+        txn = charge_of(record)
         if txn is None:
             raise ApiError(503, "UNAVAILABLE", "Transaction data unavailable")
         # A closed case is not reopened by the customer: a related case is opened (§6.3) with the deadlines of the new
