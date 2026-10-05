@@ -24,6 +24,7 @@ import json
 import re
 from collections.abc import Callable, Iterator
 from contextlib import AbstractContextManager
+from decimal import Decimal
 from typing import Any, Literal, Optional, Protocol, get_args, runtime_checkable
 
 import yaml
@@ -459,6 +460,10 @@ class Store(Protocol):
     def list_llm_calls(self, *, run_id: Optional[str], trace_id: Optional[str] = None) -> list[LLMCall]:
         """The calls of `run_id` (None = production), only `trace_id`'s when given, oldest first (`created_at`, then
         `call_id`), so a run's tokens and cost sum alone."""
+
+    def llm_spend_since(self, since: dt.datetime) -> Decimal:
+        """The summed `cost_usd` of every `llm_calls` row of any run created at or after `since` (aware), 0 when none:
+        the day's LLM spend the G-OPS-01 daily cap reads (spec 04 §5)."""
 
     def add_channel_event(self, case_id: str, channel: LinkedChannel, address: str, event: ChannelEvent, *,
                           actor: str, trace_id: str) -> CustomerChannel:

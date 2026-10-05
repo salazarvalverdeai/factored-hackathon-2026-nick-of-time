@@ -387,7 +387,7 @@ async def active_case_on(config: RunnableConfig, cases: BaseModel, transaction_i
         case = await call(config, "get_case", case_id=item.case_id)
         if not isinstance(case, ToolError) and case.transaction.transaction_id == transaction_id:
             return case.model_dump(mode="json", include={"case_id", "credit_deadline", "ruling_deadline",
-                                                          "deadline_source"})
+                                                          "deadline_source", "deadline_source_label"})
     return None
 
 
@@ -549,6 +549,12 @@ def holds(tool: str, action_id: str, target: dict[str, str], reading: BaseModel)
     return reading.case_id == target["case_id"]
 
 
+def sourced(case: dict[str, Any]) -> dict[str, Any]:
+    """DLANG: a customer line names the deadline's source by the label get_case returned in the session's language,
+    never a translation of the agent's (constitution #5); a case read with no label keeps its stored source."""
+    return {**case, "deadline_source": case.get("deadline_source_label") or case.get("deadline_source")}
+
+
 def verified_lines(case: Optional[dict[str, Any]], card: Optional[dict[str, Any]], opened: Optional[dict[str, Any]],
                    language: str, dispute: str = "unrecognized_charge") -> list[str]:
     """What verify confirmed, from the verifying reads only (ADR 0016): the case with its V- id and stored deadlines,
@@ -560,7 +566,7 @@ def verified_lines(case: Optional[dict[str, Any]], card: Optional[dict[str, Any]
                      if (opened or {}).get("duplicate_of") else
                      msg.text("act.case_opened", language, case_id=case["case_id"],
                               verification_id=case["verification_id"], verified_at=build.stamp(case["read_at"])))
-        facts = {**case, "source_url": case["deadline_source_url"], "verified_on": case["deadline_verified_on"]}
+        facts = {**sourced(case), "source_url": case["deadline_source_url"], "verified_on": case["deadline_verified_on"]}
         keys = ("ruling_deadline", "credit_deadline") if dispute == "unrecognized_charge" else ("ruling_deadline",)
         lines += [msg.text(f"receipt.{key}", language, **facts) for key in keys
                   if case.get(key)] or [msg.text("receipt.deadline_unknown", language)]
@@ -575,7 +581,7 @@ def duplicate(state: State) -> dict[str, Any]:
     from get_case. [assumption] No new write either (no block): the person on that case decides."""
     case, language = state["existing_case"], state["language"]
     lines = [msg.text("duplicate.case_exists", language, case_id=case["case_id"])]
-    lines += [msg.text(f"status.{key}", language, **case) for key in ("ruling_deadline", "credit_deadline")
+    lines += [msg.text(f"status.{key}", language, **sourced(case)) for key in ("ruling_deadline", "credit_deadline")
               if case.get(key)] or [msg.text("status.deadline_unknown", language)]
     # [assumption] D-050: the turn reports decision null, since nothing the decision called for was run; a call request
     # reports connect_person, as only the call is run. The engine's decision stays in the trace (D-046).
@@ -654,7 +660,7 @@ async def case_status(state: State, config: RunnableConfig) -> dict[str, Any]:
     case = await call(config, "get_case", case_id=target)
     if isinstance(case, ToolError):
         return status_unread("get_case", language)
-    facts, active = case.model_dump(mode="json"), case.queue_status not in CLOSED
+    facts, active = sourced(case.model_dump(mode="json")), case.queue_status not in CLOSED
     lines = [msg.text("status.case_read", language, case_id=case.case_id, read_at=stamp(case.read_at),
                       status_label=status_label(case.queue_status, language) or case.status_label)]
     lines += [msg.text(f"status.{key}", language, **facts) for key in ("ruling_deadline", "credit_deadline")

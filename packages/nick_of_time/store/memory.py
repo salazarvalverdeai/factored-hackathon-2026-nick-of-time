@@ -10,6 +10,7 @@ import datetime as dt
 import threading
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
+from decimal import Decimal
 from typing import Any, Literal, Optional, get_args
 
 from nick_of_time import ids
@@ -355,6 +356,9 @@ class MemoryStore:
         check_key(trace_id)
         rows = [c for c in self._llm_calls if c.run_id == run_id and trace_id in (None, c.trace_id)]
         return [c.model_copy(deep=True) for c in sorted(rows, key=lambda c: (c.created_at, c.call_id))]
+
+    def llm_spend_since(self, since: dt.datetime) -> Decimal:
+        return sum((c.cost_usd for c in self._llm_calls if c.created_at >= since), Decimal(0))
 
     def add_channel_event(self, case_id: str, channel: LinkedChannel, address: str, event: ChannelEvent, *,
                           actor: str, trace_id: str) -> CustomerChannel:

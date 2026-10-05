@@ -127,13 +127,19 @@ class ChargeWindow(_Strict):              # the entry applies only to a charge t
         return self
 
 
+class SourceLabel(_Strict):               # DLANG: the customer's name of an entry's `source`, never translated by the agent
+    es: str = Field(min_length=1)
+    pt: str = Field(min_length=1)
+
+
 class ClockEntry(_Strict):                # one verified row of spec 02 §4.3 (ADR 0019)
     when_charged_within: Optional[ChargeWindow] = None
     credit: Optional[Term] = None
     ruling: Optional[Term] = None
     ruling_abroad: Optional[Term] = None
     extendable_once: bool = False
-    source: str = Field(min_length=1)
+    source: str = Field(min_length=1)    # the analyst's (English) name, stored with the case
+    source_label: SourceLabel
     source_url: str = Field(pattern=HTTPS_URL)
     verified_on: date
 
