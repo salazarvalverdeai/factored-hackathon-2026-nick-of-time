@@ -56,6 +56,9 @@ ROWS = [  # country, product, kwargs, credit_deadline, ruling_deadline, weekday 
     ("MX", "credit", {"charged_at": D(2026, 3, 2), "abroad": True}, None, D(2026, 11, 28), [], "LTOSF art. 23"),
     ("AR", "debit", {}, None, D(2026, 6, 16), [D(2026, 6, 15)], "BCRA"),
     ("AR", "credit", {"abroad": True}, None, D(2026, 6, 16), [D(2026, 6, 15)], "BCRA"),
+    ("CO", "debit", {}, None, D(2026, 6, 24), [D(2026, 6, 8), D(2026, 6, 15)], "SFC"),
+    ("CO", "credit", {}, None, D(2026, 6, 24), [D(2026, 6, 8), D(2026, 6, 15)], "SFC"),
+    ("BR", "debit", {}, None, D(2026, 6, 16), [D(2026, 6, 4)], "Resolução CMN 4.860/2020"),
 ]
 
 
@@ -67,7 +70,7 @@ def test_ac_03_every_country_and_product_row_from_the_demo_date(country, product
     d = clock.deadline(country, product, OPENED, **kwargs)
     assert (d.credit_deadline, d.ruling_deadline, d.holidays_skipped) == (credit, ruling, skipped)
     assert d.deadline_source.startswith(source) and d.source_url.startswith("https://") and d.verified_on == VERIFIED
-    assert d.rule_ids == [] and d.policies_version == 2 and not d.extendable_once
+    assert d.rule_ids == [] and d.policies_version == 2 and d.extendable_once == (country in ("CO", "BR"))
 
 
 @pytest.mark.parametrize("product", ["debit", "credit"])
@@ -154,7 +157,10 @@ ADD = [("MX", D(2026, 6, 1), 1, D(2026, 6, 2)),       # D-008
        ("MX", D(2026, 9, 15), 1, D(2026, 9, 17)),     # Independence Day
        ("MX", D(2026, 11, 13), 2, D(2026, 11, 18)),   # Revolution Day, third Monday of November
        ("AR", D(2026, 11, 6), 1, D(2026, 11, 10)),    # papal visit Monday (Decreto 1103/2026)
-       ("AR", D(2026, 3, 20), 1, D(2026, 3, 23))]     # a "día no laborable" counts [assumption, conservative]
+       ("AR", D(2026, 3, 20), 1, D(2026, 3, 23)),     # a "día no laborable" counts [assumption, conservative]
+       ("CO", D(2026, 6, 5), 1, D(2026, 6, 9)),       # Corpus Christi moved to Monday
+       ("BR", D(2026, 2, 13), 1, D(2026, 2, 18)),     # Carnival Monday and Tuesday
+       ("BR", D(2026, 4, 2), 1, D(2026, 4, 3))]       # Good Friday counts [assumption, conservative]
 
 
 @pytest.mark.parametrize("country, start, n, expected", ADD)
@@ -240,6 +246,14 @@ def test_ac_03_holiday_files_cite_their_source_and_cover_2026():
     assert set(clock.holidays("AR")[2026].holidays) == {D(2026, m, d) for m, d in [
         (1, 1), (2, 16), (2, 17), (3, 24), (4, 2), (4, 3), (5, 1), (5, 25), (6, 15), (6, 20), (7, 9), (8, 17), (10, 12),
         (11, 9), (11, 23), (12, 8), (12, 25)]}
+    easter, monday = D(2026, 4, 5), lambda d: d + timedelta(days=-d.weekday() % 7)    # Ley 51 de 1983: next Monday
+    moved = [D(2026, 1, 6), D(2026, 3, 19), D(2026, 6, 29), D(2026, 8, 15), D(2026, 10, 12), D(2026, 11, 1),
+             D(2026, 11, 11)] + [easter + timedelta(days=k) for k in (39, 60, 68)]
+    fixed = [D(2026, 1, 1), D(2026, 5, 1), D(2026, 7, 20), D(2026, 8, 7), D(2026, 12, 8), D(2026, 12, 25),
+             easter - timedelta(days=3), easter - timedelta(days=2)]
+    assert set(clock.holidays("CO")[2026].holidays) == {monday(d) for d in moved} | set(fixed)
+    assert set(clock.holidays("BR")[2026].holidays) == {D(2026, m, d) for m, d in [
+        (1, 1), (2, 16), (2, 17), (4, 21), (5, 1), (6, 4), (9, 7), (10, 12), (11, 2), (11, 15), (11, 20), (12, 25)]}
 
 
 INVALID = [
@@ -281,6 +295,11 @@ def test_fr_01_holiday_files_are_validated_with_the_policies(monkeypatch, tmp_pa
         with pytest.raises(ValidationError, match="regulatory_clock AR"):
             Policies.model_validate(RAW)
         shutil.copy(real / "ar_2026.yaml", tmp_path)
+        calendars.holidays.cache_clear()
+        with pytest.raises(ValidationError, match="regulatory_clock CO"):
+            Policies.model_validate(RAW)
+        for name in ("co_2026.yaml", "br_2026.yaml"):
+            shutil.copy(real / name, tmp_path)
         calendars.holidays.cache_clear()
         Policies.model_validate(RAW)
         (tmp_path / "mx_2026.yaml").write_text("source: CNBV\nsource_url: http://dof.gob.mx/\nverified_on: 2026-10-04\n"

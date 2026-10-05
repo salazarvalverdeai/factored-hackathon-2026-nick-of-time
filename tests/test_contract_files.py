@@ -63,7 +63,7 @@ def test_amount_gate_only_picks_the_approval_mode():
 def test_regulatory_clock_cites_a_source_per_country():
     clock = POLICIES["regulatory_clock"]
     rules = [entry for products in clock.values() for entries in products.values() for entry in entries]
-    assert set(clock) == {"MX", "AR"}
+    assert set(clock) == {"MX", "AR", "CO", "BR"}
     assert all(rule["source"] and rule["source_url"] and rule["verified_on"] for rule in rules)   # ADR 0019
     assert clock["MX"]["debit"][0]["credit"] == {"days": 2, "calendar": "business"}
     assert clock["MX"]["credit"][0]["credit"] == {"days": 2, "calendar": "business"}      # ADR 0023
