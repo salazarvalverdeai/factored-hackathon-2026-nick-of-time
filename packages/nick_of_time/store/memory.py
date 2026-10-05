@@ -17,7 +17,7 @@ from nick_of_time.contracts import AnalystActionIn, AnalystActionOut, QueueStatu
 from nick_of_time.store import (CUSTOMER_VISIBLE, RESERVED_EVENTS, UNDELIVERED, VERIFIED_WITH, WRITE_EVENTS, WRITE_TOOL,
                                 CallRequest, CaseEvent, CaseRecord, Channel, DeliveryStatus, EventType, NewCase, Notification,
                                 NotVerified, ProductOverride, StoreError, VerifyingRead, _check_writer, _json,
-                                _utc_now, check_action_id, check_business_date, check_text, check_transition,
+                                _utc_now, check_action_id, check_actor, check_business_date, check_text, check_transition,
                                 insert_with_fresh_case_id)
 from nick_of_time.store.accounts import (CHANNEL_CASE_EVENT, CHANNEL_ID, DENIAL_ID, LLM_CALL_ID, ChannelEvent, CustomerChannel,
                                          LinkedChannel, LLMCall, NewDenial, NewLLMCall, NewSession, Once, PolicyDenial,
@@ -36,6 +36,7 @@ class MemoryStore:
         self._writes: dict[str, str] = {}                   # action id -> case id (Postgres: the unique index)
         self._sessions: dict[str, SessionRecord] = {}
         self._denials: list[PolicyDenial] = []
+        self._settings: list[dict[str, Any]] = []
         self._llm_calls: list[LLMCall] = []
         self._channels: list[CustomerChannel] = []
         self._once: dict[str, tuple[str, Optional[str], str, dict[str, Any]]] = {}   # key -> (action, run, args, result)
@@ -73,7 +74,13 @@ class MemoryStore:
         return self._read(case)
 
     def list_cases(self, customer_id: str, *, run_id: Optional[str]) -> list[CaseRecord]:
-        mine = [c for c in self._cases.values() if c.customer_id == customer_id and c.run_id == run_id]
+        return self._listed(lambda c: c.customer_id == customer_id and c.run_id == run_id)
+
+    def list_all_cases(self, *, run_id: Optional[str]) -> list[CaseRecord]:
+        return self._listed(lambda c: c.run_id == run_id)
+
+    def _listed(self, keep: Callable[[CaseRecord], bool]) -> list[CaseRecord]:
+        mine = [c for c in self._cases.values() if keep(c)]
         mine.sort(key=lambda c: (self.queue_status(c.case_id) != "closed", c.created_at, c.case_id), reverse=True)
         return [self._read(c) for c in mine]
 
@@ -288,6 +295,32 @@ class MemoryStore:
 
     def get_session(self, session_id: str) -> Optional[SessionRecord]:
         return self._sessions.get(check_key(session_id))
+
+    def revise_session(self, session_id: str, *, verified_at: Optional[dt.datetime] = None,
+                       language: Optional[str] = None, display_currency: Optional[str] = None) -> SessionRecord:
+        current = self.get_session(session_id)
+        if current is None:
+            raise StoreError(f"unknown session {session_id}")
+        changes = {k: v for k, v in (("verified_at", verified_at), ("language", language),
+                                     ("display_currency", display_currency)) if v is not None}
+        updated = parse(NewSession, {**current.model_dump(include=set(NewSession.model_fields)), **changes})
+        record = SessionRecord(**updated.model_dump(), session_id=current.session_id, created_at=current.created_at)
+        self._sessions[session_id] = record
+        return record
+
+    def record_setting(self, key: str, value: Any, *, actor: str) -> dict[str, Any]:
+        check_key(key), check_text(actor), check_actor(actor)
+        row = {"event_id": ids.new_id("event"), "key": key, "value": _json(value), "actor": actor,
+               "created_at": self._now()}
+        self._settings.append(row)
+        return dict(row)
+
+    def get_setting(self, key: str) -> Optional[Any]:
+        history = self.setting_history(key)
+        return history[-1]["value"] if history else None
+
+    def setting_history(self, key: str) -> list[dict[str, Any]]:
+        return [dict(r) for r in self._settings if r["key"] == check_key(key)]
 
     def summary_sends(self, session_id: str, *, since: dt.datetime) -> int:
         session = self.get_session(session_id)

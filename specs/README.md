@@ -14,7 +14,7 @@ States: **Draft → Approved → In progress → Implemented → Superseded**. S
 | 02 | Policy engine + regulatory clock | @salazarvalverdeai | P0 | M | contracts | #4 | Draft |
 | 03 | MCP server with the 16 customer tools | @salazarvalverdeai | P0 | M | 01, 02 | #5 | Draft |
 | 04 | Agent graph on LangGraph Platform (guardrails, receipt, handoff, returning customer, suggestion chips) | @salazarvalverdeai | P0 | L | 01, 02, 03, 11 | #6 | Draft |
-| 05 | Backend: API + Postgres + analyst login (Cognito) + customer session/OTP | @gianzk | P0 | L | 01 | #7 | Not started |
+| 05 | Backend: API + Postgres + analyst login (Cognito) + customer session/OTP | @gianzk | P0 | L | 01 | #7 | In progress |
 | 06 | Deploy + CI (Compose on EC2, GHCR, OIDC, SSM) | @gianzk | P0 | M | — | #8 | Not started |
 | 07 | Customer chat `/chat` with verified receipt and trace | @gianzk | P0 | L | 16, 04, 05 | #9 | In progress |
 | 08 | Analyst login + console `/login`, `/console` | @gianzk | P0 | L | 16, 05 | #10 | In progress |

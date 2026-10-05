@@ -311,6 +311,10 @@ class Store(Protocol):
     def list_cases(self, customer_id: str, *, run_id: Optional[str]) -> list[CaseRecord]:
         """The customer's cases in `run_id`: active (not closed) first, newest first within each group."""
 
+    def list_all_cases(self, *, run_id: Optional[str]) -> list[CaseRecord]:
+        """Spec 05: every customer's cases in `run_id`, in the order of `list_cases`. Only the analyst console calls it,
+        so a customer route can never widen its scope by passing no customer."""
+
     def append_event(self, case_id: str, type: EventType, *, actor: str, trace_id: str,
                      payload: Optional[dict[str, Any]] = None) -> CaseEvent:
         """Append one event with the next `seq`; reserved types (RESERVED_EVENTS) are refused. A write event
@@ -400,6 +404,22 @@ class Store(Protocol):
     def get_session(self, session_id: str) -> Optional[SessionRecord]:
         """The session row, read fresh on every call, else None; the caller checks verification and expiry (spec 03
         AC-02). `customer_id` and `run_id` for every tool come from here (constitution #3)."""
+
+    def revise_session(self, session_id: str, *, verified_at: Optional[dt.datetime] = None,
+                       language: Optional[str] = None, display_currency: Optional[str] = None) -> SessionRecord:
+        """Spec 05 (AC-01): the only change a session row takes after creation: OTP verification (`verified_at`) and the
+        customer's preferences. Only the fields given change; `mode`, `customer_id`, `run_id`, `expires_at` never do
+        (AC-07). An unknown session is a StoreError."""
+
+    def record_setting(self, key: str, value: Any, *, actor: str) -> dict[str, Any]:
+        """Spec 05 (AC-06): append a `settings_events` row `{event_id, key, value, actor, created_at}` (append-only: the
+        latest row is the current value) and return it. `actor` is a store actor."""
+
+    def get_setting(self, key: str) -> Optional[Any]:
+        """The value of the latest `settings_events` row of `key`, None when it was never set."""
+
+    def setting_history(self, key: str) -> list[dict[str, Any]]:
+        """Every `settings_events` row of `key`, oldest first."""
 
     def summary_sends(self, session_id: str, *, since: dt.datetime) -> int:
         """D-041 (spec 03 AC-21): the `on_request` notifications of the session's customer whose case is in its run,
