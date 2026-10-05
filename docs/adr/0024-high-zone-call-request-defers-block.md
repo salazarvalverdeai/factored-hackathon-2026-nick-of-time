@@ -81,3 +81,19 @@ The details that matter:
 ## Confidence
 Medium. Revisit if high-zone call requests turn out to be frequent in the evaluation, if the callback promise grows
 beyond one business day, or if analysts take long to act on `person_requested` cases.
+
+## Amendment note — D-067 (Proposed, pending lead decision D-067)
+This note does not change the Accepted text above; it records what task 04h (PR #142, spec 04 AC-02/AC-16 notes)
+proposes. If the lead accepts D-067, the Scope bullet reads "one identified card transaction the customer named or
+confirmed".
+- **Scope narrows to a named or confirmed charge.** A call request whose one candidate the customer did not name (no
+  amount or date, and no merchant slot whose every content word is in the charge's merchant) registers a general call
+  with no case, never on another charge's active case, and shows that charge as a card to confirm. No case opens and
+  nothing is blocked in that turn.
+- **The confirm runs this ADR's path.** The case opens and the card is not blocked. The general call of the previous
+  turn stays the one callback: `request_call` is not called again, so that case has no `call_requested` event, and the
+  D-042 hold and the `review` move that `request_call` makes do not apply to it `[assumption]`. Tying the general
+  request to the case needs a contract change (`RequestCallIn` has no field for it), which is the lead's call.
+- **Typed confirms.** Only the chip, a tap on the card, or a typed reply equal to a closed-list entry confirms it. A
+  reply such as "Sí, quiero hablar con alguien" is read by the classifier as a person request, so this ADR's rule (no
+  block when the customer asks for a person in that turn) is never bypassed by a leading "sí".

@@ -53,9 +53,16 @@ RETRIES = ENGINE.policies.reliability["tool_retries"]
 MAX_OPTIONS = ENGINE.policies.clarify.max_candidate_transactions
 TAU = ENGINE.policies.clarify.intent_confidence_min   # τ (spec 11 AC-07): the LLM is asked only below it
 DISPUTES = ("unrecognized_charge", "wrongful_charge")
-# D-067 [assumption]: amount and date name a charge (the search filters on them); a merchant only when it matches the
-# one candidate's merchant (the search keeps null-merchant rows); a currency never, nor a currency read as a merchant.
+# D-067 [assumption]: amount and date name a charge (the search filters on them); a merchant only when EVERY content
+# word of the slot (more than 2 letters, not a stop word, a currency code or a generic word) is a word of the one
+# candidate's merchant (the search keeps null-merchant rows, and gold merchants share generic words: "Mercado Central"
+# never names "Laboratorio Central"); a slot with no content word names nothing; a currency never names a charge.
 CURRENCY_CODES = {"usd", "mxn", "cop", "ars", "brl", "pen", "clp"}
+STOP_WORDS = {"del", "los", "las", "una", "uno", "unos", "unas", "con", "com", "por", "para", "dos", "das", "uma",
+              "the", "and", "que", "mas", "muy", "este", "esta", "ese", "esa", "esse", "essa", "cargo", "cobro",
+              "cobranca"}
+GENERIC_WORDS = {"tienda", "central", "super", "servicio", "servicios", "centro", "comercial", "store", "shop", "loja",
+                 "pago", "pagos", "compra"}
 CLOSED = ("resolved", "closed")             # queue states of a case that is no longer active
 # [assumption] until T3–T6: a press of these actions reads as this intent; confirm and choose_option keep the pending
 # dispute. Pressing an action chip skips the classifier (AC-32).
@@ -64,11 +71,13 @@ ACTION_INTENT = {"request_call": "human_request", "send_summary": "status_inquir
 BRANCH = {"reauthenticate": "refuse", "deny": "refuse", "connect_person": "connect", "answer_status": "status"}
 # [assumption] a typed yes or no (or a confirm chip's label) answers the confirm question only right after it was asked.
 CONFIRM_WORDS = {"si": True, "sim": True, "si, continua": True, "sim, continue": True, "no": False, "nao": False,
-                 "no es ese cargo": False, "nao e essa cobranca": False, "si, es ese cargo": True, "sim, e esse": True}
-# D-067 [assumption]: after the card of an unnamed charge, a reply that starts with a yes confirms THAT card, unless it
-# also says no, a number, another charge or a person.
-LEADING_YES = re.compile(r"^(?:si|sim|yes|correcto|correto|exacto|exato|ese (?:mismo|es)|esse (?:mesmo|e)|isso)\b")
-NOT_YES = re.compile(r"\d|\b(?:no|nao|not|pero|mas|otro|outr[oa]|persona|pessoa|llam\w*|lig\w*)\b")
+                 "no es ese cargo": False, "nao e essa cobranca": False}
+# D-067 [assumption]: the card of a charge the customer did not name (rows confirm_charge and confirm_call) is
+# confirmed only by its chip, a tap on the card, or a typed reply that, folded and without punctuation, EQUALS one of
+# these; anything longer ("Sí, quiero hablar con alguien", "Sí, el de Amazon") goes to the classifier as any message.
+CHARGE_WORDS = {**{said: True for said in ("si", "si es ese", "si es ese cargo", "correcto", "ese es", "ese mismo",
+                                           "sim", "sim e essa cobranca", "e essa", "essa mesma", "correto")},
+                **{said: False for said in ("no", "no es ese cargo", "nao", "nao e essa cobranca")}}
 # Another customer's data (spec 02 rule 2, POL-CROSS-CUSTOMER / G-SES-02), on folded text: a data word, then "of" a
 # third party. The graph sets cross_customer; the nlu injection rules stay as they are (spec 11).
 _DATA = (r"(?:saldo|cuentas?|contas?|tarjetas?|cartao|cartoes|transacc\w*|transac\w*|movimientos?|movimentos?"
@@ -121,6 +130,7 @@ class Internal(TypedDict, total=False):     # spec 04 §4.1 fields outside TurnR
     selected_transaction: Optional[dict[str, Any]]   # the one candidate, with product_type and last4 of its card
     customer_confirmed: Optional[bool]      # about selected_transaction; None whenever it changes
     unnamed: bool                           # the one candidate came from a search no slot narrowed (D-067)
+    call_held: Optional[dict[str, Any]]     # D-067: the general call registered with that card, kept one turn
     score: Optional[dict[str, Any]]         # get_fraud_score of the selected transaction
     display: Optional[dict[str, Any]]       # convert_amount of it; None without a verified rate (AC-25)
     existing_case: Optional[dict[str, Any]]  # an active case on the selected transaction, read with get_case (AC-23)
@@ -206,7 +216,8 @@ async def understand(state: State, config: RunnableConfig) -> dict[str, Any]:
     hint = state.get("language") or state.get("language_last")
     language = hint or profile.get("language") or "es"
     base = {"today": day.isoformat(), "language": language, "slots": {}, "injection_flagged": False,
-            "cross_customer": False, "intent": None, "intent_confidence": None, "dispute_detected": False}
+            "cross_customer": False, "intent": None, "intent_confidence": None, "dispute_detected": False,
+            "call_held": None}
     pending = state.get("intent") if state.get("intent") in DISPUTES else "unrecognized_charge"
     if action:                              # a pressed action chip or button skips the classifier (AC-32)
         kind, value = action.get("type"), action.get("value")
@@ -214,17 +225,18 @@ async def understand(state: State, config: RunnableConfig) -> dict[str, Any]:
         call = call_confirmed(state, answer)
         intent = "human_request" if call else ACTION_INTENT.get(kind, pending)
         return {**base, "intent": intent, "intent_confidence": 1.0, "dispute_detected": intent in DISPUTES or call,
-                "answer": answer}
+                "answer": answer, **({"call_held": state.get("call_held")} if call else {})}
     if not text:
         return base
-    offered, said_text = {s.get("id") for s in state.get("suggestions") or []}, fold(text).strip(" .!¡?¿")
-    said = CONFIRM_WORDS.get(said_text)
-    if said is None and "confirm_charge" in offered and LEADING_YES.search(said_text) and not NOT_YES.search(said_text):
-        said = True
-    if said is not None and offered & {"confirm_yes", "confirm_charge"}:
+    offered = {s.get("id") for s in state.get("suggestions") or []}
+    # D-067: the card's rows take only an exact closed-list reply; the medium-zone confirm row keeps CONFIRM_WORDS
+    said = (CHARGE_WORDS.get(" ".join(re.findall(r"\w+", fold(text)))) if "confirm_charge" in offered
+            else CONFIRM_WORDS.get(fold(text).strip(" .!¡?¿")) if "confirm_yes" in offered else None)
+    if said is not None:
         answer = {"confirm": said}
-        return {**base, "intent": "human_request" if call_confirmed(state, answer) else pending,
-                "intent_confidence": 1.0, "dispute_detected": True, "answer": answer}
+        call = call_confirmed(state, answer)
+        return {**base, "intent": "human_request" if call else pending, "intent_confidence": 1.0,
+                "dispute_detected": True, "answer": answer, **({"call_held": state.get("call_held")} if call else {})}
     reading = NLU.parse(text, hint, today=day)
     found = {"language": reading.language, "slots": reading.slots.model_dump(),
              "injection_flagged": reading.injection_flagged,
@@ -260,11 +272,13 @@ def unconfirmed(state: State) -> bool:
 
 
 def names(slots: dict[str, Any], trx: dict[str, Any]) -> bool:
-    """D-067: whether the turn's slots name this candidate (see CURRENCY_CODES)."""
+    """D-067: whether the turn's slots name this candidate (see CURRENCY_CODES): an amount or a date, or a merchant
+    slot whose every content word is a word of the candidate's non-null merchant (accents and case ignored)."""
     if slots.get("amount") or slots.get("date"):
         return True
-    said = {word for word in re.findall(r"\w+", fold(slots.get("merchant") or "")) if len(word) > 2} - CURRENCY_CODES
-    return bool(said & set(re.findall(r"\w+", fold(trx.get("merchant") or ""))))
+    said = {word for word in re.findall(r"\w+", fold(slots.get("merchant") or "")) if len(word) > 2}
+    said -= CURRENCY_CODES | STOP_WORDS | GENERIC_WORDS
+    return bool(said) and said <= set(re.findall(r"\w+", fold(trx.get("merchant") or "")))
 
 
 async def route(state: State, config: RunnableConfig) -> dict[str, Any]:
@@ -324,6 +338,8 @@ async def connect(state: State, config: RunnableConfig) -> dict[str, Any]:
     a case is read back with get_case: "verified" only with the read's V- id, else it stays "requested" (AC-18); a
     general call stays "requested" (D-026). Actions and lines already set this turn stay."""
     language, before, done, path = state["language"], state.get("body") or [], state.get("actions") or [], state["path"]
+    if held := state.get("call_held"):      # D-067: the call this card came with is already registered: no second one
+        return kept_call(state, held, before, done, path)
     case = await call_case(state, config)
     key = f"{state['session_id']}:{case or 'none'}:request_call:{state['trace_id']}"
     out = await call(config, "request_call", idempotency_key=key, **({"case_id": case} if case else {}))
@@ -348,9 +364,23 @@ async def connect(state: State, config: RunnableConfig) -> dict[str, Any]:
             "seen": seen}
     if state.get("intent") == "human_request" and unconfirmed(state):   # D-067: the charge's card, still to confirm
         trx = state["selected_transaction"]
-        turn |= {"body": [*turn["body"], msg.text("clarify.confirm_one", language)], "row": "confirm_call",
-                 "options": [{"id": trx["transaction_id"], "label": msg.option_label(trx)}]}
+        turn |= {"body": [*turn["body"], msg.text("clarify.confirm_call", language)], "row": "confirm_call",
+                 "options": [{"id": trx["transaction_id"], "label": msg.option_label(trx)}],
+                 "call_held": None if out.case_id else {"out": seen[0], "record": record}}
     return turn
+
+
+def kept_call(state: State, held: dict[str, Any], before: list[str], done: list[dict[str, Any]],
+              path: list[str]) -> dict[str, Any]:
+    """D-067 [assumption]: the customer confirmed the card shown with a general call (row confirm_call), so the case
+    opened this turn and that call stands as the one callback: request_call is not called again (a second callback
+    for one ask). The reply and the papers state that call from its own request_call result of the last turn."""
+    out, language = held["out"], state["language"]
+    when = out.get("expected_contact_by")
+    body = (msg.text("connect.kept", language, expected_contact_by=when) if when
+            else msg.text("connect.kept_no_window", language))
+    return {"body": [*before, body], "row": "connect_person_case" if state.get("case_id") else "connect_person",
+            "actions": [*done, held["record"]], "path": path + ["connect"], "seen": [out], "call_held": None}
 
 
 async def call_case(state: State, config: RunnableConfig) -> Optional[str]:
