@@ -48,7 +48,7 @@ FIXTURES: dict[str, dict[str, Any]] = {
     "open_case": {"action_id": "A-71C0D5E8A2F3", "case_id": _CASE, "country": "MX", **_DEADLINE},
     "block_card": {"action_id": "A-3E9F20B7C164", "product_id": _PRD},
     "get_product_status": {**_CARD, "action_id": "A-3E9F20B7C164", "verification_id": "V-8B2D41C7E0A9"},   # block_card
-    "list_my_cards": {"cards": [_CARD]},
+    "list_my_cards": {"cards": [_CARD], "read_at": _CARD["read_at"]},   # 1.4.0: the listing's reading time
     "get_case": {**_DEADLINE, "case_id": _CASE, "queue_status": "verification", "status_label": "Recibido",
                  "transaction": {"transaction_id": _TRX, "amount": 1250.0, "currency": "USD",
                                  "transaction_date": "2026-05-31", "merchant": "TIENDA X"},

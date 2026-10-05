@@ -997,10 +997,16 @@
       },
       "title": "Cards",
       "type": "array"
+     },
+     "read_at": {
+      "format": "date-time",
+      "title": "Read At",
+      "type": "string"
      }
     },
     "required": [
-     "cards"
+     "cards",
+     "read_at"
     ],
     "title": "ListMyCardsOut",
     "type": "object"
