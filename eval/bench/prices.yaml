@@ -1,0 +1,163 @@
+# Price per 1M tokens, USD, on-demand standard tier, US East (Ohio) (spec 15 section 4.1 and 4.5, ADR 0019).
+# Source: AWS Price List offer files, region us-east-2, read on 2026-10-04 (publicationDate 2026-10-03 for
+# AmazonBedrock, 2026-09-30 for AmazonBedrockFoundationModels). The files label some units '1K tokens'; the values
+# match the per-1M figures here. Anthropic rows are the regional (non-global) token prices, which is what the
+# us. inference profiles pay (global profiles are about 10% cheaper per AWS cross-region-inference docs).
+# status: confirmed -> label [external]; assumption -> label [assumption] (could not be confirmed).
+# B0 and B1 (no LLM) cost nothing per token and are not listed. Any safety margin belongs in the budget, not here.
+prices:
+  nova-micro:
+    input_per_1m: 0.035
+    output_per_1m: 0.14
+    status: confirmed
+    label: "[external]"
+    source_url: https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonBedrock/current/us-east-2/index.json
+    checked_on: "2026-10-04"
+  nova-lite:
+    input_per_1m: 0.06
+    output_per_1m: 0.24
+    status: confirmed
+    label: "[external]"
+    source_url: https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonBedrock/current/us-east-2/index.json
+    checked_on: "2026-10-04"
+  nova-2-lite:
+    input_per_1m: 0.33
+    output_per_1m: 2.75
+    status: confirmed
+    label: "[external]"
+    source_url: https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonBedrock/current/us-east-2/index.json
+    checked_on: "2026-10-04"
+  nova-pro:
+    input_per_1m: 0.8
+    output_per_1m: 3.2
+    status: confirmed
+    label: "[external]"
+    source_url: https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonBedrock/current/us-east-2/index.json
+    checked_on: "2026-10-04"
+  gpt-oss-20b:
+    input_per_1m: 0.07
+    output_per_1m: 0.3
+    status: confirmed
+    label: "[external]"
+    source_url: https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonBedrock/current/us-east-2/index.json
+    checked_on: "2026-10-04"
+  gpt-oss-120b:
+    input_per_1m: 0.15
+    output_per_1m: 0.6
+    status: confirmed
+    label: "[external]"
+    source_url: https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonBedrock/current/us-east-2/index.json
+    checked_on: "2026-10-04"
+  ministral-3-8b:
+    input_per_1m: 0.15
+    output_per_1m: 0.15
+    status: confirmed
+    label: "[external]"
+    source_url: https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonBedrock/current/us-east-2/index.json
+    checked_on: "2026-10-04"
+  ministral-3-14b:
+    input_per_1m: 0.2
+    output_per_1m: 0.2
+    status: confirmed
+    label: "[external]"
+    source_url: https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonBedrock/current/us-east-2/index.json
+    checked_on: "2026-10-04"
+  mistral-large-3:
+    input_per_1m: 0.5
+    output_per_1m: 1.5
+    status: confirmed
+    label: "[external]"
+    source_url: https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonBedrock/current/us-east-2/index.json
+    checked_on: "2026-10-04"
+  gemma-3-12b:
+    input_per_1m: 0.09
+    output_per_1m: 0.29
+    status: confirmed
+    label: "[external]"
+    source_url: https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonBedrock/current/us-east-2/index.json
+    checked_on: "2026-10-04"
+  gemma-3-27b:
+    input_per_1m: 0.23
+    output_per_1m: 0.38
+    status: confirmed
+    label: "[external]"
+    source_url: https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonBedrock/current/us-east-2/index.json
+    checked_on: "2026-10-04"
+  llama-3-3-70b:
+    input_per_1m: 0.72
+    output_per_1m: 0.72
+    status: confirmed
+    label: "[external]"
+    source_url: https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonBedrock/current/us-east-2/index.json
+    checked_on: "2026-10-04"
+  llama-4-scout:
+    input_per_1m: 0.17
+    output_per_1m: 0.66
+    status: confirmed
+    label: "[external]"
+    source_url: https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonBedrock/current/us-east-2/index.json
+    checked_on: "2026-10-04"
+  llama-4-maverick:
+    input_per_1m: 0.24
+    output_per_1m: 0.97
+    status: confirmed
+    label: "[external]"
+    source_url: https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonBedrock/current/us-east-2/index.json
+    checked_on: "2026-10-04"
+  qwen3-32b:
+    input_per_1m: 0.15
+    output_per_1m: 0.6
+    status: confirmed
+    label: "[external]"
+    source_url: https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonBedrock/current/us-east-2/index.json
+    checked_on: "2026-10-04"
+  qwen3-235b:
+    input_per_1m: 0.22
+    output_per_1m: 0.88
+    status: confirmed
+    label: "[external]"
+    source_url: https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonBedrock/current/us-east-2/index.json
+    checked_on: "2026-10-04"
+  nemotron-nano-3:
+    input_per_1m: 0.06
+    output_per_1m: 0.24
+    status: confirmed
+    label: "[external]"
+    source_url: https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonBedrock/current/us-east-2/index.json
+    checked_on: "2026-10-04"
+  deepseek-v3-2:
+    input_per_1m: 0.62
+    output_per_1m: 1.85
+    status: confirmed
+    label: "[external]"
+    source_url: https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonBedrock/current/us-east-2/index.json
+    checked_on: "2026-10-04"
+  haiku-4-5:
+    input_per_1m: 1.1
+    output_per_1m: 5.5
+    status: confirmed
+    label: "[external]"
+    source_url: https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonBedrockFoundationModels/current/us-east-2/index.json
+    checked_on: "2026-10-04"
+  sonnet-5-5:
+    input_per_1m: 2.2
+    output_per_1m: 11.0
+    status: confirmed
+    label: "[external]"
+    source_url: https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonBedrockFoundationModels/current/us-east-2/index.json
+    checked_on: "2026-10-04"
+  sonnet-4-6:
+    input_per_1m: 3.3
+    output_per_1m: 16.5
+    status: confirmed
+    label: "[external]"
+    source_url: https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonBedrockFoundationModels/current/us-east-2/index.json
+    checked_on: "2026-10-04"
+  jev:
+    input_per_1m: 0.042
+    output_per_1m: 0.0
+    status: assumption
+    label: "[assumption]"
+    source_url: https://opper.ai/typesafe/jev-1-13-0
+    checked_on: "2026-10-04"
+    note: "third-party gateway listing, not TypeSafe; output free per spec 15 section 4.1; not confirmed with TypeSafe"

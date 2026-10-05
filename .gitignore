@@ -35,3 +35,7 @@ docs/fichas_features.md
 # web
 node_modules/
 .next/
+
+# local Spanish guides and reviews (never committed)
+habilitar_*.md
+revision_*.md
