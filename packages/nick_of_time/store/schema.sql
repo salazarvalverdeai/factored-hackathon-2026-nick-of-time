@@ -16,8 +16,8 @@ create table if not exists sessions (
   mode text not null check (mode in ('replay', 'live')),            -- fixed at creation (AC-07)
   display_currency text null,
   tool_faults text[] not null default array[]::text[],
-  run_id text null,                                                  -- run_id and arm: eval seed only (§6.8)
-  arm text null,
+  run_id text null,                                                  -- eval seed or a demo session (§6.8, ADR 0026)
+  arm text null,                                                     -- eval seed or DEFAULT_ARM
   display_name text null,                                            -- a demo visitor's typed name (ADR 0026)
   created_at timestamptz not null default now()
 );

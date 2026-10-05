@@ -80,8 +80,13 @@ MAX_CASE_ID_ATTEMPTS = 8      # 10^6 case ids; at 1% occupancy, 8 straight confl
 DEMO_RUN_PREFIX = "demo-"            # a public demo session's run (ADR 0026): `demo-<UTC yyyymmddThhmmssZ>-<6 base32>`
 
 
+def is_demo_run(run_id: Optional[str]) -> bool:
+    """A public demo session's run: isolated like an eval run, and with no Telegram or e-mail channel (ADR 0026)."""
+    return (run_id or "").startswith(DEMO_RUN_PREFIX)
+
+
 def in_runs(case_run: Optional[str], run_id: Optional[str], demo_runs: bool) -> bool:
-    return case_run == run_id or (demo_runs and (case_run or "").startswith(DEMO_RUN_PREFIX))
+    return case_run == run_id or (demo_runs and is_demo_run(case_run))
 
 
 class StoreError(Exception):
@@ -314,8 +319,8 @@ class Store(Protocol):
     def get_case(self, case_id: str, *, run_id: Optional[str], customer_id: Optional[str],
                  demo_runs: bool = False) -> Optional[CaseRecord]:
         """The case if it belongs to `run_id` (None = production) and to `customer_id` (None = analyst console),
-        with the V- id of the latest `action_verified` of its `case_opened` action. `demo_runs` (analyst console and
-        channel links only, ADR 0026) also matches a case of any demo session run (`DEMO_RUN_PREFIX`)."""
+        with the V- id of the latest `action_verified` of its `case_opened` action. `demo_runs` (the analyst console
+        only, ADR 0026) also matches a case of any demo session run (`DEMO_RUN_PREFIX`)."""
 
     def list_cases(self, customer_id: str, *, run_id: Optional[str]) -> list[CaseRecord]:
         """The customer's cases in `run_id`: active (not closed) first, newest first within each group."""

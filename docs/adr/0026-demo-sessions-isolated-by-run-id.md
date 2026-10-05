@@ -28,19 +28,28 @@ The details that matter:
   returns it when present, else gold's first name, so the greeting stays a tool fact.
 - **Isolation.** The demo `run_id` follows the eval path unchanged: two demo sessions of one customer never see each
   other's cases, blocks, notifications or idempotency keys. No row is deleted.
+- **No external channel in a demo run.** `customer_channels` is per customer, not per run, and a demo customer is
+  shared by every visitor, so a Telegram chat or inbox bound by one visitor would receive another visitor's summaries.
+  In a `demo-` run the Telegram and e-mail link routes refuse the case, `get_customer_profile` lists no channel,
+  `send_case_summary` answers `DENY` (logged by the gate as a policy denial), and analyst actions write only the
+  in-app notification. Production sessions keep their channels.
 - **Analysts.** The console lists and acts on production cases and on demo-run cases (`demo_runs=True` in
-  `get_case`/`list_all_cases`), never on eval runs; Telegram links also resolve demo-run cases.
-- The original picker (`customer_id`) still opens a production-run session until the web moves to scenarios.
+  `get_case`/`list_all_cases`), never on eval runs.
+- The original picker (`customer_id`) still works until the web moves to scenarios, and its sessions get a fresh
+  `demo-` run too: every session the public URL opens is isolated.
 
 ## Alternatives considered
 | Option | Pros | Cons |
 |---|---|---|
-| A fresh `run_id` per demo session (chosen) | Reuses the eval isolation already enforced by the MCP gate and the store; append-only intact | The console needs a demo-run filter; `sessions` gains one column |
+| A fresh `run_id` per demo session (chosen) | Reuses the eval isolation already enforced by the MCP gate and the store; append-only intact | The console needs a demo-run filter; `sessions` gains one column; channels are off in demo runs |
+| Channels scoped per run (with the chosen run) | Telegram and e-mail would work in the demo | A schema change or a join through case events on every channel read; not for the deadline |
 | Reset the demo customers between visitors | One shared state | Deletes or rewrites audit rows (breaks #2); visitors collide mid-demo |
 | One synthetic customer per visitor | Full isolation | Not a gold customer, so the MCP finds no transactions (D-052) |
 
 ## Consequences
 - Each visitor starts clean and the analyst still sees every demo case. Eval runs stay out of the console.
+- The demo shows notifications in the in-app log and the case page only; Telegram and e-mail are shown with a
+  production session.
 - `sessions.display_name` is a new nullable column (`schema.sql`, migration 0002).
 - A demo case is tied to a short-lived session: once it expires, the visitor sees it only through the case page link.
 

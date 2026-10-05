@@ -37,11 +37,14 @@ from nick_of_time.store.accounts import (CHANNEL_CASE_EVENT, CHANNEL_ID, DENIAL_
 WRITES = sorted(WRITE_EVENTS)
 EVENT = "event_id, case_id, seq, type, actor, payload, customer_visible, trace_id, created_at"
 FACTS, VALUES = ", ".join(NewCase.model_fields), ", ".join(f"%({f})s" for f in NewCase.model_fields)
-# A case with the action of its case_opened, the V- id of that action's latest read and its status (the last change).
+
+
 def _demo(demo_runs: bool) -> dict[str, Any]:
+    """The CASES parameters that also match every demo session run (the analyst console, ADR 0026)."""
     return {"demo_runs": demo_runs, "demo_prefix": DEMO_RUN_PREFIX}
 
 
+# A case with the action of its case_opened, the V- id of that action's latest read and its status (the last change).
 CASES = """
 select c.*, o.payload ->> 'action_id' as action_id, v.verification_id, coalesce(s.status, 'new') as status
 from cases c
