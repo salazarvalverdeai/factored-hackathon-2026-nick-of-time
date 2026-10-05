@@ -46,6 +46,11 @@ AC-01 to AC-06 come from issue #11 with the same numbers; AC-04 and AC-05 carry 
 - **AC-11** — `eval/demo/live_profiles.yaml` shall define, per zone, the profile of the synthetic recent transactions
   of live mode (ADR 0020), and `eval/demo/sample_cases.jsonl` the four processed sample cases with their scripted
   analyst steps; every item is labeled synthetic or scripted. · [D]
+- **AC-12** — *(D-071, lead, 2026-10-05)* The dev set shall hold, for each of EV-0104, EV-0105, EV-0118 and EV-0119,
+  a typed and a chip recovery variant (EV-0121–EV-0128, §7.4): the same state, type, language, intent label and
+  `expected` as the case, its messages plus one answer to the ask; a chip answer names a chip of the row that ask
+  offers (spec 04 AC-35, AC-36) and carries its label. The 20 cases and the held-out are unchanged. · [T]
+  `tests/test_spec09_eval_data.py`
 
 ## 7. Data model touched
 Reads `data/gold/transactions_enriched`, `products` and `customers` (read-only). Creates files under `eval/` and
@@ -128,6 +133,15 @@ are the anchor's row, or with `cluster` the customer's approved card transaction
 (read from gold), and `expected` comes from the policy engine (§7.5). Ids: `EV-0101` to `EV-0120` for dev and
 `EV-0201` to `EV-0280` for the held-out (`EV-0001` to `EV-0005` are the examples of spec 01).
 
+**Recovery variants (D-071, AC-12).** Four dev cases end in `ask` because the intent stays below τ (the D-065 cap):
+EV-0105, EV-0118 and EV-0119 on their message, EV-0104 on its second (a reply to the confirm question that is no yes
+or no). Each gets two variants, `EV-0121` to `EV-0128` in that order: the case's messages plus the customer's answer to
+the ask, typed (`second_turn: typed`) or as a chip press (`second_turn: chip`, a message `{"text": label, "chip": id}`
+the harness presses from the last reply, spec 10 AC-14). A plan line names its case in `variant_of`; its `expected` is
+derived like any other and equals the case's. The typed answers were drafted by the lead's AI assistant and checked to
+be read by B0 `[simulated]`: they show that the path works, not how often customers word it so. The variants are scored
+apart (spec 10 `second_turn_recovery`), never in the §4.1 metrics, and are not part of the second labeling (AC-06).
+
 **Types that needed a definition.** `normal` in the medium zone has two shapes: one message ends in `confirm` with
 nothing opened; two messages (the second confirms) end with the case opened and handed off. `human` holds scored
 transactions below 30 and requests for a person, with or without a reported charge. `missing_data` is a transaction
@@ -142,7 +156,7 @@ reproduce (spec 02 §4.1 and §4.2):
 
 | Record | `decision` | `product_status` | `case_open` | `queue_status` | `handoff_emitted` | `receipt.issued` |
 |---|---|---|---|---|---|---|
-| score ≥ 50, amount ≤ `high` tier | `block_and_open_case` | `Blocked` | true | `verification` | false | true |
+| score ≥ 50, amount ≤ `high` tier | `block_and_open_case` | `Blocked` | true | `verification` | true (D-070) | true |
 | score ≥ 50, amount > `high` tier | `handoff` | `Active` | true | `review` | true | true |
 | score 30–49, one message | `confirm` | `Active` | false | — | false | false |
 | score 30–49, customer confirms in a second message | `handoff` | `Active` | true | `review` | true | true |
@@ -155,6 +169,13 @@ reproduce (spec 02 §4.1 and §4.2):
 | session expired or none | `reauthenticate` | `Active` | false | — | false | false |
 | `block_card` fails twice | `escalate_unconfirmed_action` | `Active` | true | `review` | true | true |
 | `open_case` fails twice | `escalate_unconfirmed_action` | `Active` | false | — | true | false |
+
+**D-070 (lead, 2026-10-05).** Every opened case is handed to a person, a verified high-zone block included: an analyst
+closes every case (spec 04 AC-34), so `handoff_emitted` is true whenever the case opens. Before D-070 this table had
+`false` on the first row; the held-out was derived and sealed with that rule, so `heldout` keeps it
+(`expected_for(..., sealed=True)`) and its file and hash never change (ADR 0021). Held-out runs therefore expect no
+handoff on the verified high-zone blocks while the agent emits one; how the sealed set is scored on that field is the
+lead's call (spec 10 §8).
 
 The script runs `PolicyEngine.decide()` once per scripted message and keeps the last decision, so a case states the
 outcome of its last turn. `tests/test_spec09_eval_data.py` checks every row above against the engine and every
@@ -267,6 +288,8 @@ Implementation goes in `feat/09-…` branches once this spec is approved.
 - [x] T6 — second labeling of 20 cases + agreement in `eval/README.md` · covers AC-06 (the 20 dev cases; intent 19/20,
       κ 0.925; decision, handoff and case open 20/20)
 - [x] T7 — `tests/test_spec09_eval_data.py` citing AC-03, AC-05, AC-07, AC-08, AC-09 (done, offline, no gold needed); AC-10 comes with T5
+- [x] T8 — D-070 and D-071 (lead, 2026-10-05): `handoff_emitted` on the verified block (§7.5; dev EV-0101–EV-0103
+      re-derived, the held-out kept as sealed) and the eight dev recovery variants · covers AC-09, AC-12
 - [x] M02 — review and seal `eval/PROTOCOL.md`, tag `protocol-v1` (manual, after T4 and T5) (sealed 2026-10-05 by the
       lead, who reviewed it because Diego could not continue; the tag goes on the merged sealing commit)
 

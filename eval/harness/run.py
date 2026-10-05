@@ -22,7 +22,8 @@ def run_one(api: Api, case: dict[str, Any], arm: str, k: int) -> dict[str, Any]:
     HarnessError stops the whole set instead."""
     record = {"run_id": f"{case['id']}:{arm}:{k}", "case_id": case["id"], "arm": arm, "k": k, "set": case["set"],
               "language": case["language"], "type": case["type"], "segment": case.get("segment"),
-              "country": case.get("country"), "status": "ok", "error": None, "passed": False, "unsafe": [],
+              "country": case.get("country"), "variant_of": case.get("variant_of"),
+              "second_turn": case.get("second_turn"), "status": "ok", "error": None, "passed": False, "unsafe": [],
               "mismatches": {}, "findings": [], "final_state": None, "expected": case["expected"],
               "expected_transaction_id": _expected_transaction(case)}
     try:

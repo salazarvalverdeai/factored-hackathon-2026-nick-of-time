@@ -1,5 +1,9 @@
 """Metrics of spec 10 §4.1 from run records. Every rate keeps its numerator, its denominator and a 95% Wilson
-interval; a failed run has an empty final state and stays in every denominator (AC-09). Everything is [simulated]."""
+interval; a failed run has an empty final state and stays in every denominator (AC-09). Everything is [simulated].
+
+D-071 (AC-13): a run of a recovery variant (`variant_of`, a dev case plus the customer's answer to the ask) never
+counts in the §4.1 metrics, so single-message results stay what they were; it is scored apart in the
+`second_turn_recovery` block, next to how the original cases did."""
 from __future__ import annotations
 
 import math
@@ -12,6 +16,8 @@ RATES = ("safe_automated_resolution", "unsafe_outcomes", "missed_escalations", "
 VALUES = ("latency_p50_ms", "latency_p95_ms", "cost_per_case_usd", "cost_per_resolution_usd")
 COLUMNS = ("label", "set", "arm", "language", "type", "segment", "metric", "value", "numerator", "denominator", "ci_low",
            "ci_high", "n_cases")
+RECOVERY = ("second_turn_recovery", "second_turn_recovery_typed", "second_turn_recovery_chip",
+            "second_turn_baseline")
 LABEL = "[simulated]"                                        # §5 Honesty: every exported figure carries it
 
 
@@ -70,8 +76,30 @@ PER_RUN: dict[str, tuple[Callable[[Record], bool], Callable[[Record], bool]]] = 
 }
 
 
+def base(records: Iterable[Record]) -> list[Record]:
+    """The runs the §4.1 metrics count: every run but a recovery variant's (D-071)."""
+    return [record for record in records if not record.get("variant_of")]
+
+
+def recovery(records: list[Record]) -> dict[str, tuple[int, int]]:
+    """AC-13 (D-071): (numerator, denominator) of the recovery block over one group of runs, {} when it has no variant
+    run. `second_turn_recovery`: variant runs that pass (all, typed, chip); `second_turn_baseline`: runs of the cases
+    they follow that pass, so the block shows how much the answer to the ask recovers."""
+    variants = [record for record in records if record.get("variant_of")]
+    if not variants:
+        return {}
+    followed = {record["variant_of"] for record in variants}
+    groups = {"second_turn_recovery": variants,
+              "second_turn_recovery_typed": [r for r in variants if r.get("second_turn") == "typed"],
+              "second_turn_recovery_chip": [r for r in variants if r.get("second_turn") == "chip"],
+              "second_turn_baseline": [r for r in base(records) if r["case_id"] in followed]}
+    return {name: (sum(1 for record in runs if record["passed"]), len(runs)) for name, runs in groups.items()}
+
+
 def _rates(records: list[Record]) -> dict[str, tuple[int, int]]:
-    """(numerator, denominator) of every rate over one group of runs."""
+    """(numerator, denominator) of every rate over one group of runs: the §4.1 rates on the base runs, then the
+    recovery block when the group has variant runs."""
+    scored, records = recovery(records), base(records)
     out = {}
     for metric, (counts, hit) in PER_RUN.items():
         inside = [record for record in records if counts(record)]
@@ -83,10 +111,11 @@ def _rates(records: list[Record]) -> dict[str, tuple[int, int]]:
     for record in records:
         by_case[record["case_id"]].append(bool(record["passed"]))
     out["pass_4"] = (sum(1 for passes in by_case.values() if all(passes)), len(by_case))
-    return out
+    return {**out, **scored}
 
 
 def _values(records: list[Record]) -> dict[str, Optional[float]]:
+    records = base(records)
     latencies = [turn["latency_ms"] for record in records for turn in _final(record).get("turns") or []]
     costs = [(_final(record).get("totals") or {}).get("cost_usd") for record in records]
     costs = [cost for cost in costs if cost is not None]
