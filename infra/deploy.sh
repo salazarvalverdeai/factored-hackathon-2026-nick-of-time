@@ -100,12 +100,10 @@ health_ok() {  # $1 = SHA that /api/health must report
   return 1
 }
 
-apply_schema_once() {  # stopgap until spec 05 ships Alembic: create the spec 01 §6.5 tables on an empty database
-  local db=(psql -U "${POSTGRES_USER:-nickoftime}" -d "${POSTGRES_DB:-nickoftime}") present
-  present="$(compose exec -T postgres "${db[@]}" -tAc "select to_regclass('public.cases') is not null")" || return 1
-  [ "$present" = "t" ] && return 0
-  log "empty database: applying packages/nick_of_time/store/schema.sql in one transaction"
-  compose exec -T postgres "${db[@]}" -v ON_ERROR_STOP=1 -1 -q <"$REPO_ROOT/packages/nick_of_time/store/schema.sql" || return 1
+apply_schema() {  # schema.sql is idempotent: every deploy creates the tables it lacks, in one transaction (FR-10)
+  local db=(psql -U "${POSTGRES_USER:-nickoftime}" -d "${POSTGRES_DB:-nickoftime}")
+  compose exec -T -e PGOPTIONS="-c client_min_messages=warning" postgres "${db[@]}" -v ON_ERROR_STOP=1 -1 -q <"$REPO_ROOT/packages/nick_of_time/store/schema.sql" || return 1
+  log "schema applied (missing tables created, existing ones untouched)"
 }
 
 start_version() {  # $1 = SHA. Explicit || return 1: set -e is ignored inside functions used in an `if`.
@@ -115,7 +113,7 @@ start_version() {  # $1 = SHA. Explicit || return 1: set -e is ignored inside fu
   compose up -d --wait postgres || return 1
   # Migration hook for spec 05: runs only if the api image ships /app/migrate.sh.
   compose run --rm --no-deps api sh -c '[ ! -x /app/migrate.sh ] || /app/migrate.sh' || return 1
-  apply_schema_once || return 1                         # no-op once the tables exist (Alembic or an earlier deploy)
+  apply_schema || return 1                              # idempotent: creates only what is missing
   compose up -d --remove-orphans --wait --wait-timeout 240 || return 1   # fails if a healthcheck (api, mcp) never passes
   compose exec -T caddy caddy reload --config /etc/caddy/Caddyfile || true   # first start already loaded it
   health_ok "$1"

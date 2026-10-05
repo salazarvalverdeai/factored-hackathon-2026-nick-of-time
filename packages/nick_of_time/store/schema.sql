@@ -1,11 +1,12 @@
--- Nick of Time — Postgres schema of spec 01 §6.5 (ADR 0010). apps/api/migrations adopts this file as its first
+-- Nick of Time — Postgres schema of spec 01 §6.5 (ADR 0010). Idempotent: infra/deploy.sh applies it on every deploy, so a
+-- table added later is created and nothing existing changes (new columns need a migration). apps/api/migrations adopts this file as its first
 -- migration (D-002); tests/test_spec01_store_schema.py keeps it in step with the spec table.
 -- Conventions [assumption]: a column the spec leaves untyped is text (timestamps timestamptz, counters integer); a
 -- column is not null unless the spec marks it null. Rows are never updated or deleted in the append-only (AO) tables.
 -- A "sub not blank" holds a character outside Python's str.isspace() set, spelled out so no server locale changes it;
 -- (?p) keeps `.` off newlines, as in the store's ACTOR.
 
-create table sessions (
+create table if not exists sessions (
   session_id text primary key,
   customer_id text null,
   otp_hash text not null,
@@ -20,7 +21,7 @@ create table sessions (
   created_at timestamptz not null default now()
 );
 
-create table cases (                                                 -- AO, insert-only; status = last event
+create table if not exists cases (                                                 -- AO, insert-only; status = last event
   case_id text primary key,                                          -- K- + 6 digits: the insert retries (T9)
   customer_id text not null,
   transaction_id text not null,
@@ -46,7 +47,7 @@ create table cases (                                                 -- AO, inse
          or (deadline_source is not null and deadline_source_url is not null and deadline_verified_on is not null))
 );
 
-create table demo_transactions (                                     -- live mode only; gold transactions columns
+create table if not exists demo_transactions (                                     -- live mode only; gold transactions columns
   transaction_id text primary key,
   transaction_date timestamp not null,
   process_date date not null,
@@ -73,7 +74,7 @@ create table demo_transactions (                                     -- live mod
   generated_at timestamptz not null default now()
 );
 
-create table case_events (                                           -- AO
+create table if not exists case_events (                                           -- AO
   event_id text primary key,
   case_id text not null references cases (case_id),
   seq integer not null check (seq >= 1),
@@ -106,7 +107,7 @@ create table case_events (                                           -- AO
   check (customer_visible = (type not in ('action_verified', 'handoff_emitted', 'analyst_action')))
 );
 
-create table product_overrides (                                     -- AO; status = latest row_no of the same run_id
+create table if not exists product_overrides (                                     -- AO; status = latest row_no of the same run_id
   override_id text primary key,                                      -- the action_id of the write (D-025)
   product_id text not null,
   status text not null check (status in ('Active', 'Blocked', 'Closed', 'Suspended')),
@@ -118,7 +119,7 @@ create table product_overrides (                                     -- AO; stat
   row_no bigint not null generated always as identity                -- insertion order: "latest" (T9)
 );
 
-create table notifications (                                         -- AO
+create table if not exists notifications (                                         -- AO
   notification_id text primary key,
   case_id text not null,
   customer_id text not null,
@@ -131,7 +132,7 @@ create table notifications (                                         -- AO
   created_at timestamptz not null default now()
 );
 
-create table notification_deliveries (                               -- AO; delivery status = latest row_no
+create table if not exists notification_deliveries (                               -- AO; delivery status = latest row_no
   delivery_id text primary key,
   notification_id text not null references notifications (notification_id),
   status text not null check (status in ('queued', 'sent', 'delivered', 'bounced', 'failed')),
@@ -140,7 +141,7 @@ create table notification_deliveries (                               -- AO; deli
   row_no bigint not null generated always as identity                -- insertion order: "latest" (T9)
 );
 
-create table customer_channels (                                     -- AO; latest row_no per channel wins
+create table if not exists customer_channels (                                     -- AO; latest row_no per channel wins
   channel_id text primary key,
   customer_id text not null,
   channel text not null,
@@ -150,7 +151,7 @@ create table customer_channels (                                     -- AO; late
   row_no bigint not null generated always as identity                -- insertion order: "latest" (T9)
 );
 
-create table link_tokens (                                           -- one-time
+create table if not exists link_tokens (                                           -- one-time
   token text primary key,
   case_id text not null,
   channel text not null,
@@ -158,7 +159,7 @@ create table link_tokens (                                           -- one-time
   used_at timestamptz null
 );
 
-create table idempotency (                                           -- key prefixed with run_id when present
+create table if not exists idempotency (                                           -- key prefixed with run_id when present
   key text primary key,
   action text not null,
   result jsonb not null,
@@ -167,7 +168,7 @@ create table idempotency (                                           -- key pref
   args_hash text not null                                            -- sha256 of the call's arguments: a reused key must match
 );
 
-create table policy_denials (                                        -- AO
+create table if not exists policy_denials (                                        -- AO
   denial_id text primary key,
   trace_id text not null,
   session_id text null,                                              -- null for api and analyst denials (D-023)
@@ -180,7 +181,7 @@ create table policy_denials (                                        -- AO
   created_at timestamptz not null default now()
 );
 
-create table llm_calls (                                             -- AO
+create table if not exists llm_calls (                                             -- AO
   call_id text primary key,
   trace_id text not null,
   provider text not null,
@@ -193,7 +194,7 @@ create table llm_calls (                                             -- AO
   created_at timestamptz not null default now()
 );
 
-create table settings_events (                                       -- AO; supervised_mode = latest row_no
+create table if not exists settings_events (                                       -- AO; supervised_mode = latest row_no
   event_id text primary key,
   key text not null,
   value jsonb not null,
@@ -204,11 +205,11 @@ create table settings_events (                                       -- AO; supe
 
 -- postgres-only: the action-id index and the append-only guard. The offline DuckDB check stops at this line.
 -- A customer write's action id is written once, so one read never verifies two actions (D-025).
-create unique index case_events_action_id_once on case_events ((payload ->> 'action_id'))
+create unique index if not exists case_events_action_id_once on case_events ((payload ->> 'action_id'))
   where type in ('case_opened', 'card_blocked', 'customer_info_added', 'call_requested', 'reevaluation_requested',
                  'notification_sent');
 
-create function forbid_append_only_change() returns trigger language plpgsql as $$
+create or replace function forbid_append_only_change() returns trigger language plpgsql as $$
 begin
   raise exception '% is append-only: % is not allowed', tg_table_name, tg_op;
 end $$;
@@ -219,7 +220,9 @@ begin
   foreach t in array array['cases', 'case_events', 'product_overrides', 'notifications', 'notification_deliveries',
                            'customer_channels', 'idempotency', 'policy_denials', 'llm_calls',
                            'settings_events'] loop
-    execute format('create trigger %I before update or delete or truncate on %I '
-                   'for each statement execute function forbid_append_only_change()', t || '_append_only', t);
+    if not exists (select 1 from pg_trigger where tgrelid = to_regclass(t) and tgname = t || '_append_only') then
+      execute format('create trigger %I before update or delete or truncate on %I '
+                     'for each statement execute function forbid_append_only_change()', t || '_append_only', t);
+    end if;
   end loop;
 end $$;
