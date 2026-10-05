@@ -76,8 +76,8 @@ def gold_dir(tmp_path_factory) -> Path:
 
 
 def session(sid: str, customer: str, run_id=RUN, **extra) -> gate.SessionRow:
-    return gate.SessionRow(session_id=sid, customer_id=customer, verified_at=NOW, language="es", mode="replay",
-                           expires_at=NOW + dt.timedelta(minutes=15), run_id=run_id, **extra)
+    return gate.SessionRow(**{"session_id": sid, "customer_id": customer, "verified_at": NOW, "language": "es",
+                              "mode": "replay", "expires_at": NOW + dt.timedelta(minutes=15), "run_id": run_id, **extra})
 
 
 @functools.lru_cache(maxsize=8)

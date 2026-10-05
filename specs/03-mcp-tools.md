@@ -231,8 +231,18 @@ Implementation goes in one `feat/03-*` branch per task (T1: `feat/03-mcp-server`
       message), answers `DENY` `POL-DEFAULT-DENY`; so does a related case that is open, and a `Declined` or `Reversed`
       transaction (Q2); a transaction with no `transaction_country` is not abroad; the customer's country needs only a
       `COUNTRY` mapping, so a country with no amount gate still opens its case (no clock entry: POL-CLOCK-UNKNOWN)
-- [ ] T5 — read tools (`get_product_status`, `list_my_cards`, `get_case`, `list_my_cases`) + latency benchmark on
-      gold v1 · AC-04, AC-13, AC-16
+- [x] T5 — read tools (`get_product_status`, `list_my_cards`, `get_case`, `list_my_cases`) + latency benchmark on
+      gold v1 · AC-04, AC-13, AC-16 · `apps/mcp/mcp_server/{case_reads,bench}.py`, `tests/test_spec03_case_reads.py`
+      (task 03c; factory `case_reads_handlers(gold, policies, store)`). A verifying read mints a V- only for a write of
+      the session's customer and run, of that case or card, that `VERIFIED_WITH` gives to this read, and whose
+      post-condition holds; any other `action_id` gets a plain reading. `[assumption]` the timeline labels (ES/PT)
+      live in `case_reads.TIMELINE_LABEL` until `messages.yaml` carries them; `related_case_id` of a closed case is the
+      newest case opened to follow it. AC-13 `[C]`: `PYTHONPATH=.:packages:apps/mcp python -m mcp_server.bench --gold
+      data/gold --customers 200` on gold v1, 2026-10-05, one local laptop process, `Gate.call` without HTTP over the
+      in-memory store `[data]`: every tool p95 ≤ 7.12 ms (`open_case`; `block_card` 5.95, `search_transaction` 1.50,
+      `get_case` 1.56, the others < 1 ms) against the 800 ms budget; gold load 0.35 s, peak RSS 433 MB. Postgres
+      round trips and the EC2 are not measured `[assumption]`; the §8 t3.medium memory assumption holds on this
+      reading (433 MB of 4 GB)
 - [ ] T6 — follow-up tools (`add_case_info`, `request_call`, `request_reevaluation`) · AC-17, AC-18, AC-19
 - [ ] T7 — `send_case_summary`, `list_my_notifications` · AC-21, AC-22
 - [ ] T8 — entry point, Dockerfile and compose service `mcp` · AC-02, AC-06, AC-12 · `apps/mcp/mcp_server/__main__.py`,
