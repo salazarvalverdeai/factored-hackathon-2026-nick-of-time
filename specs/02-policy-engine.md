@@ -7,7 +7,8 @@
 - **Owner:** @salazarvalverdeai · **Priority:** P0 · **Size:** M
 - **Challenge dimension:** Technical Judgment (deterministic logic where AI is not appropriate)
 - **Depends on:** `contracts/policies.yaml` · **Enables:** 03 (tools re-check permissions), 04 (decide node), 05 (queue
-  transitions, supervised mode) · **ADRs:** 0005, 0006, 0019, 0020 (supersedes 0012)
+  transitions, supervised mode) · **ADRs:** 0005, 0006, 0019, 0020 (supersedes 0012), 0023 (amends 0019 and
+  0020)
 - **Issue:** #4
 
 > Full profile: money and compliance decisions. The engine never calls a network, a database or an LLM.
@@ -157,6 +158,18 @@ test, no code change.** A country without a verified entry falls back to `POL-CL
 - "Opened" = `clock.today(mode, country)`: `DEMO_TODAY = 2026-06-01` in `replay`, the real date in the country's time
   zone in `live` (ADR 0020). Example: a MX debit notice on Monday 2026-06-01 about a charge on 2026-05-31 →
   credit by Wednesday 2026-06-03.
+- **MX and AR rows (ADR 0023; the article quotes are there):** the 48 h window of Circular 3/2012 art. 19
+  Bis 3 fr. I and Circular 34/2010 numeral 3.4 a) applies only to a theft or loss notice, so it is not modeled; a
+  claim of unrecognized charges (fr. II, numeral 3.4 b)) qualifies when filed within 90 calendar days of the charge
+  ("Días" are calendar days, Circular 3/2012 art. 2), on debit and credit alike. Day 90 qualifies, the 45 days of
+  Circular 34/2010 and LTOSF count as calendar days `[assumption]` — each the reading with the earlier deadline. The
+  clock computes the credit date for both dispute types; the receipt shows it only for an unrecognized or duplicate
+  charge, and for other wrongful charges it drives only the AC-11 SLA (D-030, decided by the lead on 2026-10-04; ADR
+  0019 point 3). The 48 h figure came from a
+  [CONDUSEF press release of 2018-10-03](https://www.gob.mx/condusef/prensa/cargos-no-reconocidos-en-tarjeta-de-debito-se-restituiran-en-dos-dias-habiles-bancarios?idiom=es)
+  (checked 2026-10-04) that summarizes fr. I only. AR promises only the resolution date (t-pusf 3.1.6); when an
+  analyst finds the charge is one the bank itself generated (the list in item 2.3.5.1), the reimbursement is due by
+  that same date, and the receipt never promises it.
 - **Coverage note:** the dataset only has MX, CO and AR customers, so PE, CL and BR are exercised by unit tests and
   fixtures; the demo runs on MX, CO and AR (BR in Portuguese with a fixture). The README states it.
 - **Every entry cites its official public source and the date it was verified** (ADR 0019); `policies.yaml` stores them as
@@ -351,8 +364,8 @@ Implementation goes in `feat/02-policy-engine` once this spec and spec 01 (packa
 changes a decision · lessons added to `CLAUDE.md`.
 
 ## 11. Sources
-External sources checked on 2026-10-04; the clock's legal sources are in the table of §4.3 and the reference-rate
-sources in the table of §4.4.
+External sources checked on 2026-10-04; the clock's legal sources are in the table of §4.3 (with the MX and AR
+article quotes in ADR 0023) and the reference-rate sources in the table of §4.4.
 - CFPB, *Chatbots in consumer finance* (6 June 2023), on not blocking access to a person (rule 3a):
   https://www.consumerfinance.gov/data-research/research-reports/chatbots-in-consumer-finance/chatbots-in-consumer-finance/
 - IANA time zone database (zone names of §4.4): https://www.iana.org/time-zones

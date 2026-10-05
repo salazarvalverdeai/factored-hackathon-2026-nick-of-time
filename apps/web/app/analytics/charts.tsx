@@ -50,14 +50,14 @@ const ZONE_FILL: Record<string, string> = {
   human: "var(--zone-human)",
   human_no_score: CONTEXT,
 };
-const FOCUS = "outline-none focus-visible:ring-2 focus-visible:ring-ring";
+export const FOCUS = "outline-none focus-visible:ring-2 focus-visible:ring-ring";
 
 const int = (n: number) => n.toLocaleString("en-US");
 const pct = (n: number, digits = 1) => `${n.toFixed(digits)}%`;
 
 type Tip = { x: number; y: number; content: ReactNode } | null;
 
-function useTip() {
+export function useTip() {
   const [tip, setTip] = useState<Tip>(null);
   const bind = (content: ReactNode) => ({
     onPointerMove: (e: PointerEvent<Element>) => setTip({ x: e.clientX, y: e.clientY, content }),
@@ -83,7 +83,7 @@ function useTip() {
   return { bind, node };
 }
 
-function TipBody({ title, rows, note }: { title: string; rows: [ReactNode, string][]; note?: string }) {
+export function TipBody({ title, rows, note }: { title: string; rows: [ReactNode, string][]; note?: string }) {
   return (
     <>
       <p className="font-medium">{title}</p>
@@ -109,7 +109,7 @@ function LineKey({ color, children }: { color: string; children: ReactNode }) {
   );
 }
 
-function Swatch({ color }: { color: string }) {
+export function Swatch({ color }: { color: string }) {
   return <span aria-hidden className="inline-block size-2.5 shrink-0 rounded-[2px]" style={{ background: color }} />;
 }
 
@@ -137,7 +137,7 @@ function ChartCard({
   );
 }
 
-function TableView({ head, rows }: { head: string[]; rows: string[][] }) {
+export function TableView({ head, rows }: { head: string[]; rows: string[][] }) {
   return (
     <details className="mt-4">
       <summary className={`cursor-pointer rounded-sm text-xs text-muted-foreground ${FOCUS}`}>View as table</summary>

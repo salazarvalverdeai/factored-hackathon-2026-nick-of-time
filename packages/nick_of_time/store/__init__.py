@@ -1,7 +1,8 @@
 """Case state and audit store (spec 01 §6.5, §6.8; ADR 0010).
 
-`Store` is the interface the MCP tools and the api use; `store.memory.MemoryStore` backs tests and the fake MCP; the
-Postgres backend over the §6.5 tables is built by C1 in task 03a [assumption] (D-023). Every backend keeps these rules:
+`Store` is the interface the MCP tools and the api use; `store.memory.MemoryStore` backs tests and the fake MCP;
+`store.postgres.PostgresStore` runs it over the §6.5 tables of schema.sql (T9, task 01g). Every backend keeps these
+rules:
 - events are append-only (no update or delete) and a case's status is its last `status_changed` event (FR-02);
 - the store generates every case id, retrying on a primary-key conflict (T9), so no eval run reuses one (§6.8);
 - a status change follows `case_queue.transitions` and the analyst-action table (D-034); only `resolve` resolves and
@@ -19,8 +20,9 @@ Postgres backend over the §6.5 tables is built by C1 in task 03a [assumption] (
 from __future__ import annotations
 
 import datetime as dt
+import json
 import re
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from typing import Any, Literal, Optional, Protocol, get_args, runtime_checkable
 
 import yaml
@@ -28,7 +30,8 @@ from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, model_validato
 
 from nick_of_time import ids
 from nick_of_time.contracts import (CONTRACTS_DIR, HTTPS_URL, AnalystActionIn, AnalystActionOut, Mode, ProductType,
-                                    QueueStatus, Zone)
+                                    QueueStatus, VERIFIED_WITH as VERIFIED_WITH, Zone)
+from nick_of_time.store.accounts import ChannelEvent, CustomerChannel, LinkedChannel, Once, PolicyDenial, SessionRecord
 
 EventType = Literal["case_opened", "card_blocked", "block_verified", "action_verified", "status_changed",
                     "handoff_emitted", "assigned", "analyst_action", "customer_info_added", "call_requested",
@@ -38,7 +41,7 @@ CUSTOMER_VISIBLE: frozenset[str] = frozenset(get_args(EventType)) - {"action_ver
                                                                      "analyst_action"}               # §6.5 ✓
 # Written only by the store's own methods, so their invariants hold: one opening, checked status changes, analysts,
 # a related case that exists, a block with its override row, a V- id and a verified block only from a read, a send
-# with its row. The channel events wait for the customer_channels accessor (task 03a), which writes them with the row.
+# with its row, a channel event with its customer_channels row (CHANNEL_CASE_EVENT).
 RESERVED_EVENTS: frozenset[str] = frozenset({"case_opened", "status_changed", "analyst_action", "assigned",
                                              "related_case_opened", "card_blocked", "action_verified",
                                              "block_verified", "notification_sent", "telegram_linked",
@@ -50,17 +53,13 @@ WRITE_TOOL: dict[str, str] = {"case_opened": "open_case", "card_blocked": "block
                               "reevaluation_requested": "request_reevaluation",
                               "notification_sent": "send_case_summary"}
 WRITE_EVENTS: frozenset[str] = frozenset(WRITE_TOOL)
-# TODO(01c): import VERIFIED_WITH from contracts.tools once #59 (task 01b) merges; this copy matches it (§6.3).
-VERIFIED_WITH: dict[str, str] = {"open_case": "get_case", "block_card": "get_product_status",
-                                 "add_case_info": "get_case", "request_call": "get_case",
-                                 "request_reevaluation": "get_case", "send_case_summary": "list_my_notifications"}
 VerifyingRead = Literal["get_case", "get_product_status", "list_my_notifications"]
 # A store actor: agent, customer, system or a person, `analyst:<sub>` with a sub that is not blank.
 ACTOR = r"^(agent|customer|system|analyst:.*\S.*)$"
-# policies.yaml case_queue.transitions; switch to `engine.transition` (spec 02) when task 02a merges.
+# policies.yaml case_queue.transitions; switch to `nick_of_time.policy.transition` (spec 02) when task 02c merges.
 TRANSITIONS: dict[str, list[str]] = yaml.safe_load((CONTRACTS_DIR / "policies.yaml").read_text())["case_queue"][
     "transitions"]
-# [assumption] D-034 (task 01c) until spec 02 `engine.transition` (AC-10): the statuses an analyst action may move a
+# [assumption] D-034 (task 01c) until spec 02 `policy.transition` (AC-10): the statuses an analyst action may move a
 # case to (None keeps the status) and the statuses it may start from. An action not in ANALYST_TARGETS keeps the
 # status; an action not in ANALYST_SOURCES may start from any status but closed.
 KEEP: frozenset[Optional[str]] = frozenset({None})
@@ -196,13 +195,68 @@ def check_business_date(on: dt.date) -> dt.date:
     return on
 
 
+def check_text(*values: Any) -> None:
+    """Refuse what Postgres text and jsonb cannot hold, NUL and a lone surrogate, before any write; other values pass."""
+    for value in values:
+        if isinstance(value, str) and ("\x00" in value or not _encodes(value)):
+            raise StoreError("not storable text: NUL or a lone surrogate")
+
+
+def _encodes(value: str) -> bool:
+    try:
+        value.encode("utf-8")                               # a lone surrogate has no UTF-8 form
+    except UnicodeEncodeError:
+        return False
+    return True
+
+
+def check_action_id(action_id: Any) -> str:
+    """Refuse an action id that is not an `A-` id, before any write (Postgres: the case_events CHECK)."""
+    if not isinstance(action_id, str) or not ids.is_valid("action", action_id):
+        raise StoreError(f"not an action id: {action_id!r}")
+    return action_id
+
+
+def _utc_now() -> dt.datetime:
+    return dt.datetime.now(dt.UTC)
+
+
+def _strings(value: Any) -> Iterator[str]:
+    if isinstance(value, str):
+        yield value
+    elif isinstance(value, dict):
+        for key, item in value.items():
+            yield key
+            yield from _strings(item)
+    elif isinstance(value, list):
+        for item in value:
+            yield from _strings(item)
+
+
+def _json(value: Any) -> Any:
+    """What a jsonb column gives back: a JSON copy; a date, a set, NaN, NUL or a lone surrogate is refused, as
+    psycopg's Jsonb and Postgres would."""
+    try:
+        copy = json.loads(json.dumps(value, allow_nan=False))
+    except (TypeError, ValueError) as error:
+        raise StoreError(f"not JSON: {error}") from None
+    check_text(*_strings(copy))
+    return copy
+
+
+def _check_writer(actor: str, trace_id: str) -> str:
+    check_trace_id(trace_id)
+    check_text(actor, trace_id)
+    return check_actor(actor)
+
+
 def check_transition(current: str, to: Optional[str], *, analyst_action: Optional[str] = None) -> None:
     """The status rules every backend checks before it writes anything; only `record_analyst_action` passes
     `analyst_action`. Without one (agent, customer, system), a change needs a status and never resolves or closes.
     With one, a closed case takes no action, the action must start from ANALYST_SOURCES and move only to
-    ANALYST_TARGETS (KEEP, `to=None`, for the others). Any change follows `TRANSITIONS[current]`. With 02a,
-    `record_analyst_action` takes `to` from `engine.transition(current, action, actor)` and this check stays for agent
-    and customer changes."""
+    ANALYST_TARGETS (KEEP, `to=None`, for the others). Any change follows `TRANSITIONS[current]`. With 02c,
+    `record_analyst_action` takes `to` from `nick_of_time.policy.transition(current, action, actor)` (`Moved.status`)
+    and this check stays for agent and customer changes."""
     if analyst_action is None:
         if to is None:
             raise StoreError("a status change needs a status")
@@ -284,7 +338,8 @@ class Store(Protocol):
     def record_verification(self, case_id: str, action_id: str, *, read: VerifyingRead, run_id: Optional[str],
                             customer_id: Optional[str], actor: str, trace_id: str) -> CaseEvent:
         """Called by the read of VERIFIED_WITH, asked about a write of the case, after it read the post-condition:
-        mint a V- id and append `action_verified` `{action_id, verification_id, read_at}` (D-025). Every read adds
+        mint a V- id and append `action_verified` `{action_id, verification_id, read_at, read}` (D-025; `read` is the
+        tool that minted it, for the auditor, 18x X1-3). Every read adds
         one; earlier ones stay as the audit trail. A `card_blocked` action verifies only while its override is the
         product's latest in the run and `Blocked`, and its first read also writes `block_verified` `{action_id,
         product_id}`, once; a summary send (`notification_sent`) verifies only while its latest delivery is not in
@@ -309,3 +364,50 @@ class Store(Protocol):
 
     def list_notifications(self, customer_id: str, *, run_id: Optional[str]) -> list[Notification]:
         """The customer's notifications whose case is in `run_id`, newest first, with their delivery status."""
+
+    # ---------- sessions, policy denials and customer channels (task 01g, store/accounts.py) ----------
+    def create_session(self, *, customer_id: Optional[str], otp_hash: str, expires_at: dt.datetime,
+                       language: str, mode: Mode, verified_at: Optional[dt.datetime] = None,
+                       display_currency: Optional[str] = None, tool_faults: tuple[str, ...] = (),
+                       run_id: Optional[str] = None, arm: Optional[str] = None) -> SessionRecord:
+        """Insert a session (NewSession) under a fresh `ids.new_id("session")`, `created_at` from the store's clock.
+        There is no update, so `mode` and `run_id` stay as created (AC-07, §6.8)."""
+
+    def get_session(self, session_id: str) -> Optional[SessionRecord]:
+        """The session row, read fresh on every call, else None; the caller checks verification and expiry (spec 03
+        AC-02). `customer_id` and `run_id` for every tool come from here (constitution #3)."""
+
+    def summary_sends(self, session_id: str, *, since: dt.datetime) -> int:
+        """D-041 (spec 03 AC-21): the `on_request` notifications of the session's customer whose case is in its run,
+        created at or after both `since` and the session's start. A notification row names no session, so another
+        session of the same customer and run counts too, which only tightens the limit [assumption]."""
+
+    def add_denial(self, *, trace_id: str, session_id: Optional[str], actor: str, policy_id: str,
+                   guardrail_id: Optional[str] = None, detail: Optional[dict[str, Any]] = None,
+                   run_id: Optional[str] = None) -> PolicyDenial:
+        """Insert one `policy_denials` row (NewDenial, spec 03 AC-12) under a fresh id; no guardrail id means
+        G-POL-01; a denial of a session must be of a known session and carry its `run_id` (D-023)."""
+
+    def list_denials(self, *, run_id: Optional[str], session_id: Optional[str] = None) -> list[PolicyDenial]:
+        """The denials of `run_id` (None = production), only `session_id`'s when given, oldest first (`created_at`,
+        then `denial_id`)."""
+
+    def add_channel_event(self, case_id: str, channel: LinkedChannel, address: str, event: ChannelEvent, *,
+                          actor: str, trace_id: str) -> CustomerChannel:
+        """Append a `customer_channels` row for the case's customer and, for CHANNEL_CASE_EVENT, its case event
+        `{channel_id, channel}` in the same operation. `confirmed` needs the channel's `linked` address and `revoked`
+        its current one; the address never goes into the event."""
+
+    def channels(self, customer_id: str) -> list[CustomerChannel]:
+        """The latest row (inserted last) of each of the customer's channels, by channel name; a tool sends only where
+        `confirmed` is true and shows only masked addresses (spec 03 AC-11, AC-21)."""
+
+    # ---------- idempotency (task 01g, store/accounts.py) ----------
+    def once(self, key: str, *, action: str, customer_id: Optional[str], run_id: Optional[str],
+             arguments: dict[str, Any], write: Callable[[], dict[str, Any]]) -> Once:
+        """Spec 03 AC-03 and spec 01 §6.3 Idempotency: the first call with this `key` (of this action, customer and
+        run) runs `write()`, stores its JSON result and returns it; every later one returns the stored result with
+        `replayed` and writes nothing. On Postgres a concurrent second call waits for the first. A `write` that raises
+        stores nothing and leaves none of its writes (both backends); a key used for another action or with other
+        `arguments` (the call's JSON arguments, hashed) is a StoreError. `customer_id` None is the api's analyst
+        actions (`AnalystActionIn`)."""

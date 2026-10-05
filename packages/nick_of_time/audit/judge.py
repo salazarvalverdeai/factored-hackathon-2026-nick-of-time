@@ -19,7 +19,7 @@ from pydantic import BaseModel, Field
 from nick_of_time.audit.checks import _UNGROUNDED_KEYS, Finding, _scalars, _tokens
 from nick_of_time.contracts import AnalystActionIn, load_schema
 from nick_of_time.ids import GOLD_PATTERN, PREFIX
-from nick_of_time.llm import LLMClient, LLMResult, NoStructuredOutput, cost_usd
+from nick_of_time.llm import LLMClient, LLMResult, NoStructuredOutput, cost_usd, make_client
 
 Verdict = Literal["agree", "disagree", "uncertain"]
 MAX_REASONS, MAX_QUESTIONS = 5, 3
@@ -138,6 +138,12 @@ def _grounded(item: dict, valid_ids: set[str], facts: set[str]) -> Optional[Cite
     return Cited(text=text, evidence_ids=ids)
 
 
+def judge_client(cfg, *, prices: Optional[dict] = None, timeout_s: float = TIMEOUT_S, **kw) -> LLMClient:
+    """The judge's own client: read timeout = `timeout_s` and one attempt, so a call that `opinion` abandoned at
+    `timeout_s` does not keep its thread busy much longer (spec 18 section 5). `kw` goes to `make_client`."""
+    return make_client(cfg, prices=prices, **{"read_timeout_s": timeout_s, "max_attempts": 1, **kw})
+
+
 def opinion(handoff: dict, transcript: Iterable[str], evidence: Iterable[Any], *, client: LLMClient,
             audit: Iterable[Finding] = (), now: Optional[dt.datetime] = None, max_cost_usd: float = MAX_COST_USD,
             timeout_s: float = TIMEOUT_S, on_call: Optional[OnCall] = None) -> Optional[SecondOpinion]:
@@ -145,7 +151,7 @@ def opinion(handoff: dict, transcript: Iterable[str], evidence: Iterable[Any], *
 
     `on_call(result, reason)` runs once whatever happens, so the caller can log an `llm_calls` row for every path:
     "ok"; "budget" (skipped before calling, result None, or billed over the cap); "timeout" (None); "error" (the billed
-    result when there is one). Give the judge its own client: temperature 0 is set for the call and restored after, which
+    result when there is one). Give the judge its own client (`judge_client`): temperature 0 is set for the call and restored after, which
     is not thread-safe on a shared client (spec 18 section 4.2).
     """
     res: Optional[LLMResult] = None

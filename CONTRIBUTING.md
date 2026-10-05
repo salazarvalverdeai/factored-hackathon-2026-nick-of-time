@@ -37,7 +37,7 @@ Spec (what) ──► Plan (how) ──► Tasks ──► Implement
 6. **Plan.** On `feat/05-…`, the AI proposes the plan and tasks (section 10). **Gate 2:** the human reviews it before
    any code.
 7. **Implement** in small PRs that cite the criteria they cover. Status: **In progress**.
-8. **Review + CI.** **Gate 3:** one approval and green CI → squash merge.
+8. **Review + CI.** **Gate 3:** green CI and a passed final review → squash merge. Changes to `contracts/` also need the lead's OK.
 9. **Close.** The last PR carries the closing checklist: every AC has a passing test that cites it · status
    **Implemented** · ADR for any decision taken · lessons added to `CLAUDE.md`. `Closes #N` closes the issue.
 10. **Release.** The lead tags the milestone; `CHANGELOG.md` and `STATUS.md` are updated.
@@ -69,8 +69,10 @@ reviewable in 15 minutes; if not, split it.
   consequences, confidence level). A simple decision can be a one-sentence Y-statement.
 - One file per decision, `docs/adr/NNNN-short-title.md`, numbered globally. If two PRs take the same number, the one
   merged second renumbers on rebase.
-- States: **Proposed → Accepted**, or **Superseded by NNNN**. Accepted ADRs are never edited or deleted; a new ADR
-  supersedes them. Written by the feature owner, approved by the lead. *If it is not in the log, it was not decided.*
+- States: **Proposed → Accepted**, or **Superseded by NNNN**. **Amended by NNNN** marks a partial change where the
+  decision still stands: the accepted ADR gets only that header line. Accepted ADRs are never edited or deleted; a
+  new ADR supersedes or amends them. Written by the feature owner, approved by the lead. *If it is not in the log, it
+  was not decided.*
 
 ## 5. Git
 - **GitHub Flow.** `main` is always deployable. Short-lived branches (under a day) from `main`; `main` only changes
@@ -112,7 +114,7 @@ reviewable in 15 minutes; if not, split it.
 
 - **Review time:** under 1 hour during the sprint; under 30 minutes when the PR unblocks someone. An AI review
   (`/code-review`) is a useful first pass; the approval is human.
-- **The author merges** after approval and green CI. Squash only; the branch is deleted on merge.
+- **The lead merges** after green CI and a passed final review; `contracts/` needs the lead's OK. Squash only. Do not pass `--delete-branch`: the repo deletes the branch itself and retargets stacked PRs.
 - **Hotfix:** if the public URL is down or the deadline is under 6 hours away, the lead may merge with the `hotfix`
   label and the review happens within 2 hours after.
 - **`main` is protected:** pull request required, one approval, code-owner review, required CI checks, linear history,

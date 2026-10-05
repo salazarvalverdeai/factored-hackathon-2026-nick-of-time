@@ -33,8 +33,8 @@ class BedrockClient(LLMClient):
             import boto3
             from botocore.config import Config
             boto_client = boto3.client("bedrock-runtime", region_name=region, config=Config(
-                connect_timeout=CONNECT_TIMEOUT_S, read_timeout=READ_TIMEOUT_S,
-                retries={"total_max_attempts": MAX_ATTEMPTS, "mode": "standard"}))
+                connect_timeout=CONNECT_TIMEOUT_S, read_timeout=READ_TIMEOUT_S if self.read_timeout_s is None else self.read_timeout_s,
+                retries={"total_max_attempts": MAX_ATTEMPTS if self.max_attempts is None else self.max_attempts, "mode": "standard"}))
         self._client = boto_client
 
     def request(self, system, user, schema, tool_name, max_tokens, mode, temperature) -> dict:

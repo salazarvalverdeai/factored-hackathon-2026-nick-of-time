@@ -38,12 +38,14 @@ code is not re-specified (brownfield adoption).
 
 ## Business rules (firm, from `contracts/policies.yaml`)
 - Zones from the bank's `fraud_score` (an optional input): high ≥ 50 · medium 30–49 · human < 30 or null (own policy id).
-- A ticket is always opened, in every zone. High zone blocks and verifies; medium confirms with the customer first.
+- A ticket is always opened, in every zone. High zone blocks and verifies, unless the customer asked for a person in that turn: the case opens, the call is registered and the analyst decides the block after the call (D-029); medium confirms with the customer first.
 - Regulatory clock: a data table in `policies.yaml`, every entry with `source_url` and `verified_on` (ADR 0019). MX
-  debit: provisional credit by business day 2 **only for charges within the 48 h before the notice** (Banxico
-  3/2012); MX credit: LTOSF art. 23; AR: BCRA 10 business days; CO: SFC 15 business days; BR: CMN 4.860; PE: SBS
-  04036-2022; CL: Ley 20.009; any other country → `POL-CLOCK-UNKNOWN` (case opened, a person decides, no invented
-  deadline). `amount_gate` only changes the approval mode, never the clock. Spec 02 §4.3 is the source of truth.
+  debit: provisional credit by business day 2, Banxico 3/2012, **for claims within 90 calendar days of the charge**
+  (ADR 0023; the 48 h window is for theft or loss only); MX credit the same (Circular 34/2010); ruling 45
+  days (180 abroad); older MX charges: LTOSF art. 23 ruling only; AR: BCRA 10 business days to resolve (no credit date
+  promised); CO: SFC 15 business days; BR: CMN 4.860; PE: SBS 04036-2022; CL: Ley 20.009; any other country →
+  `POL-CLOCK-UNKNOWN` (case opened, a person decides, no invented deadline). `amount_gate` only changes the approval
+  mode, never the clock. Spec 02 §4.3 is the source of truth.
 - Case queue: `new → verification | review → resolved → closed`; a case's status is its last event (append-only).
 - Customer notifications on every status: in-app log, Telegram and email. Never send score, policy ids or transcript.
 - Two time modes (ADR 0020): `replay` uses `DEMO_TODAY=2026-06-01` for evaluation and the processed sample cases;

@@ -21,6 +21,9 @@ __pycache__/
 *.pyc
 .pytest_cache/
 
+# evaluation runs on the dev set or the stub; held-out results go to eval/results/ and are committed (spec 10 §7.1)
+eval/.runs/
+
 # system
 .DS_Store
 

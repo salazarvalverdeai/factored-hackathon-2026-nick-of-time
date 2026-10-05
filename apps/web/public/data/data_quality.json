@@ -1,0 +1,570 @@
+{
+  "generated_at": "2026-10-05T05:11:48Z",
+  "git_sha": "772e122",
+  "source": "data/pipeline report [data] — data/gold/run_results.json and the late_arrival fixture",
+  "data": {
+    "label": "[data]",
+    "layers": [
+      {
+        "layer": "bronze",
+        "note": "faithful copy of the CSV files, all text, with lineage",
+        "tables": [
+          {
+            "table": "customers",
+            "rows": 150000,
+            "bytes": 46897358,
+            "files": 1
+          },
+          {
+            "table": "products",
+            "rows": 400000,
+            "bytes": 68213646,
+            "files": 1
+          },
+          {
+            "table": "transactions",
+            "rows": 1551365,
+            "bytes": 283380710,
+            "files": 383
+          },
+          {
+            "table": "complaints",
+            "rows": 67095,
+            "bytes": 17990612,
+            "files": 1097
+          }
+        ]
+      },
+      {
+        "layer": "silver",
+        "note": "typed, deduplicated and validated against the contract",
+        "tables": [
+          {
+            "table": "customers",
+            "rows": 150000,
+            "bytes": null,
+            "quarantined": 0
+          },
+          {
+            "table": "products",
+            "rows": 400000,
+            "bytes": null,
+            "quarantined": 0
+          },
+          {
+            "table": "transactions",
+            "rows": 1551365,
+            "bytes": null,
+            "quarantined": 0
+          },
+          {
+            "table": "complaints",
+            "rows": 67095,
+            "bytes": null,
+            "quarantined": 0
+          }
+        ]
+      },
+      {
+        "layer": "gold",
+        "note": "what the solution reads; quality flags per row, nothing deleted",
+        "tables": [
+          {
+            "table": "customers",
+            "rows": 150000,
+            "bytes": 11403392,
+            "sha256": "a6ad9e0e3d01"
+          },
+          {
+            "table": "products",
+            "rows": 400000,
+            "bytes": 19439438,
+            "sha256": "a05d6177c7b1"
+          },
+          {
+            "table": "transactions",
+            "rows": 1477723,
+            "bytes": 93298871,
+            "sha256": "37296dbfec9b"
+          },
+          {
+            "table": "complaints",
+            "rows": 67095,
+            "bytes": 3831009,
+            "sha256": "6e4a5db4744f"
+          },
+          {
+            "table": "transaction_labels",
+            "rows": 1477723,
+            "bytes": 19715827,
+            "sha256": "96194cdaa295"
+          },
+          {
+            "table": "transactions_enriched",
+            "rows": 1477723,
+            "bytes": 81082202,
+            "sha256": "15d74f2f8efa"
+          },
+          {
+            "table": "customer_profile",
+            "rows": 150000,
+            "bytes": 4245889,
+            "sha256": "39213080a40f"
+          }
+        ]
+      }
+    ],
+    "gold_rules": [
+      {
+        "id": "G1",
+        "rule": "no table in data/gold/ has is_fraud",
+        "value": "none",
+        "ok": true
+      },
+      {
+        "id": "G2",
+        "rule": "transaction_date in [2025-06-01, 2026-06-01)",
+        "value": "2025-06-01 00:00:16 → 2026-05-31 23:57:20; outside: 0",
+        "ok": true
+      },
+      {
+        "id": "G3",
+        "rule": "transactions.customer_id = product owner (join)",
+        "value": "0 differing rows",
+        "ok": true
+      },
+      {
+        "id": "G4",
+        "rule": "transaction_labels 1:1 with gold.transactions",
+        "value": "without label: 0; label without transaction: 0",
+        "ok": true
+      },
+      {
+        "id": "G5",
+        "rule": "customer_profile 1 row per customer; transactions_enriched 1 per transaction",
+        "value": "profile 150000 (unique 150000) vs customers 150000; enriched 1477723 (unique 1477723) vs transactions 1477723",
+        "ok": true
+      }
+    ],
+    "checks": [
+      {
+        "id": "DUP-01",
+        "table": "customers",
+        "check": "exact duplicate",
+        "rows_affected": 0,
+        "denominator": 150000,
+        "action": "one is kept"
+      },
+      {
+        "id": "DUP-02",
+        "table": "customers",
+        "check": "PK versions",
+        "rows_affected": 0,
+        "denominator": 150000,
+        "action": "latest process_date / load wins"
+      },
+      {
+        "id": "NUL-01",
+        "table": "customers",
+        "check": "null in required column",
+        "rows_affected": 0,
+        "denominator": 150000,
+        "action": "quarantine (contract)"
+      },
+      {
+        "id": "CAST-01",
+        "table": "customers",
+        "check": "failed cast",
+        "rows_affected": 0,
+        "denominator": 150000,
+        "action": "left null; quarantine if required"
+      },
+      {
+        "id": "CON-01",
+        "table": "customers",
+        "check": "violates the contract",
+        "rows_affected": 0,
+        "denominator": 150000,
+        "action": "silver/_quarantine/"
+      },
+      {
+        "id": "LBL-01",
+        "table": "customers",
+        "check": "inconsistent label",
+        "rows_affected": 0,
+        "denominator": 74907,
+        "action": "normalized in silver"
+      },
+      {
+        "id": "SCH-01",
+        "table": "customers",
+        "check": "schema change",
+        "rows_affected": 0,
+        "denominator": 1,
+        "action": "declared alias or column only in bronze"
+      },
+      {
+        "id": "DUP-01",
+        "table": "products",
+        "check": "exact duplicate",
+        "rows_affected": 0,
+        "denominator": 400000,
+        "action": "one is kept"
+      },
+      {
+        "id": "DUP-02",
+        "table": "products",
+        "check": "PK versions",
+        "rows_affected": 0,
+        "denominator": 400000,
+        "action": "latest process_date / load wins"
+      },
+      {
+        "id": "NUL-01",
+        "table": "products",
+        "check": "null in required column",
+        "rows_affected": 0,
+        "denominator": 400000,
+        "action": "quarantine (contract)"
+      },
+      {
+        "id": "CAST-01",
+        "table": "products",
+        "check": "failed cast",
+        "rows_affected": 0,
+        "denominator": 400000,
+        "action": "left null; quarantine if required"
+      },
+      {
+        "id": "CON-01",
+        "table": "products",
+        "check": "violates the contract",
+        "rows_affected": 0,
+        "denominator": 400000,
+        "action": "silver/_quarantine/"
+      },
+      {
+        "id": "SCH-01",
+        "table": "products",
+        "check": "schema change",
+        "rows_affected": 0,
+        "denominator": 1,
+        "action": "declared alias or column only in bronze"
+      },
+      {
+        "id": "DUP-01",
+        "table": "transactions",
+        "check": "exact duplicate",
+        "rows_affected": 0,
+        "denominator": 1551365,
+        "action": "one is kept"
+      },
+      {
+        "id": "DUP-02",
+        "table": "transactions",
+        "check": "PK versions",
+        "rows_affected": 0,
+        "denominator": 1551365,
+        "action": "latest process_date / load wins"
+      },
+      {
+        "id": "NUL-01",
+        "table": "transactions",
+        "check": "null in required column",
+        "rows_affected": 0,
+        "denominator": 1551365,
+        "action": "quarantine (contract)"
+      },
+      {
+        "id": "CAST-01",
+        "table": "transactions",
+        "check": "failed cast",
+        "rows_affected": 0,
+        "denominator": 1551365,
+        "action": "left null; quarantine if required"
+      },
+      {
+        "id": "CON-01",
+        "table": "transactions",
+        "check": "violates the contract",
+        "rows_affected": 0,
+        "denominator": 1551365,
+        "action": "silver/_quarantine/"
+      },
+      {
+        "id": "LBL-01",
+        "table": "transactions",
+        "check": "inconsistent label",
+        "rows_affected": 14070,
+        "denominator": 752633,
+        "action": "normalized in silver"
+      },
+      {
+        "id": "SCH-01",
+        "table": "transactions",
+        "check": "schema change",
+        "rows_affected": 0,
+        "denominator": 383,
+        "action": "declared alias or column only in bronze"
+      },
+      {
+        "id": "DUP-01",
+        "table": "complaints",
+        "check": "exact duplicate",
+        "rows_affected": 0,
+        "denominator": 67095,
+        "action": "one is kept"
+      },
+      {
+        "id": "DUP-02",
+        "table": "complaints",
+        "check": "PK versions",
+        "rows_affected": 0,
+        "denominator": 67095,
+        "action": "latest process_date / load wins"
+      },
+      {
+        "id": "NUL-01",
+        "table": "complaints",
+        "check": "null in required column",
+        "rows_affected": 0,
+        "denominator": 67095,
+        "action": "quarantine (contract)"
+      },
+      {
+        "id": "CAST-01",
+        "table": "complaints",
+        "check": "failed cast",
+        "rows_affected": 0,
+        "denominator": 67095,
+        "action": "left null; quarantine if required"
+      },
+      {
+        "id": "CON-01",
+        "table": "complaints",
+        "check": "violates the contract",
+        "rows_affected": 0,
+        "denominator": 67095,
+        "action": "silver/_quarantine/"
+      },
+      {
+        "id": "SCH-01",
+        "table": "complaints",
+        "check": "schema change",
+        "rows_affected": 0,
+        "denominator": 1097,
+        "action": "declared alias or column only in bronze"
+      },
+      {
+        "id": "WIN-01",
+        "table": "transactions",
+        "check": "outside the window",
+        "rows_affected": 73642,
+        "denominator": 1551365,
+        "action": "stays in silver, does not go to gold (R1)"
+      },
+      {
+        "id": "FK-01",
+        "table": "products",
+        "check": "orphan FK",
+        "rows_affected": 0,
+        "denominator": 400000,
+        "action": "flag in gold"
+      },
+      {
+        "id": "FK-02",
+        "table": "transactions",
+        "check": "orphan FK",
+        "rows_affected": 0,
+        "denominator": 1477723,
+        "action": "flag in gold"
+      },
+      {
+        "id": "FK-03",
+        "table": "transactions",
+        "check": "orphan FK",
+        "rows_affected": 0,
+        "denominator": 1477723,
+        "action": "flag in gold"
+      },
+      {
+        "id": "FK-04",
+        "table": "complaints",
+        "check": "orphan FK",
+        "rows_affected": 0,
+        "denominator": 67095,
+        "action": "flag in gold"
+      },
+      {
+        "id": "FK-05",
+        "table": "complaints",
+        "check": "orphan FK",
+        "rows_affected": 0,
+        "denominator": 44570,
+        "action": "flag in gold"
+      },
+      {
+        "id": "OWN-01",
+        "table": "transactions",
+        "check": "FK to another customer's product",
+        "rows_affected": 0,
+        "denominator": 1477723,
+        "action": "gold uses the owner (R2); flag for audit"
+      },
+      {
+        "id": "OWN-02",
+        "table": "complaints",
+        "check": "FK to another customer's product",
+        "rows_affected": 44570,
+        "denominator": 44570,
+        "action": "flag in gold; the serving layer does not show it"
+      },
+      {
+        "id": "FUT-01",
+        "table": "customers",
+        "check": "future date",
+        "rows_affected": 5957,
+        "denominator": 150000,
+        "action": "flag in gold"
+      },
+      {
+        "id": "FUT-02",
+        "table": "products",
+        "check": "future date",
+        "rows_affected": 15939,
+        "denominator": 400000,
+        "action": "flag in gold"
+      },
+      {
+        "id": "FUT-03",
+        "table": "transactions",
+        "check": "future date",
+        "rows_affected": 0,
+        "denominator": 1477723,
+        "action": "flag in gold"
+      },
+      {
+        "id": "FUT-04",
+        "table": "complaints",
+        "check": "future date",
+        "rows_affected": 0,
+        "denominator": 67095,
+        "action": "flag in gold"
+      },
+      {
+        "id": "ORD-01",
+        "table": "transactions",
+        "check": "transaction before opening",
+        "rows_affected": 100659,
+        "denominator": 1477723,
+        "action": "flag in gold"
+      },
+      {
+        "id": "LATE-01",
+        "table": "transactions",
+        "check": "late arrival",
+        "rows_affected": 0,
+        "denominator": 1477723,
+        "action": "flag in gold; freshness alert"
+      },
+      {
+        "id": "LATE-02",
+        "table": "complaints",
+        "check": "late arrival",
+        "rows_affected": 0,
+        "denominator": 67095,
+        "action": "flag in gold; freshness alert"
+      }
+    ],
+    "manifest": {
+      "gold_version": 1,
+      "version_created_at": "2026-09-28T20:01:08+00:00",
+      "pipeline_version": "0.1.0",
+      "contract_version": "v1",
+      "run_at": "2026-09-29T12:44:12+00:00",
+      "transactions_window": [
+        "2025-06-01",
+        "2026-06-01"
+      ],
+      "source_files": 1482,
+      "source_bytes": 416482326
+    },
+    "late_arrival": {
+      "label": "fixture: synthetic test data, not from the dataset",
+      "deliveries": [
+        {
+          "name": "delivery_1",
+          "delivered_at": "2026-05-17T23:00:00-05:00",
+          "gold_version": 1
+        },
+        {
+          "name": "delivery_2",
+          "delivered_at": "2026-05-21T09:00:00-05:00",
+          "gold_version": 2
+        }
+      ],
+      "rows_added": {
+        "customers": 1,
+        "transactions": 5,
+        "transaction_labels": 5,
+        "transactions_enriched": 5,
+        "customer_profile": 1
+      },
+      "rows_updated": {
+        "customers": 1,
+        "transactions": 1,
+        "transactions_enriched": 3,
+        "customer_profile": 4
+      },
+      "columns_added": [
+        "merchant_mcc"
+      ],
+      "columns_renamed": [
+        "txn_country->transaction_country"
+      ],
+      "late_rows": 5,
+      "max_lag_days": 349,
+      "checks_changed": [
+        {
+          "id": "DUP-01",
+          "table": "transactions",
+          "check": "exact duplicate",
+          "before": 1,
+          "after": 0
+        },
+        {
+          "id": "DUP-02",
+          "table": "transactions",
+          "check": "PK versions",
+          "before": 0,
+          "after": 1
+        },
+        {
+          "id": "LBL-01",
+          "table": "transactions",
+          "check": "inconsistent label",
+          "before": 2,
+          "after": 3
+        },
+        {
+          "id": "SCH-01",
+          "table": "transactions",
+          "check": "schema change",
+          "before": 0,
+          "after": 1
+        },
+        {
+          "id": "LATE-01",
+          "table": "transactions",
+          "check": "late arrival",
+          "before": 0,
+          "after": 4
+        }
+      ],
+      "expected_counts": {
+        "matched": 98,
+        "total": 98
+      }
+    }
+  }
+}
