@@ -1,10 +1,13 @@
-# Deploy on every merge to main (spec 06, ADR 0011): build images → GHCR → OIDC → SSM Run Command on nickoftime-app.
+# Deploy after CI passes on main (spec 06, ADR 0011): build images → GHCR → OIDC → SSM Run Command on nickoftime-app.
+# A red CI on main never deploys: the workflow starts from the CI run's completion and checks its conclusion.
 # No AWS keys live in GitHub: the deploy job assumes the role nickoftime-gha-deploy through OIDC.
-# Needs the Actions secrets AWS_DEPLOY_ROLE_ARN and EC2_INSTANCE_ID (loaded by the lead).
+# Needs the Actions variables AWS_DEPLOY_ROLE_ARN and EC2_INSTANCE_ID (loaded by the lead).
 name: Deploy
 
 on:
-  push:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
     branches: [main]
   workflow_dispatch:
 
@@ -18,10 +21,14 @@ permissions:
 env:
   AWS_REGION: us-east-2
   IMAGE_REPO: ghcr.io/${{ github.repository }}
+  # The commit CI tested (workflow_run) or the dispatched one; every image and the SSM checkout use this SHA.
+  DEPLOY_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
 
 jobs:
   build:
     name: build · ${{ matrix.service }}
+    # Only a green CI run of a push to main deploys; a manual dispatch is the lead's explicit override.
+    if: github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -32,6 +39,8 @@ jobs:
         service: [web, api, mcp]
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.DEPLOY_SHA }}
 
       # The real Dockerfile wins as soon as its spec adds it; until then the placeholder in infra/ is built.
       - name: Pick build context
@@ -62,10 +71,10 @@ jobs:
           file: ${{ steps.ctx.outputs.file }}
           push: true
           tags: |
-            ${{ env.IMAGE_REPO }}/${{ matrix.service }}:${{ github.sha }}
+            ${{ env.IMAGE_REPO }}/${{ matrix.service }}:${{ env.DEPLOY_SHA }}
             ${{ env.IMAGE_REPO }}/${{ matrix.service }}:latest
           build-args: |
-            GIT_SHA=${{ github.sha }}
+            GIT_SHA=${{ env.DEPLOY_SHA }}
           cache-from: type=gha,scope=${{ matrix.service }}
           cache-to: type=gha,mode=max,scope=${{ matrix.service }}
 
@@ -83,9 +92,9 @@ jobs:
           role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Deploy ${{ github.sha }} through SSM
+      - name: Deploy ${{ env.DEPLOY_SHA }} through SSM
         env:
-          SHA: ${{ github.sha }}
+          SHA: ${{ env.DEPLOY_SHA }}
           INSTANCE_ID: ${{ vars.EC2_INSTANCE_ID }}
         run: |
           set -euo pipefail

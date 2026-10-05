@@ -25,7 +25,7 @@ deadline, so a bad merge must never take the previous version down.
 AC-01 to AC-05 are copied from issue #8 with the same numbers. AC-06 and AC-07 are added by the owner; none of the
 original criteria is dropped or weakened.
 
-- AC-01 — When a PR is merged to `main`, within 10 minutes the EC2 shall run the new version and `/api/health` shall
+- AC-01 — When a PR is merged to `main` and CI passes on that commit, within 10 minutes the EC2 shall run the new version and `/api/health` shall
   return its git SHA. · [C]
 - AC-02 — If the build fails, then the previous version shall keep serving. · [C]
 - AC-03 — The deploy shall use the OIDC role (no AWS keys in GitHub), pull images from GHCR and run through SSM. · [D]
