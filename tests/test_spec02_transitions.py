@@ -20,7 +20,8 @@ RAW = yaml.safe_load(POLICIES_PATH.read_text())
 STATES = ["new", "verification", "review", "resolved", "closed"]
 ACTIONS = list(get_args(AnalystActionIn.model_fields["action"].annotation))
 ANALYST = "analyst:a-17"
-NOT_A_PERSON = ["agent", "customer", "system", "analyst:", "analyst:   ", "Analyst:a-17", ""]
+NOT_A_PERSON = ["agent", "customer", "system", "analyst:", "analyst:   ", "Analyst:a-17", "", "analyst:x\n",
+                "agent\nanalyst:x"]
 X = "POL-QUEUE-TRANSITION"
 # D-034 written out by hand: the status after each moving action, X = denied. Every other action keeps the status.
 MOVES = {
@@ -116,6 +117,7 @@ def case(status="verification", country="MX", product="debit", opened=date(2026,
     return QueueCase(status=status, status_since=since, country=country, product_type=product, opened_on=opened)
 
 
+@pytest.mark.parametrize("status", ["new", "verification", "review"])
 @pytest.mark.parametrize("opened,today,priority,alert", [
     (date(2026, 6, 1), date(2026, 6, 1), "normal", date(2026, 6, 3)),     # Monday: day 1 Tue, day 2 Wed
     (date(2026, 6, 1), date(2026, 6, 2), "high", date(2026, 6, 3)),
@@ -125,10 +127,11 @@ def case(status="verification", country="MX", product="debit", opened=date(2026,
     (date(2026, 9, 15), date(2026, 9, 16), "normal", date(2026, 9, 18)),  # 09-16 is a MX bank holiday (CNBV 2026)
     (date(2026, 9, 15), date(2026, 9, 17), "high", date(2026, 9, 18)),
 ])
-def test_ac_11_a_mx_debit_case_rises_on_business_day_1_and_alerts_before_day_2(opened, today, priority, alert):
-    """AC-11: priority high from business day 1 after opening; the alert is due at the start of business day 2 in the
-    country's time zone (case_queue.deadline_sla.mx_debit, §4.3)."""
-    result = sla(case(opened=opened), today=today)
+def test_ac_11_a_mx_debit_case_rises_on_business_day_1_and_alerts_before_day_2(opened, today, priority, alert,
+                                                                               status):
+    """AC-11: while the case is open (new included), priority high from business day 1 after opening; the alert is due
+    at the start of business day 2 in the country's time zone (case_queue.deadline_sla.mx_debit, §4.3)."""
+    result = sla(case(status=status, opened=opened), today=today)
     assert result.priority == priority
     assert result.alert_due_at == datetime.combine(alert, datetime.min.time(), tzinfo=MX)
     assert "case_queue.deadline_sla.mx_debit" in result.rule_ids and result.policies_version == RAW["version"]
@@ -152,6 +155,13 @@ def test_ac_11_the_sla_due_time_follows_sla_hours_of_the_status(status, due):
     result = sla(case(status=status, country="CO"), today=date(2026, 6, 1))
     assert result.sla_due_at == due
     assert (f"case_queue.sla_hours.{status}" in result.rule_ids) == (due is not None)
+
+
+@pytest.mark.parametrize("country", ["mx", "Mx", "MEX", "", " MX"])
+def test_ac_11_a_country_code_that_is_not_two_capitals_is_an_input_error(country):
+    """AC-11: a bad country code never fails open into normal priority and no alert; it is refused."""
+    with pytest.raises(ValidationError, match="country"):
+        case(country=country)
 
 
 def test_ac_11_past_the_last_holiday_file_it_escalates_and_invents_no_alert_time():

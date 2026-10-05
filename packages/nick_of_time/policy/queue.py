@@ -16,11 +16,11 @@ from nick_of_time.contracts import ProductType, QueueStatus
 from nick_of_time.policy.calendars import CalendarNotCovered, add_business_days
 from nick_of_time.policy.clock import time_zone
 from nick_of_time.policy.engine import Deny
-from nick_of_time.policy.model import Policies, load_policies
+from nick_of_time.policy.model import CountryCode, Policies, load_policies
 
 __all__ = ["ANALYST_SOURCES", "ANALYST_TARGETS", "HUMAN_ACTOR", "Moved", "QueueCase", "Sla", "sla", "transition"]
 
-HUMAN_ACTOR = re.compile(r"^analyst:.*\S.*$")             # a person signed in to the console (spec 01 store ACTOR)
+HUMAN_ACTOR = re.compile(r"analyst:.*\S.*")             # a person signed in to the console (spec 01 store ACTOR)
 # D-034: the status each analyst action moves a case to; an action not listed keeps the status. [assumption] `take`
 # always moves to review (a person is looking at it): review is the only target D-034 allows from every source.
 ANALYST_TARGETS: dict[str, QueueStatus] = {"take": "review", "resolve": "resolved", "close_case": "closed",
@@ -60,7 +60,7 @@ def transition(current: str, action: str, actor: str, *, policies: Optional[Poli
         raise ValueError(f"unknown queue status {current!r}")
     if action not in ANALYST_TARGETS and action not in KEEPS:
         return _deny(p, action, "POL-DEFAULT-DENY")
-    if not isinstance(actor, str) or not HUMAN_ACTOR.match(actor):
+    if not isinstance(actor, str) or not HUMAN_ACTOR.fullmatch(actor):
         return _deny(p, action, "POL-CLOSE-HUMAN" if action == "close_case" else "POL-DEFAULT-DENY")
     if current == "closed" or current not in ANALYST_SOURCES.get(action, q.states):
         return _deny(p, action, "POL-QUEUE-TRANSITION")
@@ -77,7 +77,7 @@ class QueueCase(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
     status: QueueStatus
     status_since: AwareDatetime
-    country: str
+    country: CountryCode                                  # 'mx' is an input error, never a silent normal priority
     product_type: ProductType
     opened_on: date
 
