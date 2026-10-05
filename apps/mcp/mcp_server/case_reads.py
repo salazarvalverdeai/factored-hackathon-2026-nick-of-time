@@ -5,7 +5,8 @@ only from `call.session` (constitution #3); another customer's card or case answ
 and the gate logs the probe (D-052). A card's status is the run's latest overlay row, else gold's (AC-04).
 Accepted ≠ verified (D-025): `get_product_status` and `get_case`, called with a write's `action_id`, mint its V- id
 through `store.record_verification` only when that write is the customer's, belongs to this card or case, is verified
-by this read (`VERIFIED_WITH`) and its post-condition holds; otherwise, and always for the two listings, the answer is
+by this read (`VERIFIED_WITH`) and its post-condition holds (a verified `case_opened` or `card_blocked` also writes its
+customer notification, once, spec 13 AC-01); otherwise, and always for the two listings, the answer is
 a plain reading with `read_at` only. Stored deadlines are returned as stored, never recomputed.
 """
 from __future__ import annotations
@@ -20,6 +21,7 @@ from contracts import tools as t
 from mcp_server.cards import GoldCard, GoldCards, cards_of
 from mcp_server.gate import UNAVAILABLE, Call, Handler
 from mcp_server.gold import Gold, find, synthetic_from
+from mcp_server.notify import VERIFIED_EVENTS, notify_verified
 from mcp_server.writes import NO_CARD, NO_CASE, probe
 from nick_of_time.contracts import CONTRACTS_DIR
 from nick_of_time.policy import Policies, clock
@@ -78,6 +80,11 @@ def case_reads_handlers(gold: Gold, policies: Policies, store: Store, *, cards: 
                                               customer_id=session.customer_id, actor=ACTOR, trace_id=call.trace_id)
         except NotVerified:                                 # the post-condition does not hold now
             return None
+        if write.type in VERIFIED_EVENTS:                   # spec 13 AC-01: told once verified, once per event
+            case = store.get_case(write.case_id, run_id=session.run_id, customer_id=session.customer_id)
+            card = cards.card(session.customer_id, write.payload.get("product_id") or case.product_id)
+            notify_verified(store, policies, case, write.type, last4=card.last4 if card else None,
+                            trace_id=call.trace_id)
         return {"action_id": action_id, "verification_id": event.payload["verification_id"],
                 "read_at": event.payload["read_at"]}
 

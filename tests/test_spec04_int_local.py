@@ -165,7 +165,8 @@ def test_ac_01_ev_0001_end_to_end_on_the_real_mcp_server(serve, tmp_path):
     # the store: the case's append-only events, its queue status, the block, and every write under the turn's trace id
     events = mcp.store.events(turn.case_id)
     assert [e.type for e in events] == ["case_opened", "card_blocked", "status_changed", "action_verified",
-                                        "action_verified", "block_verified"]
+                                        "notification_sent", "action_verified", "block_verified",
+                                        "notification_sent"]                # spec 13 AC-01: told once verified
     assert {e.trace_id for e in events} == {turn.trace_id}              # X-Trace-Id = the graph's run id (spec 03 §6)
     assert mcp.store.queue_status(turn.case_id) == "verification"
     assert mcp.tool("get_product_status", sid, product_id=fixture["product_id"]).status == "Blocked"
@@ -191,7 +192,8 @@ def test_ac_11_medium_zone_asks_first_then_opens_and_hands_off(serve, tmp_path):
     verified_actions(turn, mcp)
     same_deadline(turn, mcp, sid, case["initial_state"]["fixtures"][0]["transaction_id"])
     assert turn.handoff["case_id"] == turn.case_id and turn.handoff["zone"] == "medium"
-    assert [e.type for e in mcp.store.events(turn.case_id)] == ["case_opened", "status_changed", "action_verified"]
+    assert [e.type for e in mcp.store.events(turn.case_id)] == ["case_opened", "status_changed", "action_verified",
+                                                                "notification_sent"]
 
 
 def test_ac_12_human_zone_opens_the_case_and_hands_it_off_without_a_block(serve, tmp_path):
@@ -279,7 +281,7 @@ def test_ac_01_a_run_with_no_run_id_keeps_one_trace_id_across_its_tool_calls(ser
     mcp = serve(L.fixture_gold(tmp_path / "gold", case))
     sid, chat = session(mcp, case)
     turn = checked(chat.say(case["messages"][0]["text"], language="es", run_id=False))
-    assert turn.decision == "block_and_open_case" and len(mcp.store.events(turn.case_id)) == 6
+    assert turn.decision == "block_and_open_case" and len(mcp.store.events(turn.case_id)) == 8
     assert {e.trace_id for e in mcp.store.events(turn.case_id)} == {turn.trace_id}
 
 

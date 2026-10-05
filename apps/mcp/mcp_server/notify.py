@@ -20,7 +20,7 @@ from mcp_server.gate import ACTOR, Call, Handler
 from mcp_server.gold import Gold
 from mcp_server.reads import mask
 from nick_of_time import ids
-from nick_of_time.policy import clock
+from nick_of_time.policy import Policies, clock
 from nick_of_time.receipt import amount_text, text
 from nick_of_time.store import CaseRecord, NotVerified, Store, is_demo_run
 
@@ -44,6 +44,40 @@ class Sender(Protocol):
 
 def _utc_now() -> dt.datetime:
     return dt.datetime.now(dt.UTC)                           # audit time only, never a business date
+
+
+VERIFIED_EVENTS = frozenset({"case_opened", "card_blocked"})   # policies.yaml notifications.events told on a V- read
+
+
+def notify_verified(store: Store, policies: Policies, case: CaseRecord, event: str, *, last4: Optional[str],
+                    trace_id: str) -> None:
+    """Spec 13 AC-01 (EV1): the automatic `case_opened` / `card_blocked` notification, written by the read that just
+    verified the write (constitution #4: told only once verified), once per (case, event) through `store.once`, so a
+    repeated verifying read writes nothing. The in-app `log` row always; a `queued` row per confirmed channel the
+    template lists, never in a demo run (ADR 0026). The text is the `policies.yaml` template filled with stored facts
+    only (never score, policy ids or transcript). A failure is logged and never changes the read's answer."""
+    spec = policies.notifications["events"].get(event)
+    if event not in VERIFIED_EVENTS or spec is None:
+        return
+    deadline = case.ruling_deadline or case.credit_deadline   # [assumption] the ruling deadline first; none: "—"
+    body = spec["template"].format_map({"case_id": case.case_id, "deadline": deadline.isoformat() if deadline else "—",
+                                        "product_last4": last4 or "••••"})
+
+    def write() -> dict:
+        rows = [store.add_notification(case.case_id, event=event, channel="log", masked_address=None, text=body,
+                                       trigger="auto", actor="system", trace_id=trace_id)]
+        store.add_delivery(rows[0].notification_id, "delivered")
+        if not is_demo_run(case.run_id):                     # a demo customer's channels belong to no visitor
+            rows += [store.add_notification(case.case_id, event=event, channel=c.channel,
+                                            masked_address=mask(c.channel, c.address), text=body, trigger="auto",
+                                            actor="system", trace_id=trace_id)
+                     for c in store.channels(case.customer_id) if c.confirmed and c.channel in spec["channels"]]
+        return {"notification_ids": [n.notification_id for n in rows]}   # telegram/e-mail stay queued for the api
+    try:
+        store.once(f"auto-{event}:{case.case_id}", action="auto_notification", customer_id=case.customer_id,
+                   run_id=case.run_id, arguments={"case_id": case.case_id, "event": event}, write=write)
+    except Exception as error:                               # the type only: never the text or an address
+        log.error("%s notification of %s not written: %s", event, case.case_id, type(error).__name__)
 
 
 def notify_handlers(store: Store, gold: Optional[Gold] = None, *, sender: Optional[Sender] = None,

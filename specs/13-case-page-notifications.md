@@ -49,6 +49,13 @@ A customer shall not read another customer's case · [T] ("spec 13: a customer c
 - Assumption `[assumption]`: the Telegram deep link uses a placeholder bot name and the webhook is simulated in the page
   until the real bot exists (spec 05).
 - Open question: notifications become `GET /api/notifications` (session-wide, filtered by `case_id` on the client).
+- `[assumption]` (EV1, pending the lead): the agent's own writes are told by the MCP read that verifies them
+  (constitution #4). The first `get_case` that verifies an `open_case`, and the first `get_product_status` that verifies
+  a `block_card`, write the `case_opened` / `card_blocked` notification once per case and event (`store.once`): the
+  in-app `log` row (`delivered`) always, plus a `queued` row on each confirmed channel the `policies.yaml` template
+  lists, never in a demo run (ADR 0026); the api's notifier sends queued rows. The text is that Spanish template filled
+  with stored facts (`{deadline}` = the ruling deadline, else the credit one, else "—"); Portuguese text needs a
+  `messages.yaml` contract change.
 
 ## 9. Out of scope
 - Real WhatsApp.
@@ -59,6 +66,8 @@ A customer shall not read another customer's case · [T] ("spec 13: a customer c
 - [x] Task 2 — notification rules and templates · covers AC-01, AC-07, AC-08 · done when: the tests pass
 - [x] Task 3 — Telegram link and e-mail confirmation (mock) · covers AC-02, AC-03, AC-04 · done when: the tests pass
 - [ ] Task 4 — real webhook, Telegram bot and Resend · covers AC-01 to AC-04 · done when: same flow on the public URL
+- [x] Task 4b (EV1) — `case_opened` / `card_blocked` notifications from the verifying reads · covers AC-01, AC-08 ·
+      `apps/mcp/mcp_server/{notify,case_reads}.py`, `tests/test_spec13_case_notifications.py` on both backends
 - [ ] Task 5 — update the flow diagrams · covers AC-09 · done when: the diagrams show receipt, case page and channels
 
 **Closing checklist** (last PR): every AC has a passing test or check that cites it · status → Implemented · ADR for

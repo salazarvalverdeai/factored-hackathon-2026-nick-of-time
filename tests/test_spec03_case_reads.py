@@ -122,7 +122,9 @@ def test_ac_16_get_case_returns_stored_facts_label_timeline_and_verifies_its_ope
     assert [(e.type, e.label) for e in out.timeline] == [("case_opened", "Caso abierto"),
                                                          ("card_blocked", "Bloqueo de la tarjeta solicitado"),
                                                          ("status_changed", "Estado actualizado"),
-                                                         ("block_verified", "Bloqueo de la tarjeta verificado")]
+                                                         ("block_verified", "Bloqueo de la tarjeta verificado"),
+                                                         ("notification_sent", "Notificación enviada"),   # spec 13
+                                                         ("notification_sent", "Notificación enviada")]   # AC-01
     assert plain(run("get_case", case_id=opened.case_id))
 
 
@@ -169,12 +171,13 @@ def test_ac_16_list_my_cases_puts_active_first_with_labels_deadlines_and_updated
 def test_ac_16_list_my_cases_updated_at_moves_only_with_customer_visible_events(gold_dir):
     run = reads_run(gold_dir, store=new_store(now=tick))                               # every event a second later
     case = run.open(1)
-    opened_at = run.store.events(case.case_id)[0].created_at
+    run("get_case", case_id=case.case_id, action_id=case.action_id)     # action_verified: internal; and the spec 13
+    told = run.store.events(case.case_id)[-1]                          # AC-01 notification_sent: visible
     run.person_requested(case.case_id)                                                  # handoff_emitted: internal
     run.analyst(case.case_id, "mark_ambiguous")                                         # analyst_action: internal
-    run("get_case", case_id=case.case_id, action_id=case.action_id)                     # action_verified: internal
-    assert run.store.events(case.case_id)[-1].created_at > opened_at
-    assert run("list_my_cases").cases[0].updated_at == opened_at
+    run("get_case", case_id=case.case_id, action_id=case.action_id)    # a second action_verified, no new notice
+    assert told.type == "notification_sent" and run.store.events(case.case_id)[-1].created_at > told.created_at
+    assert run("list_my_cases").cases[0].updated_at == told.created_at
     assert run("list_my_cases", S_OTHER_RUN).cases == []                                   # another run
 
 
