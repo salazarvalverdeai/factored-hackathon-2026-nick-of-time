@@ -21,7 +21,7 @@
 #   (notifications.never_send in policies.yaml).
 # - Never promise an outcome or a provisional credit: a person reviews and decides (CLAUDE.md rule 6).
 # - Dates are absolute (YYYY-MM-DD) and come from tools; the template never computes them.
-version: "0.1.0"
+version: "0.2.0"
 
 greet:
   # AC-15: first name from get_customer_profile, at most 3 capabilities, a person reviews what needs it.
@@ -311,6 +311,11 @@ refuse:
   deny:
     es: "No puedo ayudarte con eso. Si quieres, cuéntame qué cargo de tu cuenta no reconoces."
     pt: "Não posso ajudar com isso. Se quiser, me conte qual cobrança da sua conta você não reconhece."
+  reauthenticate:
+    # Spec 04 task 04a (pending the lead): session expired or unverified (POL-SESSION); no data, nothing done, a way
+    # forward through the "Verificar de nuevo" chip. A call request without a session gets connect.general_contact.
+    es: "Necesito que verifiques tu sesión de nuevo para continuar. No hice ningún cambio."
+    pt: "Preciso que você verifique sua sessão novamente para continuar. Não fiz nenhuma alteração."
 
 clarify:
   # Intent unclear: one question, no tool called yet.
