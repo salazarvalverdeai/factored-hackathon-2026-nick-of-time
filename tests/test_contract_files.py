@@ -15,10 +15,9 @@ POLICIES = yaml.safe_load((ROOT / "contracts/policies.yaml").read_text())
 HANDOFF = json.loads((ROOT / "contracts/handoff.schema.json").read_text())
 EVAL = json.loads((ROOT / "eval/eval_case.schema.json").read_text())
 
-CUSTOMER_TOOLS = ["search_transaction", "get_fraud_score", "compute_deadline", "block_card", "open_case",
-                  "get_product_status", "get_case_status"]
-ANALYST_TOOLS = ["list_cases", "get_case", "approve_credit", "approve_block", "unblock_card", "request_customer_info",
-                 "mark_ambiguous", "close_case", "reopen_case", "supervised_mode"]
+CUSTOMER_TOOLS = list(tools.CUSTOMER_TOOLS)     # tools.py v1.1: the 16 tools of spec 01 §6.3
+ANALYST_TOOLS = ["list_cases", "get_console_case", "approve_credit", "approve_block", "unblock_card",
+                 "request_customer_info", "mark_ambiguous", "close_case", "reopen_case", "supervised_mode"]
 MODES = ["auto", "manual_check", "human_required"]
 
 
@@ -29,6 +28,7 @@ def literal(model, field: str) -> list:
 def test_actors_use_the_agreed_tool_names():
     assert POLICIES["actors"]["customer"]["tools"] == CUSTOMER_TOOLS
     assert POLICIES["actors"]["analyst"]["tools"] == ANALYST_TOOLS
+    assert not set(CUSTOMER_TOOLS) & set(ANALYST_TOOLS)          # the two tool sets never cross (G-TOOL-01)
     assert set(POLICIES["identity"]["require_otp_for"]) <= set(CUSTOMER_TOOLS)
 
 

@@ -87,18 +87,18 @@ graph's run id). Kind: R read · W write · N notification.
 | Tool | Kind | Behavior |
 |---|---|---|
 | `get_customer_profile` | R | First name, language, country, `display_currency` (session preference, else the country's from `policies.yaml`), confirmed channels with masked addresses. |
-| `search_transaction` | R | Loads the session's customer; filters gold `transactions_enriched` to that customer's cards (`Tarjeta Débito`, `Tarjeta Crédito`), status `Approved`/`Pending`, `approx_date ± window_days` (default 7; if no date, the last 30 days) and `≤ clock.today(mode)`; in `live` also the customer's `demo_transactions` (AC-14). Optional filters: **amount** (±2%, compared in the transaction currency and in the customer's local currency through the policy rates MXN 18.0, ARS 350, COP 4,000), **merchant** (case- and accent-insensitive token match; null merchants still match on amount and date). Ranks by amount match, then date distance, then merchant similarity; returns ≤ 4 `Transaction` with `split` and `synthetic`. |
+| `search_transaction` | R | Loads the session's customer; filters gold `transactions_enriched` to that customer's cards (`Tarjeta Débito`, `Tarjeta Crédito`), status `Approved`/`Pending`, `approx_date ± window_days` (default 7; if no date, the last 30 days) and `≤ clock.today(mode)`; in `live` also the customer's `demo_transactions` (AC-14). Optional filters: **amount** (±2%, compared in the transaction currency and in the customer's local currency through the policy rates MXN 18.0, ARS 350, COP 4,000), **merchant** (case- and accent-insensitive token match; null merchants still match on amount and date). Ranks by amount match, then date distance, then merchant similarity; returns ≤ 4 `Transaction` with `synthetic`, without `fraud_score` or `split` (D-026). |
 | `get_fraud_score` | R | Provider `dataset` (ADR 0006): `transactions.fraud_score` for a transaction of the session's customer, `source: "dataset"`, `version: "gold-v1"`; for a synthetic transaction, its generated score with `source: "synthetic"`. Another customer's transaction → `DENY POL-CROSS-CUSTOMER`. |
 | `compute_deadline` | R | Country from the customer (`México`→MX, `Argentina`→AR, `Colombia`→CO), product from the card type, opened on `clock.today(mode, country)`, `abroad` when `transaction_country` ≠ customer country; delegates to `clock.deadline()` (spec 02); returns `source_url` and `verified_on`. |
 | `open_case` | W | Duplicate check first (AC-15); recomputes the zone from the score (mismatch → AC-09); idempotent on `idempotency_key` (prefixed with `run_id`); writes `cases` (with `mode`, `related_case_id` when given) and `case_events(case_opened)`; returns `case_id`, deadlines and `duplicate_of`. |
 | `block_card` | W | Requires an open case for that product in the session and run; asks `engine.check("block_card", zone, supervised_mode=…, amount=…, currency=…, country=…)` (spec 02 §6); on allow, writes `product_overrides(Blocked)` and `case_events(card_blocked)`, returns `state: "requested"` (not yet verified). |
-| `get_product_status` | R | Latest override for the product in the same `run_id`, else gold `product_status`; returns type, last 4, status, `verification_id`, `read_at`. No cache. |
-| `list_my_cards` | R | The session customer's cards with the same fields as `get_product_status`. |
+| `get_product_status` | R | Latest override for the product in the same `run_id`, else gold `product_status`; returns type, last 4, status and `read_at`, plus `action_id` + `verification_id` only when called with a write's `action_id` whose post-condition holds (D-025). No cache. |
+| `list_my_cards` | R | The session customer's cards with the same fields as `get_product_status`, never with an `action_id` or `V-`: a listing verifies no write (D-025). |
 | `get_case` | R | Replaces `get_case_status`. Status label for the customer (`Recibido`, `En revisión`, `Resuelto`, `Cerrado` and PT equivalents from `messages.yaml`), stored deadlines with source, transaction, visible timeline, `taken_by_person` (an `assigned` event exists), `related_case_id`, `read_at`. |
 | `list_my_cases` | R | The session customer's cases (active first) with status label, deadlines, last 4 and `updated_at`. |
 | `add_case_info` | W | AC-17; writes `case_events(customer_info_added)`. |
 | `request_call` | W | AC-18; `{preferred_time?}`; writes `case_events(call_requested)`; returns `{event_id, expected_contact_by}` (D-008): a `YYYY-MM-DD` date or `null`, computed by the tool from `contact.callback_within_business_days` with `clock.add_business_days` (spec 02), stored in the event and never recomputed; the tool never invents a date. `RequestCallResult.expected_contact_by` (`Optional[date]`) lands in `contracts/tools.py` v1.1 (task 01b). |
-| `request_reevaluation` | W | AC-19; asks `engine.reevaluation_allowed()` (spec 02); writes `case_events(reevaluation_requested)` + `status_changed(review)`, or a new case + `case_events(related_case_opened)` on the closed case. |
+| `request_reevaluation` | W | AC-19; asks `engine.reevaluation_allowed()` (spec 02); writes `case_events(reevaluation_requested)` + `status_changed(review)`, or a new case + `case_events(related_case_opened)` on the closed case. `already_in_progress` writes nothing and returns the `action_id` and `event_id` of the write that holds the case active (the original `open_case` `A-`, or an earlier `request_reevaluation`); the agent reports it as "already in review", never as a new verified action (spec 04, task 04c). |
 | `convert_amount` | R | AC-20; never changes a deadline or a zone. |
 | `send_case_summary` | N | AC-21; renders `messages.yaml receipt.*` with the case's verified facts, writes `notifications(trigger=on_request)` + `case_events(notification_sent)`, hands delivery to the api's sender (Telegram or Resend); returns `notification_id` and `state: "requested"`. |
 | `list_my_notifications` | R | AC-22. |
@@ -122,6 +122,22 @@ rule 2), and only a live synthetic score decides as `[simulated]` (spec 02 D-027
 are typed data, delimited when passed to the LLM (G-IN-01); per-session limits of 30 calls/min, 5 writes/min and 3
 notifications/hour `[assumption]` (G-TOOL-01, G-OPS-01); every call audited with `trace_id`, actor `agent` and an input
 hash (G-OPS-02). The analysts' actions never appear in this server.
+
+**Verification, call requests and score sources** `[assumption]` (defaults pending the lead):
+- D-025: a write returns `state: "requested"` and no `V-` id. The read that verifies it (`VERIFIED_WITH` in
+  `contracts/tools.py`) mints the `verification_id` and the store persists it with that read (event `action_verified`,
+  task 01c).
+  `get_case`, `get_product_status` and `list_my_notifications` take an optional `action_id` and return it with a
+  `verification_id` only when that write's post-condition holds; otherwise, and for a plain status read, they return
+  `read_at` only (both ids or neither). A duplicate that writes nothing (`open_case` AC-15, `request_call` AC-18,
+  `request_reevaluation` `already_in_progress` AC-19) returns the original write's `action_id` and, for the last two,
+  its `event_id`, so the action stays verifiable.
+- D-026: `search_transaction` returns no `fraud_score` or `split`, because the zone comes only from `get_fraud_score`.
+  A `request_call` without `case_id` writes no `case_events` row. It returns `case_id: null`, its `action_id` and an
+  `event_id` (`E-`) that keys an append-only `call_requests` row. No customer read verifies it, so the agent reports it
+  only as `requested`, never as verified. Task 03d adds `call_requests` to spec 01 §6.5 and to §7 here.
+- D-027: `synthetic` is a score source. `get_fraud_score` returns `source: "synthetic"` with the stored score of a
+  live-mode `demo_transactions` row (`policies.yaml` `scoring.providers.synthetic`).
 
 ## 7. Data model touched
 Reads gold `transactions_enriched`, `products` and `customers` through DuckDB; from `customers` the loader selects only

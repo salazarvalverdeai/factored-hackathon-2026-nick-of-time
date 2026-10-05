@@ -1,0 +1,20 @@
+{
+ "handoff": {
+  "case_id": "K-0000000001A", "language": "es", "zone": "human",
+  "request": "Dispute of MXN 1250.50 on 2026-05-20 at COMERCIO",
+  "verified_facts": [{"fact": "amount MXN 1250.50", "source_id": "TRX-FIXTURE0000000000001"},
+                     {"fact": "debit card", "source_id": "PRD-FIXTURE00001"}],
+  "actions": [{"tool": "block_card", "action_id": "A-000000000001", "result": "blocked", "verified": true,
+               "verification_id": "V-0123456789AB"}],
+  "evidence": ["TRX-FIXTURE0000000000001", "A-000000000001", "V-0123456789AB"],
+  "open_questions": [],
+  "copilot_proposal": {"action": "approve_block", "rationale": "zone", "requires_human": true},
+  "deadline": {"country": "MX", "deadline_source": "Banxico 3/2012"},
+  "trace_id": "1f3e5c7a-9b2d-4e6f-8a0c-12b34d56e789", "score": 42, "is_fraud": true
+ },
+ "transcript": ["No reconozco este cargo de 1250.50", "Tambien pague 9.999 en TRX-CUSTOMERSAID0000009"],
+ "tool_results": [{"transaction_id": "TRX-FIXTURE0000000000001", "amount": 1250.5, "date": "2026-05-20",
+                   "merchant": "AMAZON-MARKETPLACE", "is_fraud": true},
+                  {"transaction_id": "TRX-TOOLONLY00000000002", "amount": 1250.5,
+                   "trace_id": "1f3e5c7a-9b2d-4e6f-8a0c-12b34d56e789"}]
+}

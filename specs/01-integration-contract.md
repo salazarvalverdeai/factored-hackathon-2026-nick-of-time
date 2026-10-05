@@ -122,14 +122,14 @@ OpenAPI is generated from the code at `/api/docs` (schema at `/api/openapi.json`
 | GET | `/api/demo/customers` | — | `[{customer_id, display_name, country, segment, scenario, language}]` (6 demo customers, spec 09) | 200 |
 | POST | `/api/sessions` | `{customer_id, mode: "replay"\|"live"}` (default `live`) | `{session_id, mode, today, otp_demo, expires_at}` — the OTP is shown on screen (mock, ADR 0017) | 201 / 404 |
 | POST | `/api/sessions/{session_id}/verify` | `{otp}` | `{verified, expires_at}` + sets `not_session` cookie | 200 / 401 / 404 / 410 |
-| * | `/api/agent/...` | LangGraph Server protocol subset: `POST threads`, `POST threads/{id}/runs/stream`, `GET threads/{id}/state` | proxied to Platform; `configurable.session_id` injected from the cookie; any client `session_id`/`customer_id` is dropped (AC-06); the stream carries SSE events `progress` (`ProgressItem`), `turn` (`CustomerTurn`) and `error` (the standard error shape), and `threads/{id}/state` returns the last `CustomerTurn`, never the raw thread state (D-013). A thread belongs to the session that created it: an unknown or foreign thread is 404. `[assumption]` (pending the lead) 401 `UNAUTHENTICATED` only for a missing or unknown cookie; a known session in any state is forwarded with `configurable.session_state` = `verified\|expired\|unverified` and the graph decides `reauthenticate` (spec 02 AC-07) | 200 / 401 / 404 |
+| * | `/api/agent/...` | LangGraph Server protocol subset: `POST threads`, `POST threads/{id}/runs/stream`, `GET threads/{id}/state` | proxied to Platform; `configurable.session_id` injected from the cookie; any client `session_id`/`customer_id` is dropped (AC-06); the stream carries SSE events `progress` (`ProgressItem`), `turn` (`CustomerTurn`) and `error` (the standard error shape), and `threads/{id}/state` returns the last `CustomerTurn`, never the raw thread state (D-013). A thread belongs to the session that created it: an unknown or foreign thread is 404. `[assumption]` (pending the lead) the two POST routes answer 401 `UNAUTHENTICATED` only for a missing or unknown cookie; a known session in any state is forwarded with `configurable.session_state` = `verified\|expired\|unverified` and the graph decides `reauthenticate` (spec 02 AC-07), whose turn carries no case, receipt or action claim, only the session line and the chips per spec 04 §4.5 (G-SES-01). `GET threads/{id}/state` is not forwarded: an expired session gets 401 `SESSION_EXPIRED` and an unverified one 401 `UNAUTHENTICATED`, with no turn | 200 / 401 / 404 |
 | GET | `/api/notifications` | — | `[{notification_id, case_id, event, channel, masked_address, text, delivery_status, created_at}]` for the session's customer ("My notifications"); `delivery_status` = `queued\|sent\|delivered\|bounced\|failed` | 200 / 401 |
 | GET | `/api/me/products` | — | `[ProductView]` (§6.6) — "My cards", read fresh on each call | 200 / 401 |
 | GET | `/api/me/cases` | — | `[CustomerCaseSummary]` (§6.6) — the customer's cases, active first | 200 / 401 |
 | PUT | `/api/me/preferences` | `{display_currency?, language?}` | the stored preferences (kept in the session) | 200 / 400 / 401 |
 | GET | `/api/cases/{case_id}` | — | `CustomerCaseView` (§6.6) if the case belongs to the session's customer | 200 / 403 / 404 / 401 |
 | POST | `/api/cases/{case_id}/info` | `{text}` | `{event_id}` → event `customer_info_added` | 201 / 403 / 404 / 401 |
-| POST | `/api/cases/{case_id}/call-request` | `{preferred_time?}` | `{event_id, expected_contact_by}` (D-008: `YYYY-MM-DD` or null) → event `call_requested` | 201 / 403 / 404 / 401 |
+| POST | `/api/cases/{case_id}/call-request` | `{preferred_time?}` | `{event_id, expected_contact_by}` → event `call_requested`; `expected_contact_by` is `YYYY-MM-DD` or `null`, from `contact.callback_within_business_days` and stored in the event (D-008, spec 03 AC-18) | 201 / 403 / 404 / 401 |
 | POST | `/api/cases/{case_id}/reevaluation` | `{reason}` | `{event_id, case_id}` — a resolved case returns to `review`; a closed case gets a new case with `related_case_id` (spec 03) | 201 / 403 / 404 / 409 / 401 |
 | POST | `/api/cases/{case_id}/channels/telegram` | — | `{deep_link, expires_at}` (one-time token, TTL 15 min) | 201 / 403 / 404 / 401 |
 | POST | `/api/cases/{case_id}/channels/email` | `{email}` | `{confirmation_sent: true}` — confirmation link to that address | 202 / 400 / 403 / 404 / 401 |
@@ -164,7 +164,7 @@ shape of `data` is fixed in the producing spec.
 
 ### 6.3 MCP server (`apps/mcp`)
 - **Endpoint:** `https://mcp.nickoftime.salazarvalverdeai.com/mcp`, streamable HTTP transport; header `X-API-Key`
-  (value in SSM `/nickoftime/prod/MCP_API_KEY`). Locally `http://localhost:8100/mcp`.
+  (value in SSM `/nickoftime/prod/MCP_API_KEY`). Locally `http://localhost:8100/mcp` (container port 8001, spec 06).
 - **Tools** — exactly the 16 of `contracts/policies.yaml` `actors.customer.tools`; each has `<Name>In` / `<Name>Out`
   models in `contracts/tools.py` (v1.1; spec 03 fixes their behavior). Kind: R read · W write · N notification.
 
@@ -176,12 +176,12 @@ shape of `data` is fixed in the producing spec.
 | `compute_deadline` | R | Legal deadline for a new case, with `source_url` and `verified_on` | — | — |
 | `open_case` | W | Open the case; no duplicate active case; closed case → new case with `related_case_id` | `cases`, `case_events` (`case_opened`) | `get_case` |
 | `block_card` | W | Block the card | `product_overrides`, `case_events` (`card_blocked`) | `get_product_status` |
-| `get_product_status` | R | One card: type, last 4, status, `verification_id`, `read_at` | — | — |
-| `list_my_cards` | R | The customer's cards with status | — | — |
+| `get_product_status` | R | One card: type, last 4, status, `read_at`; `action_id` + `verification_id` only when called with a write's `action_id` (D-025) | — | — |
+| `list_my_cards` | R | The customer's cards with status; never a `V-` (plain reads) | — | — |
 | `get_case` | R | Customer view of a case: status label, stored deadlines with source and `deadline_verified_on`, visible timeline, `taken_by_person`, `related_case_id`, `read_at` (replaces `get_case_status`) | — | — |
 | `list_my_cases` | R | The customer's cases | — | — |
 | `add_case_info` | W | Customer adds information to an active case | `case_events` (`customer_info_added`) | `get_case` |
-| `request_call` | W | Customer asks a person to call | `case_events` (`call_requested`) | `get_case` |
+| `request_call` | W | Customer asks a person to call; with no `case_id` it is reported only as `requested`, since no read verifies it (D-026) | `case_events` (`call_requested`); with no case, a `call_requests` row (task 03d) | `get_case` |
 | `request_reevaluation` | W | Re-evaluate a resolved case (→ `review`) or open a related case for a closed one | `case_events` (`reevaluation_requested`) or `cases` | `get_case` |
 | `convert_amount` | R | Amount in the display currency, with rate, source and date | — | — |
 | `send_case_summary` | N | Send the receipt template to a confirmed channel | `notifications`, `case_events` (`notification_sent`) | `list_my_notifications` |
@@ -190,8 +190,14 @@ shape of `data` is fixed in the producing spec.
   The analysts' actions (approve credit, unblock, close, reopen) stay in the api behind Cognito and never appear in
   the MCP.
   `[assumption]` (D-014, pending the lead): the `open_case` and `get_case` results carry `deadline_verified_on`
-  with the stored deadline, so a receipt re-sent later can fill `deadline.verified_on` (§6.7, ADR 0019); the models
-  land with T4.
+  with the stored deadline, so a receipt re-sent later can fill `deadline.verified_on` (§6.7, ADR 0019).
+  `contracts/tools.py` lists them in `CUSTOMER_TOOLS` (name → models) and `VERIFIED_WITH` (the column above). A W or N
+  result says at most `state: "requested"` and carries no `V-` id; the verifying read mints `verification_id` with
+  `read_at` (D-025 `[assumption]`, §6.5). The verifying reads take an optional `action_id` (the write they check)
+  and return it with a `verification_id` only when its post-condition holds; a plain status read returns `read_at`
+  only. `search_transaction` returns no `fraud_score` or `split`: the zone comes only
+  from `get_fraud_score` (D-026 `[assumption]`). The fake server (`apps/mcp/mcp_server/fake.py`) answers each tool
+  with fixtures built from these models.
 
 - **Errors:** every tool returns `ToolError` (`DENY`, `NOT_FOUND`, `SESSION_EXPIRED`, `UNAVAILABLE`) instead of raising;
   a `DENY` is also written to `policy_denials` with its `policy_id`.
@@ -472,8 +478,9 @@ Implementation goes in one `feat/01-*` branch per task (for example `feat/01-pac
       covers AC-01, AC-04 (receipt half; the echo graph is T5) · `tests/test_spec01_contracts.py`
 - [x] T3 — api stub: every route of §6.2 and §6.8 returning fixtures validated by the models; `mode` on sessions ·
       covers AC-02, AC-06, AC-07
-- [ ] T4 — `contracts/tools.py` v1.1 and `policies.yaml` `actors.customer.tools` with the 16 tools; fake MCP server
-      returning fixtures from those models, `synthetic` rows in `live` · covers AC-03, AC-08
+- [x] T4 — `contracts/tools.py` v1.1 and `policies.yaml` `actors.customer.tools` with the 16 tools; fake MCP server
+      returning fixtures from those models · covers AC-03 · `tests/test_spec01_mcp_stub.py`. `synthetic` rows in
+      `live` (AC-08) are P1 (D-001) and stay open.
 - [ ] T5 — echo graph `dispute_intake` returning a `TurnResult` with a sample receipt; `langgraph.json` sets
       `"python_version": "3.13"` (§6.1) · covers AC-04
 - [x] T6 — `infra/compose.dev.yml` (api stub, mcp stub, postgres) and `.env.example` names of §6.9 · covers AC-02
@@ -495,6 +502,11 @@ Implementation goes in one `feat/01-*` branch per task (for example `feat/01-pac
       `tests/test_spec01_store_schema.py`; its `postgres`-marked test runs when `TEST_DATABASE_URL` is set, and the
       CI job with a `postgres:16` service comes with task 03a (with grants of INSERT and SELECT only on the AO tables
       for the app role)
+- [x] T11 — api stub follow-ups from the 01d round-2 review: `GET threads/{id}/state` 401 on an expired session (not
+      forwarded), a data-free `reauthenticate` turn (session line, chips, no progress event), the seed answers the stored
+      mode, exact key-set tests for the dict-shaped §6.2 rows, and tests for verify-expired 410, final-state on a
+      non-eval session and the `none` seed's missing customer · covers AC-02, AC-07, AC-08 (seed half) ·
+      `tests/test_spec01_api_stub.py`
 
 **Closing checklist:** every AC has a passing test or check · status → Implemented · contract version recorded in
 `/api/health` · lessons added to `CLAUDE.md`.
