@@ -18,6 +18,7 @@ depends_on = None
 def upgrade() -> None:
     op.execute("alter table demo_transactions add column if not exists product_type text null")
     op.execute("alter table demo_transactions add column if not exists run_id text null")
+    op.execute("create index if not exists demo_transactions_run on demo_transactions (customer_id, run_id)")
 
 
 def downgrade() -> None:

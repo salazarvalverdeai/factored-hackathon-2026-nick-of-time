@@ -243,9 +243,10 @@ class MemoryStore:
 
     def add_demo_transaction(self, row: DemoTransaction) -> DemoTransaction:
         check_text(*row.model_dump().values())
-        if row.transaction_id in self._demo_trx:
-            raise StoreError(f"transaction {row.transaction_id} already exists")
-        self._demo_trx[row.transaction_id] = row
+        with self._serial:
+            if row.transaction_id in self._demo_trx:
+                raise StoreError(f"transaction {row.transaction_id} already exists")
+            self._demo_trx[row.transaction_id] = row
         return row
 
     def demo_transactions(self, customer_id: str, *, run_id: str) -> list[DemoTransaction]:

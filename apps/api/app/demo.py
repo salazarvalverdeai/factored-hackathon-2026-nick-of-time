@@ -11,6 +11,7 @@ from __future__ import annotations
 import base64
 import datetime as dt
 import json
+import math
 import re
 import secrets
 import unicodedata
@@ -31,7 +32,6 @@ NAME_MAX = 40
 # rule, so it is a fixed value [assumption]: 72 places it in the high zone, the block-and-verify path of the demo.
 SYNTHETIC_SCORE = 72.0
 SYNTHETIC_SCENARIO = "visitor-charge"
-CHARGE_MAX_USD = 5000                    # [assumption] the amount_gate's high tier: a larger charge is refused (422)
 CHARGES_PER_SESSION = 3                  # [assumption] with one per minute (spec 05 AC-19)
 CHARGE_EVERY = dt.timedelta(minutes=1)
 MERCHANT = re.compile(r"[^\W_][\w.&'’ -]*")                         # letters and digits joined by space . & ' ’ -
@@ -110,16 +110,30 @@ def new_run_id(now: dt.datetime) -> str:
     return f"{DEMO_RUN_PREFIX}{stamp}-{base64.b32encode(secrets.token_bytes(5)).decode()[:6]}"
 
 
+DIGIT_RUN = re.compile(r"\d(?:[ .&'’-]*\d){3}")              # 4 digits, separators allowed: a card or a phone
+DOMAIN = re.compile(r"\w\.(?:[a-z]{2,}|\d)|www|https?|@", re.I)   # evil.com, www, a URL scheme, an e-mail
+
+
 def clean_merchant(raw: str) -> str:
-    """The typed merchant, trimmed; ValueError unless a plain store name of at most 40 characters: letters, digits
-    (never a run of 5, a card or a document number), spaces and . & ' -, no URL, e-mail or injection pattern."""
+    """The typed merchant, trimmed; ValueError unless a plain store name of at most 40 characters: letters, at most
+    four digits and never four in a row (a card, a phone or a document number, even with separators), spaces and
+    . & ' -, no domain, URL, e-mail or injection pattern. It reaches the agent, the receipt and the console."""
     name = " ".join(unicodedata.normalize("NFC", raw or "").split())
     if not name or len(name) > NAME_MAX or unicodedata.normalize("NFKC", name) != name:
         raise ValueError(f"merchant must be a store name of 1 to {NAME_MAX} characters")
     if (any(unicodedata.category(ch).startswith("C") for ch in raw) or not MERCHANT.fullmatch(name)
-            or re.search(r"\d{5}|www\.", name, re.I) or injection_flagged(name)):
+            or DIGIT_RUN.search(name) or sum(ch.isdigit() for ch in name) > 4 or DOMAIN.search(name)
+            or injection_flagged(name)):
         raise ValueError("merchant must be a plain store name")
     return name
+
+
+def charge_amount(amount: float, cap: float) -> float:
+    """The amount rounded to cents; ValueError below one cent or above the country's cap (the amount_gate high tier)."""
+    cents = round(amount, 2) if math.isfinite(amount) else 0.0
+    if not 0.01 <= cents <= cap:
+        raise ValueError(f"amount must be between 0.01 and {cap:,.0f}")
+    return cents
 
 
 def synthetic_charge(*, customer_id: str, run_id: str, card: dict[str, Any], amount: float, currency: str,

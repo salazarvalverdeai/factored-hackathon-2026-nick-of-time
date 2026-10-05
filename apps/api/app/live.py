@@ -581,27 +581,31 @@ def create_live_app(store: Store, *, catalog: Optional[Catalog] = None, verifier
             raise ApiError(404, "NOT_FOUND", "Unknown session")
         if s["mode"] != "live" or not is_demo_run(s["run_id"]):
             raise ApiError(403, "DENY", "Synthetic charges exist only in a live demo session")
+        gate = policies.amount_gate.by_country.get(s["country"])
+        if gate is None:                                       # PE, CL: no amount gate, no currency for a demo charge
+            raise ApiError(422, "INVALID", "Test charges are not supported in this country's demo")
         try:
-            merchant = demo.clean_merchant(body.merchant)
+            merchant, amount = demo.clean_merchant(body.merchant), demo.charge_amount(body.amount, gate.high)
         except ValueError as error:
             raise ApiError(422, "INVALID", str(error)) from None
-        gate, cards = policies.amount_gate.by_country.get(s["country"]), catalog.products(s["customer_id"])
-        if gate is None or not cards:
-            raise ApiError(503, "UNAVAILABLE", "No card or currency for this customer")
-        if body.amount > demo.CHARGE_MAX_USD * gate.usd_rate:
-            raise ApiError(422, "INVALID", f"amount is above {demo.CHARGE_MAX_USD * gate.usd_rate:,.0f} {gate.currency}")
-        now, last = app.state.now(), app.state.charges.get(s["session_id"])
-        mine = store.demo_transactions(s["customer_id"], run_id=s["run_id"])
-        if (last and now - last < demo.CHARGE_EVERY) or len(mine) >= demo.CHARGES_PER_SESSION:
-            raise ApiError(429, "DENY", "One synthetic charge per minute, three per session")
-        card = next((c for c in cards if c["status"] == "Active"), cards[0])
-        row = store.add_demo_transaction(demo.synthetic_charge(
-            customer_id=s["customer_id"], run_id=s["run_id"], card=card, amount=body.amount, currency=gate.currency,
-            usd_rate=gate.usd_rate, merchant=merchant, generated_at=now,
-            local_now=now.astimezone(ZoneInfo(TIME_ZONES.get(s["country"], "UTC"))),
-            taken=lambda i: catalog.transaction(i) is not None or any(r.transaction_id == i for r in mine)))
-        app.state.charges = {k: v for k, v in app.state.charges.items() if now - v < demo.CHARGE_EVERY}
-        app.state.charges[s["session_id"]] = now
+        # the card the run may still charge: its overlay status (a block this run made), else gold's
+        cards = [c for c in catalog.products(s["customer_id"]) if (getattr(
+            store.product_status(c["product_id"], run_id=s["run_id"]), "status", None) or c["status"]) == "Active"]
+        if not cards:
+            raise ApiError(409, "INVALID", "No active card in this demo session")
+        now, card = app.state.now(), cards[0]
+        with store.serialize(f"synthetic-charge:{s['run_id']}"):    # the count and the insert, one at a time
+            last, mine = app.state.charges.get(s["session_id"]), store.demo_transactions(s["customer_id"],
+                                                                                          run_id=s["run_id"])
+            if (last and now - last < demo.CHARGE_EVERY) or len(mine) >= demo.CHARGES_PER_SESSION:
+                raise ApiError(429, "DENY", "One synthetic charge per minute, three per session")
+            row = store.add_demo_transaction(demo.synthetic_charge(
+                customer_id=s["customer_id"], run_id=s["run_id"], card=card, amount=amount, currency=gate.currency,
+                usd_rate=gate.usd_rate, merchant=merchant, generated_at=now,
+                local_now=now.astimezone(ZoneInfo(TIME_ZONES.get(s["country"], "UTC"))),
+                taken=lambda i: catalog.transaction(i) is not None or any(r.transaction_id == i for r in mine)))
+            app.state.charges = {k: v for k, v in app.state.charges.items() if now - v < demo.CHARGE_EVERY}
+            app.state.charges[s["session_id"]] = now
         return {**{k: v for k, v in demo.charge_view(row).items() if k != "product_id"}, "last4": card["last4"]}
 
     @app.get("/api/me/products", response_model=list[ProductView])

@@ -120,7 +120,8 @@ def case_reads_handlers(gold: Gold, policies: Policies, store: Store, *, cards: 
         return t.GetCaseOut(
             case_id=case.case_id, queue_status=status, status_label=STATUS_LABEL[status][lang(call)],
             transaction=t.CaseCharge(transaction_id=trx.transaction_id, amount=trx.amount, currency=trx.currency,
-                                     transaction_date=trx.transaction_date, merchant=trx.merchant),
+                                     transaction_date=trx.transaction_date, merchant=trx.merchant,
+                                     synthetic=trx.synthetic),
             product_last4=card.last4 if card else None, timeline=visible,
             taken_by_person=any(e.type == "assigned" for e in events), related_case_id=related(case, events),
             credit_deadline=case.credit_deadline, ruling_deadline=case.ruling_deadline,
