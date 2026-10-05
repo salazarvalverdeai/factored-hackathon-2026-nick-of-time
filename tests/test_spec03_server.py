@@ -179,7 +179,10 @@ def test_ac_12_unexpected_arguments_are_denied_and_written_to_policy_denials():
         "POL-DEFAULT-DENY", "G-TOOL-01", "agent", LIVE)
     assert denial.detail == {"tool": "search_transaction", "fields": ["customer_id"]} and h.calls == []
     assert denial.trace_id == h.audit[0]["trace_id"]
-    assert "4111" not in json.dumps([d.model_dump(mode="json") for d in h.denials]) and "IGNORE" not in str(h.denials)
+    # Random hex ids (trace_id etc.) may contain "4111" by chance: check every field except the random trace_id.
+    rows = [{k: v for k, v in d.model_dump(mode="json").items() if k != "trace_id"} for d in h.denials]
+    assert "4111" not in json.dumps(rows) and "IGNORE" not in json.dumps(rows)
+    assert all("4111" not in r.structured_content["message"] for r in results)
 
 
 def test_ac_12_a_handler_deny_is_written_to_policy_denials_with_g_pol_01():

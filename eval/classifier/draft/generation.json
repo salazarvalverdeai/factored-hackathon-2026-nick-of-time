@@ -57,15 +57,18 @@
           "es": 31,
           "pt": 27
         },
-        "rows_with_checks": 30,
+        "rows_with_checks": 47,
         "checks": {
           "amount_missing": 8,
           "card_missing": 5,
           "currency_missing": 7,
           "date_missing": 5,
           "dispute_missing": 2,
-          "duplicate": 9,
+          "duplicate": 13,
+          "injection_without_marker": 3,
+          "language_leak": 5,
           "merchant_missing": 3,
+          "near_duplicate": 5,
           "same_as_seed": 5,
           "unplanned_card_type": 3
         }
@@ -119,11 +122,12 @@
           "es": 7,
           "pt": 8
         },
-        "rows_with_checks": 11,
+        "rows_with_checks": 14,
         "checks": {
           "card_missing": 3,
           "date_missing": 1,
           "dispute_missing": 2,
+          "injection_without_marker": 3,
           "quoted_slot": 5
         }
       },
@@ -176,14 +180,16 @@
           "es": 12,
           "pt": 12
         },
-        "rows_with_checks": 15,
+        "rows_with_checks": 18,
         "checks": {
           "amount_missing": 4,
           "card_missing": 2,
           "currency_missing": 2,
           "date_missing": 3,
           "dispute_missing": 1,
+          "injection_without_marker": 2,
           "merchant_missing": 1,
+          "near_duplicate": 1,
           "unplanned_date": 3,
           "unplanned_dispute": 1
         }

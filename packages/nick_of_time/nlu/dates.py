@@ -25,7 +25,7 @@ _OFFSETS = [(r"\b(?:anteayer|antier|antes de ayer|anteontem)\b", 2), (r"\b(?:aye
 
 _ISO = re.compile(r"\b(\d{4})-(\d{2})-(\d{2})\b")
 _DMY = re.compile(r"\b(\d{1,2})/(\d{1,2})/(\d{4})\b")
-_DAY_MONTH = re.compile(r"\b(\d{1,2}) de (" + "|".join(_MONTHS) + r")(?: de (\d{4}))?\b")
+_DAY_MONTH = re.compile(r"\b(\d{1,2}) (?:de )?(" + "|".join(_MONTHS) + r")(?: de (\d{4}))?\b")
 _AGO = re.compile(r"\b(?:hace|ha) (\d{1,3}) dias?\b")
 _WEEKDAY = re.compile(r"(?:\b(na|no|nesta|neste|desta|deste|dessa|desse|ultima|ultimo) )?\b(" + "|".join(_WEEKDAYS)
                       + r")(-feira| passad[ao])?\b")
