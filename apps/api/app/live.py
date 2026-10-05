@@ -28,7 +28,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse, RedirectResponse, StreamingResponse
 from pydantic import ValidationError
 
-from app import demo
+from app import demo, voice
 from app.auth import AuthError, CognitoVerifier
 from app.catalog import Catalog, FixtureCatalog, catalog_from_env
 from app.guard import install as install_guard
@@ -579,6 +579,8 @@ def create_live_app(store: Store, *, catalog: Optional[Catalog] = None, verifier
             app.state.charges = {k: v for k, v in app.state.charges.items() if now - v < demo.CHARGE_EVERY}
             app.state.charges[s["session_id"]] = now
         return {**{k: v for k, v in demo.charge_view(row).items() if k != "product_id"}, "last4": card["last4"]}
+
+    voice.install(app, store, session, day_cap)                     # POST /api/voice/transcribe (AC-21, D-072)
 
     @app.get("/api/me/products", response_model=list[ProductView])
     def products(s: dict = Depends(session)):

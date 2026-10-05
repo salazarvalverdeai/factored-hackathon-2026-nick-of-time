@@ -50,8 +50,24 @@ class BedrockClient(LLMClient):
         return req
 
     def _call(self, system, user, schema, tool_name, max_tokens, mode, temperature):
+        return self._converse(self.request(system, user, schema, tool_name, max_tokens, mode, temperature))
+
+    def _transcribe(self, audio, fmt, prompt, max_tokens, temperature):
+        """Voxtral speech to text (D-072): Converse with an `audio` content block (format + raw bytes) and the
+        instruction as text. Shape checked on 2026-10-05 against the Converse API reference
+        (https://docs.aws.amazon.com/bedrock/latest/APIReference/API_runtime_AudioBlock.html) and the model card
+        (https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-mistral-ai-voxtral-mini-3b-2507.html:
+        Converse and Invoke, speech input, in-region us-east-2 only)."""
+        cfg: dict = {"maxTokens": max_tokens}
+        if temperature is not None:
+            cfg["temperature"] = temperature
+        content = [{"audio": {"format": fmt, "source": {"bytes": audio}}}, {"text": prompt}]
+        return self._converse({"modelId": self.model, "messages": [{"role": "user", "content": content}],
+                               "inferenceConfig": cfg})
+
+    def _converse(self, req: dict) -> dict:
         try:
-            r = self._client.converse(**self.request(system, user, schema, tool_name, max_tokens, mode, temperature))
+            r = self._client.converse(**req)
         except Exception as exc:
             mapped = provider_error(exc)
             if mapped is None:

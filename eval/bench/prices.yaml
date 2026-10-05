@@ -161,3 +161,20 @@ prices:
     source_url: https://opper.ai/typesafe/jev-1-13-0
     checked_on: "2026-10-04"
     note: "third-party gateway listing, not TypeSafe; output free per spec 15 section 4.1; not confirmed with TypeSafe"
+  # Voice speech-to-text (D-072, spec 05 AC-21): not benchmark arms (no text task), priced for llm_calls and the daily
+  # cap. On-demand standard tier, usage types USE2-Voxtral-Mini-3B-2507-* and USE2-Voxtral-Mini-24B-2507-* (the
+  # Small model), offer file publicationDate 2026-10-05.
+  voxtral-mini-3b:
+    input_per_1m: 0.04
+    output_per_1m: 0.04
+    status: confirmed
+    label: "[external]"
+    source_url: https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonBedrock/current/us-east-2/index.json
+    checked_on: "2026-10-05"
+  voxtral-small-24b:
+    input_per_1m: 0.1
+    output_per_1m: 0.3
+    status: confirmed
+    label: "[external]"
+    source_url: https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonBedrock/current/us-east-2/index.json
+    checked_on: "2026-10-05"

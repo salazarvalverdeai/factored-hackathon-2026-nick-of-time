@@ -218,12 +218,14 @@ def _merchant(text: str) -> Optional[str]:
     return None
 
 
-def detect_language(text: str, hint: Optional[str] = None) -> str:
+def detect_language(text: str, hint: Optional[str] = None, default: str = "es") -> str:
+    """The hint when it is es/pt, else the language with more of its words; a tie is `default` (the voice route
+    passes the session language, D-072)."""
     if hint in ("es", "pt"):
         return hint
     words = re.findall(r"[a-z]+", fold(text))                # punctuation stripped: "caso?" counts as "caso"
     pt, es = sum(w in _PT_WORDS for w in words), sum(w in _ES_WORDS for w in words)
-    return "pt" if pt > es else "es"
+    return "pt" if pt > es else "es" if es > pt else default
 
 
 # [assumption] G-IN-03: a clear sentence in another language (English, French, German) is answered by rule, never by a
