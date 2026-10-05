@@ -1,8 +1,8 @@
 {
   "dependencies": [".", "./packages"],
   "graphs": {
-    "dispute_intake": "./apps/agent/agent/graph.py:graph",
-    "dispute_intake_next": "./apps/agent/agent/intake.py:graph"
+    "dispute_intake": "./apps/agent/agent/intake.py:graph",
+    "dispute_intake_echo": "./apps/agent/agent/graph.py:graph"
   },
   "python_version": "3.13"
 }
