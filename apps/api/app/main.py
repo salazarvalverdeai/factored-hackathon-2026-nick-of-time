@@ -198,6 +198,23 @@ class RecentTransactionOut(Out):
     currency: str
     merchant: Optional[str]                          # null in some gold rows: the chip then names no merchant
     last4: Optional[str]                             # the card's last 4, for a customer with several cards
+    synthetic: bool = False                          # a live demo run's synthetic charge [simulated] (AC-19)
+
+
+class SyntheticChargeIn(BaseModel):
+    amount: float                                    # in the customer's currency; app.demo.charge_amount checks it
+    merchant: str                                    # checked by app.demo.clean_merchant (422 when not a plain name)
+
+
+class SyntheticChargeOut(Out):
+    transaction_id: str
+    date: dt.date
+    amount: float
+    currency: str
+    merchant: str
+    last4: Optional[str]
+    synthetic: Literal[True] = True
+    label: Literal["[simulated]"] = "[simulated]"
 
 
 class VerifyIn(BaseModel):

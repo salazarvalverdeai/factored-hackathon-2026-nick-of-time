@@ -54,6 +54,10 @@ AC-01 to AC-05 are copied from issue #9 with the same numbers. None is dropped o
      or free text. A chip sends a message naming the date, the amount with its currency and the merchant; when
      `merchant` is null it names only the date and amount; when the list holds more than one card it adds "card
      ending {last4}".
+  7. demo type C (DEMOCD, only when the session's `mode` is `live`): a "register a test charge" form (amount in the
+     country's currency, merchant) that posts `POST /api/sessions/{id}/synthetic-charge` (spec 05 AC-19); the answer
+     and its chip carry the `[simulated]` label, and the chip list is re-read so the charge shows first. A 429 shows
+     "one test charge per minute"; a 403 hides the form (a replay session).
   The agent greets with the typed name, else the gold name, from `get_customer_profile`. Each session starts clean.
   Telegram and e-mail are off in a demo session (the link routes answer 403): the case page and the in-app log show
   every update.

@@ -12,7 +12,7 @@ from typing import Any, Optional
 
 from contracts import tools as t
 from mcp_server.gate import UNAVAILABLE, Call, Handler
-from mcp_server.gold import Gold, GoldCustomer, GoldTransaction
+from mcp_server.gold import Gold, GoldCustomer, GoldTransaction, Synthetic, find, run_charges
 from nick_of_time.nlu.text import fold
 from nick_of_time.policy import Policies, clock
 from nick_of_time.store import is_demo_run
@@ -60,10 +60,11 @@ def _code(country: Optional[str]) -> Optional[str]:
 
 def read_handlers(gold: Gold, policies: Policies, *, channels: Optional[Callable[[str], Iterable[Any]]] = None,
                   convert: Converter = no_verified_rate,
-                  utc_now: Optional[Callable[[], dt.datetime]] = None) -> dict[str, Handler]:
+                  utc_now: Optional[Callable[[], dt.datetime]] = None,
+                  synthetic: Optional[Synthetic] = None) -> dict[str, Handler]:
     """`channels(customer_id)` yields the store's customer channels (task 01g, PR #87) with `channel`, `address` and
     `confirmed`; without it no channel is listed [assumption]. `utc_now` serves tests; without it `clock.today` reads
-    the real date, and only in live mode."""
+    the real date, and only in live mode. `synthetic` gives a live demo run's own synthetic charges (AC-14)."""
     gates = policies.amount_gate.by_country
 
     def today(call: Call, country: str) -> dt.date:
@@ -118,12 +119,14 @@ def read_handlers(gold: Gold, policies: Policies, *, channels: Optional[Callable
         if found is None:
             return UNAVAILABLE
         row, country = found
-        now = today(call, country)          # live: the country's real date; demo_transactions wait for AC-14 (P1)
+        now = today(call, country)          # live: the country's real date
         anchor = args.approx_date or now
         start, end = ((anchor - dt.timedelta(days=args.window_days), anchor + dt.timedelta(days=args.window_days))
                       if args.approx_date else (now - dt.timedelta(days=NO_DATE_DAYS), now))
         wanted, ranked = _tokens(args.merchant), []
-        for trx in gold.transactions(row.customer_id, start, min(end, now), STATUSES):
+        extra = [t for t in run_charges(synthetic, call.session)    # AC-14: live demo run only, never in replay
+                 if start <= t.transaction_date <= min(end, now) and t.transaction_status in STATUSES]
+        for trx in [*gold.transactions(row.customer_id, start, min(end, now), STATUSES), *extra]:
             gap = 0.0 if args.amount is None else amount_error(args.amount, args.currency, trx, country)
             similarity = len(wanted & _tokens(trx.merchant)) / len(wanted) if wanted else 0.0
             if gap is None or (wanted and trx.merchant and not similarity) or usd(trx) is None:
@@ -132,18 +135,20 @@ def read_handlers(gold: Gold, policies: Policies, *, channels: Optional[Callable
         return t.SearchTransactionOut(candidates=[t.Transaction(
             transaction_id=trx.transaction_id, product_id=trx.product_id, transaction_date=trx.transaction_date,
             amount=trx.amount, currency=trx.currency, amount_usd=usd(trx), merchant=trx.merchant,
-            transaction_status=trx.transaction_status) for _, trx in sorted(ranked)[:MAX_CANDIDATES]])
+            transaction_status=trx.transaction_status, synthetic=trx.synthetic)
+            for _, trx in sorted(ranked)[:MAX_CANDIDATES]])
 
     def score(call: Call, args: t.GetFraudScoreIn):
-        trx = gold.transaction(call.session.customer_id, args.transaction_id)
+        trx = find(gold, synthetic, call.session, args.transaction_id)
         if trx is None:                                     # unknown or another customer's: the same answer
             return PROBE if gold.owner(args.transaction_id) else NOT_FOUND
-        return t.GetFraudScoreOut(transaction_id=trx.transaction_id, score=trx.fraud_score, source="dataset",
-                                  version=policies.scoring.providers["dataset"]["version"])
+        source = "synthetic" if trx.synthetic else "dataset"   # D-027: a live synthetic charge's own score decides
+        return t.GetFraudScoreOut(transaction_id=trx.transaction_id, score=trx.fraud_score, source=source,
+                                  version=policies.scoring.providers[source]["version"])
 
     def deadline(call: Call, args: t.ComputeDeadlineIn):
         """Spec 03 §6: delegates to `clock.deadline()` (spec 02 §4.3), opened today in the customer's country."""
-        trx = gold.transaction(call.session.customer_id, args.transaction_id)
+        trx = find(gold, synthetic, call.session, args.transaction_id)
         if trx is None:                                     # unknown or another customer's: the same answer
             return PROBE if gold.owner(args.transaction_id) else NOT_FOUND
         row = gold.customer(call.session.customer_id)

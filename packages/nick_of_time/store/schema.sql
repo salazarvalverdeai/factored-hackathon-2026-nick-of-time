@@ -70,8 +70,10 @@ create table if not exists demo_transactions (                                  
   fraud_score double precision null,
   latitude double precision null,
   longitude double precision null,
+  product_type text null,                                                          -- the card type, as transactions_enriched
   synthetic boolean not null default true check (synthetic),
   scenario text not null,
+  run_id text null,                                                                -- the demo session's run (ADR 0026)
   generated_at timestamptz not null default now()
 );
 
@@ -223,6 +225,7 @@ create unique index if not exists case_events_action_id_once on case_events ((pa
                  'notification_sent');
 -- A call request's action id is used once too (D-026).
 create unique index if not exists call_requests_action_id_once on call_requests (action_id);
+create index if not exists demo_transactions_run on demo_transactions (customer_id, run_id);   -- a run's charges
 
 create or replace function forbid_append_only_change() returns trigger language plpgsql as $$
 begin

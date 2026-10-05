@@ -11,14 +11,16 @@ from __future__ import annotations
 import base64
 import datetime as dt
 import json
+import math
 import re
 import secrets
 import unicodedata
 from pathlib import Path
+from collections.abc import Callable
 from typing import Any, Optional
 
 from nick_of_time.nlu.injection import injection_flagged
-from nick_of_time.store import DEMO_RUN_PREFIX
+from nick_of_time.store import DEMO_RUN_PREFIX, DemoTransaction
 
 EVAL_DIR = Path(__file__).resolve().parents[3] / "eval"                # /srv/eval/... in the image
 CASE_FILES = (EVAL_DIR / "cases/dev.jsonl", EVAL_DIR / "demo/sample_cases.jsonl")
@@ -26,6 +28,14 @@ ALLOWED_SETS = {"dev", "sample"}
 FORBIDDEN = re.compile(r"heldout|held[-_ ]out|test", re.I)
 NAME = re.compile(r"[^\W\d_]+(?:(?:[ '’-]+|\. +)[^\W\d_]+)*\.?")      # words joined by space ' ’ - or ". "
 NAME_MAX = 40
+# Type C, a synthetic charge [simulated] (spec 05 AC-19). D-027 says the score is generated with the charge but sets no
+# rule, so it is a fixed value [assumption]: 72 places it in the high zone, the block-and-verify path of the demo.
+SYNTHETIC_SCORE = 72.0
+SYNTHETIC_SCENARIO = "visitor-charge"
+CHARGES_PER_SESSION = 3                  # [assumption] with one per minute (spec 05 AC-19)
+CHARGE_EVERY = dt.timedelta(minutes=1)
+MERCHANT = re.compile(r"[^\W_][\w.&'’ -]*")                         # letters and digits joined by space . & ' ’ -
+CARD_TYPE = {"debit": "Tarjeta Débito", "credit": "Tarjeta Crédito"}
 
 
 def read_cases(path: Path) -> list[dict[str, Any]]:
@@ -98,3 +108,54 @@ def new_run_id(now: dt.datetime) -> str:
     """`demo-<UTC yyyymmddThhmmssZ>-<6 base32>`: a fresh run per demo session, so nothing of another run is seen."""
     stamp = now.astimezone(dt.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     return f"{DEMO_RUN_PREFIX}{stamp}-{base64.b32encode(secrets.token_bytes(5)).decode()[:6]}"
+
+
+DIGIT_RUN = re.compile(r"\d(?:[ .&'’-]*\d){3}")              # 4 digits, separators allowed: a card or a phone
+DOMAIN = re.compile(r"\w\.(?:[a-z]{2,}|\d)|www|https?|@", re.I)   # evil.com, www, a URL scheme, an e-mail
+
+
+def clean_merchant(raw: str) -> str:
+    """The typed merchant, trimmed; ValueError unless a plain store name of at most 40 characters: letters, at most
+    four digits and never four in a row (a card, a phone or a document number, even with separators), spaces and
+    . & ' -, no domain, URL, e-mail or injection pattern. It reaches the agent, the receipt and the console."""
+    name = " ".join(unicodedata.normalize("NFC", raw or "").split())
+    if not name or len(name) > NAME_MAX or unicodedata.normalize("NFKC", name) != name:
+        raise ValueError(f"merchant must be a store name of 1 to {NAME_MAX} characters")
+    if (any(unicodedata.category(ch).startswith("C") for ch in raw) or not MERCHANT.fullmatch(name)
+            or DIGIT_RUN.search(name) or sum(ch.isdigit() for ch in name) > 4 or DOMAIN.search(name)
+            or injection_flagged(name)):
+        raise ValueError("merchant must be a plain store name")
+    return name
+
+
+def charge_amount(amount: float, cap: float) -> float:
+    """The amount rounded to cents; ValueError below one cent or above the country's cap (the amount_gate high tier)."""
+    cents = round(amount, 2) if math.isfinite(amount) else 0.0
+    if not 0.01 <= cents <= cap:
+        raise ValueError(f"amount must be between 0.01 and {cap:,.0f}")
+    return cents
+
+
+def synthetic_charge(*, customer_id: str, run_id: str, card: dict[str, Any], amount: float, currency: str,
+                     usd_rate: float, merchant: str, local_now: dt.datetime, generated_at: dt.datetime,
+                     taken: Callable[[str], bool]) -> DemoTransaction:
+    """One synthetic card charge of the visitor's live demo run, dated now in the customer's country, in its currency,
+    with the fixed synthetic score: never a score from the visitor. `taken(id)` tells a gold or used transaction id,
+    so the id is drawn again (spec 01 §6.5)."""
+    alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+    transaction_id = next(i for i in ("TRX-" + "".join(secrets.choice(alphabet) for _ in range(20))
+                                      for _ in range(8)) if not taken(i))
+    return DemoTransaction(
+        transaction_id=transaction_id, transaction_date=local_now.replace(tzinfo=None, microsecond=0),
+        process_date=local_now.date(), product_id=card["product_id"], product_type=CARD_TYPE[card["type"]],
+        customer_id=customer_id, amount=round(amount, 2), currency=currency, amount_usd=round(amount / usd_rate, 2),
+        merchant_name=merchant, fraud_score=SYNTHETIC_SCORE, scenario=SYNTHETIC_SCENARIO, run_id=run_id,
+        generated_at=generated_at)
+
+
+def charge_view(row: DemoTransaction) -> dict[str, Any]:
+    """A synthetic charge as a recent-transactions row (`product_id` names its card) and, without `product_id`, as
+    `CaseTransaction`; flagged `synthetic` [simulated]."""
+    return {"transaction_id": row.transaction_id, "product_id": row.product_id, "amount": row.amount,
+            "currency": row.currency, "date": row.transaction_date.date().isoformat(), "merchant": row.merchant_name,
+            "synthetic": True}

@@ -16,7 +16,7 @@ from typing import Any, Literal, Optional, get_args
 from nick_of_time import ids
 from nick_of_time.contracts import AnalystActionIn, AnalystActionOut, QueueStatus
 from nick_of_time.store import (CUSTOMER_VISIBLE, RESERVED_EVENTS, UNDELIVERED, VERIFIED_WITH, WRITE_EVENTS, WRITE_TOOL,
-                                CallRequest, CaseEvent, CaseRecord, Channel, DeliveryStatus, EventType, NewCase, Notification,
+                                CallRequest, CaseEvent, CaseRecord, DemoTransaction, Channel, DeliveryStatus, EventType, NewCase, Notification,
                                 NotVerified, ProductOverride, StoreError, VerifyingRead, _check_writer, _json,
                                 _utc_now, check_action_id, check_actor, check_business_date, check_text, check_transition,
                                 in_runs, insert_with_fresh_case_id)
@@ -43,6 +43,7 @@ class MemoryStore:
         self._once: dict[str, tuple[str, Optional[str], str, dict[str, Any]]] = {}   # key -> (action, run, args, result)
         self._serial = threading.RLock()
         self._calls: list[CallRequest] = []
+        self._demo_trx: dict[str, DemoTransaction] = {}
 
     # ---------- cases ----------
     def create_case(self, case: NewCase, *, actor: str, action_id: str) -> CaseRecord:
@@ -239,6 +240,19 @@ class MemoryStore:
     def call_requests(self, customer_id: str, *, run_id: Optional[str]) -> list[CallRequest]:
         mine = [c for c in self._calls if c.customer_id == check_key(customer_id) and c.run_id == check_key(run_id)]
         return sorted(mine, key=lambda c: (c.created_at, c.event_id))           # as in Postgres
+
+    def add_demo_transaction(self, row: DemoTransaction) -> DemoTransaction:
+        check_text(*row.model_dump().values())
+        with self._serial:
+            if row.transaction_id in self._demo_trx:
+                raise StoreError(f"transaction {row.transaction_id} already exists")
+            self._demo_trx[row.transaction_id] = row
+        return row
+
+    def demo_transactions(self, customer_id: str, *, run_id: str) -> list[DemoTransaction]:
+        mine = [r for r in self._demo_trx.values() if r.customer_id == check_key(customer_id)
+                and r.run_id == check_key(run_id)]
+        return sorted(mine, key=lambda r: (r.generated_at, r.transaction_id))      # as in Postgres
 
     # ---------- internals ----------
     def _case(self, case_id: str) -> CaseRecord:

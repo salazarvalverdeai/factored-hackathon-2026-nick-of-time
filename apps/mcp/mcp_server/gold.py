@@ -10,10 +10,13 @@ from __future__ import annotations
 
 import datetime as dt
 from dataclasses import dataclass
+from collections.abc import Callable
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
 import duckdb
+
+from nick_of_time.store import is_demo_run
 
 CARD_TYPES = ("Tarjeta Débito", "Tarjeta Crédito")           # spec 02 §4.3 product mapping: debit, credit
 FILES = {"transactions": "transactions_enriched.parquet", "customers": "customers.parquet"}
@@ -37,6 +40,7 @@ class GoldTransaction:
     fraud_score: Optional[float]
     product_type: str                          # one of CARD_TYPES: the deadline's product (compute_deadline)
     transaction_country: Optional[str]         # where the charge was made: `abroad` (compute_deadline)
+    synthetic: bool = False                    # a live demo run's `demo_transactions` row (spec 03 AC-14)
 
 
 @dataclass(frozen=True)
@@ -86,3 +90,30 @@ class Gold:
         """Only to log a cross-customer probe (policies.yaml scope.cross_customer_request); never returned."""
         rows = self._rows("SELECT customer_id FROM card WHERE transaction_id = ?", [transaction_id])
         return rows[0][0] if rows else None
+
+
+Synthetic = Callable[[str, str], list[GoldTransaction]]       # (customer_id, demo run_id) -> that run's charges
+
+
+def synthetic_from(store: Any) -> Synthetic:
+    """The store's `demo_transactions` of one demo run as GoldTransaction rows flagged `synthetic` [simulated]."""
+    def rows(customer_id: str, run_id: str) -> list[GoldTransaction]:
+        return [GoldTransaction(r.transaction_id, r.product_id, r.customer_id, r.transaction_date.date(), r.amount,
+                                r.currency, r.amount_usd, r.merchant_name, r.transaction_status, r.fraud_score,
+                                r.product_type, r.transaction_country, synthetic=True)
+                for r in store.demo_transactions(customer_id, run_id=run_id)]
+    return rows
+
+
+def run_charges(synthetic: Optional[Synthetic], session: Any) -> list[GoldTransaction]:
+    """Spec 03 AC-14: the synthetic charges of the session's own run, only for a `live` demo run; none in replay, in
+    production or in another run (ADR 0020 rule 2, ADR 0026)."""
+    if synthetic is None or session.mode != "live" or not is_demo_run(session.run_id) or not session.customer_id:
+        return []
+    return synthetic(session.customer_id, session.run_id)
+
+
+def find(gold: Gold, synthetic: Optional[Synthetic], session: Any, transaction_id: str) -> Optional[GoldTransaction]:
+    """The session customer's transaction: gold's, else one of the run's synthetic charges."""
+    return gold.transaction(session.customer_id, transaction_id) or next(
+        (t for t in run_charges(synthetic, session) if t.transaction_id == transaction_id), None)

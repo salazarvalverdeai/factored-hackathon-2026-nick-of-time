@@ -178,6 +178,30 @@ class Notification(_Row):
     delivery_status: DeliveryStatus = "queued"              # read from its latest notification_deliveries row
 
 
+class DemoTransaction(_Row):
+    """A `demo_transactions` row (spec 01 §6.5, spec 03 AC-14): one synthetic card charge a live demo visitor
+    registered [simulated]. It lives only in Postgres, scoped to its demo `run_id`, and never reaches gold, the
+    lakehouse, the evaluation or a pitch number (ADR 0020 rule 2); `fraud_score` is the synthetic score (D-027)."""
+    transaction_id: str = Field(pattern=ids.GOLD_PATTERN["transaction"])
+    transaction_date: dt.datetime                           # naive local time of the customer's country, as gold
+    process_date: dt.date
+    product_id: str = Field(pattern=ids.GOLD_PATTERN["product"])
+    product_type: Literal["Tarjeta Débito", "Tarjeta Crédito"]
+    customer_id: str = Field(pattern=ids.GOLD_PATTERN["customer"])
+    transaction_type: str = "Compra"
+    amount: float = Field(gt=0)
+    currency: str = Field(pattern=r"^[A-Z]{3}$")
+    amount_usd: Optional[float] = None
+    merchant_name: Optional[str] = Field(None, max_length=60)
+    transaction_country: Optional[str] = None
+    transaction_status: Literal["Approved", "Pending"] = "Approved"
+    fraud_score: Optional[float] = Field(None, ge=0, le=100)
+    synthetic: Literal[True] = True
+    scenario: str = Field(min_length=1)
+    run_id: str = Field(pattern=r"^demo-")                  # a demo session's run only (ADR 0026)
+    generated_at: AwareDatetime
+
+
 class CallRequest(_Row):
     """A `call_requests` row (D-026, spec 03 AC-18): a call asked for with no case. It writes no case event and no read
     verifies it, so it stays `requested`; `event_id` is the `E-` id `request_call` returns."""
@@ -407,6 +431,12 @@ class Store(Protocol):
 
     def call_requests(self, customer_id: str, *, run_id: Optional[str]) -> list[CallRequest]:
         """The customer's call requests with no case in `run_id`, oldest first."""
+
+    def add_demo_transaction(self, row: DemoTransaction) -> DemoTransaction:
+        """Insert one synthetic charge of a live demo run (spec 03 AC-14); a used `transaction_id` is refused."""
+
+    def demo_transactions(self, customer_id: str, *, run_id: str) -> list[DemoTransaction]:
+        """The customer's synthetic charges of that demo run only, oldest first; never another run's."""
 
     # ---------- sessions, policy denials and customer channels (task 01g, store/accounts.py) ----------
     def create_session(self, *, customer_id: Optional[str], otp_hash: str, expires_at: dt.datetime,

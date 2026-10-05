@@ -23,7 +23,7 @@ from pydantic import BaseModel
 from contracts import tools as t
 from mcp_server.cards import GoldCards, cards_of
 from mcp_server.gate import UNAVAILABLE, Call, Handler
-from mcp_server.gold import Gold
+from mcp_server.gold import Gold, find, synthetic_from
 from mcp_server.reads import COUNTRY, NOT_FOUND, PROBE, STATUSES
 from nick_of_time import ids
 from nick_of_time.nlu.text import fold
@@ -75,7 +75,8 @@ def call_open(events: Iterable[CaseEvent]) -> bool:
 
 
 def zone_of(score: Optional[float], policies: Policies) -> str:
-    """Rules 6–9 of spec 02 for a gold score (`dataset`, a deciding source): null → human, else the score's band."""
+    """Rules 6–9 of spec 02 for a deciding score (`dataset`, or a live demo run's `synthetic`, D-027): null → human,
+    else the score's band."""
     if score is None:
         return "human"
     zones = policies.zones
@@ -116,6 +117,7 @@ def writes_handlers(gold: Gold, policies: Policies, store: Store, *, cards: Opti
     index over `gold`'s folder (`cards_of`); `now` (an aware UTC datetime) feeds `clock.today` in live mode only, and
     None lets the clock read it (ADR 0020)."""
     engine, cards = PolicyEngine(policies), cards or cards_of(gold)
+    synthetic = synthetic_from(store)                       # a live demo run's own charges (spec 03 AC-14)
 
     def country_of(call: Call) -> Optional[str]:
         """The customer's country from gold; a country with no regulatory_clock entry still opens its case with no
@@ -149,7 +151,8 @@ def writes_handlers(gold: Gold, policies: Policies, store: Store, *, cards: Opti
         decision = engine.decide(DecisionInput(
             session_state="verified", intent="unrecognized_charge", intent_confidence=1.0, dispute_detected=True,
             injection_flagged=False, cross_customer=False, supervised_mode=False, candidates=1,
-            score=trx.fraud_score, score_source="dataset" if trx.fraud_score is not None else None,
+            score=trx.fraud_score, score_source=None if trx.fraud_score is None else
+            "synthetic" if trx.synthetic else "dataset",
             amount=trx.amount, currency=trx.currency, country=country, product_type=card.type,
             customer_confirmed=True))
         return decision.queue_status_after
@@ -163,7 +166,7 @@ def writes_handlers(gold: Gold, policies: Policies, store: Store, *, cards: Opti
         country = country_of(call)
         if country is None:
             return UNAVAILABLE                              # no country, no deadline: never a guess
-        trx = gold.transaction(customer, args.transaction_id)
+        trx = find(gold, synthetic, call.session, args.transaction_id)
         if trx is None:
             return PROBE if gold.owner(args.transaction_id) else NOT_FOUND
         if trx.transaction_status not in STATUSES:          # Q2: a declined or reversed charge takes no dispute
@@ -227,7 +230,7 @@ def writes_handlers(gold: Gold, policies: Policies, store: Store, *, cards: Opti
             case = next((c for c in cases if c.trace_id == call.trace_id), cases[0] if cases else None)
             if case is None:                                # AC-10: no open case of this card
                 raise Refused(deny("POL-DEFAULT-DENY", "There is no open case for this card."))
-            trx = gold.transaction(customer, case.transaction_id)
+            trx = find(gold, synthetic, call.session, case.transaction_id)
             verdict = engine.check("block_card", case.zone, supervised_mode=False,
                                    call_requested=call_open(store.events(case.case_id)),
                                    amount=trx.amount if trx else None, currency=trx.currency if trx else None,

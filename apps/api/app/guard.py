@@ -27,7 +27,8 @@ LIMITS = {"session": ("RATE_SESSIONS_PER_IP_HOUR", 10, "RATE_SESSIONS_GLOBAL_HOU
           "turn": ("RATE_TURNS_PER_IP_HOUR", 60, "RATE_TURNS_GLOBAL_HOUR", 1500)}
 TRUSTED_PROXIES = "172.16.0.0/12,192.168.0.0/16"      # [assumption] Docker's default bridge pools, where Caddy runs
 ROUTES = (("POST", re.compile(r"/api/sessions"), "session"),
-          ("POST", re.compile(r"/api/agent/threads(/[^/]+/runs/stream)?"), "turn"))
+          ("POST", re.compile(r"/api/agent/threads(/[^/]+/runs/stream)?"), "turn"),
+          ("POST", re.compile(r"/api/sessions/[^/]+/synthetic-charge"), "turn"))     # demo type C (spec 05 AC-19)
 MESSAGE = ("Recibimos muchas solicitudes desde tu conexión. Intenta de nuevo en unos minutos. / Recebemos muitas "
            "solicitações da sua conexão. Tente novamente em alguns minutos.")
 

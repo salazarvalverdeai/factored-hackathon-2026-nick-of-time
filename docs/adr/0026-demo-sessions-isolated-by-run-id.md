@@ -38,6 +38,12 @@ The details that matter:
 - The original picker (`customer_id`) still works until the web moves to scenarios, and its sessions get a fresh
   `demo-` run too: every session the public URL opens is isolated.
 
+**Update 2026-10-05 (DEMOCD, demo type C).** A live demo visitor may register one synthetic charge at a time
+(`POST /api/sessions/{id}/synthetic-charge`, spec 05 AC-19). The `demo_transactions` row carries the session's `run_id`
+and is read only by that run, so the same isolation holds: another visitor of the same customer, a replay session or a
+production session never sees it (spec 03 AC-14). Its score is a fixed `[assumption]` value labeled `synthetic`
+(D-027), never the visitor's; it never reaches gold, the lakehouse, the evaluation or a pitch number (ADR 0020).
+
 ## Alternatives considered
 | Option | Pros | Cons |
 |---|---|---|

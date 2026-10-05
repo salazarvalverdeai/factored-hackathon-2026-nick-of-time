@@ -19,7 +19,7 @@ import yaml
 from contracts import tools as t
 from mcp_server.cards import GoldCard, GoldCards, cards_of
 from mcp_server.gate import UNAVAILABLE, Call, Handler
-from mcp_server.gold import Gold
+from mcp_server.gold import Gold, find, synthetic_from
 from mcp_server.writes import NO_CARD, NO_CASE, probe
 from nick_of_time.contracts import CONTRACTS_DIR
 from nick_of_time.policy import Policies, clock
@@ -109,7 +109,7 @@ def case_reads_handlers(gold: Gold, policies: Policies, store: Store, *, cards: 
         if case is None:
             other = store.get_case(args.case_id, run_id=session.run_id, customer_id=None)
             return probe(NO_CASE) if other else NO_CASE
-        trx = gold.transaction(session.customer_id, case.transaction_id)
+        trx = find(gold, synthetic_from(store), session, case.transaction_id)
         if trx is None:
             return UNAVAILABLE                              # no fact to state: never a guess
         verified = verify(call, args.action_id, "get_case", case_id=case.case_id)
@@ -120,7 +120,8 @@ def case_reads_handlers(gold: Gold, policies: Policies, store: Store, *, cards: 
         return t.GetCaseOut(
             case_id=case.case_id, queue_status=status, status_label=STATUS_LABEL[status][lang(call)],
             transaction=t.CaseCharge(transaction_id=trx.transaction_id, amount=trx.amount, currency=trx.currency,
-                                     transaction_date=trx.transaction_date, merchant=trx.merchant),
+                                     transaction_date=trx.transaction_date, merchant=trx.merchant,
+                                     synthetic=trx.synthetic),
             product_last4=card.last4 if card else None, timeline=visible,
             taken_by_person=any(e.type == "assigned" for e in events), related_case_id=related(case, events),
             credit_deadline=case.credit_deadline, ruling_deadline=case.ruling_deadline,

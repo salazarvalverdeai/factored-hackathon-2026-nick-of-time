@@ -136,7 +136,7 @@ def test_ac_17_recent_transactions_are_the_sessions_cards_only_without_score_and
     mine, theirs = open_demo(me, scenario="SCN-MX-1"), open_demo(other, scenario="SCN-MX-1")
     got = me.get(f"/api/sessions/{mine}/recent-transactions").json()
     assert got == [{"transaction_id": TRX, "date": "2026-05-31", "amount": 1250.0, "currency": "MXN",
-                    "merchant": "Tienda X", "last4": "4417"}]                      # the savings row is not a card
+                    "merchant": "Tienda X", "last4": "4417", "synthetic": False}]  # the savings row is not a card
     assert me.get(f"/api/sessions/{theirs}/recent-transactions").status_code == 404
     assert TestClient(app).get(f"/api/sessions/{mine}/recent-transactions").status_code == 401
 
