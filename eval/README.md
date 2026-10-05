@@ -185,7 +185,22 @@ python -m eval.second_label agreement    # writes eval/labeling/agreement.json a
   `cases/plan/dev.jsonl` (intent) and `cases/dev.jsonl` `expected` (decision, handoff, case open). If both raters use
   a single category for every case, kappa is 0/0 and is defined as 1.0. Disagreements are discussed and the cases
   fixed in the plan, never in `expected` by hand.
-- **Result:** pending; paste the table printed by `agreement` here.
+- **Result (2026-10-05):** the sheet was pre-filled blind by an AI assistant (Claude Code), from the sheet and the
+  rules only (spec 02, `contracts/policies.yaml`, spec 09 §7.5), without opening `cases/`, and every row was then
+  checked by the lead, who signs it as `labeler`. Sheet: `labeling/dev_second_label.csv`; numbers:
+  `labeling/agreement.json`.
+
+  | Field | n | Agreements | % agreement | Cohen's kappa | Disagreeing cases |
+  |---|---|---|---|---|---|
+  | `intent` | 20 | 19 | 95.0 | 0.925 | EV-0117 |
+  | `decision` | 20 | 20 | 100.0 | 1.0 | - |
+  | `handoff` | 20 | 20 | 100.0 | 1.0 | - |
+  | `case_open` | 20 | 20 | 100.0 | 1.0 | - |
+
+  EV-0117 (expired session): the second label is `none`, because the case is refused before any intent matters,
+  and the first keeps the intent of the message. Both give `reauthenticate`, so it is a labeling convention, not a
+  disagreement on the outcome, and no case changes. With 20 cases the kappas are wide; they show the labels are
+  reproducible from the written rules, not that the rules are right.
 
 ## Classifier set (`classifier/`)
 The ES/PT sentences of spec 11, with five intents, slots and injection rows (spec 09 §7.6). They are written by three
@@ -240,5 +255,8 @@ its provider, model, toolChoice mode, temperature and measured cost.
   the split files are promoted it reads the human-reviewed train and validation drafts; it never reads test.
 - `make classifier-test`: **the one test-split run, after the seal (M02)**. Refused while `PROTOCOL.md` is UNSEALED, when no
   `protocol-v1` tag in HEAD's history holds this same `PROTOCOL.md`, or when the promoted split files do not hash to
-  the sealed manifest. It writes `models/intent-b1-v1.joblib`, `results/classifier.csv` and `apps/web/public/data/classifier.json` (spec 11 §7.1), and
-  labels a test split decided by `rules-v1` "test split without independent human review" (ADR 0025 amendment).
+  the sealed manifest. It scores exactly the pre-registered arms B0, B1 and B2 and refuses any other set (AC-02,
+  `PROTOCOL.md` §1.2). It saves B1 before `test.jsonl` is read, then writes `models/intent-b1-v1.joblib`,
+  `results/classifier.csv` and `apps/web/public/data/classifier.json` (spec 11 §7.1). The export records
+  `test_review` (`rules-v1` or `human`) and, for `rules-v1`, the label "test split decided by fixed rules, without
+  independent human review" (ADR 0028), plus the B1 file's sha256 and the scikit-learn version that wrote it.

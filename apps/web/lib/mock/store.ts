@@ -37,7 +37,14 @@ export type ApiErrorCode =
   | "APPROVAL_REQUIRED"
   | "NOT_FOUND"
   | "BAD_REQUEST"
-  | "LIVE_API_NOT_READY";
+  | "LIVE_API_NOT_READY"
+  // the live api's own codes (spec 05 / spec 01 §6.2)
+  | "UNAUTHENTICATED"
+  | "DENY"
+  | "INVALID"
+  | "UNAVAILABLE"
+  | "RATE_LIMITED"
+  | (string & {});
 
 export class ApiError extends Error {
   code: ApiErrorCode;

@@ -18,6 +18,7 @@ export const PATHS = [
   "suggest.add_info", "suggest.request_call", "suggest.view_case",
   "receipt.title", "receipt.card_blocked", "receipt.what_ai_did_blocked", "receipt.what_ai_did_case_only",
   "receipt.what_a_person_does", "receipt.case_link",
+  "receipt.credit_deadline", "receipt.ruling_deadline", "receipt.deadline_unknown",
 ];
 
 const yaml = parse(readFileSync(CONTRACT, "utf8"));
