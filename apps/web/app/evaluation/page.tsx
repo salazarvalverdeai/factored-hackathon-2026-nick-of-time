@@ -11,6 +11,9 @@ import {
   type FraudData,
   type Insight,
 } from "@/lib/evaluation";
+import pitch from "@/public/data/pitch_numbers.json";
+import type { PitchContacts } from "@/lib/panel";
+import { AsIsPanel } from "./panel";
 import { EvaluationResults } from "./results";
 import { BenchmarkSection, ClassifierSection, FraudSection } from "./sections";
 
@@ -42,6 +45,7 @@ export default function Page() {
         .
       </p>
       <div className="space-y-4">
+        <AsIsPanel contacts={pitch.data.contacts as PitchContacts} source={pitch.source} generatedAt={pitch.generated_at} summary={summary.file} />
         {summary.file ? <EvaluationResults file={summary.file} /> : <Pending {...summary.missing!} />}
         {/* spec 12 §7.3 order: benchmark (5), classifier (6), fraud model (7). */}
         {benchmark.file ? <BenchmarkSection file={benchmark.file} /> : <Pending {...benchmark.missing!} />}
