@@ -30,8 +30,8 @@ comment). AC-04 onward are added by this spec. Evidence: [T] test · [C] command
   `[data]` for spec 17), with a link to
   `eval/PROTOCOL.md`. · [U]
 - **AC-02 (P1)** — `/analytics` shall show the pitch numbers with their `[data]` label and source, plus the
-  operational KPIs of spec 14. · [U] (pitch numbers done in PR #72; the KPIs wait for spec 14, deferred until after
-  the submission)
+  operational KPIs of spec 14. · [U] (pitch numbers done in PR #72; the KPIs wait for spec 14 T5, the run on
+  live traffic)
 - **AC-03 (P1)** — `/data` shall show the medallion, the quality report, the manifest versions and the late-arrival
   fixture result. · [U]
 - **AC-04** — While a result file of §7.1 does not exist, its section shall show "Results pending" with what is
@@ -104,7 +104,7 @@ checks re-run between `delivery_1` and `delivery_2` of the fixture). Built by a 
 
 ## 9. Out of scope
 Power BI · computing any metric in the browser (the pages only display) · the operational lakehouse (spec 14) and,
-while it is deferred (lead, 2026-10-05), its KPIs on `/analytics` (T6) · the landing page and the slides (E1) · P2:
+until spec 14 T5 runs on live traffic, its KPIs on `/analytics` (T6) · the landing page and the slides (E1) · P2:
 auditor findings and judge–analyst agreement.
 
 ## 10. Plan, tasks and verification
