@@ -23,7 +23,7 @@ States: **Draft → Approved → In progress → Implemented → Superseded**. S
 | 11 | Intent classifier + injection detector + selection protocol | @salazarvalverdeai | P0 | M | 09 | #13 | Draft |
 | 12 | Insight pages content: `/evaluation` (P0), `/analytics`, `/data` | @vldiego | P0/P1 | M | 16, 10, 15 | #14 | In progress |
 | 13 | `/case/{id}` + Telegram + email notifications | @gianzk | P0 | M | 05 | #15 | In progress |
-| 14 | Operational lakehouse (bronze → silver → gold of case events; Databricks desirable) | @vldiego | P1 | M–L | 05 | #16 | Approved (deferred) |
+| 14 | Operational lakehouse (bronze → silver → gold of case events; Databricks desirable) | @vldiego | P1 | M–L | 05 | #16 | In progress |
 | 15 | Model benchmark (~20 Bedrock models + Jev vs rules and TF-IDF + LR; one model per task; lean choice) | @salazarvalverdeai | P0 | M | 09, 11 | #17 | Draft |
 | 16 | Web foundation + front-end standard (page shells, shared components, mock API client) | @gianzk | P0 | M | 01 | #18 | In progress |
 | 17 | Our fraud model vs the bank's score (time split, lean scikit-learn screen, analyst signal) | @salazarvalverdeai | P0 | M | 09, ADR 0022 | #28 | Draft |

@@ -2,8 +2,8 @@
 
 - **Feature:** the system learns from its own operation: the records of the cases it handles go bronze → silver → gold
   and produce the daily KPIs of `/analytics` and the analysts' decisions as labels for the next evaluation set.
-- **Status:** Approved — **deferred until after the submission** (lead, 2026-10-05): nobody can build it before the
-  deadline, and no P0 criterion depends on it
+- **Status:** In progress — T1–T4 done offline on the in-memory store (2026-10-05); T5 (Postgres source) and the
+  `/analytics` KPIs (spec 12 T6) wait for live traffic
 - **Owner:** @vldiego (follow-ups from 2026-10-05: @salazarvalverdeai) · **Priority:** P1 (Databricks: P2) ·
   **Size:** M–L
 - **Challenge dimension:** Data Engineering, Data Analytics
