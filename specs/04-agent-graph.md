@@ -221,6 +221,14 @@ messages.
       AC-29, AC-30, AC-31, AC-32
 - [ ] T6 — `status` and `connect` nodes and the returning-customer path · AC-06, AC-19, AC-24, AC-28
 - [ ] T7 — progress stream; S1/S2 wiring (Bedrock, structured output); usage; graceful degradation to S0 · AC-14, AC-17
+- [ ] T7a — Shared LLM client `nick_of_time.llm` (`fake`, `bedrock`, `anthropic`) and `nick_of_time.config.resolve(arm)`:
+      forced tool use with the tool → any → auto ladder (D-011), temperature 0 or provider default recorded per arm
+      (D-016), usage, latency and cost from a price table, `ProviderUnavailable` for provider errors (graph degrades to
+      S0, section 5), `NoStructuredOutput` when the accepted mode returns no or schema-invalid input (caller decides;
+      it carries the billed call's usage); timeouts connect 2 s, read 15 s, 2 attempts in total (Bedrock
+      `total_max_attempts`) and 15 s, 1 retry (Anthropic) `[assumption]`; Anthropic is
+      an operator switch (`LLM_PROVIDER=anthropic`), not a runtime failover; a per-task arm config (spec 15 section
+      4.2) is planned for spec 15 T6 · supports AC-14; tests `tests/test_spec04_llm.py` (lead decision D-003)
 - [ ] T8 — Platform deployment; `/agent` content · AC-07, AC-08
 - [x] T-MSG — `contracts/messages.yaml`: ES/PT templates for greet, plan, connect, suggestion chips, status labels,
       receipt and notify (placeholders `{name}`, tool facts only). Supports AC-06, AC-10, AC-11, AC-15, AC-16, AC-18,
