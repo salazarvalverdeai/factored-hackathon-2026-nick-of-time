@@ -1,0 +1,67 @@
+{
+  "generated_at": "2026-10-05T12:00:00Z",
+  "git_sha": "0000000",
+  "source": "SAMPLE FOR TESTS ONLY — invented values in the shape of spec 10 §7.2; never shown on the site",
+  "data": {
+    "label": "[simulated]",
+    "set": "dev",
+    "cases": 20,
+    "runs_per_case": 4,
+    "cases_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+    "protocol": { "status": "UNSEALED", "sha256": null },
+    "arms": [
+      {
+        "arm": "S0",
+        "run_meta": { "git_sha": "0000000", "model_graph": null, "prompt_hash": null, "policies_version": 2 },
+        "overall": {
+          "safe_automated_resolution": { "value": 0.75, "numerator": 9, "denominator": 12, "ci_low": 0.4677, "ci_high": 0.9111 },
+          "unsafe_outcomes": { "value": 0.0125, "numerator": 1, "denominator": 80, "ci_low": 0.0022, "ci_high": 0.0675 },
+          "missed_escalations": { "value": 0.125, "numerator": 3, "denominator": 24, "ci_low": 0.0434, "ci_high": 0.3103 },
+          "unnecessary_escalations": { "value": 0.0417, "numerator": 2, "denominator": 48, "ci_low": 0.0115, "ci_high": 0.1398 },
+          "receipt_rate": { "value": 0.8333, "numerator": 30, "denominator": 36, "ci_low": 0.681, "ci_high": 0.9213 },
+          "complete_intake_rate": { "value": 0.75, "numerator": 27, "denominator": 36, "ci_low": 0.5893, "ci_high": 0.8624 },
+          "coherence_rate": { "value": 1.0, "numerator": 8, "denominator": 8, "ci_low": 0.6756, "ci_high": 1.0 },
+          "pass_4": { "value": 0.6, "numerator": 12, "denominator": 20, "ci_low": 0.3866, "ci_high": 0.7812 },
+          "intent_accuracy": { "value": 0.7941, "numerator": 54, "denominator": 68, "ci_low": 0.6835, "ci_high": 0.8731 }
+        },
+        "cells": [
+          { "language": "es", "type": "normal", "segment": "Basic", "n_cases": 2, "small": true, "metrics": {
+            "safe_automated_resolution": { "value": 0.75, "numerator": 3, "denominator": 4, "ci_low": 0.3006, "ci_high": 0.9544 },
+            "unsafe_outcomes": { "value": 0.0, "numerator": 0, "denominator": 8, "ci_low": 0.0, "ci_high": 0.3244 },
+            "pass_4": { "value": 0.5, "numerator": 1, "denominator": 2, "ci_low": 0.0945, "ci_high": 0.9055 } } },
+          { "language": "pt", "type": "ambiguous", "segment": "Basic", "n_cases": 1, "small": true, "metrics": {
+            "safe_automated_resolution": { "value": null, "numerator": 0, "denominator": 0, "ci_low": null, "ci_high": null },
+            "unsafe_outcomes": { "value": 0.25, "numerator": 1, "denominator": 4, "ci_low": 0.0456, "ci_high": 0.6994 },
+            "pass_4": { "value": 0.0, "numerator": 0, "denominator": 1, "ci_low": 0.0, "ci_high": 0.7935 } } }
+        ],
+        "latency_ms": { "p50": 120, "p95": 310 },
+        "cost_usd": { "per_case": 0.0, "per_resolution": 0.0 },
+        "blocks_vs_label": null
+      },
+      {
+        "arm": "S1",
+        "run_meta": { "git_sha": "0000000", "model_graph": "sample-model", "prompt_hash": "sha256:sample", "policies_version": 2 },
+        "overall": {
+          "safe_automated_resolution": { "value": 0.9167, "numerator": 11, "denominator": 12, "ci_low": 0.6461, "ci_high": 0.9851 },
+          "unsafe_outcomes": { "value": 0.0, "numerator": 0, "denominator": 80, "ci_low": 0.0, "ci_high": 0.0458 },
+          "missed_escalations": { "value": 0.0417, "numerator": 1, "denominator": 24, "ci_low": 0.0074, "ci_high": 0.2024 },
+          "unnecessary_escalations": { "value": 0.0208, "numerator": 1, "denominator": 48, "ci_low": 0.0037, "ci_high": 0.1090 },
+          "receipt_rate": { "value": 0.9444, "numerator": 34, "denominator": 36, "ci_low": 0.8186, "ci_high": 0.9846 },
+          "complete_intake_rate": { "value": 0.8889, "numerator": 32, "denominator": 36, "ci_low": 0.7469, "ci_high": 0.9559 },
+          "coherence_rate": { "value": 1.0, "numerator": 8, "denominator": 8, "ci_low": 0.6756, "ci_high": 1.0 },
+          "pass_4": { "value": 0.85, "numerator": 17, "denominator": 20, "ci_low": 0.6396, "ci_high": 0.9476 },
+          "intent_accuracy": { "value": 0.9412, "numerator": 64, "denominator": 68, "ci_low": 0.8584, "ci_high": 0.9769 }
+        },
+        "cells": [
+          { "language": "es", "type": "normal", "segment": "Basic", "n_cases": 2, "small": true, "metrics": {
+            "safe_automated_resolution": { "value": 1.0, "numerator": 4, "denominator": 4, "ci_low": 0.5101, "ci_high": 1.0 },
+            "unsafe_outcomes": { "value": 0.0, "numerator": 0, "denominator": 8, "ci_low": 0.0, "ci_high": 0.3244 },
+            "pass_4": { "value": 1.0, "numerator": 2, "denominator": 2, "ci_low": 0.3424, "ci_high": 1.0 } } }
+        ],
+        "latency_ms": { "p50": 1840, "p95": 4120 },
+        "cost_usd": { "per_case": 0.0031, "per_resolution": 0.0225 },
+        "blocks_vs_label": null
+      }
+    ]
+  }
+}

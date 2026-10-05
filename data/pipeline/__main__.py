@@ -15,7 +15,9 @@ def main() -> None:
                             "local: data/ mirror")
     p_run.add_argument("--tables", nargs="*", default=list(TABLES), choices=list(TABLES))
     sub.add_parser("fixture", help="late_arrival fixture: delivery_1 and then delivery_2 in data/_fixture_run/")
-    sub.add_parser("report", help="generates data/quality_report.md from the results")
+    p_report = sub.add_parser("report", help="generates data/quality_report.md from the results")
+    p_report.add_argument("--json", action="store_true",
+                          help="write apps/web/public/data/data_quality.json for the /data page instead")
     args = parser.parse_args()
     setup_logging()
 
@@ -26,8 +28,8 @@ def main() -> None:
         from data.pipeline.run import run_fixture
         run_fixture()
     elif args.cmd == "report":
-        from data.pipeline.report import write_report
-        write_report()
+        from data.pipeline.report import write_json, write_report
+        write_json() if args.json else write_report()
 
 
 if __name__ == "__main__":
