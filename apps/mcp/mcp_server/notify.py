@@ -20,6 +20,7 @@ from mcp_server.gate import ACTOR, Call, Handler
 from mcp_server.gold import Gold
 from mcp_server.reads import mask
 from nick_of_time import ids
+from nick_of_time.policy import clock
 from nick_of_time.receipt import amount_text, text
 from nick_of_time.store import CaseRecord, NotVerified, Store
 
@@ -61,7 +62,8 @@ def notify_handlers(store: Store, gold: Optional[Gold] = None, *, sender: Option
             facts = dict(amount=amount_text(trx.amount), currency=trx.currency)
             lines.append(text("receipt.transaction", language, merchant=trx.merchant, **facts) if trx.merchant
                          else text("receipt.transaction_no_merchant", language, **facts))
-        source = dict(deadline_source=case.deadline_source, source_url=case.deadline_source_url,
+        source = dict(deadline_source=clock.source_label(case.deadline_source, language) or case.deadline_source,
+                      source_url=case.deadline_source_url,
                       verified_on=case.deadline_verified_on and case.deadline_verified_on.isoformat())
         for name in ("credit_deadline", "ruling_deadline"):
             if (day := getattr(case, name)) is not None:

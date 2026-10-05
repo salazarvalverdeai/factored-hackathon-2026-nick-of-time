@@ -1,4 +1,4 @@
-"""Tool contracts v1.1 (spec 01 §6.3, contract 1.4.0; spec 03 §6). Permissions live HERE, not in the prompt.
+"""Tool contracts v1.1 (spec 01 §6.3, contract 1.5.0; spec 03 §6). Permissions live HERE, not in the prompt.
 
 Each of the 16 customer tools has `<Name>In` / `<Name>Out` models, listed in `CUSTOMER_TOOLS` in the order of
 `policies.yaml` `actors.customer.tools`. Every input carries `session_id` and never `customer_id`: the server resolves
@@ -79,6 +79,7 @@ class _Deadlines(_Model):             # stored with the case, never recomputed (
     credit_deadline: Optional[date] = None
     ruling_deadline: Optional[date] = None
     deadline_source: Optional[str] = None
+    deadline_source_label: Optional[str] = None   # 1.5.0: the source in the session's language (DLANG); get_case sets it
     deadline_source_url: Optional[str] = Field(None, pattern=_HTTPS)
     deadline_verified_on: Optional[date] = None   # [assumption] D-014
 
@@ -163,7 +164,8 @@ class ComputeDeadlineOut(_Model):
     product: Literal["debit", "credit"]
     credit_deadline: Optional[date]   # per the country's and product's regulatory_clock
     ruling_deadline: Optional[date]
-    deadline_source: str
+    deadline_source: str              # the analyst's name of the source (handoff)
+    deadline_source_label: Optional[str] = None   # 1.5.0: the customer's, in the session's language (DLANG)
     source_url: str = Field(pattern=_HTTPS)
     verified_on: date
 
