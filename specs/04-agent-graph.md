@@ -174,8 +174,8 @@ identity ─► greet ─► understand ─► route ─┬─► retrieve ─�
 | `duplicate` | AC-23: says the charge is already in the active case, with its id and stored deadlines from `get_case`; opens nothing and runs no other write (no block: the person on that case decides) `[assumption]`; a call request goes on that case. `TurnResult.decision` is `null` on that turn, since nothing the decision called for is run, or `connect_person` when the decision sets `request_call` and the call is registered; the engine's decision stays in the D-046 record `[assumption]` (D-050, pending the lead) | `messages.yaml duplicate.*`, `status.*_deadline` |
 | `act` | `open_case` (dedupe, related case), then `block_card` when allowed; idempotency key `session:transaction:action:run` | MCP |
 | `verify` | Post-conditions; 2 retries, 800 ms timeout; failure → `not_confirmed` + escalation | `get_product_status` · `get_case` |
-| `status` | Re-reads cards, cases or notifications and answers with the reading time | `list_my_cards` · `get_case` · `list_my_cases` · `list_my_notifications` |
-| `connect` | Registers a call request where spec 02 `request_call` says: `active_or_general` → on the active case, or a general one; `opened_case` → on the case `open_case` returned this turn and `verify` confirmed (the existing case when it returned `duplicate_of`), so the reply names that case; if `open_case` or its verify fails, the call falls back to `active_or_general` and is still registered (AC-28: never refuse), while the case is reported as not confirmed (AC-18); `general` → a general request with no case (rule 5b). It says the call request is registered and when to expect the call, using `expected_contact_by` from `request_call` (D-008); when it is `null`, the reply promises no time. Without a verified session, the bank's general contact path with no data | `request_call` · `messages.yaml connect.*` |
+| `status` | Re-reads in every turn that asks, never from the thread (AC-19), and answers with tool facts and the reading time (`read_at` in UTC to the minute `[assumption]`). A question that names a card and no case reads `list_my_cards` (at most 3 lines); any other reads `list_my_cases`, then `get_case` on the case the web's case page names (`configurable.case_id`) only when that listing of the session's customer has it, else the first active, else the latest `[assumption]`, and states its status label (the `messages.yaml status.label` lookup of `queue_status`), its stored deadlines (or `deadline_unknown` for an active case) and the next step (`receipt.what_a_person_does`, or `status.case_done` for a resolved or closed case) (AC-06). No case → `status.no_cases`; no card → `status.no_cards`, with no reading time because `list_my_cards` returns `read_at` only per card. A failed read answers `status.read_failed`, states no status and marks the `status` trace step `error` with `<tool>: not_confirmed`. A status question with dispute words (D-020) reaches `status` only when `route` read an active case (or could not read the cases); its chips also offer "Reportar otro cargo" (F-010 `[assumption]`). Notifications are read in T5 (AC-26) | `list_my_cards` · `list_my_cases` · `get_case` |
+| `connect` | Registers a call request where spec 02 `request_call` says: `active_or_general` → on the active case, or a general one; `opened_case` → on the case `open_case` returned this turn and `verify` confirmed (the existing case when it returned `duplicate_of`), so the reply names that case; if `open_case` or its verify fails (or no case was opened this turn), the call is a general request with no case, still registered (AC-28: never refuse), never on another charge's active case, while the case is reported as not confirmed (AC-18) `[assumption]` (task 04e review); `general` → a general request with no case (rule 5b). The active case is read in that turn with `list_my_cases`: the one the web's case page names when it is active, else the first active; if the read fails, a general request `[assumption]` (task 04e). A call on a case is read back once with `get_case` and its `action_id`: `verified` only with the read's V- id, else it stays `requested` (AC-18, no retries `[assumption]`); a general call stays `requested` (D-026). `opened_case` uses the case set this turn only when no `open_case` action of the turn is unverified (the contract with T4). It says the call request is registered and when to expect the call, using `expected_contact_by` from `request_call` (D-008); when it is `null`, the reply promises no time. Without a verified session, the bank's general contact path with no data | `request_call` · `messages.yaml connect.*` |
 | `clarify` | Options (1 to `max_candidate_transactions` candidates, as cards labelled amount · date · merchant) or a request for amount/date; counts turns; a declined confirm answers `plan.declined` and clears the selection | templates; LLM wording in S1/S2 |
 | `refuse` | DENY or re-authenticate with no data and a way forward | templates |
 | `respond` | Receipt and handoff from verified facts; reply from templates (S1/S2 may reword, then the grounding check runs); suggestion chips from §4.5 | `nick_of_time.receipt` · `send_case_summary` · `request_call` · `request_reevaluation` · `add_case_info` · `messages.yaml suggest.*` |
@@ -209,6 +209,10 @@ and opens nothing [D-039 default, pending the lead].
 | `handoff` or `escalate_unconfirmed_action` | link "Ver mi caso" · text "Agregar información" · action "Que me llame una persona" |
 | `answer_status` — active case | link "Ver mi caso" · text "Agregar información" · action "Que me llame una persona" |
 | `answer_status` — resolved, within the re-evaluation window | action "Pedir reevaluación" · link "Ver mi caso" · action "Que me llame una persona" |
+| `answer_status` — resolved or closed (until AC-24), or a status question with dispute words (F-010) | link "Ver mi caso" · text "Reportar otro cargo" · action "Que me llame una persona" `[assumption]` |
+| `answer_status` — cards | text "¿Cómo va mi caso?" · text "No reconozco un cargo" · action "Hablar con una persona" `[assumption]` |
+| `answer_status` — no case | text "No reconozco un cargo" · text "Me cobraron dos veces" · action "Hablar con una persona" `[assumption]` |
+| `answer_status` — read failed (`status.read_failed`) | text "¿Cómo va mi caso?" (reads again) · action "Hablar con una persona" · text "No reconozco un cargo" `[assumption]` |
 | `connect_person` — with a case | link "Ver mi caso" · text "Reportar otro cargo" |
 | `connect_person` — no case | text "Reportar otro cargo" · text "¿Cómo va mi caso?" · text "Me cobraron dos veces" (F-007, so every reply ends with 2–3 chips) |
 | `connect_person` — `request_call` failed (`connect.request_failed`, action `not_confirmed`) | action "Hablar con una persona" (retries the call) · text "¿Cómo va mi caso?" · text "No reconozco un cargo" |
@@ -256,8 +260,8 @@ messages.
 ## 10. Plan, tasks and verification
 - [ ] T1 — State and graph skeleton on the spec 01 echo graph; `langgraph dev` locally · AC-07, AC-27. Task 04a: state,
       skeleton and AC-27 done in `apps/agent/agent/intake.py`, served as `dispute_intake_next` next to the echo
-      `dispute_intake` until the dispute path lands (T3–T5); `status` is a placeholder that calls no tool and
-      claims nothing (`retrieve` landed in T3). Open: a `langgraph dev` run and AC-07 on Platform (T8)
+      `dispute_intake` until the dispute path lands (T3–T5); `retrieve` landed in T3 and `status` in T6. Open: a
+      `langgraph dev` run and AC-07 on Platform (T8)
 - [x] T2 — `greet`, `understand` (rules arm + injection rules), `route` · AC-03, AC-09, AC-10, AC-15 (task 04a, with
       `refuse`, a general-call `connect` (AC-28 part; T6 puts the call on the active case) and AC-33 (proposed);
       tests `tests/test_spec04_graph.py`)
@@ -269,7 +273,12 @@ messages.
 - [ ] T4 — `act`, `verify` with retries, the four-state vocabulary and the unconfirmed path · AC-01, AC-04, AC-18
 - [ ] T5 — `respond`: receipt, handoff, grounding check, suggestion chips · AC-05, AC-20, AC-21, AC-22, AC-26,
       AC-29, AC-30, AC-31, AC-32
-- [ ] T6 — `status` and `connect` nodes and the returning-customer path · AC-06, AC-19, AC-24, AC-28
+- [ ] T6 — `status` and `connect` nodes and the returning-customer path · AC-06, AC-19, AC-24, AC-28. Task 04e:
+      AC-19 and AC-28 done (re-read per status question, failed reads reported, the call on the active case or a
+      general one, read back with `get_case`), plus the D-020 / F-010 cases (status or a person with dispute words);
+      tests `tests/test_spec04_status.py`. AC-06 partial: `get_case` label, stored deadlines and next step done;
+      recording new information with `add_case_info` (the "Agregar información" chip) is open. AC-24 (P1, D-001)
+      is open, so no re-evaluation chip is offered yet
 - [ ] T7 — progress stream; S1/S2 wiring (Bedrock, structured output); usage; graceful degradation to S0 · AC-14, AC-17
 - [ ] T7a — Shared LLM client `nick_of_time.llm` (`fake`, `bedrock`, `anthropic`) and `nick_of_time.config.resolve(arm)`:
       forced tool use with the tool → any → auto ladder (D-011), temperature 0 or provider default recorded per arm

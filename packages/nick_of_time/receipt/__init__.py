@@ -34,7 +34,7 @@ ACTION = {"none_of_these": {"type": "choose_option", "value": "none"}, "talk_to_
           "request_reevaluation": {"type": "request_reevaluation"}}
 REAUTH_HREF = "/login"          # [assumption] the web's sign-in route (apps/web/app/login)
 
-# §4.5 rows the graph reaches so far (T2, T3); T4–T6 add theirs. At most 3 chips, a person always reachable except
+# §4.5 rows the graph reaches so far (T2, T3, T6); T4 and T5 add theirs. At most 3 chips, a person always reachable except
 # right after connect_person.
 ROWS: dict[str, tuple[str, ...]] = {
     "greet": ("report_unrecognized", "report_duplicate", "check_case"),
@@ -49,6 +49,12 @@ ROWS: dict[str, tuple[str, ...]] = {
     "connect_person": ("report_another", "check_case", "report_duplicate"),     # no case: F-007 adds 2 text chips
     "connect_person_case": ("view_case", "report_another"),
     "connect_failed": ("talk_to_person", "check_case", "report_unrecognized"),     # the first chip retries the call
+    # answer_status (task 04e). case_active above is also the active-case row; AC-24's re-evaluation row is not used
+    # yet, so a finished case (or a status question with dispute words, F-010) offers to report another charge.
+    "case_done": ("view_case", "report_another", "request_call"),
+    "card_status": ("check_case", "report_unrecognized", "talk_to_person"),
+    "status_none": ("report_unrecognized", "report_duplicate", "talk_to_person"),
+    "status_failed": ("check_case", "talk_to_person", "report_unrecognized"),     # the first chip reads again
 }
 
 # What a typed (or pressed) text chip stands for when it was offered in the last reply (AC-32, proposed AC-33):

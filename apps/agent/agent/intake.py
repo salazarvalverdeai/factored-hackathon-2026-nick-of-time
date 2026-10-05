@@ -1,11 +1,12 @@
-"""Graph `dispute_intake` (spec 04 §4.1–§4.2), tasks 04a (T1, T2) and 04b (T3).
+"""Graph `dispute_intake` (spec 04 §4.1–§4.2), tasks 04a (T1, T2), 04b (T3) and 04e (T6).
 
 identity → greet → understand → route. `route` runs spec 02 rules 1–4 (`engine.screen()`): reauthenticate/deny →
 refuse, connect_person → connect, answer_status → status, a dispute → retrieve → decide. `decide` runs
 `engine.decide()` on tool facts only and the graph follows its result: ask → clarify, deny → refuse, a case to open
 (or confirm) → plan, a call with no case to open → connect. `plan` states the numbered steps and stops there until T4
 adds act → verify. understand uses the B0 rules arm in every arm (the S1/S2 LLM path lands in T7, so no arm calls an
-LLM yet). `status` is a placeholder until T6: it calls no tool and claims nothing. Tools are reached only through MCP
+LLM yet). `status` re-reads cards or cases in every turn that asks (AC-19) and `connect` registers the call where the
+decision says, on the active case or a general one (AC-28; task 04e). Tools are reached only through MCP
 with the session of the run config (constitution #3); "today" comes from `config.today(mode)` (AC-27, ADR 0020).
 Served as `dispute_intake_next` (langgraph.json) until it replaces the echo graph [assumption].
 """
@@ -15,6 +16,7 @@ import json
 import os
 import re
 import uuid
+from datetime import timezone
 from typing import Any, Optional, TypedDict
 
 from fastmcp import Client
@@ -36,6 +38,7 @@ ENGINE, NLU = PolicyEngine.load(), load_nlu("B0")
 TIMEOUT_S = ENGINE.policies.reliability["tool_timeout_ms"] / 1000
 MAX_OPTIONS = ENGINE.policies.clarify.max_candidate_transactions
 DISPUTES = ("unrecognized_charge", "wrongful_charge")
+CLOSED = ("resolved", "closed")             # queue states of a case that is no longer active
 # [assumption] until T3–T6: a press of these actions reads as this intent; confirm and choose_option keep the pending
 # dispute. Pressing an action chip skips the classifier (AC-32).
 ACTION_INTENT = {"request_call": "human_request", "send_summary": "status_inquiry",
@@ -96,7 +99,7 @@ class Internal(TypedDict, total=False):     # spec 04 §4.1 fields outside TurnR
     clarification_turns: int                # clarification questions already sent (spec 02 rule 5b)
     decision_record: Optional[dict[str, Any]]   # D-046: {node, input, decision} for the auditor's A1 (spec 18)
     next_node: str                          # where decide sends the turn
-    read_failed: Optional[str]              # the read retrieve could not do this turn (its tool name), or None
+    read_failed: Optional[str]              # the read retrieve or status could not do this turn (its tool), or None
     path: list[str]                         # nodes run after route, for the trace
 
 
@@ -242,22 +245,48 @@ def refuse(state: State) -> dict[str, Any]:
 
 
 async def connect(state: State, config: RunnableConfig) -> dict[str, Any]:
-    """A call request (spec 02 request_call): on the active case of the disputed charge when the turn found one
-    (AC-23), else a general one (D-026). It stays "requested" (T6 verifies it); lines already set this turn stay."""
-    case, language, before, path = state.get("case_id"), state["language"], state.get("body") or [], state["path"]
+    """A call request where spec 02 `request_call` says (AC-28, never refused), on the case `call_case` picks. A call on
+    a case is read back with get_case: "verified" only with the read's V- id, else it stays "requested" (AC-18); a
+    general call stays "requested" (D-026). Actions and lines already set this turn stay."""
+    language, before, done, path = state["language"], state.get("body") or [], state.get("actions") or [], state["path"]
+    case = await call_case(state, config)
     key = f"{state['session_id']}:{case or 'none'}:request_call:{state['trace_id']}"
     out = await call(config, "request_call", idempotency_key=key, **({"case_id": case} if case else {}))
     if isinstance(out, ToolError):          # never refuse (AC-28), never claim it (AC-18): say it failed, offer a retry
         # [assumption] the graph's own id for an attempt the tool never accepted; no tool returned one
         return {"body": [*before, msg.text("connect.request_failed", language)], "row": "connect_failed",
-                "actions": [{"tool": "request_call", "action_id": new_id("action"), "state": "not_confirmed"}],
+                "actions": [*done, {"tool": "request_call", "action_id": new_id("action"), "state": "not_confirmed"}],
                 "path": path + ["connect"]}
+    record = {"tool": "request_call", "action_id": out.action_id, "state": "requested"}
+    if out.case_id:                         # [assumption] one read, no retries: unread, it stays "requested"
+        read = await call(config, "get_case", case_id=out.case_id, action_id=out.action_id)
+        if not isinstance(read, ToolError) and read.verification_id and read.action_id == out.action_id:
+            record |= {"state": "verified", "verification_id": read.verification_id,
+                       "read_at": read.read_at.isoformat()}
     when, suffix = out.expected_contact_by, "_case" if out.case_id else ""
     body = (msg.text(f"connect.requested{suffix}", language, case_id=out.case_id, expected_contact_by=when.isoformat())
             if when else msg.text(f"connect.requested{suffix}_no_window", language, case_id=out.case_id))
     return {"body": [*before, body], "row": "connect_person_case" if out.case_id else "connect_person",
-            "actions": [{"tool": "request_call", "action_id": out.action_id, "state": "requested"}],
-            "path": path + ["connect"]}
+            "actions": [*done, record], "path": path + ["connect"], **({"case_id": out.case_id} if out.case_id else {})}
+
+
+async def call_case(state: State, config: RunnableConfig) -> Optional[str]:
+    """The case for the call (spec 04 `connect`): `general` → none (rule 5b); `opened_case` → the case set this turn
+    (opened and verified, or the active case on the charge, AC-23), else none; `active_or_general` → the customer's
+    active case, read now with list_my_cases, else none (a general request)."""
+    where, opened = (state.get("route") or {}).get("request_call") or "active_or_general", state.get("case_id")
+    if where == "general":
+        return None
+    if where == "opened_case":
+        # [assumption] no verified case for this charge → a general request, never another charge's active case
+        verified = all(a["state"] == "verified" for a in state.get("actions") or [] if a["tool"] == "open_case")
+        return opened if opened and verified else None
+    cases = await call(config, "list_my_cases")
+    if isinstance(cases, ToolError):        # [assumption] cases unread: a general request, still registered (AC-28)
+        return None
+    active = [c.case_id for c in cases.cases if c.queue_status not in CLOSED]
+    # [assumption] the case the web's case page names (configurable.case_id) when it is active, else the first active
+    return state["case_id_in"] if state.get("case_id_in") in active else next(iter(active), None)
 
 
 async def retrieve(state: State, config: RunnableConfig) -> dict[str, Any]:
@@ -385,10 +414,70 @@ def call_or_respond(state: State, decision: Optional[PolicyDecision] = None) -> 
     return "connect" if wanted else "respond"
 
 
-def status(state: State) -> dict[str, Any]:
-    """Placeholder until T6: no reading yet, so it says it could not verify and states no status (AC-19)."""
-    return {"body": [msg.text("status.read_failed", state["language"])], "row": "deny",
-            "path": state["path"] + ["status"]}
+# [assumption] a status question that names a card and no case reads the cards; any other reads the cases.
+CARD_WORDS = re.compile(r"\b(?:tarjetas?|cartao|cartoes)\b")
+CASE_WORDS = re.compile(r"\b(?:casos?|reclamos?|reclamac\w*|disputas?|contestac\w*)\b")
+
+
+async def status(state: State, config: RunnableConfig) -> dict[str, Any]:
+    """answer_status (spec 02 rule 3b): reads the system again in this turn, never from memory or the thread (AC-19),
+    and answers with tool facts only and the time of the reading (AC-06). A failed read says so and states no status."""
+    texts = [fold(m.get("content", "")) for m in state.get("messages") or [] if m.get("role", "user") == "user"]
+    said = texts[-1] if texts else ""
+    cards = CARD_WORDS.search(said) and not CASE_WORDS.search(said)
+    return {**await (card_status if cards else case_status)(state, config), "path": state["path"] + ["status"]}
+
+
+async def card_status(state: State, config: RunnableConfig) -> dict[str, Any]:
+    """Each card's status from list_my_cards, read now (at most 3 lines, spec 04 §5)."""
+    language, cards = state["language"], await call(config, "list_my_cards")
+    if isinstance(cards, ToolError):
+        return status_unread("list_my_cards", language)
+    lines = [msg.text("status.card_read", language, last4=card.last4, read_at=stamp(card.read_at),
+                      card_label=msg.text(f"status.card_label.{card.status.lower()}", language))
+             for card in cards.cards[:3]]
+    return {"body": lines or [msg.text("status.no_cards", language)], "row": "card_status"}
+
+
+async def case_status(state: State, config: RunnableConfig) -> dict[str, Any]:
+    """One case read now with get_case: status label, stored deadlines and the next step (AC-06). The case is the one
+    the web's case page names (configurable.case_id), else the first active, else the latest [assumption]."""
+    language, cases = state["language"], await call(config, "list_my_cases")
+    if isinstance(cases, ToolError):
+        return status_unread("list_my_cases", language)
+    if not cases.cases:
+        return {"body": [msg.text("status.no_cases", language, read_at=stamp(cases.read_at))], "row": "status_none"}
+    ids = [c.case_id for c in cases.cases]
+    target = state["case_id_in"] if state.get("case_id_in") in ids else next(
+        (c.case_id for c in cases.cases if c.queue_status not in CLOSED), ids[0])
+    case = await call(config, "get_case", case_id=target)
+    if isinstance(case, ToolError):
+        return status_unread("get_case", language)
+    facts, active = case.model_dump(mode="json"), case.queue_status not in CLOSED
+    lines = [msg.text("status.case_read", language, case_id=case.case_id, read_at=stamp(case.read_at),
+                      status_label=status_label(case.queue_status, language) or case.status_label)]
+    lines += [msg.text(f"status.{key}", language, **facts) for key in ("ruling_deadline", "credit_deadline")
+              if facts.get(key)] or ([msg.text("status.deadline_unknown", language)] if active else [])
+    lines.append(msg.text("receipt.what_a_person_does" if active else "status.case_done", language))
+    # F-010 [assumption]: a status question with dispute words (D-020) also offers to report another charge
+    row = "case_active" if active and not state.get("dispute_detected") else "case_done"
+    return {"body": lines, "row": row, "case_id": case.case_id}
+
+
+def status_label(queue_status: str, language: str) -> Optional[str]:
+    """The localized label of a queue state (messages.yaml status.label and its `from` list), or None."""
+    return next((leaf[language] for leaf in msg.messages()["status"]["label"].values()
+                 if queue_status in leaf["from"]), None)
+
+
+def stamp(read_at: Any) -> str:
+    """The time of a reading as shown (AC-19): the tool's read_at in UTC, to the minute [assumption]."""
+    return read_at.astimezone(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+
+
+def status_unread(tool: str, language: str) -> dict[str, Any]:
+    """The read failed: say it could not verify, state no status, offer a retry and a person (AC-19)."""
+    return {"body": [msg.text("status.read_failed", language)], "row": "status_failed", "read_failed": tool}
 
 
 def respond(state: State) -> dict[str, Any]:
@@ -415,8 +504,9 @@ def respond(state: State) -> dict[str, Any]:
 
 
 def step(node: str, record: dict[str, Any], read_failed: Optional[str]) -> dict[str, Any]:
-    """A trace step: the decision record on the node that decided (D-046); a failed read as not_confirmed on retrieve."""
-    if node == "retrieve" and read_failed:
+    """A trace step: the decision record on the node that decided (D-046); a failed read as not_confirmed on the node
+    that tried it (retrieve or status)."""
+    if node in ("retrieve", "status") and read_failed:
         return {"node": node, "status": "error", "ms": 0, "detail": f"{read_failed}: not_confirmed"}
     return {"node": node, "status": "deny" if node == "refuse" else "ok", "ms": 0,
             "detail": json.dumps(record, sort_keys=True) if node == record.get("node") else None}
