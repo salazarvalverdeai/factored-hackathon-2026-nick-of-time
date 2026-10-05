@@ -11,18 +11,13 @@ from typing import Any, Literal, Optional
 
 from nick_of_time import ids
 from nick_of_time.contracts import AnalystActionIn, AnalystActionOut, QueueStatus
-from nick_of_time.store import (CUSTOMER_VISIBLE, RESERVED_EVENTS, CaseEvent, CaseRecord, Channel, DeliveryStatus,
-                                EventType, NewCase, Notification, ProductOverride, StoreError, check_transition,
-                                insert_with_fresh_case_id)
+from nick_of_time.store import (CUSTOMER_VISIBLE, RESERVED_EVENTS, WRITE_EVENTS, CaseEvent, CaseRecord, Channel,
+                                DeliveryStatus, EventType, NewCase, Notification, ProductOverride, StoreError,
+                                check_transition, insert_with_fresh_case_id)
 
 
 def _utc_now() -> dt.datetime:
     return dt.datetime.now(dt.UTC)
-
-
-def _check_action_id(action_id: str) -> None:
-    if not ids.is_valid("action", action_id):
-        raise StoreError(f"not an action id: {action_id!r}")
 
 
 class MemoryStore:
@@ -33,6 +28,7 @@ class MemoryStore:
         self._overrides: dict[str, ProductOverride] = {}    # override_id (the write's action id) -> row
         self._notifications: list[Notification] = []
         self._deliveries: dict[str, list[tuple[DeliveryStatus, Optional[dict[str, Any]]]]] = {}
+        self._action_ids: set[str] = set()                  # Postgres: unique index over the write events' action_id
 
     # ---------- cases ----------
     def create_case(self, case: NewCase, *, actor: str, action_id: str) -> CaseRecord:
@@ -48,7 +44,7 @@ class MemoryStore:
             self._events[case_id] = []
             return True
 
-        _check_action_id(action_id)
+        self._check_new_action(action_id)
         case_id = insert_with_fresh_case_id(try_insert)
         self._append(case_id, "case_opened", actor, case.trace_id, {"action_id": action_id})
         if related is not None:
@@ -71,7 +67,10 @@ class MemoryStore:
                      payload: Optional[dict[str, Any]] = None) -> CaseEvent:
         if type in RESERVED_EVENTS:
             raise StoreError(f"{type} is written only by the store's own methods")
-        return self._append(case_id, type, actor, trace_id, payload or {})
+        payload = payload or {}
+        if type in WRITE_EVENTS:
+            self._check_new_action(payload.get("action_id"))
+        return self._append(case_id, type, actor, trace_id, payload)
 
     def events(self, case_id: str) -> list[CaseEvent]:
         return [e.model_copy(deep=True) for e in self._case_events(case_id)]
@@ -83,15 +82,14 @@ class MemoryStore:
     def change_status(self, case_id: str, to: QueueStatus, *, on: dt.date, actor: str, trace_id: str,
                       reason: Optional[str] = None) -> CaseEvent:
         current = self.queue_status(case_id)
-        check_transition(current, to, actor=actor)
+        check_transition(current, to)
         return self._change(case_id, current, to, on, actor, trace_id, reason)
 
     def record_analyst_action(self, action: AnalystActionIn, *, new_status: Optional[QueueStatus], on: dt.date,
                               trace_id: str) -> AnalystActionOut:
         previous = self.queue_status(action.case_id)
+        check_transition(previous, new_status, analyst_action=action.action)    # before any write
         actor = f"analyst:{action.actor_id}"
-        if new_status is not None:
-            check_transition(previous, new_status, actor=actor, analyst_action=action.action)   # before any write
         event = self._append(action.case_id, "analyst_action", actor, trace_id,
                              {"action": action.action, "reason": action.reason})
         if action.action == "take":
@@ -105,13 +103,12 @@ class MemoryStore:
     def block_product(self, case_id: str, product_id: str, *, action_id: str, actor: str,
                       trace_id: str) -> CaseEvent:
         case = self._case(case_id)
-        _check_action_id(action_id)
+        self._check_new_action(action_id)
         if product_id != case.product_id:
             raise StoreError(f"{product_id} is not the product of case {case_id}")
-        if action_id in self._overrides:                    # override_id primary key
-            raise StoreError(f"action {action_id} already wrote an override")
         self._overrides[action_id] = ProductOverride(product_id=product_id, status="Blocked", case_id=case_id,
-                                                     action_id=action_id, run_id=case.run_id, created_at=self._now())
+                                                     action_id=action_id, actor=actor, run_id=case.run_id,
+                                                     created_at=self._now())
         payload = {"action_id": action_id, "product_id": product_id}
         return self._append(case_id, "card_blocked", actor, trace_id, payload)
 
@@ -126,25 +123,42 @@ class MemoryStore:
                             trace_id: str) -> CaseEvent:
         if self.get_case(case_id, run_id=run_id, customer_id=None) is None:
             raise StoreError(f"unknown case {case_id} in this run")
-        writes = {"case_opened", "card_blocked"}
-        if action_id not in {e.payload.get("action_id") for e in self._events[case_id] if e.type in writes}:
+        writes = [e for e in self._events[case_id]
+                  if e.type in WRITE_EVENTS and e.payload.get("action_id") == action_id]
+        if not writes:
             raise StoreError(f"action {action_id} was never written for case {case_id}")
+        block_read = writes[0].type == "card_blocked" and not any(
+            e.type == "block_verified" and e.payload["action_id"] == action_id for e in self._events[case_id])
         payload = {"action_id": action_id, "verification_id": ids.new_id("verification"),
                    "read_at": self._now().isoformat()}
-        return self._append(case_id, "action_verified", actor, trace_id, payload)
+        read = self._append(case_id, "action_verified", actor, trace_id, payload)
+        if block_read:                                      # the customer milestone, once per block
+            self._append(case_id, "block_verified", actor, trace_id,
+                         {"action_id": action_id, "product_id": writes[0].payload["product_id"]})
+        return read
+
+    def verifications(self, case_id: str, action_id: str, *, run_id: Optional[str]) -> list[CaseEvent]:
+        if self.get_case(case_id, run_id=run_id, customer_id=None) is None:
+            return []
+        return [e.model_copy(deep=True) for e in self._reads(case_id, action_id)]
 
     # ---------- notifications ----------
     def add_notification(self, case_id: str, *, event: str, channel: Channel, masked_address: Optional[str],
                          text: str, trigger: Literal["auto", "on_request"], actor: str, trace_id: str,
-                         provider_message_id: Optional[str] = None) -> Notification:
+                         provider_message_id: Optional[str] = None, action_id: Optional[str] = None) -> Notification:
         case = self._case(case_id)
+        if trigger == "on_request":                         # send_case_summary is a customer write
+            self._check_new_action(action_id)
+        elif action_id is not None:
+            raise StoreError("an auto notification is not a customer write and carries no action id")
         sent = Notification(notification_id=ids.new_id("notification"), case_id=case_id, customer_id=case.customer_id,
                             event=event, channel=channel, masked_address=masked_address, text=text, trigger=trigger,
                             provider_message_id=provider_message_id, created_at=self._now())
         self._notifications.append(sent)
         self._deliveries[sent.notification_id] = [("queued", None)]
         self._append(case_id, "notification_sent", actor, trace_id,
-                     {"notification_id": sent.notification_id, "event": event, "channel": channel})
+                     {"notification_id": sent.notification_id, "event": event, "channel": channel,
+                      **({"action_id": action_id} if action_id else {})})
         return sent
 
     def add_delivery(self, notification_id: str, status: DeliveryStatus,
@@ -168,10 +182,18 @@ class MemoryStore:
         self._case(case_id)
         return self._events[case_id]
 
+    def _check_new_action(self, action_id: Any) -> None:
+        if not isinstance(action_id, str) or not ids.is_valid("action", action_id):
+            raise StoreError(f"not an action id: {action_id!r}")
+        if action_id in self._action_ids:
+            raise StoreError(f"action {action_id} was already written; a write takes a fresh action id")
+
+    def _reads(self, case_id: str, action_id: str) -> list[CaseEvent]:   # seq order = read_at order
+        return [e for e in self._events[case_id] if e.type == "action_verified" and e.payload["action_id"] == action_id]
+
     def _verified(self, case_id: str, action_id: str) -> Optional[str]:
-        reads = [e.payload["verification_id"] for e in self._events[case_id]
-                 if e.type == "action_verified" and e.payload["action_id"] == action_id]
-        return reads[-1] if reads else None
+        reads = self._reads(case_id, action_id)
+        return reads[-1].payload["verification_id"] if reads else None
 
     def _read(self, case: CaseRecord) -> CaseRecord:
         return case.model_copy(update={"verification_id": self._verified(case.case_id, case.action_id)})
@@ -187,4 +209,6 @@ class MemoryStore:
                           payload=copy.deepcopy(payload), customer_visible=type in CUSTOMER_VISIBLE,
                           trace_id=trace_id, created_at=self._now())
         events.append(event)
+        if type in WRITE_EVENTS and "action_id" in payload:
+            self._action_ids.add(payload["action_id"])
         return event.model_copy(deep=True)
