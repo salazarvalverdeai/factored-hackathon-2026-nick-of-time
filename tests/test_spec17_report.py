@@ -18,12 +18,20 @@ from eval.harness import seal_guard
 from scripts.ml import fraud_report as fr
 from scripts.ml import fraud_screen as sc
 from scripts.ml import fraud_split as fs
+from tests.one_time_guard import isolate
 from tests.test_spec17_screen import prepared, synthetic
 
 SEAL = {"status": "UNSEALED", "sha256": None}
 GIT = ["git", "-c", "user.name=t", "-c", "user.email=t@example.com", "-c", "commit.gpgsign=false",
        "-c", "tag.gpgsign=false", "-c", "init.defaultBranch=main"]
 BODY = "# Evaluation protocol\n\nSynthetic, for the spec 17 tests.\n\n"
+
+
+@pytest.fixture(autouse=True)
+def _one_time_isolation(monkeypatch, tmp_path):
+    """Every test here runs against a throwaway root; opening the real held-out or labels, or claiming or checking
+    the seal in the real repository, fails the test (tests/one_time_guard.py)."""
+    return isolate(monkeypatch, tmp_path)
 
 
 def test_ac_04_weighted_average_precision_matches_sklearn_with_ties():

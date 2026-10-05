@@ -18,6 +18,7 @@ import pytest
 from eval.harness import Api, heldout, labels, report, seal_guard
 from eval.harness.__main__ import main
 from nick_of_time.config import HAIKU, SONNET
+from tests.one_time_guard import REAL_ROOT, isolate
 from tests.test_spec10_harness import EXAMPLES, final_for
 
 GIT = ["git", "-c", "user.name=t", "-c", "user.email=t@example.com", "-c", "commit.gpgsign=false",
@@ -27,6 +28,13 @@ META = {"S0": {"provider": "none", "model_fast": None, "model_graph": None},
         "S1": {"provider": "bedrock", "model_fast": HAIKU, "model_graph": None},
         "S2": {"provider": "bedrock", "model_fast": None, "model_graph": SONNET}}
 ARGS = ["run", "--set", "heldout", "--arms", "S0,S1,S2", "--runs", "4", "--workers", "1"]
+
+
+@pytest.fixture(autouse=True)
+def _one_time_isolation(monkeypatch, tmp_path):
+    """Every test here runs against a throwaway root; opening the real held-out or labels, or claiming or checking
+    the seal in the real repository, fails the test (tests/one_time_guard.py)."""
+    return isolate(monkeypatch, tmp_path)
 
 
 def git(repo: Path, *args: str) -> str:
@@ -232,3 +240,18 @@ def test_ac_11_every_run_failed_exits_non_zero_without_the_web_summary(repo, cap
     meta = json.loads((out_dir(repo) / "meta.json").read_text())
     assert (meta["runs"], meta["failed_runs"], meta["run_status"]) == (60, 60, "complete")
     assert not report.WEB_SUMMARY.exists()
+
+
+def test_ac_07_the_tests_of_the_one_time_runs_cannot_reach_the_real_heldout_labels_or_marker():
+    """AC-07: the isolation of these tests trips before the real held-out or label file is opened and before any claim
+    or seal check on the real repository (the shared guard would pass there)."""
+    for path in (REAL_ROOT / "eval/cases/heldout.jsonl", REAL_ROOT / "data/gold_eval/transaction_labels.parquet"):
+        with pytest.raises(pytest.fail.Exception, match="opened the real"):
+            path.read_bytes()
+        with pytest.raises(pytest.fail.Exception, match="opened the real"):
+            open(path, "rb")
+    with pytest.raises(pytest.fail.Exception, match="real repository"):
+        seal_guard.claim_run("heldout", REAL_ROOT / "eval/results/x-heldout", {}, root=REAL_ROOT, fetch=False)
+    with pytest.raises(pytest.fail.Exception, match="real repository"):
+        seal_guard.check_seal(inputs={"agent_heldout": None}, root=REAL_ROOT)
+    assert heldout.ROOT != REAL_ROOT and not (REAL_ROOT / "eval/results/x-heldout").exists()

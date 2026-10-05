@@ -10,6 +10,7 @@ import pytest
 
 from eval.harness import Api, HarnessError, labels, metrics, report, run_set, write_outputs
 from eval.harness.__main__ import main
+from tests.one_time_guard import isolate
 from tests.test_spec10_harness import AMBIGUOUS, BLOCK, EXAMPLES, FAULT, api_with, final_for, record
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -24,6 +25,13 @@ SEALED = """# Evaluation protocol
 - Sealed by: Diego
 <!-- SEAL:END -->
 """
+
+
+@pytest.fixture(autouse=True)
+def _one_time_isolation(monkeypatch, tmp_path):
+    """Every test here runs against a throwaway root; opening the real held-out or labels, or claiming or checking
+    the seal in the real repository, fails the test (tests/one_time_guard.py)."""
+    return isolate(monkeypatch, tmp_path)
 
 
 def with_meta(case: dict) -> dict:
