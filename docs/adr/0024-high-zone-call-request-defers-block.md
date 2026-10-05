@@ -35,15 +35,15 @@ The details that matter:
   `amount_over_case_gate` or `supervised_mode`.
 - **Enforced twice.** `decide()` leaves `block_card` out of `allowed_actions`. `check()` takes a required strict bool
   `call_requested`. After the mode check, it denies a money action when the flag is true, citing `POL-HUMAN-REQUEST`.
-- **How long the hold lasts (D-042).** The block stays held until the analyst decides it or ends the case, not only
-  in the turn of the call request. The `block_card` tool reads `call_requested` from the store: it is true while the case has an open
-  call: the case has a `call_requested` event or was opened with `handoff_reason` `person_requested` (this covers a
-  failed verify of `request_call`, where spec 04's `connect` falls back to `active_or_general`), and no
-  `approve_block`, `resolve` or `close_case` on that case followed (spec 03 §8). The hold is per case: a different
-  charge opens a new case with no hold. Decided 2026-10-05: only those three analyst actions end the hold; `take`, `request_customer_info`,
-  `mark_ambiguous` and every other analyst action keep it, because an analyst usually takes a case before the call
-  and the block is the analyst's decision after the call. So a later plain-dispute turn about the same transaction
-  cannot block either.
+- **How long the hold lasts (D-042).** The block stays held until the analyst decides it or ends the case, not only in
+  the turn of the call request. The `block_card` tool reads `call_requested` from the store: it is true while the case
+  has an open call: the case has a `call_requested` event or was opened with `handoff_reason` `person_requested` (this
+  covers spec 04's `connect` fallback, where a failed `open_case` verify registers the call as a general request with
+  no case), and no `approve_block`, `resolve` or `close_case` on that case followed (spec 03 §8). The hold is per
+  case: a different charge opens a new case with no hold. Decided 2026-10-05: only those three analyst actions end the
+  hold; `take`, `request_customer_info`, `mark_ambiguous` and every other analyst action keep it, because an analyst
+  usually takes a case before the call and the block is the analyst's decision after the call. So a later
+  plain-dispute turn about the same transaction cannot block either.
 - **The later-turn block (D-043, decided 2026-10-05).** `decide()` stays without the store and `DecisionInput` gains
   no field (spec 02), so on that later turn it may still return `block_and_open_case`. While the hold is open, the
   `block_card` tool's `check()` re-check denies the block citing `POL-HUMAN-REQUEST`, and the agent reports it as not

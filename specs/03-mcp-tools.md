@@ -168,10 +168,10 @@ and writes Postgres through `nick_of_time.store`: `sessions` (read), `demo_trans
   gold transaction), the flag comes from trusted state, not from the agent. It is true while the case has an open call:
   the case has a `call_requested` event **or** was opened with `handoff_reason` `person_requested`, and no
   `approve_block`, `resolve` or `close_case` on that case followed. The second condition covers spec 04's `connect`
-  fallback to `active_or_general` when the verify of `request_call` on the case fails: the case is already written in
-  `review` with `person_requested` but has no `call_requested` event, and it must stay held. So a later plain-dispute
-  turn about the same transaction is denied with `POL-HUMAN-REQUEST`. The hold is per case: a different charge opens
-  a new case, which has no hold unless its own turn asked for a person. In the turn of the call
+  fallback: when `open_case` or its verify fails, the call is registered as a general request with no case, so a case
+  already written in `review` with `person_requested` may have no `call_requested` event, and it must stay held. So a
+  later plain-dispute turn about the same transaction is denied with `POL-HUMAN-REQUEST`. The hold is per case: a
+  different charge opens a new case, which has no hold unless its own turn asked for a person. In the turn of the call
   request the order is spec 04's `act` → `verify` → `connect` (`open_case`, then `request_call` on that case); until
   that write, `decide()` leaving `block_card` out of `allowed_actions` is the guard.
 - **End of the hold and the later-turn block (decided by the lead, 2026-10-05; D-042, D-043, ADR 0024):** only the
@@ -181,7 +181,8 @@ and writes Postgres through `nick_of_time.store`: `sessions` (read), `demo_trans
   `check()` re-check denies it with `POL-HUMAN-REQUEST` and the agent reports it as not done (D-043). The end
   condition lives in the store and is built and tested in task 03c: tests there show that `take` and
   `request_customer_info` keep the deny and each of `approve_block`, `resolve` and `close_case` lifts it; that a case
-  opened with `person_requested` whose `request_call` verify failed (no `call_requested` event) is still held; and that
+  opened with `person_requested` whose call went out as a general request after a failed verify (no `call_requested`
+  event on the case) is still held; and that
   the hold is per case (a block on another case of the same customer is not denied by it).
 - Assumption: the DuckDB in-memory load fits the EC2 (t3.medium, 4 GB) — measured in T5.
 
