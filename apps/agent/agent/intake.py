@@ -456,13 +456,13 @@ async def verify(state: State, config: RunnableConfig) -> dict[str, Any]:
     unconfirmed = [a["tool"] for a in done if a["state"] == "not_confirmed"]
     expired = writes["errors"].get("open_case") == "SESSION_EXPIRED"
     lines = verified_lines(case, readings.get("block_card"), writes.get("open_case"), language)
-    lines += [unconfirmed_line(tool, case, calls or expired, language) for tool in unconfirmed]
+    duplicate = bool(case and (writes.get("open_case") or {}).get("duplicate_of"))
+    lines += [unconfirmed_line(tool, case, calls or expired, duplicate, language) for tool in unconfirmed]
     if expired:     # sign in again (spec 02 rule 1); "nothing changed" only when no attempt went unanswered
         maybe = "open_case" in writes["unanswered"]
         lines.append(msg.text("act.sign_in" if maybe else "refuse.reauthenticate", language))
         return {"actions": done, "unconfirmed": unconfirmed, "body": [*state["body"], *lines], "row": "reauthenticate",
                 "decision": "reauthenticate", "path": state["path"] + ["verify"]}
-    duplicate = bool(case and (writes.get("open_case") or {}).get("duplicate_of"))
     row = ("case_active" if duplicate else ("escalate_unconfirmed" if case else "case_unconfirmed") if unconfirmed
            else "receipt" if state["route"]["decision"] == "block_and_open_case" else "handoff")
     # a duplicate_of case reports as the duplicate node does (D-050); any other unconfirmed action escalates
@@ -472,15 +472,19 @@ async def verify(state: State, config: RunnableConfig) -> dict[str, Any]:
             "case_id": case["case_id"] if case else None, "path": state["path"] + ["verify"], **decision}
 
 
-def unconfirmed_line(tool: str, case: Optional[dict[str, Any]], quiet: bool, language: str) -> str:
-    """The line of an action not confirmed. With a verified case a person reviews it (status.action_not_confirmed);
-    with none, no line promises a review [assumption]: the case line asks for a call unless the turn registers one or
-    asks to sign in (`quiet`)."""
+def unconfirmed_line(tool: str, case: Optional[dict[str, Any]], quiet: bool, duplicate: bool, language: str) -> str:
+    """The line of an action not confirmed. With a verified case a person reviews it (status.action_not_confirmed),
+    but on a duplicate_of case, which does not escalate (D-050), the person on that case decides the block; with no
+    verified case no line promises a review [assumption]: the case line asks for a call unless the turn registers one
+    or asks to sign in (`quiet`)."""
+    label = msg.text(f"status.action_label.{tool}", language)
     if tool == "open_case" and not quiet:
         return msg.text("act.case_not_confirmed", language)
+    if duplicate:
+        return msg.text("act.decided_on_case", language, action_label=label, case_id=case["case_id"])
     if case:
         return msg.action_line(tool, "not_confirmed", language)
-    return msg.text("act.not_confirmed", language, action_label=msg.text(f"status.action_label.{tool}", language))
+    return msg.text("act.not_confirmed", language, action_label=label)
 
 
 def holds(tool: str, action_id: str, target: dict[str, str], reading: BaseModel) -> bool:

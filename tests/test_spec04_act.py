@@ -144,6 +144,9 @@ def test_ac_18_d_050_open_case_duplicate_of_blocks_nothing_and_reports_as_duplic
     assert "block_card" not in calls and turn.decision == decision and turn.case_id == "K-104233"
     assert "Este cargo ya está en tu caso K-104233" in turn.reply and "Tarjeta terminada" not in turn.reply
     assert [(a.tool, a.state) for a in turn.actions][:2] == [("open_case", "verified"), ("block_card", "not_confirmed")]
+    # the planned block: no escalation on this turn (D-050), so the person on that case decides it, never "revisará"
+    assert ("Bloqueo de la tarjeta: SIN CONFIRMAR. La persona a cargo del caso K-104233 decide el bloqueo."
+            in turn.reply.splitlines()) and "revisará" not in turn.reply
     if decision is None:
         assert [s.id for s in turn.suggestions] == ["view_case", "add_info", "request_call"]
 
@@ -250,8 +253,15 @@ def test_ac_04_ac_18_the_reply_answers_every_planned_action_in_exactly_one_state
         assert turn.decision == "reauthenticate" and lines[-1].startswith("Necesito que verifiques tu sesión")
         assert ("No hice ningún cambio" in lines[-1]) == (opened == "SESSION_EXPIRED")
         assert [s.id for s in turn.suggestions] == ["reauthenticate", "talk_to_person"]
-        assert not any(name == "request_call" for name, _ in seen)
+        assert not any(name == "request_call" for name, _ in seen) and "Pide que te llame" not in turn.reply
     elif opened == "duplicate_of":
         assert turn.decision == ("connect_person" if text == CALL else None)
     elif verified != set(allowed):
         assert turn.decision == "escalate_unconfirmed_action"
+
+
+def test_ac_18_the_planned_steps_not_confirmed_are_said_in_portuguese():
+    turn = Chat(mcp_transport=server(open_case=DENY)).say(EV_0001, language="pt")
+    lines = turn.reply.splitlines()
+    assert lines[-2].startswith("Abertura do caso: SEM CONFIRMAÇÃO.") and lines[-1] == "Bloqueio do cartão: SEM CONFIRMAÇÃO."
+    assert [(a.tool, a.state) for a in turn.actions] == [("open_case", "not_confirmed"), ("block_card", "not_confirmed")]

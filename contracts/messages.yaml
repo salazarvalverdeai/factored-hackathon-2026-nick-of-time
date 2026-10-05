@@ -18,7 +18,7 @@
 #   re-evaluation AC-24, reversed charge); each extension is a contract change approved by the lead. Task 04b
 #   (T3) added clarify.pick_one, clarify.exhausted, clarify.read_failed and duplicate.case_exists; task 04e (T6)
 #   added status.no_cases, status.no_cards and status.case_done; task 04c (T4) added act.case_opened,
-#   act.case_not_confirmed, act.not_confirmed and act.sign_in.
+#   act.case_not_confirmed, act.not_confirmed, act.decided_on_case and act.sign_in.
 # - Chips: `kind` is static here; the action payload ({type}, spec 01 §6.4) is set by the server code.
 # - Never a placeholder or text for the fraud score, policy ids, rule ids, zones or the transcript
 #   (notifications.never_send in policies.yaml).
@@ -377,6 +377,11 @@ act:
     # on a turn that registers a call or asks to sign in. action_label is status.action_label.
     es: "{action_label}: SIN CONFIRMAR."
     pt: "{action_label}: SEM CONFIRMAÇÃO."
+  decided_on_case:
+    # open_case returned duplicate_of and get_case verified that case, so the block was not tried and the turn does
+    # not escalate (D-050): the person on that case decides it. case_id is get_case's.
+    es: "{action_label}: SIN CONFIRMAR. La persona a cargo del caso {case_id} decide el bloqueo."
+    pt: "{action_label}: SEM CONFIRMAÇÃO. A pessoa responsável pelo caso {case_id} decide o bloqueio."
   sign_in:
     # open_case answered SESSION_EXPIRED after an attempt with no answer, so the case may exist: the sign-in line of
     # refuse.reauthenticate without "nothing was changed", which is not verified.
