@@ -27,6 +27,8 @@ services:
   mcp:
     profiles: [mcp]       # the fake MCP server lands with spec 01 task 01b (apps/mcp/Dockerfile, PR #59)
     build: {context: .., dockerfile: apps/mcp/Dockerfile}
+    # the image runs the real gated server (spec 03 T8); local development keeps the fixture server, no key, no gold
+    command: ["python", "-m", "mcp_server.fake", "--host", "0.0.0.0", "--port", "8001"]
     env_file: [{path: ../.env, required: false}]
     environment:
       LLM_PROVIDER: fake

@@ -1,0 +1,120 @@
+# Deploy on every merge to main (spec 06, ADR 0011): build images → GHCR → OIDC → SSM Run Command on nickoftime-app.
+# No AWS keys live in GitHub: the deploy job assumes the role nickoftime-gha-deploy through OIDC.
+# Needs the Actions secrets AWS_DEPLOY_ROLE_ARN and EC2_INSTANCE_ID (loaded by the lead).
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false   # never abort a deploy half-way
+
+permissions:
+  contents: read
+
+env:
+  AWS_REGION: us-east-2
+  IMAGE_REPO: ghcr.io/${{ github.repository }}
+
+jobs:
+  build:
+    name: build · ${{ matrix.service }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: true   # one failed build means nothing is deployed and the old version keeps serving
+      matrix:
+        service: [web, api, mcp]
+    steps:
+      - uses: actions/checkout@v4
+
+      # The real Dockerfile wins as soon as its spec adds it; until then the placeholder in infra/ is built.
+      - name: Pick build context
+        id: ctx
+        run: |
+          # api and mcp copy packages/ and contracts/, so they build from the repo root; web builds from apps/web.
+          SVC="${{ matrix.service }}"
+          if [ -f "apps/$SVC/Dockerfile" ]; then
+            if [ "$SVC" = "web" ]; then CTX="apps/web"; else CTX="."; fi
+            echo "context=$CTX" >> "$GITHUB_OUTPUT"
+            echo "file=apps/$SVC/Dockerfile" >> "$GITHUB_OUTPUT"
+          else
+            echo "context=infra/$SVC-placeholder" >> "$GITHUB_OUTPUT"
+            echo "file=infra/$SVC-placeholder/Dockerfile" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: ${{ steps.ctx.outputs.context }}
+          file: ${{ steps.ctx.outputs.file }}
+          push: true
+          tags: |
+            ${{ env.IMAGE_REPO }}/${{ matrix.service }}:${{ github.sha }}
+            ${{ env.IMAGE_REPO }}/${{ matrix.service }}:latest
+          build-args: |
+            GIT_SHA=${{ github.sha }}
+          cache-from: type=gha,scope=${{ matrix.service }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.service }}
+
+  deploy:
+    name: deploy · SSM
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      id-token: write   # OIDC token for the AWS role
+      contents: read
+    steps:
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Deploy ${{ github.sha }} through SSM
+        env:
+          SHA: ${{ github.sha }}
+          INSTANCE_ID: ${{ vars.EC2_INSTANCE_ID }}
+        run: |
+          set -euo pipefail
+          PARAMS="$(jq -n --arg sha "$SHA" '{commands: [
+            "set -eu",
+            "cd /opt/nickoftime",
+            "git fetch --quiet origin main",
+            ("git checkout --force --detach " + $sha),
+            ("bash infra/deploy.sh " + $sha)
+          ]}')"
+
+          CMD_ID="$(aws ssm send-command \
+            --instance-ids "$INSTANCE_ID" \
+            --document-name AWS-RunShellScript \
+            --comment "deploy $SHA" \
+            --timeout-seconds 900 \
+            --parameters "$PARAMS" \
+            --query Command.CommandId --output text)"
+          echo "SSM command: $CMD_ID"
+
+          STATUS=Pending
+          for _ in $(seq 1 90); do   # up to 15 minutes; a healthy deploy takes a few
+            sleep 10
+            STATUS="$(aws ssm get-command-invocation --command-id "$CMD_ID" --instance-id "$INSTANCE_ID" \
+              --query Status --output text 2>/dev/null || echo Pending)"
+            case "$STATUS" in Pending|InProgress|Delayed) continue ;; *) break ;; esac
+          done
+
+          aws ssm get-command-invocation --command-id "$CMD_ID" --instance-id "$INSTANCE_ID" \
+            --query '{stdout: StandardOutputContent, stderr: StandardErrorContent}' --output text || true
+          echo "SSM status: $STATUS"
+          [ "$STATUS" = "Success" ]

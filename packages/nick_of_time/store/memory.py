@@ -17,8 +17,8 @@ from nick_of_time.store import (CUSTOMER_VISIBLE, RESERVED_EVENTS, UNDELIVERED, 
                                 NotVerified, ProductOverride, StoreError, VerifyingRead, _check_writer, _json,
                                 _utc_now, check_action_id, check_actor, check_business_date, check_text, check_transition,
                                 insert_with_fresh_case_id)
-from nick_of_time.store.accounts import (CHANNEL_CASE_EVENT, CHANNEL_ID, DENIAL_ID, ChannelEvent, CustomerChannel,
-                                         LinkedChannel, NewDenial, NewSession, Once, PolicyDenial,
+from nick_of_time.store.accounts import (CHANNEL_CASE_EVENT, CHANNEL_ID, DENIAL_ID, LLM_CALL_ID, ChannelEvent, CustomerChannel,
+                                         LinkedChannel, LLMCall, NewDenial, NewLLMCall, NewSession, Once, PolicyDenial,
                                          SessionRecord, check_channel_event, check_denial_session, check_key,
                                          arguments_hash, check_replay, idempotency_key, json_object, new_row_id, parse, window_start)
 
@@ -35,6 +35,7 @@ class MemoryStore:
         self._sessions: dict[str, SessionRecord] = {}
         self._denials: list[PolicyDenial] = []
         self._settings: list[dict[str, Any]] = []
+        self._llm_calls: list[LLMCall] = []
         self._channels: list[CustomerChannel] = []
         self._once: dict[str, tuple[str, Optional[str], str, dict[str, Any]]] = {}   # key -> (action, run, args, result)
 
@@ -319,6 +320,18 @@ class MemoryStore:
         check_key(session_id)
         rows = [d for d in self._denials if d.run_id == run_id and session_id in (None, d.session_id)]
         return [d.model_copy(deep=True) for d in sorted(rows, key=lambda d: (d.created_at, d.denial_id))]
+
+    def add_llm_call(self, **fields: Any) -> LLMCall:
+        call = parse(NewLLMCall, fields)
+        row = LLMCall(**call.model_dump(), call_id=new_row_id(LLM_CALL_ID), created_at=self._now())
+        self._llm_calls.append(row)
+        return row.model_copy(deep=True)
+
+    def list_llm_calls(self, *, run_id: Optional[str], trace_id: Optional[str] = None) -> list[LLMCall]:
+        check_key(run_id)
+        check_key(trace_id)
+        rows = [c for c in self._llm_calls if c.run_id == run_id and trace_id in (None, c.trace_id)]
+        return [c.model_copy(deep=True) for c in sorted(rows, key=lambda c: (c.created_at, c.call_id))]
 
     def add_channel_event(self, case_id: str, channel: LinkedChannel, address: str, event: ChannelEvent, *,
                           actor: str, trace_id: str) -> CustomerChannel:

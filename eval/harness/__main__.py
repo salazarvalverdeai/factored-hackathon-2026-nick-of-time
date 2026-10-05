@@ -18,14 +18,24 @@ from eval.harness import Api, HarnessError, metrics, report, run_set, write_outp
 ROOT = Path(__file__).resolve().parents[2]
 
 
-def _headline(records: list[dict], n_cases: int) -> None:
+def _headline(records: list[dict], n_cases: int, run_meta: dict) -> None:
+    """One line per arm. The metric id stays `pass_4` (spec 10 §7.2); its label says how many runs a case had."""
+    labels = {"pass_4": f"pass^{metrics.runs_per_case(records)}"}
     for arm in dict.fromkeys(record["arm"] for record in records):
         mine = [record for record in records if record["arm"] == arm]
         stats = metrics.group(mine)
         print(f"[simulated] {arm}: {len(mine)} runs of {n_cases} cases, "
               f"{sum(record['status'] == 'failed' for record in mine)} failed · "
-              + " · ".join(f"{name} {stats[name]['numerator']}/{stats[name]['denominator']}"
+              + " · ".join(f"{labels.get(name, name)} {stats[name]['numerator']}/{stats[name]['denominator']}"
                            for name in ("pass_4", "safe_automated_resolution", "unsafe_outcomes")))
+        if drift := run_meta["arms"].get(arm, {}).get("drift"):
+            print(f"warning: {arm} changed between runs ({', '.join(drift)}); see meta.json", file=sys.stderr)
+
+
+def _read_cases(path: Path) -> list[dict]:
+    if not path.is_file():
+        raise HarnessError(f"the case file {path} is missing")
+    return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
 
 
 def main(argv: list[str] | None = None, api: Api | None = None) -> int:
@@ -52,28 +62,29 @@ def main(argv: list[str] | None = None, api: Api | None = None) -> int:
             lines = (args.out / "runs.jsonl").read_text(encoding="utf-8").splitlines()
             records = [json.loads(line) for line in lines if line.strip()]
             write_outputs(records, args.out)
-            report.write_reports(records, args.out, json.loads((args.out / "meta.json").read_text(encoding="utf-8")),
-                                 args.web)
-            _headline(records, len({record["case_id"] for record in records}))
+            run_meta = json.loads((args.out / "meta.json").read_text(encoding="utf-8"))
+            report.write_reports(records, args.out, run_meta, args.web)
+            _headline(records, len({record["case_id"] for record in records}), run_meta)
             return 0
         heldout = args.set_name == "heldout"
         path = args.cases or ROOT / "eval/cases" / f"{args.set_name}.jsonl"
         if heldout:
             report.check_heldout(path)
-        cases = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
-        cases = [case for case in cases if case["set"] == args.set_name]
+        cases = [case for case in _read_cases(path) if case["set"] == args.set_name]
         started, today = report.now(), datetime.now(timezone.utc)
         out = args.out or (ROOT / "eval/results" / f"{today:%Y-%m-%d}-heldout" if heldout
                            else ROOT / "eval/.runs" / f"{today:%Y%m%dT%H%M%SZ}-dev")
+        if (out / "runs.jsonl").exists():                    # a committed held-out result is never replaced silently
+            raise HarnessError(f"{out} already holds a run; pass another --out or move it first")
         records = run_set(cases, [arm for arm in args.arms.split(",") if arm], args.runs, api=api,
                           api_url=args.api, workers=args.workers)
     except HarnessError as error:
         print(f"harness stopped: {error}", file=sys.stderr)
         return 2
     write_outputs(records, out)
-    report.write_reports(records, out, report.meta(records, path, started),
-                         args.web or (report.WEB_SUMMARY if heldout else None))
-    _headline(records, len(cases))
+    run_meta = report.meta(records, path, started)
+    report.write_reports(records, out, run_meta, args.web or (report.WEB_SUMMARY if heldout else None))
+    _headline(records, len(cases), run_meta)
     print(f"wrote runs.jsonl, summary.csv, meta.json and evaluation_summary.json in {out}")
     return 0
 

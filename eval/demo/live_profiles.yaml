@@ -7,7 +7,7 @@ seed: 20261005                     # the generator draws from this seed, so a de
 
 # A generated row uses a card the demo customer really owns (gold products) and that product's currency.
 profiles:                          # one per zone of contracts/policies.yaml
-  high:   {score: {min: 70, max: 95}, null_score: never, hours_before_now: {min: 2, max: 36}}    # inside the MX debit 48 h
+  high:   {score: {min: 70, max: 95}, null_score: never, hours_before_now: {min: 2, max: 36}}    # well inside the 90-day MX credit window (ADR 0023)
   medium: {score: {min: 32, max: 48}, null_score: never, hours_before_now: {min: 6, max: 60}}
   human:  {score: {min: 3, max: 25}, null_score: allowed, hours_before_now: {min: 6, max: 96}}   # no score is zone human too
 

@@ -1,0 +1,88 @@
+# Production stack on nickoftime-app (ADR 0011). Run through infra/deploy.sh, which writes infra/.env first.
+# Only caddy publishes ports; everything else is reachable on the internal network.
+name: nickoftime
+
+services:
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./caddy:/etc/caddy:ro   # a directory, not the file: git checkout replaces the file (new inode)
+      - caddy_data:/data        # certificates: keep it, Let's Encrypt rate-limits re-issuing
+      - caddy_config:/config
+    depends_on:
+      - web
+      - api
+      - mcp
+
+  web:
+    image: ${IMAGE_REPO:-ghcr.io/salazarvalverdeai/factored-hackathon-2026-nick-of-time}/web:${IMAGE_TAG:?set by deploy.sh}
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  api:
+    image: ${IMAGE_REPO:-ghcr.io/salazarvalverdeai/factored-hackathon-2026-nick-of-time}/api:${IMAGE_TAG:?set by deploy.sh}
+    restart: unless-stopped
+    env_file: .env
+    volumes:
+      - ${GOLD_HOST_DIR:-/var/lib/nickoftime/gold/v1}:/gold/v1:ro   # gold only, read-only (spec 06 FR-09)
+    environment:
+      GOLD_PATH: /gold/v1
+      DATABASE_URL: postgresql://${POSTGRES_USER:-nickoftime}:${POSTGRES_PASSWORD:?set by deploy.sh}@postgres:5432/${POSTGRES_DB:-nickoftime}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request as u; u.urlopen('http://127.0.0.1:8000/api/health', timeout=3)"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  mcp:
+    image: ${IMAGE_REPO:-ghcr.io/salazarvalverdeai/factored-hackathon-2026-nick-of-time}/mcp:${IMAGE_TAG:?set by deploy.sh}
+    restart: unless-stopped
+    env_file: .env
+    volumes:
+      - ${GOLD_HOST_DIR:-/var/lib/nickoftime/gold/v1}:/gold/v1:ro   # gold only, read-only (spec 06 FR-09)
+    environment:
+      GOLD_PATH: /gold/v1
+      DATABASE_URL: postgresql://${POSTGRES_USER:-nickoftime}:${POSTGRES_PASSWORD:?set by deploy.sh}@postgres:5432/${POSTGRES_DB:-nickoftime}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:   # the port answers only while the server runs: a crash loop (bad MCP_API_KEY) fails the deploy
+      test: ["CMD", "python", "-c", "import socket; socket.create_connection(('127.0.0.1', 8001), 3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 20s
+
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-nickoftime}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set by deploy.sh}
+      POSTGRES_DB: ${POSTGRES_DB:-nickoftime}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 10s
+
+volumes:
+  pgdata:
+  caddy_data:
+  caddy_config:

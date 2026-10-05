@@ -18,6 +18,23 @@ jobs:
   python:
     name: python · pytest
     runs-on: ubuntu-latest
+    # Throwaway CI-only database: the credentials below are not secrets and exist only inside this job.
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: ci_only
+          POSTGRES_PASSWORD: ci_only_not_a_secret
+          POSTGRES_DB: nickoftime_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ci_only -d nickoftime_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      TEST_DATABASE_URL: postgresql://ci_only:ci_only_not_a_secret@localhost:5432/nickoftime_ci
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -26,6 +43,12 @@ jobs:
           cache: pip
       - run: pip install -r requirements.txt
       - run: python -m pytest -q
+      # The PostgresStore suite must run in CI, never skip: fail if any `postgres`-marked test is skipped or none ran.
+      - name: PostgresStore suite ran (no skips)
+        run: |
+          python -m pytest -m postgres -q -rs | tee postgres-suite.log
+          if grep -Eq '[0-9]+ skipped' postgres-suite.log; then echo "::error::postgres tests were skipped"; exit 1; fi
+          grep -Eq '[0-9]+ passed' postgres-suite.log
 
   web:
     name: web · lint + build

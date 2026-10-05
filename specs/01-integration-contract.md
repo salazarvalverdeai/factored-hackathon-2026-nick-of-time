@@ -2,22 +2,32 @@
 
 - **Feature:** the contract the three of us build against — folders, REST API, MCP tools, graph I/O, Postgres schema,
   customer receipt, evaluation hooks — plus stubs so nobody waits for anybody.
-- **Status:** Draft (contract 1.3.0, updated 2026-10-04: 16 customer tools, two time modes, action states, delivery
-  status, the store's §6.5 rules)
+- **Status:** Draft (contract 1.4.0, updated 2026-10-05: 16 customer tools, two time modes, action states, delivery
+  status, the store's §6.5 rules, the lead's 2026-10-05 follow-ups)
 - **Owner:** @salazarvalverdeai · **Priority:** P0 · **Size:** M
 - **Challenge dimension:** AI Engineering, Technical Judgment
 - **Depends on:** framework (#2) · **Enables:** 03, 05, 07, 08, 10, 13, 16 · **ADRs:** 0005, 0007, 0008, 0010, 0013, 0017, 0019,
   0020
 - **Issue:** #3 · **Approval:** all three (@salazarvalverdeai, @gianzk, @vldiego)
 
-> Full profile: this spec *is* the contract. Contract version **1.3.0** (1.0.0 was the first review draft; 1.1.0 adds
+> Full profile: this spec *is* the contract. Contract version **1.4.0** (1.0.0 was the first review draft; 1.1.0 adds
 > the approved improvements #12–#16 before approval; 1.2.0 is additive: the handoff rules of §6.4, `GOLD_PATTERN`, the
 > `zone_medium` and `supervised_mode` handoff reasons; 1.3.0 is additive, from task 01c, §6.5: the `action_verified`
 > event type, `cases.opened_on` and the `on` business date of `status_changed` (D-023), an `action_id` on each customer
 > write with the `V-` id minted only by its verifying read and post-condition, `block_verified` from that read,
 > `verifications` and `action_write` (D-025, D-035), the analyst-action table (D-034) and the store's write rules;
 > and `schema.sql` as the §6.5 DDL with its typing and null convention, `cases` insert-only (AO), `policy_denials`
-> `session_id` null, `actor` and `run_id`, `llm_calls.run_id` (D-023), the unique action-id index and the row checks).
+> `session_id` null, `actor` and `run_id`, `llm_calls.run_id` (D-023), the unique action-id index and the row checks;
+> 1.4.0 holds the follow-ups the lead confirmed on 2026-10-05: (1) D-052, a tool asked for another customer's record
+> answers `NOT_FOUND` as for an unknown id and the refusal is still a `policy_denials` row with `POL-CROSS-CUSTOMER`
+> and G-SES-02 (§6.3), and `search_transaction` answers `UNAVAILABLE` in `live` mode until `clock.today` lands;
+> (2) `reliability.idempotency_key` in `policies.yaml` is the key `store.once` stores, `[{run_id}:]c={customer_id}:{key}`
+> (§6.3, §6.5), from task 01g3 (PR #99), no decision id; (3) `ListMyCardsOut.read_at`, the listing's own reading
+> time, set even with no cards, from the review of PR #104; (4) the `person_requested` handoff reason (D-029), which
+> lands with PR #80; (5) the store's §6.5 additions of tasks 01g2 and 01g3 (PRs #87, #99): `idempotency` append-only
+> with `args_hash` (a key replayed with other arguments is refused), `row_no` and the latest-row rule (highest
+> `row_no`, never the latest `created_at`), `read` on `action_verified`, and the refusal of NUL and lone surrogates; and
+> D-033's `score_source` and `score_version` in `handoff.schema.json`, already on main).
 > Any change after approval is a PR that all three approve and that bumps the version (minor = additive, major =
 > breaking).
 
@@ -178,7 +188,7 @@ shape of `data` is fixed in the producing spec.
 | `open_case` | W | Open the case; no duplicate active case; closed case → new case with `related_case_id` | `cases`, `case_events` (`case_opened`) | `get_case` |
 | `block_card` | W | Block the card | `product_overrides`, `case_events` (`card_blocked`) | `get_product_status` |
 | `get_product_status` | R | One card: type, last 4, status, `read_at`; `action_id` + `verification_id` only when called with a write's `action_id` (D-025) | — | — |
-| `list_my_cards` | R | The customer's cards with status; never a `V-` (plain reads) | — | — |
+| `list_my_cards` | R | The customer's cards with status; never a `V-` (plain reads); the listing's own `read_at`, set even with no cards (1.4.0) | — | — |
 | `get_case` | R | Customer view of a case: status label, stored deadlines with source and `deadline_verified_on`, visible timeline, `taken_by_person`, `related_case_id`, `read_at` (replaces `get_case_status`) | — | — |
 | `list_my_cases` | R | The customer's cases | — | — |
 | `add_case_info` | W | Customer adds information to an active case | `case_events` (`customer_info_added`) | `get_case` |
@@ -201,14 +211,22 @@ shape of `data` is fixed in the producing spec.
   with fixtures built from these models.
 
 - **Errors:** every tool returns `ToolError` (`DENY`, `NOT_FOUND`, `SESSION_EXPIRED`, `UNAVAILABLE`) instead of raising;
-  a `DENY` is also written to `policy_denials` with its `policy_id`.
+  a `DENY` is also written to `policy_denials` with its `policy_id`. A request for another customer's transaction,
+  card or case answers the same `NOT_FOUND` as an unknown id, with `policy_id: null`, so it never reveals that the
+  record exists; the refusal is still written to `policy_denials` with `POL-CROSS-CUSTOMER` and G-SES-02 (D-052,
+  `scope.cross_customer_request: deny_and_log`). That write is best-effort: if it fails, the error is logged and the
+  answer stays the same `NOT_FOUND`, never `UNAVAILABLE`, which would reveal the record.
 - **Session:** each call loads `sessions` by `session_id`; expired or unverified → `SESSION_EXPIRED`. The
   `customer_id` never comes from the arguments.
 - **Fault injection:** if the session row has `tool_faults` (set only by the eval seed, §6.8), the listed tools answer
   `UNAVAILABLE`.
 - **Idempotency:** every W and N tool stores `idempotency_key` → result in `idempotency`; a repeated key returns the
-  stored result without a second write.
-- **Mode:** each call reads `sessions.mode`; tools never read the system clock (AC-07, AC-08).
+  stored result without a second write. The stored key is `policies.yaml` `reliability.idempotency_key`,
+  `[{run_id}:]c={customer_id}:{key}`: `{key}` is the call's `idempotency_key`, the customer comes from the session and
+  the run prefix is present only with a `run_id` (§6.5, 1.4.0).
+- **Mode:** each call reads `sessions.mode`; tools never read the system clock (AC-07, AC-08). Until `clock.today`
+  lands (spec 02 T7), `search_transaction` answers `UNAVAILABLE` in `live` mode rather than an empty list (D-052);
+  AC-08's `demo_transactions` rows stay P1.
 
 ### 6.4 Graph I/O (`apps/agent`, LangGraph Platform)
 - **Graph id:** `dispute_intake` in `langgraph.json`. **Input:** `{"messages": [{"role": "user", "content": str}],
@@ -510,7 +528,14 @@ Implementation goes in one `feat/01-*` branch per task (for example `feat/01-pac
       `TEST_DATABASE_URL` is set (`-m postgres`), and `[postgres]`-only tests back the lock and the transaction
       (concurrent writers and first reads, the unique-index backstop). Owners of the other §6.5 accessors: `sessions`
       (read), `policy_denials` (insert), `customer_channels` and `idempotency` → task 01g's second PR
-      (`feat/01-store-accessors`); `llm_calls` → task 04f; `demo_transactions` → task 03b; `link_tokens` and
+      (`feat/01-store-accessors`); `llm_calls` → task 01h (`add_llm_call` and
+      `list_llm_calls(run_id, trace_id?)` on both backends, `store/accounts.py`, `tests/test_spec01_store_llm_calls.py`:
+      a store-made `LC-` id `[assumption]`, non-negative integer counts, a finite `cost_usd` in [0, 10^6] per call
+      `[assumption]` with a scale Postgres `numeric` holds, kept as a decimal (`-0` stored as `0`), `run_id` required
+      with no default so `None` (production) is passed on purpose (D-023), no update or delete, oldest first; the api
+      writes one row per billed call from a run's usage, spec 04 AC-14, spec 18 AC-10; no column beyond the §6.5
+      table; `cost_usd` is never null, so any arm that can write an `llm_calls` row must have a configured price
+      `[assumption]`, pending lead decision D-058, with no schema change); `demo_transactions` → task 03b; `link_tokens` and
       `settings_events` → spec 05 (api). The api checks `AnalystActionIn.idempotency_key` through the `idempotency`
       accessor before it calls `record_analyst_action`. Once task 02c merges, `record_analyst_action` takes the new
       status from `nick_of_time.policy.transition(current, action, actor)` (`Moved.status`), and the store's

@@ -262,7 +262,7 @@ def test_t10_actor_checks_spell_out_the_whitespace_of_the_store_actor():
 
 def test_d025_an_action_id_is_unique_over_the_store_write_events():
     """The partial unique index covers exactly the store's WRITE_EVENTS (checked on a server by the postgres test)."""
-    index = re.search(r"create unique index case_events_action_id_once on case_events \(\(payload ->> 'action_id'\)\)"
+    index = re.search(r"create unique index (?:if not exists )?case_events_action_id_once on case_events \(\(payload ->> 'action_id'\)\)"
                       r"\s+where type in \((.*?)\);", POSTGRES_ONLY, re.S)
     assert set(re.findall(r"'(\w+)'", index.group(1))) == WRITE_EVENTS
 

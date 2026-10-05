@@ -1,4 +1,4 @@
-"""Tool contracts v1.1 (spec 01 §6.3, spec 03 §6). Permissions live HERE, not in the prompt.
+"""Tool contracts v1.1 (spec 01 §6.3, contract 1.4.0; spec 03 §6). Permissions live HERE, not in the prompt.
 
 Each of the 16 customer tools has `<Name>In` / `<Name>Out` models, listed in `CUSTOMER_TOOLS` in the order of
 `policies.yaml` `actors.customer.tools`. Every input carries `session_id` and never `customer_id`: the server resolves
@@ -44,7 +44,7 @@ class _In(_Model):
 
 
 class _WriteIn(_In):
-    idempotency_key: str = Field(min_length=1)   # policies.yaml reliability.idempotency_key
+    idempotency_key: str = Field(min_length=1)   # {key} of policies.yaml reliability.idempotency_key (1.4.0)
 
 
 class _WriteOut(_Model):
@@ -213,6 +213,7 @@ class ListMyCardsIn(_In):
 
 class ListMyCardsOut(_Model):
     cards: list[Card]                 # plain status reads: list_my_cards verifies no write (D-025)
+    read_at: AwareDatetime            # 1.4.0: the listing's own reading time, set even with no cards (spec 04 AC-19)
 
     @model_validator(mode="after")
     def _a_listing_verifies_nothing(self):

@@ -62,6 +62,20 @@ def test_ac_03_both_sets_exist_with_the_held_out_language_mix():
     assert scored == {"high": 7, "medium": 8}                 # every real high-zone held-out transaction is used
 
 
+def test_ac_03_heldout_has_a_call_request_on_a_high_zone_charge():
+    """AC-03 (D-029, ADR 0024): the held-out covers a person request on a high-zone charge: the case opens in review
+    with its receipt, the call is a handoff, and the card stays Active for the analyst to decide after the call."""
+    calls = [item for item in SETS["heldout"] if item["expected"].get("intent") == "human_request"
+             and item["expected"].get("zone") == "high"]
+    assert calls
+    for item in calls:
+        expected = item["expected"]
+        assert (expected["decision"], expected["queue_status"], expected["receipt"]) == (
+            "connect_person", "review", {"issued": True, "has_deadline": True}), item["id"]
+        assert expected["final_state"]["product_status"] == "Active" and expected["final_state"]["case_open"]
+        assert expected["final_state"]["handoff_emitted"] and "card_blocked" not in expected.get("notifications", [])
+
+
 def test_ac_05_heldout_hash_file_is_the_sha256_of_the_case_file():
     """AC-05: eval/heldout.sha256 holds one 64-hex token, the sha256 of eval/cases/heldout.jsonl (§7.7)."""
     sealed = (ROOT / "eval/heldout.sha256").read_text(encoding="ascii")
@@ -127,9 +141,12 @@ def test_ac_08_case_files_and_scripts_never_touch_the_labels():
 
 @each_set
 def test_ac_09_expected_is_what_the_policy_engine_derives(name):
-    """AC-09: the committed `expected` of every case equals expected_for() on that case, so none is typed by hand."""
+    """AC-09: the committed `expected` of every case equals expected_for() on that case with the intent of its plan line,
+    so none is typed by hand and the intent label is the team's, not the case file's."""
+    plans = {plan["id"]: plan for plan in read_jsonl(CASES / "plan" / f"{name}.jsonl")}
+    assert set(plans) == {item["id"] for item in SETS[name]}
     for item in SETS[name]:
-        assert item["expected"] == expected_for(item, item["expected"].get("intent"), ENGINE), item["id"]
+        assert item["expected"] == expected_for(item, plans[item["id"]].get("intent"), ENGINE), item["id"]
 
 
 @each_set
@@ -169,6 +186,8 @@ def test_ac_09_only_the_messages_are_team_written(name):
     (case(fixtures=3), "unrecognized_charge", ("ask", "Active", False, None, False, False)),
     (case(fixtures=0), "human_request", ("connect_person", "Active", False, None, True, False)),
     (case(score=12.0), "human_request", ("connect_person", "Active", True, "review", True, True)),
+    # D-029 (ADR 0024): a call request on a high-zone charge opens the case and registers the call; no block that turn
+    (case(score=72.0), "human_request", ("connect_person", "Active", True, "review", True, True)),
     (case("injection", fixtures=0), None, ("deny", "Active", False, None, False, False)),
     (case("unauthorized_access", fixtures=0), None, ("deny", "Active", False, None, False, False)),
     (case("out_of_scope", fixtures=0), "out_of_scope", ("deny", "Active", False, None, False, False)),

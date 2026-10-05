@@ -148,7 +148,7 @@ Notes on A3–A7 (task 18a):
 ### 4.3 Scope for the submission
 | Phase | What | Acceptance criteria |
 |---|---|---|
-| **P0 — in the submission** | This spec and ADR 0021 with the diagram and the model inventory; `nick_of_time.audit` with A1–A7 used by the harness; **the judge's second opinion in the console** | AC-01, AC-02, AC-07 – AC-11 |
+| **P0 — in the submission** | This spec and ADR 0021 with the diagram and the model inventory; `nick_of_time.audit` with A1–A7 (the harness runs A5–A6, the checks `FinalState` can feed; spec 10 §4.1); **the judge's second opinion in the console** | AC-01, AC-02, AC-07 – AC-11 |
 | **P1 — if time allows** | Online auditor as an api background task, `audit_findings`, auditor panel and critical flag in the console | AC-03 – AC-06 |
 | **P2 — nice to have** | Judge chosen by the benchmark, monitoring KPIs, calibration against analysts; the continuous-evaluation pipeline of ADR 0021 (release gate for every model in the inventory) | AC-12 – AC-14 |
 

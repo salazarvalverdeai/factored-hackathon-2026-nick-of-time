@@ -1,13 +1,14 @@
 """Spec 10 T3, T4, T5 — run metadata, the web summary, the held-out guard and the blocks-against-label report."""
 from __future__ import annotations
 
+import csv
 import json
 from pathlib import Path
 
 import duckdb
 import pytest
 
-from eval.harness import HarnessError, labels, metrics, report, run_set, write_outputs
+from eval.harness import Api, HarnessError, labels, metrics, report, run_set, write_outputs
 from eval.harness.__main__ import main
 from tests.test_spec10_harness import AMBIGUOUS, BLOCK, EXAMPLES, FAULT, api_with, final_for, record
 
@@ -78,8 +79,9 @@ def test_ac_07_the_command_refuses_the_heldout_before_calling_the_system(tmp_pat
     assert "harness stopped: the held-out is not available" in capsys.readouterr().err
 
 
-def test_ac_11_run_writes_the_web_summary_in_the_contract_shape(tmp_path):
+def test_ac_11_run_writes_the_web_summary_in_the_contract_shape(tmp_path, monkeypatch):
     """AC-11: when a run set ends, evaluation_summary.json has the envelope of spec 01 and the data of §7.2."""
+    monkeypatch.setattr(labels, "LABELS", tmp_path / "no-labels.parquet")    # as in CI, even where labels are pulled
     web = tmp_path / "web/evaluation_summary.json"
     out = run_command(tmp_path, "--web", str(web))
     summary = json.loads(web.read_text(encoding="utf-8"))
@@ -151,3 +153,104 @@ def test_ac_03_the_same_cases_run_on_every_arm():
     records = run_set(EXAMPLES, ["S0", "S1", "S2", "jev"], runs=1, api=api_with(), workers=2)
     by_arm = {arm: [r["case_id"] for r in records if r["arm"] == arm] for arm in ("S0", "S1", "S2", "jev")}
     assert all(cases == [case["id"] for case in EXAMPLES] for cases in by_arm.values())
+
+
+def sealed_heldout(tmp_path: Path, monkeypatch, status: str = "SEALED") -> Path:
+    """A held-out file of the five examples, hashed, with a protocol in `status`; the guard's paths point at it."""
+    cases, protocol, hash_file = tmp_path / "heldout.jsonl", tmp_path / "PROTOCOL.md", tmp_path / "heldout.sha256"
+    cases.write_text("".join(json.dumps({**case, "set": "heldout"}, ensure_ascii=False) + "\n" for case in EXAMPLES),
+                     encoding="utf-8", newline="\n")
+    protocol.write_text(SEALED.format(status=status, sha="a" * 64), encoding="utf-8")
+    hash_file.write_text(report.sha256_of(cases) + "\n", encoding="ascii")
+    for name, path in (("PROTOCOL", protocol), ("HELDOUT_HASH", hash_file), ("HELDOUT_CASES", cases)):
+        monkeypatch.setattr(report, name, path)
+    return cases
+
+
+def test_ac_07_run_set_itself_refuses_heldout_cases_before_the_seal(tmp_path, monkeypatch):
+    """AC-07 (FR-06): spec 15 calls run_set directly, so the guard runs there too and seeds nothing when refused."""
+    seen: list = []
+    heldout = [{**case, "set": "heldout"} for case in EXAMPLES]
+    with pytest.raises(HarnessError, match="UNSEALED, not SEALED|differ from the sealed file"):   # repo protocol
+        run_set(heldout, ["S1"], runs=1, api=api_with(seen=seen))
+    sealed_heldout(tmp_path, monkeypatch, status="UNSEALED")
+    with pytest.raises(HarnessError, match="UNSEALED, not SEALED"):
+        run_set(heldout[:1], ["S1"], runs=1, api=api_with(seen=seen))
+    assert not seen
+    assert len(run_set(EXAMPLES, ["S1"], runs=1, api=api_with())) == 5       # dev cases need no seal
+
+
+def test_ac_07_run_set_runs_only_the_sealed_heldout_as_sealed(tmp_path, monkeypatch):
+    """AC-07: once sealed, held-out cases run only when the file matches its hash and each case matches the file."""
+    cases = sealed_heldout(tmp_path, monkeypatch)
+    heldout = [json.loads(line) for line in cases.read_text(encoding="utf-8").splitlines()]
+    assert all(r["status"] == "ok" for r in run_set(heldout, ["S1"], runs=1, api=api_with()))
+    edited = [{**heldout[0], "messages": [{"text": "otro texto"}]}, *heldout[1:]]
+    seen: list = []
+    with pytest.raises(HarnessError, match="differ from the sealed file: EV-0001"):
+        run_set(edited, ["S1"], runs=1, api=api_with(seen=seen))
+    cases.write_text(cases.read_text(encoding="utf-8") + "\n", encoding="utf-8", newline="\n")
+    with pytest.raises(HarnessError, match="differs from eval/heldout.sha256"):
+        run_set(heldout, ["S1"], runs=1, api=api_with(seen=seen))
+    cases.unlink()
+    with pytest.raises(HarnessError, match="case file .* is missing"):
+        run_set(heldout, ["S1"], runs=1, api=api_with(seen=seen))
+    assert not seen
+
+
+def test_ac_07_a_missing_case_file_stops_the_command_with_an_error(tmp_path, capsys):
+    """AC-07: a missing --cases file is a HarnessError (exit 2), not a traceback."""
+    code = main(["run", "--set", "dev", "--arms", "S1", "--cases", str(tmp_path / "nope.jsonl"), "--out",
+                 str(tmp_path / "run")], api=api_with())
+    assert code == 2 and "the case file" in capsys.readouterr().err and not (tmp_path / "run").exists()
+
+
+def test_ac_11_a_finished_run_folder_is_never_overwritten(tmp_path, capsys):
+    """AC-11 (§7.1): a second run into a folder that holds a run stops before calling the system."""
+    out = run_command(tmp_path)
+    before = (out / "runs.jsonl").read_text(encoding="utf-8")
+    seen: list = []
+    code = main(["run", "--set", "dev", "--arms", "S1", "--runs", "1", "--cases", str(EXAMPLE_FILE), "--out", str(out)],
+                api=api_with(seen=seen))
+    assert code == 2 and not seen and "already holds a run" in capsys.readouterr().err
+    assert (out / "runs.jsonl").read_text(encoding="utf-8") == before
+
+
+def test_ac_05_run_meta_flags_drift_between_runs_of_one_arm(capsys):
+    """AC-05: if the system under test changes during a run set, meta.json says which fields changed."""
+    later = {**RUN_META, "git_sha": "def5678", "prompt_hash": "sha256:beef"}
+    runs = [record(BLOCK, 1, run_meta=RUN_META), record(BLOCK, 2, run_meta=later), record(AMBIGUOUS, 1, run_meta=later)]
+    meta = report.meta(runs, EXAMPLE_FILE, report.now())
+    assert meta["arms"]["S1"] == {**RUN_META, "drift": {"git_sha": ["abc1234", "def5678"],
+                                                         "prompt_hash": ["sha256:feed", "sha256:beef"]}}
+    steady = report.meta([record(BLOCK, 1, run_meta=RUN_META), record(BLOCK, 2, run_meta=RUN_META)], EXAMPLE_FILE,
+                         report.now())
+    assert steady["arms"]["S1"] == RUN_META
+
+
+def test_ac_02_summary_rows_carry_the_label_the_set_and_pass_k(tmp_path, capsys):
+    """AC-02 (§5 Honesty): every summary.csv row says [simulated] and its set; the headline names pass^k for --runs."""
+    out = run_command(tmp_path)
+    with (out / "summary.csv").open(encoding="utf-8", newline="") as source:
+        rows = list(csv.DictReader(source))
+    assert rows and {(row["label"], row["set"]) for row in rows} == {("[simulated]", "dev")}
+    printed = capsys.readouterr().out
+    assert "pass^2 5/5" in printed and "pass_4" not in printed and metrics.runs_per_case(
+        [record(BLOCK, k) for k in (1, 2, 3)]) == 3
+
+
+def test_ac_12_run_set_closes_the_client_it_opens(monkeypatch):
+    """AC-12: with `api_url`, run_set opens its own client and closes it when the set ends."""
+    opened: list[Api] = []
+
+    def at(base_url: str) -> Api:
+        api = api_with()
+        opened.append(api)
+        return api
+
+    monkeypatch.setattr(Api, "at", staticmethod(at))
+    run_set(EXAMPLES[:1], ["S1"], runs=1, api_url="http://eval.test")
+    assert len(opened) == 1 and opened[0].http.is_closed
+    given = api_with()
+    run_set(EXAMPLES[:1], ["S1"], runs=1, api=given)
+    assert not given.http.is_closed                                      # a client the caller gave stays open

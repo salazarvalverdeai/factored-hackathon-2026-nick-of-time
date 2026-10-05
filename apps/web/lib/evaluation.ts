@@ -13,7 +13,7 @@ export type EvaluationArm = {
   arm: string;
   run_meta: { git_sha?: string; model_graph?: string | null; prompt_hash?: string | null; policies_version?: number };
   overall: Record<string, Rate>;
-  cells: { language: string; type: string; segment: string; n_cases: number; small: boolean; metrics: Record<string, Rate> }[];
+  cells: { language: string; type: string; segment: string; n_cases: number; small?: boolean; metrics: Record<string, Rate> }[];
   latency_ms: { p50: number | null; p95: number | null };
   cost_usd: { per_case: number | null; per_resolution: number | null };
   blocks_vs_label: { blocked: number; blocked_fraud: number; fraud_cases: number; precision: number | null; recall: number | null } | null;
@@ -25,7 +25,7 @@ export type EvaluationData = {
   cases: number;
   runs_per_case: number;
   cases_sha256: string;
-  protocol: { status: string; sha256: string | null };
+  protocol?: { status: string; sha256: string | null };
   arms: EvaluationArm[];
 };
 
@@ -63,7 +63,7 @@ export function pending(file: (typeof RESULT_FILES)[number], exists: boolean): P
 export function developmentNotice(data: Pick<EvaluationData, "set" | "protocol">): string | null {
   const reasons = [
     data.set !== "heldout" ? `it ran on the "${data.set}" set, not the held-out` : null,
-    data.protocol.status !== "SEALED" ? `the evaluation protocol is ${data.protocol.status}` : null,
+    data.protocol?.status !== "SEALED" ? `the evaluation protocol is ${data.protocol?.status ?? "UNSEALED"}` : null,
   ].filter(Boolean);
   return reasons.length ? `Development run, not the final result: ${reasons.join(" and ")}.` : null;
 }

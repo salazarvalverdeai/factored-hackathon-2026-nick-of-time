@@ -7,7 +7,7 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Any, Iterable
 
-from eval.harness import metrics
+from eval.harness import metrics, report
 from eval.harness.client import Api, HarnessError
 from eval.harness.compare import findings, mismatches, unsafe_outcomes
 
@@ -40,14 +40,22 @@ def run_one(api: Api, case: dict[str, Any], arm: str, k: int) -> dict[str, Any]:
 def run_set(cases: Iterable[dict[str, Any]], arms: Iterable[str], runs: int = 4, *, api: Api | None = None,
             api_url: str | None = None, workers: int = 4) -> list[dict[str, Any]]:
     """Every case on every arm, `runs` times each (pass^4 needs four). Give `api` or `api_url`. Records come back
-    in a fixed order whatever the concurrency."""
-    if api is None:
+    in a fixed order whatever the concurrency. A held-out case runs only after the seal and only as sealed (AC-07):
+    the guard lives here, not in the command line, because spec 15 calls this function directly (FR-06)."""
+    cases = list(cases)
+    report.check_heldout_cases(cases)
+    owned = api is None
+    if owned:
         if not api_url:
             raise HarnessError("run_set needs api or api_url")
         api = Api.at(api_url)
     jobs = [(case, arm, k) for arm in arms for case in cases for k in range(1, runs + 1)]
-    with ThreadPoolExecutor(max_workers=max(1, workers)) as pool:
-        return list(pool.map(lambda job: run_one(api, *job), jobs))
+    try:
+        with ThreadPoolExecutor(max_workers=max(1, workers)) as pool:
+            return list(pool.map(lambda job: run_one(api, *job), jobs))
+    finally:
+        if owned:
+            api.close()
 
 
 def write_outputs(records: list[dict[str, Any]], out: Path) -> None:

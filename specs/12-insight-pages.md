@@ -26,7 +26,8 @@ AC-01 to AC-03 come from issue #14 with the same numbers; AC-01 carries the lead
 comment). AC-04 onward are added by this spec. Evidence: [T] test · [C] command · [U] screenshot · [D] file.
 
 - **AC-01 (P0)** — `/evaluation` shall show the harness results with n, S0 against S1 against S2, the benchmark
-  cost-quality chart, the classifier table and the fraud-model comparison, labeled `[simulated]`, with a link to
+  cost-quality chart, the classifier table and the fraud-model comparison, each file labeled (`[simulated]` for specs 10, 11 and 15,
+  `[data]` for spec 17), with a link to
   `eval/PROTOCOL.md`. · [U]
 - **AC-02 (P1)** — `/analytics` shall show the pitch numbers with their `[data]` label and source, plus the
   operational KPIs of spec 14. · [U] (pitch numbers done in PR #72; the KPIs wait for spec 14)
@@ -34,7 +35,8 @@ comment). AC-04 onward are added by this spec. Evidence: [T] test · [C] command
   fixture result. · [U]
 - **AC-04** — While a result file of §7.1 does not exist, its section shall show "Results pending" with what is
   missing, and no figure. · [T] `apps/web/lib/evaluation.test.ts`
-- **AC-05** — If the protocol status in `evaluation_summary.json` is not `SEALED`, or its set is not `heldout`, then
+- **AC-05** — If the protocol status in `evaluation_summary.json` or in any other result file of §7.1 is not `SEALED`,
+  or the set of `evaluation_summary.json` is not `heldout`, then
   `/evaluation` shall show a visible "development run, not the final result" notice above the figures. · [T]
   `apps/web/lib/evaluation.test.ts`
 - **AC-06** — Every rate on `/evaluation` shall be shown with its numerator, its denominator and its interval, in the
@@ -53,9 +55,9 @@ Reads only static files under `apps/web/public/data/`; creates `data_quality.jso
 | Page | File | Produced by | Shape |
 |---|---|---|---|
 | `/evaluation` | `evaluation_summary.json` | spec 10 | spec 10 §7.2 |
-| `/evaluation` | `benchmark.json` | spec 15 | fixed by spec 15 (Q1) |
-| `/evaluation` | `classifier.json` | spec 11 | fixed by spec 11 (Q1) |
-| `/evaluation` | `fraud_benchmark.json` | spec 17 | fixed by spec 17 (Q1) |
+| `/evaluation` | `benchmark.json` | spec 15 | spec 15 §7.1 |
+| `/evaluation` | `classifier.json` | spec 11 | spec 11 §7.1 |
+| `/evaluation` | `fraud_benchmark.json` | spec 17 | spec 17 §7.1 |
 | `/analytics` | `pitch_numbers.json` | `queries/pitch/export_web.py` (PR #72) | that script |
 | `/analytics` | `ops_kpis.json` | spec 14 (P1) | fixed by spec 14 |
 | `/data` | `data_quality.json` | this spec, `data/pipeline` report | §7.2 |
@@ -86,15 +88,16 @@ checks re-run between `delivery_1` and `delivery_2` of the fixture). Built by a 
   the late-arrival result.
 
 ## 8. Assumptions and open questions (gate 1 — to close in this PR)
-- **Q1 (@salazarvalverdeai) — shapes.** Spec 01 says the producing spec fixes the shape of `data`, and specs 11, 15 and
-  17 do not state it yet. Can each add a short JSON example? Until then the page code for those three sections waits.
+- **Q1 (@salazarvalverdeai) — shapes.** **Answered:** specs 11, 15 and 17 each fix the `data` shape of their file in
+  a subsection "7.1 Web export shape" (JSON example, one line per field with unit and label). The protocol status
+  and hash are part of each, so AC-04 and AC-05 apply to the three sections. T4 can start from them.
 - **Q2 (@gianzk) — chart component.** The charts of PR #72 are plain SVG and HTML with no new dependency. When #51
   lands, do you want them moved onto `BarChartCard` (Recharts), or kept as they are?
-- **Q3 (@salazarvalverdeai) — teal.** The second series uses `#0d9488`; the brand teal `#0F766E` falls below the
-  chroma floor of the palette check on the light surface (0.086, it reads gray next to violet). Keep the lighter
-  step for charts and say so in `docs/brand/BRAND.md`?
-- **Q4 (@salazarvalverdeai) — P2 items.** Auditor findings per 100 runs and judge–analyst agreement (spec 18) are left
-  out of this spec. Agreed?
+- **Q3 (@salazarvalverdeai) — teal.** **Decided (lead, 2026-10-05):** keep `#0d9488` for chart series only; recorded
+  in `docs/brand/BRAND.md`. The second series uses `#0d9488`; the brand teal `#0F766E` falls below the chroma floor of
+  the palette check on the light surface (0.086, it reads gray next to violet).
+- **Q4 (@salazarvalverdeai) — P2 items.** **Decided (lead, 2026-10-05):** the P2 items are out of this spec. Auditor
+  findings per 100 runs and judge–analyst agreement (spec 18) are left out of it.
 - Assumption: `/evaluation` can be built and merged before the held-out run, showing the empty state (AC-04).
 - Assumption: results from a development run may be shown only under the notice of AC-05. `[assumption]`
 
@@ -106,8 +109,8 @@ landing page and the slides (E1) · P2: auditor findings and judge–analyst agr
 Implementation goes in `feat/12-…` branches once this spec is approved.
 - [x] T1 — `/analytics` with the four problem charts and `pitch_numbers.json` · covers AC-02 (part), AC-07, AC-09 ·
       done in PR #72
-- [ ] T2 — drift test for `pitch_numbers.json` (done, `tests/test_spec12_pitch_numbers.py`); note on the teal step
-      (waits for Q3: `docs/brand/BRAND.md` is the lead's) · covers AC-08 · follow-ups of PR #72
+- [x] T2 — drift test for `pitch_numbers.json` (done, `tests/test_spec12_pitch_numbers.py`); note on the teal step
+      (Q3 decided: teal step recorded in `docs/brand/BRAND.md`) · covers AC-08 · follow-ups of PR #72
 - [x] T3 — `/evaluation` run header, headline figures, arm comparison and breakdown from `evaluation_summary.json`,
       with the empty state and the development notice · covers AC-01 (part), AC-04, AC-05, AC-06, AC-07
 - [ ] T4 — `/evaluation` benchmark, classifier and fraud sections · covers AC-01 · needs Q1

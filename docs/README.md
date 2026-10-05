@@ -82,7 +82,7 @@ None lives only in the prompt: each one has a place in code, an ID that DENYs ci
 | G-IN-02 | Input | Data made up by the customer: amount, date and merchant only serve for searching; score, product and country come from gold | injection |
 | G-IN-03 | Input | Language and ambiguity: ES/PT with threshold; low confidence → question, then human | ambiguous |
 | G-IN-04 | Input | PII and out of scope: PAN/CVV/password are rejected; topics outside disputes → abstention | out_of_scope |
-| G-SES-01 / 02 | Session | OTP with TTL; `customer_id` only from the session; access to another customer → DENY | session_expired, unauthorized_access |
+| G-SES-01 / 02 | Session | OTP with TTL; `customer_id` only from the session; another customer's record → the same NOT_FOUND as an unknown id (its existence is never revealed), logged as a denial with `POL-CROSS-CUSTOMER` (D-052) | session_expired, unauthorized_access |
 | G-TOOL-01 / 02 | Tools | Allowlist and strict schemas; writes with approval mode, idempotency and post-condition; credit never auto | unauthorized_access, tool_failure |
 | G-POL-01 | Policy | Deny by default; every denial is a row in `policy_denials` | all |
 | G-OUT-01 / 02 | Output | Grounding: every number, date, ID or status exists in a tool or in the policy; "blocked" only with verified status | missing_data, tool_failure |

@@ -44,6 +44,30 @@ touch other projects' resources, create users or attach policies to themselves.
 DNS is managed at the registrar (A records to the Elastic IP). Before releasing the IP or stopping the instance, the
 records are removed to avoid dangling DNS.
 
+## Deploy (spec 06)
+A merge to `main` runs `.github/workflows/deploy.yml`: build `web`, `api`, `mcp` → push to GHCR (tag = commit SHA) →
+assume `nickoftime-gha-deploy` through OIDC → SSM Run Command runs `infra/deploy.sh <sha>` on `nickoftime-app`.
+The script pulls the new images before touching any container, runs the migration hook, brings the stack up, reloads
+Caddy and waits for `/api/health` to report the deployed SHA; if it does not, it restores the last good version and the
+workflow fails. Files: `infra/compose.yml`, `infra/caddy/Caddyfile`, `infra/deploy.sh`, `infra/backup.sh`. Until specs
+03 and 05 add their own `Dockerfile`, `mcp` and `api` are built from `infra/mcp-placeholder` and `infra/api-placeholder`.
+
+| Needed once | Where | Who |
+|---|---|---|
+| Actions variables `AWS_DEPLOY_ROLE_ARN`, `EC2_INSTANCE_ID`, `AWS_REGION` (not secret: a role ARN and an instance id) | GitHub → Settings → Variables | lead |
+| GHCR packages `web`, `api`, `mcp` set to public after the first build (or `GHCR_READ_TOKEN` in SSM) | GitHub → Packages | lead |
+| SSM `/nickoftime/prod/POSTGRES_PASSWORD` (`deploy.sh` creates it if the role may `PutParameter`) | SSM | lead |
+| First checkout on the instance (below) | EC2 through SSM | GianMarco |
+
+First checkout (run once through SSM Session Manager or `aws ssm send-command`; the repository is public):
+```bash
+sudo git clone https://github.com/salazarvalverdeai/factored-hackathon-2026-nick-of-time /opt/nickoftime
+```
+
+Manual rollback (the instance has no SSH; use SSM): `cd /opt/nickoftime && git checkout --detach <good-sha> &&
+bash infra/deploy.sh <good-sha>`. Backups land in `s3://nickoftime-gold-061039767206/backups/postgres/`; the restore
+command is at the top of `infra/backup.sh`.
+
 ## LangGraph Platform (LangSmith)
 Organization on the Plus tier, workspace `NickOfTime`, tracing project `nick-of-time`. The graph deploys from this
 repository (`langgraph.json`). Deployment secrets: AWS credentials of `svc-nickoftime-langgraph`, the MCP URL and its
