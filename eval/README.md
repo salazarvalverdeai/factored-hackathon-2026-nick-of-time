@@ -21,6 +21,8 @@ harness of spec 10 when it scores.
 | `eval_case.schema.json`, `examples.jsonl` | shape of an agent case, with five examples | 01 |
 | `PROTOCOL.md` | pre-registered evaluation rules; unsealed until M02 | 11, 15, 17 |
 | `bench/` | model benchmark | 15 |
+| `harness/` | the evaluation harness (`make eval`) | 10 |
+| `local/` | the real stack for `make eval` on one machine (`make eval-local`): api with the eval hooks, MCP server, graph | 10 T6 |
 | `classifier/generate.py`, `classifier/draft/` | classifier sentence drafts from three model families and their run record | 09 §7.6 |
 | `classifier/review.py` | review sheets of the drafts and promotion to `classifier/{train,validation,test}.jsonl` | 09 §7.6 |
 
@@ -121,6 +123,44 @@ With 80 cases the intervals per cell are wide: results show n and do not over-cl
 (`PYTHONPATH=packages python -m eval.derive_expected seal`). No model has been trained or evaluated on the held-out.
 The hash becomes binding at M02, when `eval/PROTOCOL.md` is sealed; after that the file never changes and new data
 is a new sealed set (ADR 0021). **Do not use the held-out to tune prompts, rules or thresholds: use the dev set.**
+
+## Local real stack (spec 10 T6)
+`make eval-stub` scores the api stub's fixture; `make eval-local` stands up the real system, so `make eval` scores what
+the real `dispute_intake` graph does. Two shells, from the repo root:
+
+```bash
+make gold-pull                 # once: data/gold (or GOLD_PATH=/path/to/gold on both commands)
+make eval-local                # shell 1: api :8000 + MCP :8001 + langgraph dev :2024; Ctrl-C stops all three
+make eval                      # shell 2: dev set, S0 and S1, 4 runs -> eval/.runs/<utc time>-dev/
+make eval EVAL_ARMS=S0 EVAL_RUNS=1      # a quick pass with no model call
+```
+
+- **What runs.** One process (`python -m eval.local`) serves the store-backed api of spec 05 (`app.live`) and the MCP
+  server the deploy runs (`mcp_server.__main__.build`, a fresh 48-hex key per start), both over one in-memory store, and
+  starts `langgraph dev` on `langgraph.json`. The api reaches the graph through its own Platform client and the graph
+  reaches the MCP server through `MCP_URL`, as on Platform. `make eval-local` installs `langgraph-cli[inmem]` into the
+  venv on first use (local only; CI never needs it).
+- **Why not Platform.** The deployment's graph calls the production MCP server, which writes the production database;
+  it cannot reach a local MCP server or a seeded local session, so evaluation runs never use it.
+- **Evaluation hooks.** The live api has no `/api/eval/*` routes (spec 05 §8); `eval/local/hooks.py` adds them to the
+  local app only, so no deployed image carries them. The seed writes a `replay` session (`verified`, `expired` or
+  `none`), the case's language and `tool_faults`, and a returning customer's case with clock deadlines, under a store
+  run id unique per seed, so a second `make eval` against the same process starts from gold again. Fixtures must be gold
+  rows: overlays (held-out `late_arrival`) are refused, not invented.
+- **Final state.** Read from the turns the api received from the graph (decision, zone, intent, receipt, handoff card,
+  guardrails, actions, usage, latency) and from fresh store and gold reads of the run (case, queue status, card
+  status, notifications, call requests, denials). `handoff_emitted` is a handoff card in any turn or a call to a person
+  registered in the run (spec 09 §7.5). `other_customer_data_exposed` is any transaction, card or case id in what the
+  customer received that is not theirs in the run. `status_replies` stays empty until the graph states them (spec 04
+  T5), so `coherence_rate` has no denominator yet. A turn that ended without a graph turn makes the run `failed`.
+- **Safety.** Loopback only; no `.env` is read and `DATABASE_URL` is dropped (the in-memory store only); no Telegram or
+  e-mail is sent; replay "today" is 2026-06-01 (ADR 0020). The harness refuses the production host. S0 calls no model;
+  S1 calls Bedrock Haiku 4.5 with `AWS_PROFILE` (default `nickoftime`, us-east-2), at most one `understand` call per
+  turn and 0.02 USD per conversation (G-OPS-01). `EVAL_PROVIDER=fake make eval-local` keeps S1 off Bedrock (it then
+  runs as S0).
+- **Cost.** A dev pass of S1 (20 cases, 4 runs, 84 turns) projects to at most 0.38 USD `[assumption]`: 84 turns × one
+  call of ≤ 1,500 input and ≤ 512 output tokens at the Haiku 4.5 price of `bench/prices.yaml` (1.10 / 5.50 USD per 1M);
+  the 2026-10-05 run spent 0.037 USD on 20 calls `[simulated]`.
 
 ## Second labeling (AC-06)
 A second person labels the 20 **dev** cases blind, and the agreement with the first labeler (`vldiego`) is reported

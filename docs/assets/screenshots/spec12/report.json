@@ -1,0 +1,144 @@
+{
+ "base": "https://nickoftime.salazarvalverdeai.com",
+ "taken_at": "2026-10-05T19:14:29Z",
+ "shots": [
+  {
+   "page": "/evaluation",
+   "view": "desktop",
+   "width": 1280,
+   "theme": "light",
+   "dark_class": false,
+   "scroll_width": 1280,
+   "client_width": 1280,
+   "overflow_x": false,
+   "file": "evaluation-desktop-light.jpg"
+  },
+  {
+   "page": "/evaluation",
+   "view": "desktop",
+   "width": 1280,
+   "theme": "dark",
+   "dark_class": true,
+   "scroll_width": 1280,
+   "client_width": 1280,
+   "overflow_x": false,
+   "file": "evaluation-desktop-dark.jpg"
+  },
+  {
+   "page": "/evaluation",
+   "view": "mobile",
+   "width": 390,
+   "theme": "light",
+   "dark_class": false,
+   "scroll_width": 390,
+   "client_width": 390,
+   "overflow_x": false,
+   "file": "evaluation-mobile-light.jpg"
+  },
+  {
+   "page": "/evaluation",
+   "view": "mobile",
+   "width": 390,
+   "theme": "dark",
+   "dark_class": true,
+   "scroll_width": 390,
+   "client_width": 390,
+   "overflow_x": false,
+   "file": "evaluation-mobile-dark.jpg"
+  },
+  {
+   "page": "/analytics",
+   "view": "desktop",
+   "width": 1280,
+   "theme": "light",
+   "dark_class": false,
+   "scroll_width": 1280,
+   "client_width": 1280,
+   "overflow_x": false,
+   "file": "analytics-desktop-light.jpg"
+  },
+  {
+   "page": "/analytics",
+   "view": "desktop",
+   "width": 1280,
+   "theme": "dark",
+   "dark_class": true,
+   "scroll_width": 1280,
+   "client_width": 1280,
+   "overflow_x": false,
+   "file": "analytics-desktop-dark.jpg"
+  },
+  {
+   "page": "/analytics",
+   "view": "mobile",
+   "width": 390,
+   "theme": "light",
+   "dark_class": false,
+   "scroll_width": 390,
+   "client_width": 390,
+   "overflow_x": false,
+   "file": "analytics-mobile-light.jpg"
+  },
+  {
+   "page": "/analytics",
+   "view": "mobile",
+   "width": 390,
+   "theme": "dark",
+   "dark_class": true,
+   "scroll_width": 390,
+   "client_width": 390,
+   "overflow_x": false,
+   "file": "analytics-mobile-dark.jpg"
+  },
+  {
+   "page": "/data",
+   "view": "desktop",
+   "width": 1280,
+   "theme": "light",
+   "dark_class": false,
+   "scroll_width": 1280,
+   "client_width": 1280,
+   "overflow_x": false,
+   "file": "data-desktop-light.jpg"
+  },
+  {
+   "page": "/data",
+   "view": "desktop",
+   "width": 1280,
+   "theme": "dark",
+   "dark_class": true,
+   "scroll_width": 1280,
+   "client_width": 1280,
+   "overflow_x": false,
+   "file": "data-desktop-dark.jpg"
+  },
+  {
+   "page": "/data",
+   "view": "mobile",
+   "width": 390,
+   "theme": "light",
+   "dark_class": false,
+   "scroll_width": 390,
+   "client_width": 390,
+   "overflow_x": false,
+   "file": "data-mobile-light.jpg"
+  },
+  {
+   "page": "/data",
+   "view": "mobile",
+   "width": 390,
+   "theme": "dark",
+   "dark_class": true,
+   "scroll_width": 390,
+   "client_width": 390,
+   "overflow_x": false,
+   "file": "data-mobile-dark.jpg"
+  },
+  {
+   "page": "/analytics",
+   "view": "desktop",
+   "keyboard_focus": "Unrecognized or wrongful charges: 24,431 complaints, 36.4%",
+   "file": "analytics-desktop-dark-keyboard-focus.jpg"
+  }
+ ]
+}
