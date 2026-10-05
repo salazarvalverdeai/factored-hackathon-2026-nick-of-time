@@ -87,12 +87,12 @@ AC-01 to AC-06 come from issue #4 with the same numbers; AC-07 onward are added 
 | 1 | `POL-SESSION` | session expired or unverified | `reauthenticate` | G-SES-01 |
 | 2 | `POL-INJECTION` | input flagged by the injection detector (spec 11) | `deny` | G-IN-01, logged |
 | 3 | `POL-CROSS-CUSTOMER` | request targets another customer's data | `deny` | G-SES-02, logged |
-| 3a | `POL-HUMAN-REQUEST` | intent `human_request` | `connect_person` | `request_call` on the active case, or a general request; never refused (CFPB 2023). If the message also reports a charge (`dispute_detected`), 3a is not terminal: the call is registered and the dispute path continues with `open_case` only (mode `auto`, never a block), the call on that case; with no single card transaction, a general call (D-020, pending the lead) |
-| 3b | `POL-STATUS` | intent `status_inquiry` | `answer_status` | read-only: the agent re-reads cards or cases (spec 04 AC-19); no case is opened. With `dispute_detected`: status first; spec 04 continues on the dispute path when there is no active case (D-020) |
+| 3a | `POL-HUMAN-REQUEST` | intent `human_request` | `connect_person` | `request_call` on the active case, or a general request; never refused (CFPB 2023). If the message also reports a charge (`dispute_detected`), 3a is not terminal (D-020): the call goes on the case opened for the one card transaction, and that case follows rules 6–9 like a confirmed dispute, so a person request adds a call and never removes protection (D-029, default pending the lead). High zone: `block_and_open_case`, case in `verification`; when the block needs a person (amount tier, supervised mode), `connect_person` with the case in `review` and that reason. Medium and human zones: `connect_person`, `open_case` only (never a block, no confirmation asked), case in `review` with `zone_medium` / `zone_human`. With no single card transaction, or one the customer rejected (`customer_confirmed` false), only the call (`active_or_general`) |
+| 3b | `POL-STATUS` | intent `status_inquiry` | `answer_status` | read-only: the agent re-reads cards or cases (spec 04 AC-19); no case is opened. With `dispute_detected` and `active_case` false (the customer has no active case), 3b is not terminal: the turn goes on like a dispute (rules 4–9), citing `POL-STATUS` first (D-020). With an active case, or `active_case` not known (null), the status is answered |
 | 4 | `POL-OUT-OF-SCOPE` | intent `out_of_scope` with confidence ≥ τ (below τ, rule 5 asks; D-024), or the one identified transaction's product is not a card | `deny` (polite abstention) | G-IN-04. Never for `human_request`. `product_type` also takes the gold labels `Tarjeta Débito` / `Tarjeta Crédito`; one candidate without a product type is an input error |
 | 5 | `POL-CLARIFY` | confidence < τ, or candidates > 1 (≤ 3), or candidates = 0 | `ask` (≤ 2 turns) | then rule 5b |
 | 5b | `POL-CLARIFY-EXHAUSTED` | clarification turns already sent ≥ `clarify.max_clarification_turns` (2) | `handoff` (`clarification_exhausted`) + a general call request (`RequestCallIn.case_id = null`) so a person gets it (D-024) | |
-| 6 | `POL-SCORE-NULL` / `POL-SCORE-LLM` / `POL-SCORE-SOURCE` | score null, source `llm`, or a source not in `scoring.deciding_sources` (e.g. `synthetic`) | zone `human` | case is still opened |
+| 6 | `POL-SCORE-NULL` / `POL-SCORE-LLM` / `POL-SCORE-SOURCE` | score null, source `llm`, or a source not in `scoring.deciding_sources` (`dataset`, `rules`, `model`, `synthetic`) | zone `human` | case is still opened. A `synthetic` score (live mode) decides and is labeled `[simulated]` (§7, D-027) |
 | 7 | `POL-ZONE-HIGH` | score ≥ 50 | `block_and_open_case` | block mode from §4.2 |
 | 8 | `POL-ZONE-MEDIUM` | 30 ≤ score < 50 | `confirm`, then see §4.2; "not that charge" → rule 5 / 5b `[assumption]` | customer confirmation required |
 | 9 | `POL-ZONE-HUMAN` | score < 30 | `handoff` (`zone_human`) | case opened, no block |
@@ -100,12 +100,13 @@ AC-01 to AC-06 come from issue #4 with the same numbers; AC-07 onward are added 
 
 `POL-TICKET-ALWAYS`: in every zone that reaches rules 6–9, `open_case` is allowed with mode `auto` (registering is not
 a money decision). `screen()` runs rules 1–4 only (spec 04 `route`, before the transaction is retrieved); it returns
-nothing for a dispute and for a call request that reports a charge, which `decide()` completes. τ gates rules 4 (intent
-branch) and 5; rules 3a and 3b match the intent label at any confidence. `clarification_turns` counts the clarification
-questions already sent to the customer. `[assumption]` (7) A `clarification_exhausted` handoff opens no case (there is
-no single transaction) and registers a general call instead. (8) Rule 1 passes only when `session_state` is exactly
-`verified`. `injection_flagged`, `cross_customer`, `supervised_mode` and `dispute_detected` have no default: a caller
-that omits one gets an error (fail closed).
+nothing for a dispute and for a call request or status question that goes on to the dispute path (rules 3a and 3b with a
+charge), which `decide()` completes; on that path every result cites `POL-HUMAN-REQUEST` or `POL-STATUS` first. τ gates
+rules 4 (intent branch) and 5; rules 3a and 3b match the intent label at any confidence. `clarification_turns` counts
+the clarification questions already sent to the customer. `[assumption]` (7) A `clarification_exhausted` handoff opens
+no case (there is no single transaction) and registers a general call instead. (8) Rule 1 passes only when
+`session_state` is exactly `verified`. `injection_flagged`, `cross_customer`, `supervised_mode` and `dispute_detected`
+have no default: a caller that omits one gets an error (fail closed).
 
 ### 4.2 Approval modes and what happens to the case
 | Zone | `block_card` mode (policies) | Effective mode = stricter of mode, amount tier, supervised | Case status after the turn |
@@ -123,10 +124,12 @@ Amount tiers per country (`amount_gate.by_country`, local currency): `≤ low` �
 When the tier or supervised mode makes a money action stricter than `approval.per_action`, the result cites
 `POL-AMOUNT-GATE` or `POL-SUPERVISED`. `[assumption]` When no tier applies (a country without an entry such as PE or CL,
 an amount missing, negative or not finite, or a currency other than the entry's or USD) the mode is `human_required` and
-the result cites `POL-AMOUNT-UNKNOWN`. Every `handoff` carries a reason and no other decision does (D-024):
+the result cites `POL-AMOUNT-UNKNOWN`. A result carries a `handoff_reason` exactly when it is a `handoff` or it leaves a
+case in `review` (D-024, and the rule 3a cases of D-020, so every handoff card in the analyst queue has a reason):
 `zone_human`, `zone_medium`, `amount_over_case_gate` (over the gate or no tier), `supervised_mode` or
-`clarification_exhausted`. `check()` answers for automated callers and requires `supervised_mode`: `human_required` is a
-`Deny` citing the rule that raised the mode, else `POL-DEFAULT-DENY`.
+`clarification_exhausted` (a handoff with no case). `check()` answers for automated callers and requires
+`supervised_mode` as a bool (`None` raises `TypeError`, never "off"): `human_required` is a `Deny` citing the rule that
+raised the mode, else `POL-DEFAULT-DENY`.
 
 ### 4.3 Regulatory clock (LATAM, data-driven)
 The clock is a **table of verified country entries** in `policies.yaml`, not code. Each entry carries the regulator, the
@@ -199,10 +202,15 @@ decision: PolicyDecision = engine.decide(DecisionInput(
     score=72.0, score_source="dataset",                     # from get_fraud_score
     amount=1250.0, currency="USD", country="MX", product_type="debit",
     customer_confirmed=None, supervised_mode=False,
+    active_case=None,                                       # rule 3b: False = no active case; None = not read yet
 ))
 # PolicyDecision: decision (contracts.Decision), zone, approval_modes {action: mode}, allowed_actions, handoff_reason,
-#           request_call ("active_or_general"|"opened_case"|"general"|None), queue_status_after, rule_ids [..],
-#           guardrail_ids [..], policies_version
+#           request_call, queue_status_after, rule_ids [..], guardrail_ids [..], policies_version
+# request_call: where to register the call request (RequestCallIn), or None for no call:
+#   "active_or_general" - rule 3a: on the customer's active case if there is one, else a general request
+#   "opened_case"       - rule 3a with a charge: on the case open_case returned this turn, which is the existing case
+#                         when open_case reports duplicate_of (spec 03 AC-15)
+#   "general"           - rule 5b: a general request (RequestCallIn.case_id = null); no case was opened
 engine.screen(input) -> PolicyDecision | None              # rules 1–4 only; None = a dispute, go on (spec 04 route)
 engine.amount_tier(amount=1250.0, currency="USD", country="MX") -> "auto" | "manual_check" | "human_required"
 engine.check(action="block_card", zone="high", supervised_mode=False, amount=..., currency=..., country=...) -> Allow | Deny

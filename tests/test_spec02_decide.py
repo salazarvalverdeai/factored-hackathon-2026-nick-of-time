@@ -53,16 +53,42 @@ ROWS = [
     row("2", dict(injection_flagged=True), "deny", ["POL-INJECTION"], ["G-IN-01"]),
     row("3", dict(cross_customer=True), "deny", ["POL-CROSS-CUSTOMER"], ["G-SES-02"]),
     row("3a", dict(intent="human_request"), "connect_person", ["POL-HUMAN-REQUEST"], call="active_or_general"),
-    row("3a-charge", dict(intent="human_request", dispute_detected=True), "connect_person",
-        ["POL-HUMAN-REQUEST", "POL-ZONE-HIGH", "POL-TICKET-ALWAYS"], zone="high", allowed=OPEN, queue="review",
+    row("3a-charge-high", dict(intent="human_request", dispute_detected=True), "block_and_open_case",
+        ["POL-HUMAN-REQUEST", "POL-ZONE-HIGH", "POL-TICKET-ALWAYS"], zone="high", allowed=BLOCK, queue="verification",
         call="opened_case"),
+    row("3a-charge-over-gate", dict(intent="human_request", dispute_detected=True, amount=5000.01), "connect_person",
+        ["POL-HUMAN-REQUEST", "POL-ZONE-HIGH", "POL-AMOUNT-GATE", "POL-TICKET-ALWAYS"], ["G-TOOL-02"], zone="high",
+        allowed=OPEN, reason="amount_over_case_gate", queue="review", call="opened_case"),
+    row("3a-charge-supervised", dict(intent="human_request", dispute_detected=True, supervised_mode=True),
+        "connect_person", ["POL-HUMAN-REQUEST", "POL-ZONE-HIGH", "POL-SUPERVISED", "POL-TICKET-ALWAYS"], ["G-TOOL-02"],
+        zone="high", allowed=OPEN, reason="supervised_mode", queue="review", call="opened_case"),
+    row("3a-charge-medium", dict(intent="human_request", dispute_detected=True, score=40.0), "connect_person",
+        ["POL-HUMAN-REQUEST", "POL-ZONE-MEDIUM", "POL-TICKET-ALWAYS"], zone="medium", allowed=OPEN,
+        reason="zone_medium", queue="review", call="opened_case"),
+    row("3a-charge-human", dict(intent="human_request", dispute_detected=True, score=10.0), "connect_person",
+        ["POL-HUMAN-REQUEST", "POL-ZONE-HUMAN", "POL-TICKET-ALWAYS"], reason="zone_human", call="opened_case", **HUMAN),
     row("3a-charge-unclear", dict(intent="human_request", dispute_detected=True, candidates=2), "connect_person",
-        ["POL-HUMAN-REQUEST"], call="general"),
+        ["POL-HUMAN-REQUEST"], call="active_or_general"),
+    row("3a-charge-not-found", dict(intent="human_request", dispute_detected=True, candidates=0), "connect_person",
+        ["POL-HUMAN-REQUEST"], call="active_or_general"),
     row("3a-charge-not-card", dict(intent="human_request", dispute_detected=True, product_type="Cuenta Ahorro"),
-        "connect_person", ["POL-HUMAN-REQUEST"], call="general"),
+        "connect_person", ["POL-HUMAN-REQUEST"], call="active_or_general"),
+    row("3a-charge-rejected", dict(intent="human_request", dispute_detected=True, score=40.0, customer_confirmed=False),
+        "connect_person", ["POL-HUMAN-REQUEST"], call="active_or_general"),
     row("3b", dict(intent="status_inquiry"), "answer_status", ["POL-STATUS"]),
+    row("3b-no-case", dict(intent="status_inquiry", active_case=False), "answer_status", ["POL-STATUS"]),
     row("3b-charge", dict(intent="status_inquiry", dispute_detected=True), "answer_status", ["POL-STATUS"]),
+    row("3b-charge-active", dict(intent="status_inquiry", dispute_detected=True, active_case=True), "answer_status",
+        ["POL-STATUS"]),
+    row("3b-charge-no-case", dict(intent="status_inquiry", dispute_detected=True, active_case=False),
+        "block_and_open_case", ["POL-STATUS", "POL-ZONE-HIGH", "POL-TICKET-ALWAYS"], zone="high", allowed=BLOCK,
+        queue="verification"),
+    row("3b-charge-no-case-not-card", dict(intent="status_inquiry", dispute_detected=True, active_case=False,
+                                           product_type="Cuenta Ahorro"), "deny", ["POL-STATUS", "POL-OUT-OF-SCOPE"],
+        ["G-IN-04"]),
     row("4-intent", dict(intent="out_of_scope"), "deny", ["POL-OUT-OF-SCOPE"], ["G-IN-04"]),
+    row("4-intent-at-tau", dict(intent="out_of_scope", intent_confidence=0.80), "deny", ["POL-OUT-OF-SCOPE"],
+        ["G-IN-04"]),
     row("4-intent-unsure", dict(intent="out_of_scope", intent_confidence=0.79), "ask", ["POL-CLARIFY"], ["G-IN-03"]),
     row("4-product", dict(product_type="Cuenta Ahorro"), "deny", ["POL-OUT-OF-SCOPE"], ["G-IN-04"]),
     row("5", dict(intent_confidence=0.5), "ask", ["POL-CLARIFY"], ["G-IN-03"]),
@@ -71,8 +97,10 @@ ROWS = [
     row("6-null", dict(score=None), "handoff", ["POL-SCORE-NULL", "POL-TICKET-ALWAYS"], reason="zone_human", **HUMAN),
     row("6-llm", dict(score_source="llm"), "handoff", ["POL-SCORE-LLM", "POL-TICKET-ALWAYS"], reason="zone_human",
         **HUMAN),
-    row("6-source", dict(score_source="synthetic"), "handoff", ["POL-SCORE-SOURCE", "POL-TICKET-ALWAYS"],
+    row("6-source", dict(score_source="customer"), "handoff", ["POL-SCORE-SOURCE", "POL-TICKET-ALWAYS"],
         reason="zone_human", **HUMAN),
+    row("6-synthetic", dict(score_source="synthetic"), "block_and_open_case", ["POL-ZONE-HIGH", "POL-TICKET-ALWAYS"],
+        zone="high", allowed=BLOCK, queue="verification"),
     row("7", {}, "block_and_open_case", ["POL-ZONE-HIGH", "POL-TICKET-ALWAYS"], zone="high", allowed=BLOCK,
         queue="verification"),
     row("7-over-gate", dict(amount=5000.01), "handoff", ["POL-ZONE-HIGH", "POL-AMOUNT-GATE", "POL-TICKET-ALWAYS"],
@@ -82,6 +110,9 @@ ROWS = [
         reason="amount_over_case_gate", queue="review"),
     row("7-supervised", dict(supervised_mode=True), "handoff", ["POL-ZONE-HIGH", "POL-SUPERVISED", "POL-TICKET-ALWAYS"],
         ["G-TOOL-02"], zone="high", allowed=OPEN, reason="supervised_mode", queue="review"),
+    row("7-over-gate-supervised", dict(amount=5000.01, supervised_mode=True), "handoff",
+        ["POL-ZONE-HIGH", "POL-AMOUNT-GATE", "POL-SUPERVISED", "POL-TICKET-ALWAYS"], ["G-TOOL-02"], zone="high",
+        allowed=OPEN, reason="amount_over_case_gate", queue="review"),
     row("8", dict(score=40.0), "confirm", ["POL-ZONE-MEDIUM"], zone="medium"),
     row("8-confirmed", dict(score=40.0, customer_confirmed=True), "handoff", ["POL-ZONE-MEDIUM", "POL-TICKET-ALWAYS"],
         zone="medium", allowed=OPEN, reason="zone_medium", queue="review"),
@@ -103,18 +134,23 @@ def test_ac_05_decide_and_the_tools_re_check_agree_on_what_runs(overrides, expec
     t, d = turn(**overrides), ENGINE.decide(turn(**overrides))
     checked = {action for action in RAW["approval"]["per_action"] if d.zone and isinstance(ENGINE.check(
         action, d.zone, amount=t.amount, currency=t.currency, country=t.country, supervised_mode=t.supervised_mode), Allow)}
-    assert set(d.allowed_actions) <= checked
-    assert d.decision not in ("block_and_open_case", "handoff") or set(d.allowed_actions) == checked
+    assert not d.allowed_actions or set(d.allowed_actions) == checked
 
 
-def test_ac_12_a_handoff_always_carries_a_reason_and_nothing_else_does():
-    """D-024 D3: handoff ⇔ handoff_reason, over zones, sources, amounts, countries, supervised and confirmation."""
-    for score, source, amount, country, supervised, confirmed, candidates, turns in itertools.product(
-            [72.0, 40.0, 10.0, None], ["dataset", "llm", "synthetic"], [10.0, 5000.01, None], COUNTRIES,
+PATHS = [dict(), dict(intent="human_request", dispute_detected=True),
+         dict(intent="status_inquiry", dispute_detected=True, active_case=False)]
+
+
+def test_ac_12_every_handoff_and_every_case_left_in_review_carries_a_reason():
+    """D-024 D3 and D-020: a reason ⇔ a handoff or a case left in review, over the dispute path, a call request and a
+    status question that report a charge, zones, sources, amounts, countries, supervised mode and confirmation."""
+    for path, score, source, amount, country, supervised, confirmed, candidates, turns in itertools.product(
+            PATHS, [72.0, 40.0, 10.0, None], ["dataset", "llm", "customer"], [10.0, 5000.01, None], ["MX", "PE"],
             [False, True], [None, True, False], [0, 1, 2], [0, 2]):
         d = ENGINE.decide(turn(score=score, score_source=source, amount=amount, country=country, candidates=candidates,
-                               supervised_mode=supervised, customer_confirmed=confirmed, clarification_turns=turns))
-        assert (d.decision == "handoff") == (d.handoff_reason is not None), d
+                               supervised_mode=supervised, customer_confirmed=confirmed, clarification_turns=turns,
+                               **path))
+        assert (d.handoff_reason is not None) == (d.decision == "handoff" or d.queue_status_after == "review"), d
 
 
 def test_ac_12_handoff_reasons_are_the_schema_vocabulary():
@@ -143,15 +179,47 @@ def test_ac_12_the_first_terminal_rule_wins(winner, overrides):
     assert ENGINE.screen(turn(**overrides)) == (None if winner == "POL-CLARIFY" else ENGINE.decide(turn(**overrides)))
 
 
+@pytest.mark.parametrize("amount, country", [(10.0, "MX"), (5000.01, "MX"), (10.0, "PE")])
 @pytest.mark.parametrize("supervised", [False, True])
 @pytest.mark.parametrize("score", [72.0, 40.0, 10.0, None])
-def test_ac_12_a_call_request_with_a_charge_registers_the_call_and_opens_the_case(score, supervised):
-    """D-020: rule 3a is not terminal when the message also reports a charge; open_case only, never a block."""
-    t = turn(intent="human_request", dispute_detected=True, score=score, supervised_mode=supervised)
+def test_ac_12_a_call_request_with_a_charge_adds_the_call_and_never_removes_protection(score, supervised, amount,
+                                                                                       country):
+    """D-020 and D-029: rule 3a is not terminal when the message also reports a charge. The case opened for it gets the
+    call and follows its zone like a confirmed dispute: the high zone still blocks, or hands off with a reason."""
+    t = turn(intent="human_request", dispute_detected=True, score=score, supervised_mode=supervised, amount=amount,
+             country=country)
     d = ENGINE.decide(t)
-    assert ENGINE.screen(t) is None
-    assert (d.decision, d.allowed_actions, d.request_call, d.handoff_reason) == ("connect_person", OPEN, "opened_case", None)
-    assert d.rule_ids[0] == "POL-HUMAN-REQUEST" and d.approval_modes["open_case"] == "auto"
+    plain = ENGINE.decide(turn(score=score, supervised_mode=supervised, amount=amount, country=country,
+                               customer_confirmed=True))
+    same = {"zone", "approval_modes", "allowed_actions", "handoff_reason", "queue_status_after", "guardrail_ids"}
+    assert ENGINE.screen(t) is None and d.request_call == "opened_case"
+    assert d.model_dump(include=same) == plain.model_dump(include=same)
+    assert d.rule_ids == ["POL-HUMAN-REQUEST", *plain.rule_ids] and d.approval_modes["open_case"] == "auto"
+    assert d.decision == ("block_and_open_case" if plain.decision == "block_and_open_case" else "connect_person")
+
+
+@pytest.mark.parametrize("dispute", [dict(), dict(candidates=2), dict(intent_confidence=0.5), dict(score=40.0),
+                                     dict(score=40.0, customer_confirmed=False), dict(score=40.0, customer_confirmed=True),
+                                     dict(product_type="Prestamo"), dict(candidates=0, clarification_turns=2),
+                                     dict(score=10.0), dict(amount=5000.01)])
+def test_ac_12_a_status_question_with_a_charge_and_no_active_case_goes_on_like_a_dispute(dispute):
+    """Rule 3b with a charge (D-020): with no active case the turn goes on like a dispute, citing POL-STATUS first;
+    with an active case, or when it is not known yet, the status is answered."""
+    t = turn(intent="status_inquiry", dispute_detected=True, active_case=False, **dispute)
+    d, plain = ENGINE.decide(t), ENGINE.decide(turn(**dispute))
+    assert d.rule_ids == ["POL-STATUS", *plain.rule_ids]
+    assert d.model_dump(exclude={"rule_ids"}) == plain.model_dump(exclude={"rule_ids"})
+    assert ENGINE.screen(t) == (d if "POL-OUT-OF-SCOPE" in d.rule_ids else None)
+    for active in (None, True):
+        status = ENGINE.decide(turn(intent="status_inquiry", dispute_detected=True, active_case=active, **dispute))
+        assert (status.decision, status.rule_ids) == ("answer_status", ["POL-STATUS"])
+
+
+@pytest.mark.parametrize("switch", [None, 0, 1, "false", "off"])
+def test_ac_04_check_refuses_a_supervised_switch_that_is_not_a_bool(switch):
+    """A switch read as None (for example a missing console setting) is not "off": check() fails closed, loudly."""
+    with pytest.raises(TypeError, match="supervised_mode"):
+        ENGINE.check("block_card", "high", supervised_mode=switch, amount=10.0, currency="USD", country="MX")
 
 
 @pytest.mark.parametrize("field", FLAGS)
@@ -211,16 +279,17 @@ def test_ac_08_the_product_is_judged_only_once_one_transaction_is_identified(can
 @pytest.mark.parametrize("score, source, ids", [
     (None, "dataset", ["POL-SCORE-NULL"]), (None, None, ["POL-SCORE-NULL"]), (None, "llm", ["POL-SCORE-NULL", "POL-SCORE-LLM"]),
     (100.0, "llm", ["POL-SCORE-LLM"]), (40.0, "llm", ["POL-SCORE-LLM"]), (10.0, "llm", ["POL-SCORE-LLM"]),
-    (72.0, "synthetic", ["POL-SCORE-SOURCE"]), (40.0, "customer", ["POL-SCORE-SOURCE"]),
-    (None, "synthetic", ["POL-SCORE-NULL", "POL-SCORE-SOURCE"])])
+    (72.0, "customer", ["POL-SCORE-SOURCE"]), (40.0, "manual", ["POL-SCORE-SOURCE"]),
+    (None, "customer", ["POL-SCORE-NULL", "POL-SCORE-SOURCE"])])
 def test_ac_02_a_null_llm_or_non_deciding_score_is_zone_human_and_still_opens_a_case(score, source, ids, country):
     d = ENGINE.decide(turn(score=score, score_source=source, country=country))
     assert (d.decision, d.zone, d.handoff_reason, d.queue_status_after) == ("handoff", "human", "zone_human", "review")
     assert d.rule_ids == [*ids, "POL-TICKET-ALWAYS"] and d.allowed_actions == ["open_case"]
 
 
-@pytest.mark.parametrize("source", RAW["scoring"]["deciding_sources"])
+@pytest.mark.parametrize("source", ["dataset", "rules", "model", "synthetic"])
 def test_ac_02_only_the_deciding_sources_place_a_zone(source):
+    """D-027: a live-mode synthetic score decides like the dataset score (labeled [simulated] downstream)."""
     assert ENGINE.decide(turn(score_source=source)).zone == "high"
 
 
