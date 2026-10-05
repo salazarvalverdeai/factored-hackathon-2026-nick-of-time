@@ -2,9 +2,9 @@
 
 Each tool publishes its `contracts/tools.py` schemas and runs through `gate.Gate` (session, fault, rate limit, schema,
 audit). The tool handlers land with tasks 03b–03d in `HANDLERS`; until then a tool answers `UNAVAILABLE`. `/health` is
-the only route without the key, and it returns no data. [assumption] The entry point that reads MCP_API_KEY from the
-environment (SSM in production) and the Postgres sessions and `policy_denials` come with the store's Postgres backend
-(spec 01 T9) and the image (T8); the fake stays the compose service until then.
+the only route without the key, and it returns no data. [assumption] T8 adds the entry point (MCP_API_KEY from SSM,
+one uvicorn worker) over the in-memory store; the Postgres backend and its `sessions` and `policy_denials` accessors are
+task 01g's. The fake stays the compose service until then.
 """
 from __future__ import annotations
 
@@ -22,13 +22,15 @@ from starlette.middleware import Middleware
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 from starlette.types import ASGIApp, Receive, Scope, Send
+from starlette.websockets import WebSocketClose
 
 from contracts.tools import CUSTOMER_TOOLS, ToolError
 from mcp_server.gate import Gate, Handler
 
 HANDLERS: dict[str, Handler] = {}       # tool name → handler, filled by tasks 03b–03d
 OPEN_PATHS = frozenset({"/health"})
-TRACE_ID = re.compile(r"[\w.:-]{1,128}")     # [assumption] a header outside this shape is replaced, not logged
+TRACE_ID = re.compile(r"[\w.:-]{1,128}", re.ASCII)   # [assumption] a header outside it is replaced, not logged
+MIN_KEY_LENGTH = 32
 
 
 class CustomerTool(Tool):
@@ -67,10 +69,13 @@ class ApiKeyMiddleware:
         self.app, self._key = app, _key(api_key).encode()
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
-        if scope["type"] == "http" and scope["path"] not in OPEN_PATHS:
+        if scope["type"] != "lifespan" and scope["path"] not in OPEN_PATHS:     # any other scope fails closed
             given = dict(scope["headers"]).get(b"x-api-key", b"")
             if not hmac.compare_digest(given, self._key):
-                await JSONResponse({"error": "unauthorized"}, status_code=401)(scope, receive, send)
+                if scope["type"] == "http":
+                    await JSONResponse({"error": "unauthorized"}, status_code=401)(scope, receive, send)
+                else:
+                    await WebSocketClose(1008)(scope, receive, send)
                 return
         await self.app(scope, receive, send)
 
@@ -81,7 +86,10 @@ def build_app(server: FastMCP, api_key: str) -> Starlette:
 
 
 def _key(api_key: str) -> str:
-    if not api_key:                         # an empty key would match a request without the header
-        raise RuntimeError("MCP_API_KEY is empty: the MCP server does not start without it (fail closed)")
-    return api_key
+    """A key shorter than MIN_KEY_LENGTH once stripped refuses to start: an empty one would match no header."""
+    key = (api_key or "").strip()
+    if len(key) < MIN_KEY_LENGTH:
+        raise RuntimeError(f"MCP_API_KEY needs at least {MIN_KEY_LENGTH} characters: the server does not start "
+                           "without it (fail closed)")
+    return key
 

@@ -118,15 +118,15 @@ rule 2), and only a live synthetic score decides as `[simulated]` (spec 02 D-027
 | Customer wants to close or reopen a case | Not allowed: closing and reopening are analyst actions in the api | — |
 
 **Common rules:** API key middleware (every route but `/health`, which returns no data, answers 401 without a valid
-`X-API-Key`; an empty `MCP_API_KEY` refuses to start); session check first (AC-02); fault check second (AC-05); then
-per-session limits of 30 calls/min, 5 writes/min (W and N tools) and 3 notifications/hour, counting admitted calls only
-`[assumption]` (G-TOOL-01, G-OPS-01); then strict Pydantic validation (`extra="forbid"`), which answers `DENY` to an
-unexpected argument such as `customer_id`; a rate-limit or schema `DENY` cites `POL-DEFAULT-DENY` and G-TOOL-01
-`[assumption]`. Errors are returned as `ToolError`, never raised: a tool with no handler yet, a failing handler or a
-failing audit answers `UNAVAILABLE`. Tool outputs are typed data, delimited when passed to the LLM (G-IN-01). Every call
-is audited with `trace_id` (`X-Trace-Id`, else a minted `mcp-` id), actor `agent` and an input hash, never the input
-(G-OPS-02), as one JSON line on the `nickoftime.mcp.audit` logger `[assumption]`; every `DENY` is also a
-`policy_denials` row whose guardrail is the handler's, else its rule's in `policies.yaml` `rules:`, else `G-POL-01`.
+`X-API-Key`; an `MCP_API_KEY` under 32 characters refuses to start); session check first (AC-02); fault check second
+(AC-05); then per-session limits of 30 calls/min, 5 writes/min (W and N tools) and 3 notifications/hour (D-041),
+counting admitted calls only `[assumption]` (G-TOOL-01, G-OPS-01); then strict Pydantic validation (`extra="forbid"`),
+which answers `DENY` to an unexpected argument such as `customer_id`. A rate-limit or schema `DENY` cites
+`POL-DEFAULT-DENY` and G-TOOL-01 (D-040). Errors are returned as `ToolError`, never raised: a tool with no handler yet,
+a failing handler or a failing audit answers `UNAVAILABLE`. Tool outputs are typed data, delimited when passed to the
+LLM (G-IN-01). Every call is audited as one JSON line on stdout (D-040) with `trace_id` (`X-Trace-Id`, else a minted
+`mcp-` id), actor `agent` and hashes of the input and the session id, never either one; every `DENY` is a
+`policy_denials` row (AC-12), one per limit and window for a throttled session.
 The analysts' actions never appear in this server.
 
 **Verification, call requests and score sources** `[assumption]` (defaults pending the lead):
@@ -161,6 +161,8 @@ and writes Postgres through `nick_of_time.store`: `sessions` (read), `demo_trans
 - **Q3 — order of writes:** `open_case` first (the ticket is always opened), then `block_card`, which requires the open case.
 - **Q4 — tool contract v1.1:** ~~open~~ **Decided (lead, 2026-10-04):** the 16 tools of §6 and the case lifecycle above
   (improvement #13).
+- **D-040 (lead, 2026-10-04):** the tool-call audit is a stdout log line for now; gate denials cite `POL-DEFAULT-DENY`
+  with G-TOOL-01, with no `contracts/` change. **D-041 (lead, 2026-10-04):** the notification limit is per session (AC-21).
 - Assumption: the DuckDB in-memory load fits the EC2 (t3.medium, 4 GB) — measured in T5.
 
 ## 9. Out of scope
@@ -180,8 +182,9 @@ Implementation goes in one `feat/03-*` branch per task (T1: `feat/03-mcp-server`
       gold v1 · AC-04, AC-13, AC-16
 - [ ] T6 — follow-up tools (`add_case_info`, `request_call`, `request_reevaluation`) · AC-17, AC-18, AC-19
 - [ ] T7 — `send_case_summary`, `list_my_notifications` · AC-21, AC-22
-- [ ] T8 — entry point (`MCP_API_KEY` from SSM; `sessions` and `policy_denials` through the store's Postgres
-      backend, spec 01 T9), Dockerfile and compose service `mcp`; tests `tests/test_spec03_*.py` against a gold fixture
+- [ ] T8 — entry point (`MCP_API_KEY` from SSM, one uvicorn worker) over the in-memory store (the Postgres backend
+      and its `sessions` and `policy_denials` accessors are task 01g's), Dockerfile and compose service `mcp`; tests
+      `tests/test_spec03_*.py` against a gold fixture
 
 **Closing checklist:** every AC has a passing test or check that cites it · status → Implemented · lessons to `CLAUDE.md`.
 
