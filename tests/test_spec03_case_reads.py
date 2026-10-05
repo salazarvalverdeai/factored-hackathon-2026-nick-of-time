@@ -12,7 +12,7 @@ import pytest
 
 from contracts import tools
 from nick_of_time.policy import clock
-from tests.test_spec01_store import backend, types  # noqa: F401
+from tests.test_spec01_store import backend, new_store, types  # noqa: F401
 from tests.test_spec03_case_and_block import (ANA, BRUNO_CARD, CREDIT, DEBIT, S_BRUNO, S_OTHER_RUN, Run, session,
                                               write_gold)
 from mcp_server import bench, case_reads  # noqa: E402  (apps/mcp is on sys.path through the T4 test module)
@@ -30,8 +30,8 @@ def tick() -> dt.datetime:
     return dt.datetime(2026, 6, 1, 15, 0, tzinfo=dt.UTC) + dt.timedelta(seconds=next(TICKS))
 
 
-def reads_run(gold_dir) -> Run:
-    run = Run(gold_dir, extra=lambda r: case_reads.case_reads_handlers(r.gold, None, r.store, cards=r.cards, now=tick))
+def reads_run(gold_dir, store=None) -> Run:
+    run = Run(gold_dir, store=store, extra=lambda r: case_reads.case_reads_handlers(r.gold, None, r.store, cards=r.cards, now=tick))
     run.sessions[S_PT] = session(S_PT, ANA, language="pt")
     return run
 
@@ -58,7 +58,7 @@ def test_ac_04_after_block_card_get_product_status_reads_blocked_and_verifies_th
 def test_ac_04_d025_a_read_verifies_only_its_own_write_whose_post_condition_holds(gold_dir):
     run = reads_run(gold_dir)
     case = run.open(1)
-    run.open(4)
+    other = run.open(4)
     block = run.block()
     bruno = run.open(5, session_id=S_BRUNO)
     assert plain(run("get_product_status", product_id=DEBIT, action_id=case.action_id))    # open_case: get_case's
@@ -66,6 +66,18 @@ def test_ac_04_d025_a_read_verifies_only_its_own_write_whose_post_condition_hold
     assert plain(run("get_product_status", product_id=DEBIT, action_id=bruno.action_id))   # another customer's
     assert plain(run("get_product_status", product_id=DEBIT, action_id="A-000000000000"))  # unknown
     assert plain(run("get_case", case_id=case.case_id, action_id=block.action_id))        # block: not get_case's
+    assert plain(run("get_case", case_id=case.case_id, action_id=other.action_id))        # another case's opening
+    assert types(run.store, case.case_id).count("action_verified") == 0
+    assert types(run.store, other.case_id).count("action_verified") == 0
+
+
+def test_ac_04_d025_a_block_that_is_no_longer_the_cards_latest_reads_plain_and_the_card_stays_blocked(gold_dir):
+    run = reads_run(gold_dir)
+    case = run.open(1)
+    first = run.block()
+    run.store.block_product(case.case_id, DEBIT, action_id="A-0000000000BB", actor="agent", trace_id="t")
+    out = run("get_product_status", product_id=DEBIT, action_id=first.action_id)      # NotVerified
+    assert plain(out) and out.status == "Blocked"
     assert types(run.store, case.case_id).count("action_verified") == 0
 
 
@@ -150,7 +162,18 @@ def test_ac_16_list_my_cases_puts_active_first_with_labels_deadlines_and_updated
     assert [(c.case_id, c.queue_status, c.status_label, c.product_last4) for c in out.cases] == [
         (active.case_id, "new", "Recibido", "0004"), (closed.case_id, "closed", "Cerrado", "4417")]
     assert out.cases[0].ruling_deadline == active.ruling_deadline and out.read_at
-    assert out.cases[1].updated_at == run.store.events(closed.case_id)[-1].created_at
+    assert out.cases[1].updated_at == run.store.events(closed.case_id)[-1].created_at   # status_changed: visible
+
+
+def test_ac_16_list_my_cases_updated_at_moves_only_with_customer_visible_events(gold_dir):
+    run = reads_run(gold_dir, store=new_store(now=tick))                               # every event a second later
+    case = run.open(1)
+    opened_at = run.store.events(case.case_id)[0].created_at
+    run.person_requested(case.case_id)                                                  # handoff_emitted: internal
+    run.analyst(case.case_id, "mark_ambiguous")                                         # analyst_action: internal
+    run("get_case", case_id=case.case_id, action_id=case.action_id)                     # action_verified: internal
+    assert run.store.events(case.case_id)[-1].created_at > opened_at
+    assert run("list_my_cases").cases[0].updated_at == opened_at
     assert run("list_my_cases", S_OTHER_RUN).cases == []                                   # another run
 
 

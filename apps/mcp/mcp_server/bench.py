@@ -1,7 +1,7 @@
 """Tool latency benchmark (spec 03 AC-13, T5): p50/p95 per tool through the real gate over gold and an in-memory store.
 
 `python -m mcp_server.bench --gold data/gold [--customers 50] [--seed 7]` (PYTHONPATH=.:packages:apps/mcp). Offline:
-no network, no Postgres, no LLM. It samples customers with card transactions in the replay window, runs one dispute
+no network, no Postgres, no LLM. It samples customers among every customer with a card transaction in gold, runs one dispute
 per customer through the tools the agent uses (profile, search, score, open_case, block_card, the four reads), and
 prints each tool's p50, p95 and max in ms with the `[data]` label, plus the load time and the process's peak
 RSS (spec 03 §8: does the in-memory load fit the t3.medium). AC-13 holds when every p95 is

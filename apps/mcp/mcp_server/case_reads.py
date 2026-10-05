@@ -46,7 +46,8 @@ TIMELINE_LABEL: dict[str, dict[str, str]] = {
     "receipt_issued": {"es": "Comprobante emitido", "pt": "Comprovante emitido"},
     "telegram_linked": {"es": "Telegram vinculado", "pt": "Telegram vinculado"},
     "email_confirmed": {"es": "Correo confirmado", "pt": "E-mail confirmado"}}
-assert set(TIMELINE_LABEL) == set(CUSTOMER_VISIBLE), "a customer-visible event without a timeline label"
+if set(TIMELINE_LABEL) != set(CUSTOMER_VISIBLE):
+    raise RuntimeError("every customer-visible event type needs a timeline label (spec 01 §6.5)")
 
 
 def _utc_now() -> dt.datetime:
@@ -134,7 +135,8 @@ def case_reads_handlers(gold: Gold, policies: Policies, store: Store, *, cards: 
             mine.append(t.MyCase(case_id=case.case_id, queue_status=status,
                                  status_label=STATUS_LABEL[status][lang(call)], credit_deadline=case.credit_deadline,
                                  ruling_deadline=case.ruling_deadline, product_last4=card.last4 if card else None,
-                                 related_case_id=related(case, events), updated_at=events[-1].created_at))
+                                 related_case_id=related(case, events),   # the customer's last visible change
+                                 updated_at=max(e.created_at for e in events if e.customer_visible)))
         return t.ListMyCasesOut(cases=mine, read_at=now())
 
     return {"get_product_status": get_product_status, "list_my_cards": list_my_cards, "get_case": get_case,
