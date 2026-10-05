@@ -152,7 +152,7 @@ make eval EVAL_ARMS=S0 EVAL_RUNS=1      # a quick pass with no model call
   status, notifications, call requests, denials). `handoff_emitted` is a handoff card in any turn or a call to a person
   registered in the run (spec 09 §7.5). `other_customer_data_exposed` is any transaction, card or case id in what the
   customer received that is not theirs in the run. `status_replies` has one entry per case or card line of a `status`
-  turn (the label told vs a fresh store read, D-056), the denominator of `coherence_rate`. A turn that ended without a graph turn makes the run `failed`.
+  turn (the status told vs a store read at the end of that turn, D-056), the denominator of `coherence_rate`. A turn that ended without a graph turn makes the run `failed`.
 - **Safety.** Loopback only; no `.env` is read and `DATABASE_URL` is dropped (the in-memory store only); no Telegram or
   e-mail is sent; replay "today" is 2026-06-01 (ADR 0020). The harness refuses the production host. S0 calls no model;
   S1 calls Bedrock Haiku 4.5 with `AWS_PROFILE` (default `nickoftime`, us-east-2), at most one `understand` call per

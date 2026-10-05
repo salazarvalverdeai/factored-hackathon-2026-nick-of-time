@@ -22,7 +22,7 @@ from app.live import create_live_app
 from app.platform import PlatformError
 from eval.harness import Api, run_set
 from eval.local.__main__ import NoChannels
-from eval.local.hooks import RecordingPlatform, add_eval_routes, run_meta
+from eval.local.hooks import CARD_LINE, CASE_LINE, RecordingPlatform, add_eval_routes, run_meta
 from nick_of_time import ids
 from nick_of_time.contracts import FinalState, sample_receipt
 from nick_of_time.store import NewCase
@@ -229,33 +229,72 @@ def test_ac_01_runs_of_one_customer_do_not_see_each_others_cases():
 
 
 # ---- AC-10: coherence_rate gets a denominator from the status turns -----------------------------------------------
-def status_turn(store: MemoryStore, session, text: str) -> dict:
-    """A `status` turn: the case opened earlier in the run, told with its label, and the card with its label."""
+def status_turn(store: MemoryStore, session, case_label: str = "Recebido", card_label: str = "ativo") -> dict:
+    """A `status` turn that tells the run's case and its card with the given labels."""
     case = store.list_cases(session.customer_id, run_id=session.run_id)[0]
-    reply = (f"Situação do seu caso {case.case_id}: Em análise (consultado em 2026-06-01 15:04 UTC).\n"
-             "Seu cartão com final 4417: bloqueado (consultado em 2026-06-01 15:04 UTC).")
+    reply = (f"Situação do seu caso {case.case_id}: {case_label} (consultado em 2026-06-01 15:04 UTC).\n"
+             f"Seu cartão com final 4417: {card_label} (consultado em 2026-06-01 15:04 UTC).")
     trace = [{"node": n, "status": "ok", "ms": 0} for n in ("identity", "route", "status", "respond")]
     return turn(reply=reply, language="pt", decision=None, case_id=case.case_id, trace=trace)
 
 
-def two_turns(store: MemoryStore, session, text: str) -> dict:
-    return block_and_open(store, session, text) if "débito" in text else status_turn(store, session, text)
+def open_case_only(store: MemoryStore, session) -> dict:
+    case = store.create_case(NewCase(
+        customer_id=session.customer_id, transaction_id=TRX, product_id=PRD, country="MX", product_type="debit",
+        zone="medium", dispute_type="unrecognized_charge", opened_on=dt.date(2026, 6, 1), mode="replay",
+        run_id=session.run_id, trace_id="tr-graph"), actor="agent", action_id=ids.new_id("action"))
+    return turn(case_id=case.case_id)
 
 
-def test_ac_10_a_status_turn_fills_one_status_reply_per_line_with_the_fresh_read():
-    s = stack(two_turns)
-    messages = [{"role": "customer", "text": t} for t in ("Não reconheço um débito", "Como está meu caso?")]
+def script(*steps: Callable[..., dict]):
+    """A graph that runs its steps in order, one per turn."""
+    queue = list(steps)
+    return lambda store, session, text: queue.pop(0)(store, session)
+
+
+def run_status(*steps: Callable[..., dict]) -> list[dict]:
+    s = stack(script(*steps))
+    messages = [{"role": "customer", "text": f"turno {n}"} for n in range(len(steps))]
     [record] = run_set([{**case(), "messages": messages}], ["S0"], runs=1, api=Api(s.client))
-    final = FinalState.model_validate(record["final_state"])
-    assert [(r.subject[:2], r.stated_status, r.read_status) for r in final.status_replies] == [
-        ("K-", "Em análise", "Em análise"), ("PR", "bloqueado", "bloqueado")]
-    assert final.status_replies[1].subject == PRD
+    return record["final_state"]["status_replies"]
+
+
+def block_later(store: MemoryStore, session) -> dict:
+    case = store.list_cases(session.customer_id, run_id=session.run_id)[0]
+    store.block_product(case.case_id, PRD, action_id=ids.new_id("action"), actor="agent", trace_id="tr-graph")
+    store.change_status(case.case_id, "verification", on=dt.date(2026, 6, 1), actor="agent", trace_id="tr-graph")
+    return turn(case_id=case.case_id)
+
+
+def test_ac_10_a_status_turn_fills_one_status_reply_per_line_with_canonical_statuses():
+    replies = run_status(open_case_only, status_turn)
+    assert [(r["subject"][:2], r["stated_status"], r["read_status"]) for r in replies] == [
+        ("K-", "new", "new"), ("PR", "Active", "Active")]
+    assert replies[1]["subject"] == PRD
+
+
+def test_ac_10_a_status_true_when_told_is_not_flagged_after_a_later_turn_changes_it():
+    """The fresh read is the end of the status turn: a later turn blocks the card and moves the case."""
+    replies = run_status(open_case_only, status_turn, block_later)
+    assert [(r["stated_status"], r["read_status"]) for r in replies] == [("new", "new"), ("Active", "Active")]
+
+
+def test_ac_10_a_stated_status_that_differs_from_the_read_is_recorded_as_incoherent():
+    replies = run_status(open_case_only, lambda st, se: status_turn(st, se, "Resolvido", "bloqueado"))
+    assert [(r["stated_status"], r["read_status"]) for r in replies] == [("resolved", "new"), ("Blocked", "Active")]
 
 
 def test_ac_10_a_turn_that_is_not_a_status_answer_adds_no_status_reply():
     s = stack()
     [record] = run_set([case()], ["S0"], runs=1, api=Api(s.client))
     assert record["final_state"]["status_replies"] == []
+
+
+def test_ac_10_the_status_line_patterns_never_match_receipt_lines():
+    for line in ("Tarjeta terminada en 4417: bloqueada y verificada (verificación V-8B2D41C7E0A9, 2026-06-01).",
+                 "Cartão com final 4417: bloqueado e verificado (verificação V-8B2D41C7E0A9, 2026-06-01).",
+                 "Caso K-123456 abierto y verificado (verificación V-8B2D41C7E0A9, 2026-06-01)."):
+        assert not CARD_LINE.search(line) and not CASE_LINE.search(line)
 
 
 # ---- AC-09: a turn the graph did not finish is a failed run, with the reason -------------------------------------
