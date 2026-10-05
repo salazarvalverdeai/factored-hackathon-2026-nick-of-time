@@ -86,6 +86,25 @@ Each criterion carries its phase: **[P0]** in the submission · **[P1]** if time
 | A9 | Notifications | each status change produced its notification on the confirmed channels, with a delivery status | medium |
 | A10 | Cost and latency | within the budget and limits of G-OPS-01 | low |
 
+Notes on A3–A7 (task 18a):
+- **A3** follows D-025 `[assumption]`, pending the lead. Writes (`open_case`, `block_card`) return no V- id. The
+  verifying read mints it in an append-only `action_verified {action_id, verification_id, read_at}` case event. Every
+  verified claim (TurnResult `actions[]`, `receipt.actions[]` by `verified_at`, `handoff.actions[]` by `verified: true`)
+  needs an `action_verified` event with the same `action_id` and `verification_id`, a `read_at` at or after the write's
+  request, and a claimed time equal to that `read_at` (the handoff carries none). A V- id from anywhere else is not
+  evidence.
+- **A4** covers numbers, dates and ids; statuses belong to A5. Amounts are locale-aware: a last separator followed by
+  1–2 digits is the decimal mark, and groups of 3 are thousands, also after a space or NBSP (`COP 3 500 000`). An ISO
+  timestamp states only its date. The legal source (`deadline_source`, `source_url`, `verified_on`) is a
+  `compute_deadline` fact and is checked. Skipped keys, none of them a tool fact: `receipt_id` and `issued_at` (minted
+  with the receipt), `case_url` (a link the app builds), `trace_id` (runtime), `notifications_sent[].ts` (notifier),
+  `intent_confidence` (classifier), `guardrails_triggered` (guardrail ids) and `verified_at` (checked by A3).
+- **A6** applies the transcript rule to notification surfaces only (utterances of 20+ characters, word-bounded,
+  case-blind). The score counts only within 40 characters of a score word (score, puntaje, puntuación, pontuação,
+  riesgo, risco) and never as an amount. A card number must pass Luhn and is searched with ids and dates blanked out.
+- **A7** also requires a person (`analyst:<sub>`, with a non-empty sub) for `resolved`, not only for `closed`. Active
+  cases come from each case's last status; duplicates are keyed by customer and transaction.
+
 ### 4.2 Judge
 - **Input:** the handoff card (`handoff.schema.json`), the transcript, the tool results with their ids, the decision with
   its rule ids, the bank's score and the auditor's results. Never the customer's other cases, never secrets.
@@ -119,6 +138,16 @@ comes from the policy engine, not from an LLM, so the judge does not grade its o
 findings: list[Finding] = audit.run(records)            # records: TurnResult, trace, tool results, case events
 opinion: SecondOpinion | None = judge.opinion(handoff, transcript, evidence, audit=findings)
 ```
+- **Input mapping (for the `records_for_run(run_id)` adapter of T2, reused by T3).** `FinalState` does not change.
+  - A3: the claims are the TurnResult `actions` (`ActionRecord`), `receipt.actions` and `handoff.actions`. The evidence
+    is one `ActionRead` per `action_verified` event (D-025), with `action_id`, `verification_id` and `read_at` from its
+    payload; `requested_at` is the `created_at` of the write event (`case_opened` or `card_blocked`) with the same
+    `action_id`.
+  - A5: `FinalState.status_replies` (told vs a fresh read, the K- id included).
+  - A6: surfaces from the reply, the receipt and `notifications.text`; `other_customer_data_exposed` from `FinalState`.
+  - A7: `case_opened` → `LifecycleEvent(type="status", status="new")`; `status_changed` → `status` = payload `to`; the
+    analyst's credit `analyst_action` (`approve_credit`) → `type="provisional_credit"`; `actor` as stored (`agent`,
+    `system`, `customer` or `analyst:<sub>`). The `(case_id, customer_id, transaction_id)` keys come from `cases`.
 - `GET /api/console/cases/{case_id}` adds `audit: [{check_id, status, severity, expected, observed}]` and
   `second_opinion: {...} | null`.
 - `POST /api/console/cases/{case_id}/audit/{finding_id}/ack` → event `audit_acknowledged` with the analyst as actor.
@@ -144,6 +173,9 @@ tools for the third line (internal audit).
 
 ## 10. Plan, tasks and verification
 - [ ] T1 [P0] — `nick_of_time.audit` with A1–A7 as pure functions + tests on recorded fixtures · AC-01
+      (A3–A7 done, task 18a: `tests/test_spec18_audit_a3_a7.py`, A3 on D-025's `action_verified`; A1–A2 remain,
+      task 18b)
+      Note: AC-01 names A1–A10, but P0 is A1–A7 (§4.3, T1); A8–A10 are outside P0, pending the lead.
 - [ ] T2 [P0] — harness uses the library for its final-state checks (with @vldiego) · AC-02
 - [ ] T3 [P1] — api background task, `audit_findings`, critical flag and acknowledgment · AC-03, AC-04, AC-05
 - [ ] T4 [P0] — judge: prompt with the fixed rubric, structured output, grounding of reasons, fallback · AC-07, AC-08,
