@@ -119,6 +119,19 @@ Coverage proposed to the lead (Q2). It is bounded by §7.2: with the proposed wi
 Held-out language: 50 ES / 30 PT. Every country and every segment appears at least once per language. `cap` has no
 case here (budget caps are tested in spec 04).
 
+**Layout.** The team writes one line per case in `eval/cases/plan/<set>.jsonl`: `id`, `type`, `language`, `anchor`
+(the row of `demo_index.csv` the case is about), `messages`, `intent` (the label of those messages; absent when the
+case is refused before any intent matters), `notes`, `labeler` and, where the type needs them, `fixtures` (`none` or
+`cluster`), `session`, `tool_faults` and `case`. `eval/derive_expected.py` turns each line into a case: the fixtures
+are the anchor's row, or with `cluster` the customer's approved card transactions within 7 days either side of it
+(read from gold), and `expected` comes from the policy engine (§7.5). Ids: `EV-0101` to `EV-0120` for dev and
+`EV-0201` to `EV-0280` for the held-out (`EV-0001` to `EV-0005` are the examples of spec 01).
+
+**Types that needed a definition.** `normal` in the medium zone has two shapes: one message ends in `confirm` with
+nothing opened; two messages (the second confirms) end with the case opened and handed off. `human` holds scored
+transactions below 30 and requests for a person, with or without a reported charge. `missing_data` is a transaction
+with no fraud score and no merchant name: the case is opened and handed off, and the reply must not invent either.
+
 ### 7.5 How `expected` is derived (AC-09)
 `eval/derive_expected.py` calls the policy engine with the gold record and writes `decision`, `zone`, `intent`,
 `final_state`, `queue_status`, `receipt`, `deadline_country`, `guardrail_ids` and `notifications`. The rows it must
@@ -128,7 +141,8 @@ reproduce (spec 02 §4.1 and §4.2):
 |---|---|---|---|---|---|---|
 | score ≥ 50, amount ≤ `high` tier | `block_and_open_case` | `Blocked` | true | `verification` | false | true |
 | score ≥ 50, amount > `high` tier | `handoff` | `Active` | true | `review` | true | true |
-| score 30–49, customer confirms in a second message | `confirm` | `Active` | true | `review` | true | true |
+| score 30–49, one message | `confirm` | `Active` | false | — | false | false |
+| score 30–49, customer confirms in a second message | `handoff` | `Active` | true | `review` | true | true |
 | score < 30 or null | `handoff` | `Active` | true | `review` | true | true |
 | more than one candidate | `ask` | `Active` | false | — | false | false |
 | status question on an existing case | `answer_status` | unchanged | unchanged | unchanged | false | false |
@@ -137,8 +151,14 @@ reproduce (spec 02 §4.1 and §4.2):
 | session expired or none | `reauthenticate` | `Active` | false | — | false | false |
 | `block_card` fails twice | `escalate_unconfirmed_action` | `Active` | true | `review` | true | true |
 
-If the engine is not merged when the cases are written, the script uses this table and is re-run against the engine
-before the seal; any difference is fixed in the cases, not in the engine.
+The script runs `PolicyEngine.decide()` once per scripted message and keeps the last decision, so a case states the
+outcome of its last turn. `tests/test_spec09_eval_data.py` checks every row above against the engine and every
+committed case against the script. The cases are re-derived before the seal; any difference is fixed in the cases,
+not in the engine. `[assumption]` Three things are not decided by the engine and follow this table: a failed
+`block_card` gives `escalate_unconfirmed_action` (`reliability.on_failure`); a request for a person counts as a
+handoff even when no case is opened; `has_deadline` is true when the case is opened and the country has an entry in
+`regulatory_clock`. `guardrail_ids` and `notifications` list only what the engine and the opened actions imply
+(`case_opened`, `card_blocked`); the harness checks that they are present, not that they are the only ones.
 
 ### 7.6 Classifier set — `eval/classifier/train.jsonl`, `validation.jsonl`, `test.jsonl`
 The layout `eval/PROTOCOL.md` hashes (Seal, b): top-level files whose names start with `train`, `validation` and
@@ -197,7 +217,7 @@ Implementation goes in `feat/09-…` branches once this spec is approved.
 - [x] T1 — `queries/eval/demo_index.sql` + `eval/demo_index.csv` (`python -m eval.demo_index`) · covers AC-01, AC-07, AC-08 · done when: the cells of
       §7.2 are filled or the empty ones are listed in `eval/README.md`
 - [x] T2 — `eval/demo/customers.json`, `reference.json`, `live_profiles.yaml`, `sample_cases.jsonl` · covers AC-02, AC-11
-- [ ] T3 — `eval/derive_expected.py` + `eval/cases/dev.jsonl` · covers AC-03, AC-09 · done when: 20 cases validate
+- [x] T3 — `eval/derive_expected.py` + `eval/cases/plan/dev.jsonl` + `eval/cases/dev.jsonl` · covers AC-03, AC-09 · done when: 20 cases validate
 - [ ] T4 — `eval/cases/heldout.jsonl` + `eval/heldout.sha256` · covers AC-03, AC-05, AC-07 · done when: 80 cases
       validate with the counts of §7.4
 - [ ] T5 — `eval/classifier/*.jsonl` from the authors' seeds · covers AC-04, AC-10 · done when:

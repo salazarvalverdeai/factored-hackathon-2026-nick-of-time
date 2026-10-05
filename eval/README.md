@@ -12,6 +12,9 @@ harness of spec 10 when it scores.
 | `demo/reference.json` | internal: the mandatory case and the index transaction behind each demo customer; never served | 09 §7.3 |
 | `demo/live_profiles.yaml` | profiles of the synthetic recent transactions of live mode `[simulated]` | 09 §7.3 |
 | `demo/sample_cases.jsonl` | four processed sample cases with scripted analyst steps | 09 §7.3 |
+| `cases/plan/dev.jsonl` | what the team writes for each dev case: type, messages, intent and the index row it is about | 09 §7.4 |
+| `cases/dev.jsonl` | the 20 dev agent cases, built by `derive_expected.py`; do not edit by hand | 09 §7.4 |
+| `derive_expected.py` | builds a case file from its plan; `expected` comes from the policy engine | 09 §7.5 |
 | `eval_case.schema.json`, `examples.jsonl` | shape of an agent case, with five examples | 01 |
 | `PROTOCOL.md` | pre-registered evaluation rules; unsealed until M02 | 11, 15, 17 |
 | `bench/` | model benchmark | 15 |
@@ -88,3 +91,18 @@ keep their real country (spec 09 Q5, default).
 | SC-02 | CO human zone: information requested, then resolved | `resolved` |
 | SC-03 | AR human zone: resolved, then re-evaluated at the customer's request | `review` |
 | SC-04 | PT: injection refused, then a legitimate high-zone case | `verification` |
+
+## Agent cases (`cases/`)
+`PYTHONPATH=packages python -m eval.derive_expected dev` rebuilds `cases/dev.jsonl` from `cases/plan/dev.jsonl`. To
+change a case, edit its plan line and rebuild; a test fails if a committed case differs from what the script derives.
+
+- **Real state:** the customer and the transaction fixtures come from `demo_index.csv` (ambiguous cases also read the
+  customer's neighbouring card transactions from gold) `[data]`.
+- **Team-written:** the customer messages, their intent label and the notes. They were drafted with an AI assistant
+  and are reviewed line by line by the labeler; `origin` stays `team-generated`. `[simulated]`
+- **Derived:** the whole `expected` block, from `nick_of_time.policy` (spec 02). A case states the outcome of its last
+  scripted turn.
+
+Dev set: 20 cases, 14 in Spanish and 6 in Portuguese — 4 `normal`, 4 `human`, 3 `ambiguous`, 2 `customer_returns`,
+2 `injection` and 1 each of `unauthorized_access`, `session_expired`, `tool_failure`, `missing_data`, `out_of_scope`.
+The held-out set (80 cases), its seal and the second labeling of 20 cases (AC-06) are not done yet.
