@@ -12,7 +12,8 @@ grounding gate drops any fact no tool returned (G-OUT-01, task 04d). S1/S2 (task
 `understand` asks the LLM below τ in a verified session, and the reply stays template text (rewording waits for spec
 15's `word` gate); any LLM failure runs the step as S0, and the run returns its usage and denials (AC-14). Tools are reached only through MCP
 with the session of the run config (constitution #3); "today" comes from `config.today(mode)` (AC-27, ADR 0020).
-Served as `dispute_intake` in langgraph.json (D-048 applied); the echo graph stays as `dispute_intake_echo`.
+Served as `dispute_intake` in langgraph.json (D-048 applied); the echo graph stays as `dispute_intake_echo`. Each
+step streams its customer progress label as a LangGraph custom event while the run is in progress (AC-17).
 """
 # No `from __future__ import annotations`: the state types must resolve when the server loads this file by path.
 import asyncio
@@ -29,14 +30,15 @@ from typing import Annotated, Any, Optional, TypedDict
 from fastmcp import Client
 from fastmcp.client.transports import StreamableHttpTransport
 from langchain_core.runnables import RunnableConfig
+from langgraph.config import get_stream_writer
 from langgraph.graph import END, START, StateGraph
 from pydantic import BaseModel
 
 from contracts.tools import CUSTOMER_TOOLS, VERIFIED_WITH, ToolError
 from nick_of_time import receipt as msg
-from nick_of_time.config import check_prices, resolve, today
+from nick_of_time.config import check_prices, now, resolve, today
 from nick_of_time.llm import steps as arms
-from nick_of_time.contracts import TurnResult
+from nick_of_time.contracts import ProgressItem, TurnResult
 from nick_of_time.ids import new_id
 from nick_of_time.receipt import build
 from nick_of_time.nlu import load_nlu
@@ -154,6 +156,21 @@ RESET = {"decision": None, "zone": None, "case_id": None, "actions": [], "denial
          "body": [], "row": None, "route": None, "active_case": None, "greet_pending": False, "plan": [], "options": [],
          "answer": None, "decision_record": None, "path": [], "read_failed": None, "writes": {},
          "unconfirmed": [], "readings": {}, "seen": None, "usage": [], "llm_notes": {}, "llm_alerts": []}
+WRITING = {"open_case": "opening_case", "block_card": "blocking_card"}   # act's progress key per write (AC-17)
+
+
+def progress(state: State, key: str) -> None:
+    """AC-17: the step's customer label (messages.yaml progress.<key>, in the thread's language) as a LangGraph custom
+    stream event, which the api forwards as `event: progress`. It says what is being attempted, never a result
+    (constitution #4); outside a run (a node called directly) it does nothing."""
+    try:
+        write = get_stream_writer()
+    except RuntimeError:
+        return
+    language = (state.get("language") or state.get("language_last") or (state.get("profile") or {}).get("language")
+                or "es")
+    write(ProgressItem(step=key, label=msg.text(f"progress.{key}", language), state="in_progress",
+                       at=now()).model_dump(mode="json"))
 
 
 async def call(config: RunnableConfig, tool: str, **args: Any) -> BaseModel:
@@ -197,6 +214,7 @@ async def greet(state: State, config: RunnableConfig) -> dict[str, Any]:
     """First turn of a verified session: the first name comes from get_customer_profile (AC-15)."""
     if state.get("profile") or state["session_state"] != "verified":
         return {}
+    progress(state, "reading_account")
     profile = await call(config, "get_customer_profile")
     if isinstance(profile, ToolError):
         return {}                           # no greeting without a name read from the tool; retried next turn
@@ -207,6 +225,7 @@ async def understand(state: State, config: RunnableConfig) -> dict[str, Any]:
     """Language, injection flag, intent and slots with the B0 rules arm; dates against the session's today. Below τ,
     S1/S2 ask the LLM for intent and slots, only in a verified session and never for a flagged or cross-customer
     message; if it fails, B0 stands."""
+    progress(state, "reading_message")      # before any LLM call: the first label comes within 1 s (§5)
     profile = state.get("profile") or {}
     day = today(state["mode"], profile.get("country"))
     texts = [m.get("content", "") for m in state.get("messages") or [] if m.get("role", "user") == "user"]
@@ -340,6 +359,7 @@ async def connect(state: State, config: RunnableConfig) -> dict[str, Any]:
     a case is read back with get_case: "verified" only with the read's V- id, else it stays "requested" (AC-18); a
     general call stays "requested" (D-026). Actions and lines already set this turn stay."""
     language, before, done, path = state["language"], state.get("body") or [], state.get("actions") or [], state["path"]
+    progress(state, "requesting_call")
     case = await call_case(state, config)
     key = f"{state['session_id']}:{case or 'none'}:request_call:{state['trace_id']}"
     out = await call(config, "request_call", idempotency_key=key, **({"case_id": case} if case else {}))
@@ -404,6 +424,7 @@ async def retrieve(state: State, config: RunnableConfig) -> dict[str, Any]:
         slots = state.get("slots") or {}
         query = {"amount": float(slots["amount"]) if slots.get("amount") else None, "currency": slots.get("currency"),
                  "approx_date": slots.get("date"), "merchant": slots.get("merchant")}
+        progress(state, "searching")
         found = await call(config, "search_transaction", **{k: v for k, v in query.items() if v is not None})
         if isinstance(found, ToolError):
             return unread(path, "search_transaction", state["language"])
@@ -452,6 +473,7 @@ def decide(state: State) -> dict[str, Any]:
     """spec 02 `engine.decide()` on the turn's tool facts; the graph runs whatever it returns, never a rule of its own.
     [assumption] D-067: a charge the customer did not name (one candidate of a search no slot narrowed) is not yet
     identified, so the engine sees no transaction until the customer confirms it: it asks (clarify shows the card)."""
+    progress(state, "deciding")
     unnamed = unconfirmed(state)
     facts = {**state, "selected_transaction": None, "candidates": [], "score": None} if unnamed else state
     decision = ENGINE.decide(inputs := decision_input(facts))
@@ -521,6 +543,7 @@ async def act(state: State, config: RunnableConfig) -> dict[str, Any]:
             break
         # run = the LangGraph run id (trace_id); policies.yaml's template has no run part (follow-up for the lead)
         key = f"{state['session_id']}:{trx['transaction_id']}:{tool}:{state['trace_id']}"
+        progress(state, WRITING[tool])
         out, unanswered = await attempt(config, tool, idempotency_key=key, **planned[tool])
         writes["unanswered"] += [tool] if unanswered else []
         if isinstance(out, ToolError):
@@ -547,6 +570,7 @@ async def verify(state: State, config: RunnableConfig) -> dict[str, Any]:
     escalate_unconfirmed_action and never says the action was done (AC-04, AC-18). The case id is given out only once
     get_case verified it, so connect puts a call on it only then (§4.2)."""
     trx, language, writes, done, readings = state["selected_transaction"], state["language"], state["writes"], [], {}
+    progress(state, "verifying")
     expired = "SESSION_EXPIRED" in writes["errors"].values()   # any write or read, as open_case's (task 04d)
     for action in state["actions"]:
         tool, reading, target = action["tool"], None, {}
@@ -686,6 +710,7 @@ CASE_WORDS = re.compile(r"\b(?:casos?|reclamos?|reclamac\w*|disputas?|contestac\
 async def status(state: State, config: RunnableConfig) -> dict[str, Any]:
     """answer_status (spec 02 rule 3b): reads the system again in this turn, never from memory or the thread (AC-19),
     and answers with tool facts only and the time of the reading (AC-06). A failed read says so and states no status."""
+    progress(state, "checking_status")
     texts = [fold(m.get("content", "")) for m in state.get("messages") or [] if m.get("role", "user") == "user"]
     said = texts[-1] if texts else ""
     # a question that names both reads both, cards first (task 04d); the last read sets the row and the case
@@ -759,6 +784,7 @@ def status_unread(tool: str, language: str) -> dict[str, Any]:
 def respond(state: State) -> dict[str, Any]:
     """The TurnResult from templates and §4.5 chips, in every arm (no LLM wording until spec 15's `word` gate), with the
     run's usage and denials (AC-14); clears the turn's input so the next turn starts clean."""
+    progress(state, "writing")
     language, profile, lines = state["language"], state.get("profile") or {}, []
     if state.get("greet_pending"):          # AC-15: name from the tool, three capabilities, a person reviews
         lines = [msg.text("greet.hello", language, first_name=profile["first_name"])] + [

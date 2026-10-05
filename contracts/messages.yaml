@@ -22,12 +22,13 @@
 #   act.block_held (D-043), status.read_failed_cards and status.read_failed_case; task 04d2 gave status.no_cards a
 #   {read_at} (contract 1.4.0); task 04h added clarify.confirm_one, clarify.confirm_call and
 #   suggest.confirm_charge (D-067).
+#   Task PROG (T7) added progress.* (AC-17).
 # - Chips: `kind` is static here; the action payload ({type}, spec 01 §6.4) is set by the server code.
 # - Never a placeholder or text for the fraud score, policy ids, rule ids, zones or the transcript
 #   (notifications.never_send in policies.yaml).
 # - Never promise an outcome or a provisional credit: a person reviews and decides (CLAUDE.md rule 6).
 # - Dates are absolute (YYYY-MM-DD) and come from tools; the template never computes them.
-version: "0.8.0"
+version: "0.9.0"
 
 system:
   # The agent platform is unreachable, timed out, answered an error or dropped the stream (spec 05 AC-05). Calm, no
@@ -443,3 +444,38 @@ duplicate:
   case_exists:
     es: "Este cargo ya está en tu caso {case_id}, que sigue abierto, así que no hace falta abrir otro."
     pt: "Esta cobrança já está no seu caso {case_id}, que continua aberto, então não é preciso abrir outro."
+
+progress:
+  # Spec 04 AC-17 (task PROG): one label per graph step, streamed while the run is in progress (spec 01 §6.4
+  # ProgressItem, state in_progress). Each says what is being attempted, never a result (constitution #4): no
+  # "bloqueada", "listo", "hecho", "abierto"; the reply states results only after verify. No placeholders.
+  reading_account:
+    es: "Revisando tu cuenta…"
+    pt: "Verificando sua conta…"
+  reading_message:
+    es: "Leyendo tu mensaje…"
+    pt: "Lendo sua mensagem…"
+  checking_status:
+    es: "Consultando el estado en el sistema…"
+    pt: "Consultando a situação no sistema…"
+  searching:
+    es: "Buscando el cargo…"
+    pt: "Procurando a cobrança…"
+  deciding:
+    es: "Revisando cómo puedo ayudarte…"
+    pt: "Vendo como posso ajudar você…"
+  opening_case:
+    es: "Abriendo tu caso…"
+    pt: "Abrindo seu caso…"
+  blocking_card:
+    es: "Bloqueando tu tarjeta…"
+    pt: "Bloqueando seu cartão…"
+  verifying:
+    es: "Confirmando con el sistema…"
+    pt: "Confirmando com o sistema…"
+  requesting_call:
+    es: "Pidiendo que una persona te llame…"
+    pt: "Pedindo que uma pessoa ligue para você…"
+  writing:
+    es: "Preparando tu respuesta…"
+    pt: "Preparando sua resposta…"
