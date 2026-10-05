@@ -18,6 +18,7 @@ import datetime as dt
 import functools
 import json
 import os
+import re
 import secrets
 import sys
 import uuid
@@ -34,6 +35,7 @@ from langgraph.checkpoint.memory import InMemorySaver
 
 from contracts.tools import CUSTOMER_TOOLS, ToolError
 from nick_of_time.contracts import TurnResult
+from nick_of_time.ids import GOLD_PATTERN
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path[:0] = [str(ROOT / "apps/agent"), str(ROOT / "apps/mcp")]
@@ -148,12 +150,13 @@ class Chat:
                                         "arm": "S0", "thread_id": thread, **settings}}
 
     def say(self, text: Optional[str] = None, language: Optional[str] = None,
-            action: Optional[dict[str, Any]] = None) -> TurnResult:
+            action: Optional[dict[str, Any]] = None, run_id: bool = True) -> TurnResult:
+        """One turn; `run_id=False` runs it as a bare `ainvoke` with no run id in the config (not Platform)."""
         payload = {"messages": [{"role": "user", "content": text}] if text else [], "language": language,
                    "action": action}
         with self.mcp.wired():
-            run = str(uuid.uuid4())                   # a new Platform run per turn
-            config = {**self.config, "configurable": {**self.config["configurable"], "run_id": run}}
+            run = {"run_id": str(uuid.uuid4())} if run_id else {}   # a new Platform run per turn
+            config = {**self.config, "configurable": {**self.config["configurable"], **run}}
             out = self.mcp.run(self.graph.ainvoke(payload, config))
         return TurnResult.model_validate(out)
 
@@ -202,9 +205,16 @@ def fixture_gold(folder: Path, case: dict[str, Any], *, first_name: str = "Ana",
     """A tiny gold folder with just the case's customer, card and transactions (initial_state.fixtures), in the
     columns `Gold` and `GoldCards` read. [assumption] Fields an eval fixture leaves out get a neutral value: the first
     name, the card type (debit unless the fixture says), its last 4, status Approved and the charge made at home."""
-    folder.mkdir(parents=True, exist_ok=True)
     state, country = case["initial_state"], case["country"]
     customer = state["customer_id"]
+    # a malformed id would make the tools refuse the call (schema DENY, UNAVAILABLE) and a test fail for the wrong reason
+    bad = [f"{kind} {value!r}" for kind, value in
+           [("customer", customer), *[(k, item.get(f"{k}_id")) for item in state["fixtures"]
+                                      for k in ("transaction", "product")]]
+           if not (isinstance(value, str) and re.fullmatch(GOLD_PATTERN[kind], value))]
+    if bad:
+        raise ValueError(f"fixture ids outside the gold shapes (nick_of_time.ids.GOLD_PATTERN): {', '.join(bad)}")
+    folder.mkdir(parents=True, exist_ok=True)
     trx, products = [], {}
     for item in state["fixtures"]:
         kind = item.get("product_type", product_type)

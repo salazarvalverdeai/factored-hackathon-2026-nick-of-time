@@ -355,8 +355,10 @@ messages.
       CI) or the full gold: `GOLD_PATH=data/gold .venv/bin/python -m pytest -q tests/test_spec04_int_local.py` (skipped
       without it), plus `TEST_DATABASE_URL=postgresql://… -m postgres` for the store variant. Cases: EV-0001, dev
       EV-0101–0104, EV-0106 and a D-029 call request on EV-0001's charge; the medium-zone confirmation is sent as the
-      confirm chip, since B0 reads only a bare "sí" as the answer. Wiring fixed: the graph now sends `X-Trace-Id` (the run
-      id, as `identity` sets `trace_id`), so the store's events carry the turn's trace id (spec 03 §6). Open (B0 rules,
+      confirm chip, since B0 reads only a bare "sí" as the answer. Wiring fixed: the graph now sends `X-Trace-Id` = the
+      state's `trace_id` (each node that calls tools gets it in its config through `traced`), so every store event of a
+      turn carries its one trace id, also on a run with no run id (spec 03 §6). The full-gold variant has a postgres
+      param only when gold is present, so CI's `-m postgres` run (no gold) skips nothing. Open (B0 rules,
       spec 11): dev EV-0115's pt injection is not flagged and opens a case (xfail); EV-0105, EV-0107, EV-0118 and EV-0119
       are not understood by B0 as written
 - [x] T-MSG — `contracts/messages.yaml`: ES/PT templates for greet, plan, connect, suggestion chips, status labels,
