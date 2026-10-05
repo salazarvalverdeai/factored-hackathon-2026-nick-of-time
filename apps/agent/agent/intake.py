@@ -143,8 +143,10 @@ async def call(config: RunnableConfig, tool: str, **args: Any) -> BaseModel:
     try:
         transport = settings.get("mcp_transport")   # tests pass a server object; a URL string is never honoured
         if not transport or isinstance(transport, str):
-            transport = StreamableHttpTransport(os.environ["MCP_URL"],
-                                                headers={"X-API-Key": os.environ.get("MCP_API_KEY", "")})
+            # spec 03 §6: X-Trace-Id is the graph's run id, the one identity makes the turn's trace_id (INT1)
+            run = config.get("run_id") or settings.get("run_id")
+            transport = StreamableHttpTransport(os.environ["MCP_URL"], headers={
+                "X-API-Key": os.environ.get("MCP_API_KEY", ""), **({"X-Trace-Id": str(run)} if run else {})})
         async with Client(transport, timeout=TIMEOUT_S) as client:
             result = await client.call_tool(tool, {"session_id": settings["session_id"], **args}, raise_on_error=False)
         if result.is_error:

@@ -345,6 +345,20 @@ messages.
       an operator switch (`LLM_PROVIDER=anthropic`), not a runtime failover; a per-task arm config (spec 15 section
       4.2) is planned for spec 15 T6 · supports AC-14; tests `tests/test_spec04_llm.py` (lead decision D-003)
 - [ ] T8 — Platform deployment; `/agent` content · AC-07, AC-08
+- [x] INT1 — the graph against the **real** MCP server, locally and offline · AC-01, AC-11, AC-12, AC-18, AC-28 (tests
+      `tests/test_spec04_int_local.py`, harness `tests/local_mcp.py`). The harness builds the app `python -m mcp_server`
+      serves (`mcp_server.__main__.build`: API-key middleware, gate, every tool module on main) over the entry point's
+      MemoryStore (`MCP_DEV_MEMORY_STORE=1`) or, with `TEST_DATABASE_URL`, a PostgresStore in a throwaway schema; seeds a
+      verified session for the case's customer; and runs the graph with the client config Platform uses (`MCP_URL`,
+      `MCP_API_KEY`, a dummy key), its httpx client bound to the app through an ASGI transport, so no socket opens. Arm
+      S0, replay (DEMO_TODAY 2026-06-01). Gold is a tiny fixture built from each eval case's `initial_state` (runs in
+      CI) or the full gold: `GOLD_PATH=data/gold .venv/bin/python -m pytest -q tests/test_spec04_int_local.py` (skipped
+      without it), plus `TEST_DATABASE_URL=postgresql://… -m postgres` for the store variant. Cases: EV-0001, dev
+      EV-0101–0104, EV-0106 and a D-029 call request on EV-0001's charge; the medium-zone confirmation is sent as the
+      confirm chip, since B0 reads only a bare "sí" as the answer. Wiring fixed: the graph now sends `X-Trace-Id` (the run
+      id, as `identity` sets `trace_id`), so the store's events carry the turn's trace id (spec 03 §6). Open (B0 rules,
+      spec 11): dev EV-0115's pt injection is not flagged and opens a case (xfail); EV-0105, EV-0107, EV-0118 and EV-0119
+      are not understood by B0 as written
 - [x] T-MSG — `contracts/messages.yaml`: ES/PT templates for greet, plan, connect, suggestion chips, status labels,
       receipt and notify (placeholders `{name}`, tool facts only). Supports AC-06, AC-10, AC-11, AC-15, AC-16, AC-18,
       AC-19, AC-21, AC-25, AC-26, AC-28, AC-29, AC-31, AC-32; behavior tested in T2–T6. T2–T7 extend the file (clarify,
