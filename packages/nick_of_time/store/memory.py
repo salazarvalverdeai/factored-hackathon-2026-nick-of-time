@@ -15,7 +15,7 @@ from typing import Any, Literal, Optional, get_args
 from nick_of_time import ids
 from nick_of_time.contracts import AnalystActionIn, AnalystActionOut, QueueStatus
 from nick_of_time.store import (CUSTOMER_VISIBLE, RESERVED_EVENTS, UNDELIVERED, VERIFIED_WITH, WRITE_EVENTS, WRITE_TOOL,
-                                CaseEvent, CaseRecord, Channel, DeliveryStatus, EventType, NewCase, Notification,
+                                CallRequest, CaseEvent, CaseRecord, Channel, DeliveryStatus, EventType, NewCase, Notification,
                                 NotVerified, ProductOverride, StoreError, VerifyingRead, _check_writer, _json,
                                 _utc_now, check_action_id, check_business_date, check_text, check_transition,
                                 insert_with_fresh_case_id)
@@ -40,6 +40,7 @@ class MemoryStore:
         self._channels: list[CustomerChannel] = []
         self._once: dict[str, tuple[str, Optional[str], str, dict[str, Any]]] = {}   # key -> (action, run, args, result)
         self._serial = threading.RLock()
+        self._calls: list[CallRequest] = []
 
     # ---------- cases ----------
     def create_case(self, case: NewCase, *, actor: str, action_id: str) -> CaseRecord:
@@ -217,6 +218,18 @@ class MemoryStore:
                 if n.customer_id == customer_id and self._cases[n.case_id].run_id == run_id]
         mine.sort(key=lambda n: (n.created_at, n.notification_id), reverse=True)     # ties: the id, as in Postgres
         return [n.model_copy(update={"delivery_status": self._deliveries[n.notification_id][-1][0]}) for n in mine]
+
+    # ---------- call requests with no case (D-026) ----------
+    def add_call_request(self, **fields: Any) -> CallRequest:
+        row = parse(CallRequest, {**fields, "event_id": ids.new_id("event"), "created_at": self._now()})
+        if row.action_id in self._writes or any(c.action_id == row.action_id for c in self._calls):
+            raise StoreError(f"action {row.action_id} was already written; a write takes a fresh action id")
+        self._calls.append(row)
+        return row
+
+    def call_requests(self, customer_id: str, *, run_id: Optional[str]) -> list[CallRequest]:
+        mine = [c for c in self._calls if c.customer_id == check_key(customer_id) and c.run_id == check_key(run_id)]
+        return sorted(mine, key=lambda c: (c.created_at, c.event_id))           # as in Postgres
 
     # ---------- internals ----------
     def _case(self, case_id: str) -> CaseRecord:

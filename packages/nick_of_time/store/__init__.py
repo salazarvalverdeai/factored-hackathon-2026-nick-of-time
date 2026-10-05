@@ -165,6 +165,20 @@ class Notification(_Row):
     delivery_status: DeliveryStatus = "queued"              # read from its latest notification_deliveries row
 
 
+class CallRequest(_Row):
+    """A `call_requests` row (D-026, spec 03 AC-18): a call asked for with no case. It writes no case event and no read
+    verifies it, so it stays `requested`; `event_id` is the `E-` id `request_call` returns."""
+    event_id: str = Field(pattern=ids.PATTERN["event"])
+    action_id: str = Field(pattern=ids.PATTERN["action"])
+    customer_id: str = Field(min_length=1)
+    session_id: str = Field(pattern=ids.PATTERN["session"])
+    preferred_time: Optional[str] = None
+    expected_contact_by: Optional[dt.date] = None           # D-008: stored, never recomputed
+    run_id: Optional[str] = None
+    trace_id: str = Field(min_length=1)
+    created_at: AwareDatetime
+
+
 def insert_with_fresh_case_id(try_insert: Callable[[str], bool]) -> str:
     """T9: draw a fresh `ids.new_id("case")` while the insert hits a `case_id` primary-key conflict (`try_insert`
     returns False, e.g. Postgres `insert … on conflict (case_id) do nothing` that returns no row)."""
@@ -366,6 +380,14 @@ class Store(Protocol):
 
     def list_notifications(self, customer_id: str, *, run_id: Optional[str]) -> list[Notification]:
         """The customer's notifications whose case is in `run_id`, newest first, with their delivery status."""
+
+    def add_call_request(self, *, customer_id: str, session_id: str, action_id: str, trace_id: str,
+                         expected_contact_by: Optional[dt.date] = None, preferred_time: Optional[str] = None,
+                         run_id: Optional[str] = None) -> CallRequest:
+        """D-026: one `call_requests` row for a call with no case, under a fresh `E-` id; a used action id is refused."""
+
+    def call_requests(self, customer_id: str, *, run_id: Optional[str]) -> list[CallRequest]:
+        """The customer's call requests with no case in `run_id`, oldest first."""
 
     # ---------- sessions, policy denials and customer channels (task 01g, store/accounts.py) ----------
     def create_session(self, *, customer_id: Optional[str], otp_hash: str, expires_at: dt.datetime,

@@ -145,7 +145,7 @@ The analysts' actions never appear in this server.
 - D-026: `search_transaction` returns no `fraud_score` or `split`, because the zone comes only from `get_fraud_score`.
   A `request_call` without `case_id` writes no `case_events` row. It returns `case_id: null`, its `action_id` and an
   `event_id` (`E-`) that keys an append-only `call_requests` row. No customer read verifies it, so the agent reports it
-  only as `requested`, never as verified. Task 03d adds `call_requests` to spec 01 §6.5 and to §7 here.
+  only as `requested`, never as verified. Task 03d1 added `call_requests` to spec 01 §6.5 and to §7 here.
 - D-027: `synthetic` is a score source. `get_fraud_score` returns `source: "synthetic"` with the stored score of a
   live-mode `demo_transactions` row (`policies.yaml` `scoring.providers.synthetic`).
 
@@ -158,8 +158,9 @@ AC-21). From `products` (`apps/mcp/mcp_server/cards.py`, T4) only the card rows'
 abroad. Card transactions are loaded at startup into an in-memory table indexed by `customer_id` (≈ 516k rows). Reads
 and writes Postgres through `nick_of_time.store`: `sessions` (read), `demo_transactions` (read, `live` only), `cases`,
 `case_events`, `product_overrides`, `idempotency`, `policy_denials`, `notifications`, `notification_deliveries` (read),
-`customer_channels` (read). Takes the store's `serialize` lock (a Postgres transaction-level advisory lock) on
-`open_case:<run>:<customer>:<transaction>` around the duplicate check and the insert (AC-15, task 03c).
+`customer_channels` (read), `call_requests` (a call with no case, D-026). Takes the store's `serialize` lock (a
+Postgres transaction-level advisory lock) on `open_case:<run>:<customer>:<transaction>` around the duplicate check and
+the insert (AC-15, task 03c), and so does `request_reevaluation`'s related case (task 03d1).
 `contracts/policies.yaml` gains the rule `POL-ZONE-MISMATCH` (G-IN-02, AC-09; D-060: `version` stays 2, since the
 engine's behavior does not change).
 
@@ -250,7 +251,15 @@ Implementation goes in one `feat/03-*` branch per task (T1: `feat/03-mcp-server`
       turn (spec 09 EV-0118) leaves it `new` depends on who writes `handoff_emitted`, pending D-066; and
       `notifications.events.in_review` ("Un analista está revisando tu caso") is wrong for a case that opens in
       `review` with no analyst yet, a wording change recorded for spec 13
-- [ ] T6 — follow-up tools (`add_case_info`, `request_call`, `request_reevaluation`) · AC-17, AC-18, AC-19
+- [x] T6 — follow-up tools (`add_case_info`, `request_call`, `request_reevaluation`) · AC-17, AC-18, AC-19 ·
+      `apps/mcp/mcp_server/followups.py` (`followups_handlers`, wired by name by T8), the store's `call_requests`
+      (D-026), `tests/test_spec03_followups.py` on both backends. `[assumption]`s: a PII rejection cites
+      `POL-OUT-OF-SCOPE`, the only rule of G-IN-04 (the gate writes G-POL-01 until T4 maps rule guardrails); a call stays
+      open until `approve_block`, `resolve` or `close_case` (the D-042 hold end); the re-evaluation window is 30 days
+      (spec 02 §4.4 proposal) until `reevaluation_allowed()` ships; a related case copies the closed case's facts and
+      zone, opens on today, goes to `review`, keeps the reason in its `reevaluation_requested` and takes its deadline
+      from gold with `abroad` false (none without the charge); its result has `case_id` = the new case and
+      `related_case_id` = the closed one; a write on a closed case is `DENY POL-DEFAULT-DENY`
 - [ ] T7 — `send_case_summary`, `list_my_notifications` · AC-21, AC-22
 - [ ] T8 — entry point, Dockerfile and compose service `mcp` · AC-02, AC-06, AC-12 · `apps/mcp/mcp_server/__main__.py`,
       `apps/mcp/Dockerfile`, `tests/test_spec03_entrypoint.py`. Done (task 03d2): `python -m mcp_server` reads
