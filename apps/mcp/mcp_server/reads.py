@@ -161,6 +161,8 @@ def read_handlers(gold: Gold, policies: Policies, *, channels: Optional[Callable
             return NO_CLOCK                                 # POL-CLOCK-UNKNOWN: no date is invented
         return t.ComputeDeadlineOut(country=country, product=found.product, credit_deadline=found.credit_deadline,
                                     ruling_deadline=found.ruling_deadline, deadline_source=found.deadline_source,
+                                    deadline_source_label=clock.source_label(found.deadline_source,
+                                                                             call.session.language, policies),
                                     source_url=found.source_url, verified_on=found.verified_on)
 
     def convert_amount(call: Call, args: t.ConvertAmountIn):
