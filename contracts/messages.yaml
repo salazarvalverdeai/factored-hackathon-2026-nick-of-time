@@ -27,7 +27,7 @@
 #   (notifications.never_send in policies.yaml).
 # - Never promise an outcome or a provisional credit: a person reviews and decides (CLAUDE.md rule 6).
 # - Dates are absolute (YYYY-MM-DD) and come from tools; the template never computes them.
-version: "0.7.0"
+version: "0.8.0"
 
 system:
   # The agent platform is unreachable, timed out, answered an error or dropped the stream (spec 05 AC-05). Calm, no
@@ -360,6 +360,11 @@ refuse:
   deny:
     es: "No puedo ayudarte con eso. Si quieres, cuéntame qué cargo de tu cuenta no reconoces."
     pt: "Não posso ajudar com isso. Se quiser, me conte qual cobrança da sua conta você não reconhece."
+  other_language:
+    # G-IN-03 [assumption]: a clear sentence in another language. The session language first, then the same sentence in
+    # English once, since the customer may not read it. No intent was read, nothing was done.
+    es: "Puedo ayudarte en español o en portugués. (I can help in Spanish or Portuguese.)"
+    pt: "Posso ajudar em português ou em espanhol. (I can help in Spanish or Portuguese.)"
   reauthenticate:
     # Spec 04 task 04a (pending the lead): session expired or unverified (POL-SESSION); no data, nothing done, a way
     # forward through the "Verificar de nuevo" chip. A call request without a session gets connect.general_contact.

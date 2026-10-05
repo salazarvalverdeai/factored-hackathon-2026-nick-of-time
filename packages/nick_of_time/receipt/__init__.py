@@ -52,6 +52,7 @@ ROWS: dict[str, tuple[str, ...]] = {
     "escalate_unconfirmed": ("view_case", "add_info", "request_call"),           # escalate_unconfirmed_action, a case
     # [assumption] escalate_unconfirmed_action with no verified case: no case link; the first chip asks for a call
     "case_unconfirmed": ("talk_to_person", "report_unrecognized", "check_case"),
+    "other_language": ("report_unrecognized", "check_case", "talk_to_person"),    # G-IN-03: not ES/PT, a person stays
     "deny": ("report_unrecognized", "check_case", "talk_to_person"),
     "reauthenticate": ("reauthenticate", "talk_to_person"),
     "reauthenticate_case": ("reauthenticate", "view_case", "talk_to_person"),   # a case verified before it expired

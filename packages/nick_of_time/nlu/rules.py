@@ -226,6 +226,28 @@ def detect_language(text: str, hint: Optional[str] = None) -> str:
     return "pt" if pt > es else "es"
 
 
+# [assumption] G-IN-03: a clear sentence in another language (English, French, German) is answered by rule, never by a
+# model. Words of those languages only, none shared with ES/PT; it takes 3 of them, more than the ES/PT words seen, so
+# a loanword ("Amazon Prime", "ok", "thank you") inside Spanish or Portuguese never counts.
+_OTHER_WORDS = {"i", "my", "the", "you", "your", "is", "are", "was", "were", "this", "that", "with", "from", "have", "has",
+                "not", "don't", "didn't", "did", "what", "why", "and", "to", "of", "need", "help", "want", "card", "charge",
+                "recognize", "unauthorized", "bank", "please", "hello", "hi", "lost", "can", "could", "would", "me",
+                "je", "mon", "ma", "pas", "est", "les", "des", "une", "pour", "et", "carte", "bonjour", "ne", "reconnais",
+                "ich", "nicht", "und", "der", "die", "das", "ist", "ein", "eine", "kann", "mein", "meine", "karte", "hallo",
+                "habe", "kenne"}
+_OTHER_WORDS -= {"me", "ma", "to", "ne", "e"}              # "me" is ES/PT, "ma" PT-adjacent, "to" and "ne" too short
+_SHARED_WORDS = {"de", "que", "no", "la", "lo", "se", "su", "por", "para", "me", "te", "a", "e", "o", "es", "mas", "muy",
+                 "com", "como", "tengo", "tenho", "una", "uma", "un", "um"}
+
+
+def other_language(text: str) -> bool:
+    """True only for a clear non-ES/PT sentence: at least 4 words, 3 of another language and more of them than ES/PT."""
+    words = re.findall(r"[a-z']+", fold(text))
+    foreign = sum(w in _OTHER_WORDS for w in words)
+    known = sum(w in _PT_WORDS or w in _ES_WORDS or w in _SHARED_WORDS for w in words)
+    return len(words) >= 4 and foreign >= 3 and foreign > known
+
+
 def _refused(t: str, m: re.Match) -> bool:
     """A person request right after a refusal is no request, unless it is a question or a correction follows."""
     if not (r := _REFUSAL.search(t[:m.start()])):
@@ -263,9 +285,10 @@ def parse_rules(text: str, language_hint: Optional[str], today: date) -> dict:
     intent, confidence, dispute = classify_intent(text)
     amount, currency = _amount(text)
     found = parse_date(text, today)
+    foreign = intent == "out_of_scope" and other_language(text)
     return {
         "intent": intent, "confidence": confidence, "dispute_detected": dispute, "language": detect_language(text, language_hint),
         "slots": {"amount": amount, "currency": currency, "date": found.isoformat() if found else None,
                   "merchant": _merchant(text)},
-        "injection_flagged": injection_flagged(text), "arm": ARM, "version": VERSION,
+        "injection_flagged": injection_flagged(text), "other_language": foreign, "arm": ARM, "version": VERSION,
     }
