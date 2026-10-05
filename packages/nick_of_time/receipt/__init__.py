@@ -44,7 +44,7 @@ ROWS: dict[str, tuple[str, ...]] = {
     "confirm": ("confirm_yes", "confirm_no", "talk_to_person"),
     "case_active": ("view_case", "add_info", "request_call"),                     # AC-23: the existing case
     "read_failed": ("show_recent", "talk_to_person", "check_case"),   # the first chip searches again
-    "receipt": ("view_case", "send_summary", "request_call"),                    # case opened, actions verified (T4)
+    "receipt": ("view_case", "check_case", "request_call"),   # case opened, verified; send_summary waits for AC-26 (P1)
     "handoff": ("view_case", "add_info", "request_call"),
     "escalate_unconfirmed": ("view_case", "add_info", "request_call"),           # escalate_unconfirmed_action, a case
     # [assumption] escalate_unconfirmed_action with no verified case: no case link; the first chip asks for a call

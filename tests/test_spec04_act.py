@@ -57,12 +57,14 @@ def test_ac_01_ev_0001_ends_with_the_card_blocked_and_verified_and_the_case_open
     writes = [c for c in calls if c in ("open_case", "block_card")]
     assert writes == ["open_case", "block_card"]                    # the ticket first, then the block (spec 03 Q3)
     reply = turn.reply.splitlines()
-    assert "Caso K-104233 abierto y verificado (verificación V-0C6A93F1B57D, 2026-06-01T15:04:11Z)." in reply
-    assert ("Tarjeta terminada en 4417: bloqueada y verificada (verificación V-8B2D41C7E0A9, 2026-06-01T15:04:09Z)."
+    assert "Caso K-104233 abierto y verificado (verificación V-0C6A93F1B57D, 2026-06-01 15:04 UTC)." in reply
+    assert ("Tarjeta terminada en 4417: bloqueada y verificada (verificación V-8B2D41C7E0A9, 2026-06-01 15:04 UTC)."
             in reply)
     deadline = next(line for line in reply if "2026-06-03" in line)  # the MX deadline, from get_case, with its source
     assert "Banxico Circular 3/2012" in deadline and "https://www.gob.mx/condusef/" in deadline
-    assert [s.id for s in turn.suggestions] == ["view_case", "send_summary", "request_call"]
+    # AC-26 (send by channel) is P1: no chip promises a send, so the row offers check_case instead (AC-29)
+    assert [s.id for s in turn.suggestions] == ["view_case", "check_case", "request_call"]
+    assert "comprobante" not in " ".join(s.label for s in turn.suggestions)
     assert turn.suggestions[0].href == "/case/K-104233"
     assert [s.node for s in turn.trace][-4:] == ["plan", "act", "verify", "respond"]
 
@@ -183,7 +185,7 @@ def test_ac_18_the_four_action_states_and_only_verified_carries_the_read_time():
     turn = Chat(mcp_transport=server(get_fraud_score=score(12.0))).say(EV_0001, language="pt")   # human zone, PT
     assert (turn.decision, turn.case_id) == ("handoff", "K-104233")
     assert [(a.tool, a.state) for a in turn.actions] == [("open_case", "verified")]      # never a block
-    assert "Caso K-104233 aberto e verificado (verificação V-0C6A93F1B57D, 2026-06-01T15:04:11Z)." in turn.reply
+    assert "Caso K-104233 aberto e verificado (verificação V-0C6A93F1B57D, 2026-06-01 15:04 UTC)." in turn.reply
     assert [s.id for s in turn.suggestions] == ["view_case", "add_info", "request_call"]
 
 

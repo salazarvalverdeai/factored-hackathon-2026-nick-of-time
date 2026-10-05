@@ -532,14 +532,14 @@ def verified_lines(case: Optional[dict[str, Any]], card: Optional[dict[str, Any]
         lines.append(msg.text("duplicate.case_exists", language, case_id=case["case_id"])
                      if (opened or {}).get("duplicate_of") else
                      msg.text("act.case_opened", language, case_id=case["case_id"],
-                              verification_id=case["verification_id"], verified_at=case["read_at"]))
+                              verification_id=case["verification_id"], verified_at=build.stamp(case["read_at"])))
         facts = {**case, "source_url": case["deadline_source_url"], "verified_on": case["deadline_verified_on"]}
         keys = ("ruling_deadline", "credit_deadline") if dispute == "unrecognized_charge" else ("ruling_deadline",)
         lines += [msg.text(f"receipt.{key}", language, **facts) for key in keys
                   if case.get(key)] or [msg.text("receipt.deadline_unknown", language)]
     if card:
         lines.append(msg.text("receipt.card_blocked", language, last4=card["last4"],
-                              verification_id=card["verification_id"], verified_at=card["read_at"]))
+                              verification_id=card["verification_id"], verified_at=build.stamp(card["read_at"])))
     return lines
 
 
@@ -607,7 +607,7 @@ async def card_status(state: State, config: RunnableConfig) -> dict[str, Any]:
     lines = [msg.text("status.card_read", language, last4=card.last4, read_at=stamp(card.read_at),
                       card_label=msg.text(f"status.card_label.{card.status.lower()}", language))
              for card in cards.cards[:3]]
-    return {"body": lines or [msg.text("status.no_cards", language)], "row": "card_status",
+    return {"body": lines or [msg.text("status.no_cards", language, read_at=stamp(cards.read_at))], "row": "card_status",
             "seen": [cards.model_dump(mode="json")]}
 
 
