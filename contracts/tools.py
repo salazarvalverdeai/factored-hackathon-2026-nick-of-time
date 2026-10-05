@@ -3,21 +3,23 @@
 Each of the 16 customer tools has `<Name>In` / `<Name>Out` models, listed in `CUSTOMER_TOOLS` in the order of
 `policies.yaml` `actors.customer.tools`. Every input carries `session_id` and never `customer_id`: the server resolves
 the customer from the session row (constitution #3), and inputs forbid unknown fields. Accepted ≠ verified
-(constitution #4): a write answers `state: "requested"` at most; only its read tool in `VERIFIED_WITH` returns a
-`verification_id` and `read_at`. Every tool answers `ToolError` instead of raising.
+(constitution #4): a write answers `state: "requested"` at most and carries no `V-` id; only its read tool in
+`VERIFIED_WITH` mints a `verification_id` with `read_at`, which the store persists (D-025 `[assumption]`, task 01c).
+Every tool answers `ToolError` instead of raising.
 """
 from datetime import date
 from typing import Literal, Optional, Protocol
 
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, model_validator
 
-from nick_of_time.ids import PATTERN
+from nick_of_time.ids import GOLD_PATTERN, PATTERN
 
 _HTTPS = r"^https://\S+$"
 _COUNTRY = r"^[A-Z]{2}$"
 _CURRENCY = r"^[A-Z]{3}$"
 _DECIMAL = r"^-?[0-9]+(\.[0-9]+)?$"
 _CASE = PATTERN["case"]
+_TRX, _PRD = GOLD_PATTERN["transaction"], GOLD_PATTERN["product"]   # gold ids, unchanged
 _Queue = Literal["new", "verification", "review", "resolved", "closed"]      # policies.yaml case_queue.states
 _Channel = Literal["telegram", "email"]                                       # channels the customer confirms
 
@@ -49,14 +51,8 @@ class _WriteOut(_Model):
     state: WriteState = "requested"
 
 
-class _PostCondition(_Model):
-    # [assumption] The V- id the paired read tool reports for this post-condition, so the auditor (spec 18 A3) joins
-    # write and read. Carrying it never makes the action verified: `state` stays "requested" until the read holds.
-    verification_id: Optional[str] = Field(None, pattern=PATTERN["verification"])
-
-
 class _Reading(_Model):               # a post-condition read: what TurnResult.actions[] needs to say "verified"
-    verification_id: str = Field(pattern=PATTERN["verification"])
+    verification_id: str = Field(pattern=PATTERN["verification"])   # minted by this read, persisted by the store
     read_at: AwareDatetime
 
 
@@ -69,8 +65,9 @@ class _Deadlines(_Model):             # stored with the case, never recomputed (
 
     @model_validator(mode="after")
     def _a_date_has_its_source(self):
-        if (self.credit_deadline or self.ruling_deadline) and not (self.deadline_source and self.deadline_source_url):
-            raise ValueError("a legal deadline travels with deadline_source and deadline_source_url (ADR 0019)")
+        if (self.credit_deadline or self.ruling_deadline) and not (
+                self.deadline_source and self.deadline_source_url and self.deadline_verified_on):
+            raise ValueError("a legal deadline travels with its source, https URL and verified_on (ADR 0019, D-014)")
         return self
 
 
@@ -95,23 +92,22 @@ class GetCustomerProfileOut(_Model):
 # ---------- search_transaction (R) ----------
 class SearchTransactionIn(_In):
     amount: Optional[float] = Field(None, description="amount in local currency; ±2% tolerance")
-    currency: Optional[str] = None
+    currency: Optional[str] = Field(None, pattern=_CURRENCY)
     approx_date: Optional[date] = None
-    window_days: int = 7
-    merchant: Optional[str] = None
+    window_days: int = Field(7, ge=0, le=30)
+    merchant: Optional[str] = Field(None, max_length=100)
 
 
 class Transaction(_Model):
-    transaction_id: str
-    product_id: str
+    # No fraud_score or split (D-026 [assumption]): the zone comes only from get_fraud_score; the score is never sent.
+    transaction_id: str = Field(pattern=_TRX)
+    product_id: str = Field(pattern=_PRD)
     transaction_date: date
     amount: float
-    currency: str
+    currency: str = Field(pattern=_CURRENCY)
     amount_usd: float
     merchant: Optional[str]
     transaction_status: Literal["Approved", "Declined", "Pending", "Reversed"]
-    fraud_score: Optional[float]      # 0-100 or None (20.6% of frauds)
-    split: Literal["train", "dev", "heldout"]   # customer partition (gold_contract.md)
     synthetic: bool = False           # true only for live-mode demo_transactions (spec 01 AC-08)
 
 
@@ -121,11 +117,11 @@ class SearchTransactionOut(_Model):
 
 # ---------- get_fraud_score (R, swappable provider) ----------
 class GetFraudScoreIn(_In):
-    transaction_id: str
+    transaction_id: str = Field(pattern=_TRX)
 
 
 class GetFraudScoreOut(_Model):
-    transaction_id: str
+    transaction_id: str = Field(pattern=_TRX)
     score: Optional[float]            # 0-100 or None
     source: Literal["dataset", "rules", "model", "llm"]
     version: str                      # e.g. "gold-v1", "model-v0"
@@ -139,7 +135,7 @@ class ScoreProvider(Protocol):
 
 # ---------- compute_deadline (R) ----------
 class ComputeDeadlineIn(_In):
-    transaction_id: str
+    transaction_id: str = Field(pattern=_TRX)
 
 
 class ComputeDeadlineOut(_Model):
@@ -154,36 +150,38 @@ class ComputeDeadlineOut(_Model):
 
 # ---------- open_case (W) ----------
 class OpenCaseIn(_WriteIn):
-    transaction_id: str
+    transaction_id: str = Field(pattern=_TRX)
     dispute_type: Literal["unrecognized_charge", "wrongful_charge"]
     zone: Literal["high", "medium", "human"]
     related_case_id: Optional[str] = Field(None, pattern=_CASE)
 
 
-class OpenCaseOut(_WriteOut, _PostCondition, _Deadlines):
+class OpenCaseOut(_WriteOut, _Deadlines):
     case_id: str = Field(pattern=_CASE)
     country: str = Field(pattern=_COUNTRY)
-    duplicate_of: Optional[str] = Field(None, pattern=_CASE)    # set when an active case was returned (spec 03 AC-15)
+    # AC-15: for an active case of the same transaction nothing is written; the result is that case, with
+    # duplicate_of = its case_id and the action_id of the open_case call that created it.
+    duplicate_of: Optional[str] = Field(None, pattern=_CASE)
     related_case_id: Optional[str] = Field(None, pattern=_CASE)
 
 
 # ---------- block_card (W) ----------
 class BlockCardIn(_WriteIn):
-    product_id: str
+    product_id: str = Field(pattern=_PRD)
     reason: Literal["high_zone_dispute", "confirmed_dispute"]
 
 
-class BlockCardOut(_WriteOut, _PostCondition):
-    product_id: str
+class BlockCardOut(_WriteOut):
+    product_id: str = Field(pattern=_PRD)
 
 
 # ---------- get_product_status / list_my_cards (R) ----------
 class GetProductStatusIn(_In):
-    product_id: str
+    product_id: str = Field(pattern=_PRD)
 
 
 class Card(_Reading):
-    product_id: str
+    product_id: str = Field(pattern=_PRD)
     type: Literal["debit", "credit"]
     last4: str = Field(pattern=r"^[0-9]{4}$")
     status: Literal["Active", "Blocked", "Closed", "Suspended"]   # latest override of the run, else gold
@@ -207,9 +205,9 @@ class GetCaseIn(_In):
 
 
 class CaseCharge(_Model):
-    transaction_id: str
+    transaction_id: str = Field(pattern=_TRX)
     amount: float
-    currency: str
+    currency: str = Field(pattern=_CURRENCY)
     transaction_date: date
     merchant: Optional[str] = None
     synthetic: bool = False
@@ -289,7 +287,14 @@ class RequestReevaluationIn(_WriteIn):
 
 class RequestReevaluationOut(_CaseEventOut):
     outcome: Literal["back_to_review", "related_case_opened", "already_in_progress"]   # spec 03 AC-19
+    event_id: Optional[str] = Field(None, pattern=PATTERN["event"])   # None iff already_in_progress: nothing written
     related_case_id: Optional[str] = Field(None, pattern=_CASE)
+
+    @model_validator(mode="after")
+    def _an_event_iff_something_was_written(self):
+        if (self.event_id is None) != (self.outcome == "already_in_progress"):
+            raise ValueError("event_id is null exactly when the case is already_in_progress (AC-19)")
+        return self
 
 
 # ---------- convert_amount (R) ----------

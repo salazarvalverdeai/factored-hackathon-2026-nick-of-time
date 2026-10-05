@@ -162,7 +162,7 @@ shape of `data` is fixed in the producing spec.
 
 ### 6.3 MCP server (`apps/mcp`)
 - **Endpoint:** `https://mcp.nickoftime.salazarvalverdeai.com/mcp`, streamable HTTP transport; header `X-API-Key`
-  (value in SSM `/nickoftime/prod/MCP_API_KEY`). Locally `http://localhost:8100/mcp`.
+  (value in SSM `/nickoftime/prod/MCP_API_KEY`). Locally `http://localhost:8100/mcp` (container port 8001, spec 06).
 - **Tools** — exactly the 16 of `contracts/policies.yaml` `actors.customer.tools`; each has `<Name>In` / `<Name>Out`
   models in `contracts/tools.py` (v1.1; spec 03 fixes their behavior). Kind: R read · W write · N notification.
 
@@ -191,9 +191,10 @@ shape of `data` is fixed in the producing spec.
   with the stored deadline, so a receipt re-sent later can fill `deadline.verified_on` (§6.7, ADR 0019); the models
   land with T4.
   `contracts/tools.py` lists them in `CUSTOMER_TOOLS` (name → models) and `VERIFIED_WITH` (the column above). A W or N
-  result says at most `state: "requested"`; the verifying read returns `verification_id` and `read_at`, and
-  `open_case`/`block_card` also name the `V-` id their read will report `[assumption]` (spec 18 A3). The fake server
-  (`apps/mcp/mcp_server/fake.py`) answers each tool with fixtures built from these models.
+  result says at most `state: "requested"` and carries no `V-` id; the verifying read mints `verification_id` with
+  `read_at` (D-025 `[assumption]`, §6.5). `search_transaction` returns no `fraud_score` or `split`: the zone comes only
+  from `get_fraud_score` (D-026 `[assumption]`). The fake server (`apps/mcp/mcp_server/fake.py`) answers each tool
+  with fixtures built from these models.
 
 - **Errors:** every tool returns `ToolError` (`DENY`, `NOT_FOUND`, `SESSION_EXPIRED`, `UNAVAILABLE`) instead of raising;
   a `DENY` is also written to `policy_denials` with its `policy_id`.

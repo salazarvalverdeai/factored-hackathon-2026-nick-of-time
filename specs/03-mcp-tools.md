@@ -87,7 +87,7 @@ graph's run id). Kind: R read · W write · N notification.
 | Tool | Kind | Behavior |
 |---|---|---|
 | `get_customer_profile` | R | First name, language, country, `display_currency` (session preference, else the country's from `policies.yaml`), confirmed channels with masked addresses. |
-| `search_transaction` | R | Loads the session's customer; filters gold `transactions_enriched` to that customer's cards (`Tarjeta Débito`, `Tarjeta Crédito`), status `Approved`/`Pending`, `approx_date ± window_days` (default 7; if no date, the last 30 days) and `≤ clock.today(mode)`; in `live` also the customer's `demo_transactions` (AC-14). Optional filters: **amount** (±2%, compared in the transaction currency and in the customer's local currency through the policy rates MXN 18.0, ARS 350, COP 4,000), **merchant** (case- and accent-insensitive token match; null merchants still match on amount and date). Ranks by amount match, then date distance, then merchant similarity; returns ≤ 4 `Transaction` with `split` and `synthetic`. |
+| `search_transaction` | R | Loads the session's customer; filters gold `transactions_enriched` to that customer's cards (`Tarjeta Débito`, `Tarjeta Crédito`), status `Approved`/`Pending`, `approx_date ± window_days` (default 7; if no date, the last 30 days) and `≤ clock.today(mode)`; in `live` also the customer's `demo_transactions` (AC-14). Optional filters: **amount** (±2%, compared in the transaction currency and in the customer's local currency through the policy rates MXN 18.0, ARS 350, COP 4,000), **merchant** (case- and accent-insensitive token match; null merchants still match on amount and date). Ranks by amount match, then date distance, then merchant similarity; returns ≤ 4 `Transaction` with `synthetic`, without `fraud_score` or `split` (D-026). |
 | `get_fraud_score` | R | Provider `dataset` (ADR 0006): `transactions.fraud_score` for a transaction of the session's customer, `source: "dataset"`, `version: "gold-v1"`; for a synthetic transaction, its generated score with `source: "synthetic"`. Another customer's transaction → `DENY POL-CROSS-CUSTOMER`. |
 | `compute_deadline` | R | Country from the customer (`México`→MX, `Argentina`→AR, `Colombia`→CO), product from the card type, opened on `clock.today(mode, country)`, `abroad` when `transaction_country` ≠ customer country; delegates to `clock.deadline()` (spec 02); returns `source_url` and `verified_on`. |
 | `open_case` | W | Duplicate check first (AC-15); recomputes the zone from the score (mismatch → AC-09); idempotent on `idempotency_key` (prefixed with `run_id`); writes `cases` (with `mode`, `related_case_id` when given) and `case_events(case_opened)`; returns `case_id`, deadlines and `duplicate_of`. |
@@ -118,6 +118,14 @@ graph's run id). Kind: R read · W write · N notification.
 are typed data, delimited when passed to the LLM (G-IN-01); per-session limits of 30 calls/min, 5 writes/min and 3
 notifications/hour `[assumption]` (G-TOOL-01, G-OPS-01); every call audited with `trace_id`, actor `agent` and an input
 hash (G-OPS-02). The analysts' actions never appear in this server.
+
+**Verification and call requests** `[assumption]` (defaults pending the lead):
+- D-025: a write returns `state: "requested"` and no `V-` id. The read that verifies it (`VERIFIED_WITH` in
+  `contracts/tools.py`) mints the `verification_id` and the store persists it with that read (event `action_verified`,
+  task 01c).
+- D-026: `search_transaction` returns no `fraud_score` or `split`, because the zone comes only from `get_fraud_score`.
+  A `request_call` without `case_id` writes an append-only `call_requests` record verified by its own read instead of
+  `case_events(call_requested)`; task 03d implements it.
 
 ## 7. Data model touched
 Reads gold `transactions_enriched`, `products` and `customers` through DuckDB; from `customers` the loader selects only

@@ -1,0 +1,9 @@
+# Images build with the repo root as context (compose); keep the environment, the dataset and secrets out of it.
+.venv
+**/.venv
+data
+.env*
+.git
+node_modules
+**/node_modules
+**/__pycache__

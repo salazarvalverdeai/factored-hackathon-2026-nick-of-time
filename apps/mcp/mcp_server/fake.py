@@ -1,9 +1,13 @@
 """Fake MCP server (spec 01 §6.3, T4, AC-03): the 16 customer tools answering fixtures [simulated].
 
-Each tool publishes the JSON schema of its `contracts/tools.py` input model, so the MCP layer rejects unknown arguments
-(a `customer_id` included), and answers its output model built from `FIXTURES`. No gold, no Postgres, no network: the
-agent and the api develop against it until spec 03 replaces it. It knows one session, `SESSION_ID` (replay, today
-2026-06-01); any other session answers `ToolError` `SESSION_EXPIRED` with no data, as the real server does.
+Each tool publishes the JSON schema of its `contracts/tools.py` input model and answers its output model built from
+`FIXTURES`. No gold, no Postgres, no network: the agent and the api develop against it until spec 03 replaces it.
+- Session first: it knows one session, `SESSION_ID` (replay, today 2026-06-01); any other answers `ToolError`
+  `SESSION_EXPIRED` with no data, as the real server does.
+- Arguments: the fake validates them with the input model, so an unexpected one (a `customer_id` included) fails
+  there and reaches the client as JSON-RPC error -32602; the real server answers `DENY` G-TOOL-01 instead (spec 03).
+- Ids: a `transaction_id`, `product_id` or `case_id` other than the fixture's answers `ToolError` `NOT_FOUND`.
+- No API key: never deploy it publicly; the real server requires `X-API-Key` (spec 03 AC-06).
 Run: `PYTHONPATH=.:packages:apps/mcp python -m mcp_server.fake` → http://localhost:8100/mcp.
 """
 from __future__ import annotations
@@ -33,15 +37,13 @@ FIXTURES: dict[str, dict[str, Any]] = {
                              "channels": [_TELEGRAM]},
     "search_transaction": {"candidates": [{
         "transaction_id": _TRX, "product_id": _PRD, "transaction_date": "2026-05-31", "amount": 1250.0,
-        "currency": "USD", "amount_usd": 1250.0, "merchant": "TIENDA X", "transaction_status": "Approved",
-        "fraud_score": 72.0, "split": "dev"}]},
+        "currency": "USD", "amount_usd": 1250.0, "merchant": "TIENDA X", "transaction_status": "Approved"}]},
     "get_fraud_score": {"transaction_id": _TRX, "score": 72.0, "source": "dataset", "version": "gold-v1"},
     "compute_deadline": {"country": "MX", "product": "debit", "credit_deadline": "2026-06-03", "ruling_deadline": None,
                          "deadline_source": _SOURCE, "source_url": _URL, "verified_on": "2026-10-04"},
-    # writes carry the V- id their paired read reports (get_case, get_product_status), but stay "requested"
-    "open_case": {"action_id": "A-71C0D5E8A2F3", "verification_id": "V-0C6A93F1B57D", "case_id": _CASE,
-                  "country": "MX", **_DEADLINE},
-    "block_card": {"action_id": "A-3E9F20B7C164", "verification_id": "V-8B2D41C7E0A9", "product_id": _PRD},
+    # writes stay "requested" and carry no V- id: get_case and get_product_status mint it when they read (D-025)
+    "open_case": {"action_id": "A-71C0D5E8A2F3", "case_id": _CASE, "country": "MX", **_DEADLINE},
+    "block_card": {"action_id": "A-3E9F20B7C164", "product_id": _PRD},
     "get_product_status": _CARD,
     "list_my_cards": {"cards": [_CARD]},
     "get_case": {**_DEADLINE, "case_id": _CASE, "queue_status": "verification", "status_label": "Recibido",
@@ -55,18 +57,25 @@ FIXTURES: dict[str, dict[str, Any]] = {
                                  "updated_at": "2026-06-01T15:04:10Z"}], "read_at": "2026-06-01T15:04:11Z"},
     "add_case_info": {"action_id": "A-2C8E61F0B3A7", **_EVENT},
     # D-008: replay today 2026-06-01 (Monday) + contact.callback_within_business_days (1) → 2026-06-02
-    "request_call": {"action_id": "A-9A4D07E2C5B1", **_EVENT, "expected_contact_by": "2026-06-02"},
-    "request_reevaluation": {"action_id": "A-6F1B3C8D2E90", **_EVENT, "outcome": "already_in_progress"},
+    "request_call": {"action_id": "A-9A4D07E2C5B1", "case_id": _CASE, "event_id": "E-3B6C1D9F2A85",
+                     "expected_contact_by": "2026-06-02"},
+    "request_reevaluation": {"action_id": "A-6F1B3C8D2E90", "case_id": _CASE, "outcome": "already_in_progress"},
     "convert_amount": {"converted": None},      # no verified rate yet, as in the sample receipt (ADR 0019)
     "send_case_summary": {"action_id": "A-D3E5F7091B2C", "notification_id": "N-7E2A9C4B1D30", **_TELEGRAM},
     "list_my_notifications": {"verification_id": "V-4A1C9E7B3D52", "read_at": "2026-06-01T15:04:12Z",
                               "notifications": [{"notification_id": "N-1F0D8B6A4C29", "case_id": _CASE,
-                                                 "event": "case_opened", "channel": "log", "delivery_status": "delivered",
+                                                 "event": "case_opened", "channel": "log",
+                                                 "delivery_status": "delivered",
                                                  "text": "Abrimos tu caso K-104233. Plazo legal: 2026-06-03.",
                                                  "created_at": "2026-06-01T15:04:10Z"}]},
 }
 # Built through the contract models, so a fixture that drifts from contracts/tools.py fails at import.
 ANSWERS = {name: CUSTOMER_TOOLS[name][1].model_validate(data) for name, data in FIXTURES.items()}
+KNOWN_IDS = {"transaction_id": _TRX, "product_id": _PRD, "case_id": _CASE}
+
+
+def _error(error: ToolError) -> ToolResult:
+    return ToolResult(content=error.model_dump_json(), structured_content=error.model_dump(), is_error=True)
 
 
 class FixtureTool(Tool):
@@ -74,9 +83,10 @@ class FixtureTool(Tool):
 
     async def run(self, arguments: dict[str, Any]) -> ToolResult:
         if arguments.get("session_id") != SESSION_ID:             # session first (spec 03 AC-02)
-            error = ToolError(code="SESSION_EXPIRED", message="The session expired or does not exist.")
-            return ToolResult(content=error.model_dump_json(), structured_content=error.model_dump(), is_error=True)
-        CUSTOMER_TOOLS[self.name][0].model_validate(arguments)    # strict: extra="forbid"
+            return _error(ToolError(code="SESSION_EXPIRED", message="The session expired or does not exist."))
+        CUSTOMER_TOOLS[self.name][0].model_validate(arguments)    # strict: extra="forbid" → JSON-RPC -32602
+        if any(arguments.get(key) not in (None, known) for key, known in KNOWN_IDS.items()):
+            return _error(ToolError(code="NOT_FOUND", message="No such transaction, card or case for this customer."))
         return ToolResult(structured_content=ANSWERS[self.name].model_dump(mode="json"))
 
 
