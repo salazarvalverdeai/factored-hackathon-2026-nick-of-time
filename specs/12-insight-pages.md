@@ -105,7 +105,8 @@ landing page and the slides (E1) · P2: auditor findings and judge–analyst agr
 Implementation goes in `feat/12-…` branches once this spec is approved.
 - [x] T1 — `/analytics` with the four problem charts and `pitch_numbers.json` · covers AC-02 (part), AC-07, AC-09 ·
       done in PR #72
-- [ ] T2 — drift test for `pitch_numbers.json`; note on the teal step · covers AC-08 · follow-ups of PR #72
+- [ ] T2 — drift test for `pitch_numbers.json` (done, `tests/test_spec12_pitch_numbers.py`); note on the teal step
+      (waits for Q3: `docs/brand/BRAND.md` is the lead's) · covers AC-08 · follow-ups of PR #72
 - [ ] T3 — `/evaluation` run header, headline figures, arm comparison and breakdown from `evaluation_summary.json`,
       with the empty state and the development notice · covers AC-01 (part), AC-04, AC-05, AC-06, AC-07
 - [ ] T4 — `/evaluation` benchmark, classifier and fraud sections · covers AC-01 · needs Q1
