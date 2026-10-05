@@ -115,6 +115,19 @@ def test_ac_02_b2_forces_the_tool_and_maps_the_reply():
     assert (r.arm, r.intent, r.dispute_detected, r.slots.amount) == ("B2", "human_request", True, None)  # bad slot: none
 
 
+def test_ac_02_ac_10_b2_sends_the_d082_prompt_and_reads_missing_slot_keys_as_null():
+    """D-078 and D-082: B2 sends the production `understand` prompt and schema (the person request first, AC-10); a
+    reply that leaves out slot keys is a valid reading with those slots null, not a missing tool call."""
+    from nick_of_time.llm import steps
+    client = llm.FakeClient(script=[{"intent": "human_request", "confidence": 0.9, "dispute_detected": True,
+                                     "slots": {"merchant": "Rappi"}}])
+    r = B2NLU(client).parse("texto", today=TODAY)
+    call = client.calls[0]
+    assert (call["system"], call["schema"]) == (steps.UNDERSTAND, steps.INTENT_SCHEMA)
+    assert "wins over every other intent" in call["system"].split("unrecognized_charge:")[0]
+    assert r.intent == "human_request" and r.slots.model_dump() == {**SLOTS, "merchant": "Rappi"}
+
+
 def test_ac_02_b2_without_tool_input_is_a_missing_call_kept_in_the_denominator():
     nlu = B2NLU(llm.FakeClient(script=["texto sin herramienta"]))
     [p] = ev.run_arm(nlu, [{"text": "hola"}])

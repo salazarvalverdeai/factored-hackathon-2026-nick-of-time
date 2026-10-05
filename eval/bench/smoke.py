@@ -12,6 +12,7 @@ from botocore.exceptions import ClientError
 
 from eval.bench.core import (ProviderUnavailable, ToolChoiceUnsupported, check_budget, load_prices, projected_spend,
                              provider_error)
+from nick_of_time.llm.base import TOOL_DESCRIPTION
 
 # [assumption] PLACEHOLDER minimal intent schema until spec 11 delivers the real one (five intents, slots).
 INTENT_SCHEMA = {
@@ -48,7 +49,8 @@ def temperature_rejected(exc: BaseException) -> bool:
 
 def converse_request(model_id: str, system: str, user: str, schema: dict, mode: str,
                      temperature: float | None = 0) -> dict:
-    """The Converse request of the smoke test and of B1: one tool with the schema, the arm's toolChoice mode,
+    """The Converse request of the smoke test and of B1: one tool with the schema and the production tool description
+    (`nick_of_time.llm.base.TOOL_DESCRIPTION`, D-011), the arm's toolChoice mode,
     MAX_TOKENS and temperature 0, or the provider default (no `temperature` key) when `temperature` is None
     (D-016, spec 15 section 4.1: 0 where the model accepts it, otherwise the provider default)."""
     inference = {"maxTokens": MAX_TOKENS} if temperature is None else {"temperature": temperature,
@@ -56,7 +58,7 @@ def converse_request(model_id: str, system: str, user: str, schema: dict, mode: 
     return {"modelId": model_id, "system": [{"text": system}],
             "messages": [{"role": "user", "content": [{"text": user}]}],
             "inferenceConfig": inference,
-            "toolConfig": {"tools": [{"toolSpec": {"name": TOOL_NAME, "description": "Record the intent.",
+            "toolConfig": {"tools": [{"toolSpec": {"name": TOOL_NAME, "description": TOOL_DESCRIPTION,
                                                    "inputSchema": {"json": schema}}}],
                            "toolChoice": TOOL_CHOICES[mode]}}
 

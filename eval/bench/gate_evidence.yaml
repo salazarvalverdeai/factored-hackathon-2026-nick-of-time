@@ -39,6 +39,11 @@ providers:
       evidence_url: https://docs.aws.amazon.com/bedrock/latest/userguide/model-lifecycle-legacy.html
       note: "a Bedrock model id is one fixed version: each model card (model-card-*.html, linked per arm in arms.yaml) gives that id a launch date, an EOL date and a lifecycle state, and 'Migration will not happen automatically'"
       checked_on: "2026-10-04"
+    availability:
+      verdict: pass
+      evidence_url: https://aws.amazon.com/bedrock/sla/
+      note: "SLA per region: service credits below a 99.9% monthly uptime percentage (last updated 2023-10-04)"
+      checked_on: "2026-10-05"
   typesafe:
     synthetic_only:
       verdict: pass

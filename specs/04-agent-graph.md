@@ -354,7 +354,10 @@ messages.
       `tests/test_spec04_arms.py`). AC-14 done: every run returns `usage` (one row per billed call; the api adds the
       session's `run_id`, D-023 `[assumption]`) and `denials`. `understand` asks the arm's LLM below τ
       (`clarify.intent_confidence_min`), only in a verified session and never for a flagged or cross-customer message,
-      with forced tool use and the intent schema (D-011, D-016); its slots must fit `search_transaction`'s input and its
+      with forced tool use and the intent schema (D-011, D-016; D-078: the four slot keys are optional, a missing key
+      is null, while intent, confidence, `dispute_detected` and the slots object stay required; D-082: the prompt
+      defines `human_request` first, with ES and PT person and call words, and it wins over every other intent even
+      with a charge or status question in the same message; one iteration on validation, ADR 0027); its slots must fit `search_transaction`'s input and its
       confidence is capped below τ, and an LLM-only `human_request` registers no call unless B0 also reads one (D-065
       `[assumption]`). An LLM error, a timeout (4 s read + 2 s connect per request, one attempt `[assumption]`), output
       that fails the schema or the slot contract, a missing price or the G-OPS-01 cap (0.02 USD per conversation,

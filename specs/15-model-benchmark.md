@@ -210,7 +210,10 @@ written once by T5 after the run. `protocol` comes from the seal block of `eval/
 }
 ```
 - `label` is `[simulated]` (dev cases and sentences are generated). `mode` is always `replay` (AC-09), `demo_today` the
-  fixed date (ADR 0020), `run_date` an ISO date (AC-05).
+  fixed date (ADR 0020), `run_date` an ISO date (AC-05), the same replay date.
+- `b1_model` (AC-01, AC-05): the B1 TF-IDF + LR file the run scored, `{path, sha256, sklearn_version, source}`; on test
+  it is the file of spec 11 `classifier.json` `b1_model`; with the reason instead when B1 could not run, `null` when
+  the run had no B1 arm.
 - `b1.arms[]` (AC-01, AC-03, AC-05, AC-06, AC-10): ids and hashes as stored per row; `status` is `ok`, `unavailable` or
   `no structured output`, with its reason; `price` in USD per 1M tokens with source and date, `label` `[external]`
   (`[assumption]` for Jev); `macro_f1` per language with its 95% interval; the recalls and `slot_accuracy` (§4.2) as
@@ -255,16 +258,33 @@ Public third-party leaderboards; fine-tuning; batch or provisioned throughput pr
       date); budget guard · AC-05, AC-08
 - [x] T2 — B1 runner over spec 11 arms + the LLM candidates + Jev; unavailable arms recorded · AC-01, AC-06
       (`eval/bench/b1.py`: smoke then B1 with exactly `smoke.converse_request`, the `understand` prompt and schema of
-      spec 04; B1 TF-IDF + LR through `load_nlu`, unavailable until spec 11 T3 lands; per-sentence errors scored
-      wrong and counted in `errors`, items appended to disk as they arrive, §4.1)
+      spec 04; B1 TF-IDF + LR is the spec 11 model, trained or loaded by the command as T5 says; per-sentence errors scored
+      wrong and counted in `errors`, items appended to disk as they arrive, §4.1; the tool description is the
+      production one, `nick_of_time.llm.base.TOOL_DESCRIPTION`, so the request equals what S1 sends, and a missing
+      slot key is scored as null, D-078)
 - [ ] T3 — structured-output smoke test (done, `eval/bench/smoke.py`, AC-11; live run pending Bedrock invoke
       rights); `word` task set (40 template instances from dev cases) and blind preference sheet (pending spec 09) ·
       AC-11, AC-12
 - [ ] T3b — short list and B2 runner on the harness (spec 10), historical mode only, `coherence_rate` · AC-02, AC-09
 - [x] T4 — gate evaluation per arm with evidence and date · AC-10
-- [ ] T5 — table, Pareto chart, JSON for `/evaluation` · AC-03, AC-04
+- [x] T5 — table, Pareto chart, JSON for `/evaluation` · AC-03, AC-04 (`eval/bench/report.py`, `chart.py`; `make bench`
+      writes the result files only on the sealed test split, after the shared seal guard of spec 10
+      (`check_seal` with the classifier split manifest, then `claim_run("bench")` before any model call; it refuses a
+      second run or an existing official output) and labels them `test_review: rules-v1` (PROTOCOL §1.1, ADR 0028);
+      `make bench-dev` writes a labeled development run to the git-ignored `eval/.runs/bench/`; `--from-items`
+      re-renders the table and the chart without models; failed sentences are reported as `errors`, apart from missing
+      tool calls; `es_pt_quality` is written by the run, AC-10). B1 TF-IDF + LR (spec 11): `make bench-dev` trains it as
+      `make classifier` does (fit on train, sigmoid-calibrated on validation, fixed seed) into its run folder; `make
+      bench` never refits it on test and loads the exact file the classifier-test run recorded in `classifier.json`
+      `b1_model` (path and sha256), refused before the claim when that record, the file or its hash is missing or
+      differs, so **`make classifier-test` runs before `make bench`**; `benchmark.json` records the file as `b1_model`.
+      The run date and the development folder name are the fixed replay `DEMO_TODAY` the arms read (ADR 0020), never
+      a `DEMO_TODAY` set in the environment.
 - [ ] T6 — lean rule per task in `eval/PROTOCOL.md` before the run; "model selection" ADR with the three rows per task
-      and the model map · AC-07
+      (rule computed by `report.select`, with the reading of §2.3 where it is silent in `SELECTION_READING`,
+      `[assumption]` pending lead decision D-077; ADR 0027 drafted as Proposed with development numbers only)
+      and the model map · AC-07. Run order on test: `make classifier-test`, then `make bench` (T5), so the B1 row is
+      the model spec 11 exported.
 
 ## 11. Sources
 External sources checked on 2026-10-04.

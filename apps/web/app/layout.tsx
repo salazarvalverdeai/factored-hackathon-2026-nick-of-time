@@ -15,7 +15,8 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Nick of Time",
+  // "/" shows the default; every other route sets its own title in its segment: "<Page> · Nick of Time".
+  title: { default: "Nick of Time", template: "%s · Nick of Time" },
   description: "Verified action. Before the deadline.",
 };
 
