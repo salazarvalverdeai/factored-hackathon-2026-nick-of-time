@@ -14,6 +14,7 @@ import datetime as dt
 import hashlib
 import hmac
 import json
+import logging
 import os
 import re
 import secrets
@@ -36,7 +37,7 @@ from app.platform import HttpPlatform, Platform, PlatformError
 from nick_of_time import CONTRACT_VERSION, ids
 from nick_of_time.contracts import (AnalystActionIn, AnalystActionOut, CaseSummary, CaseView, CustomerCaseSummary,
                                     CustomerCaseView, CustomerReceipt, CustomerTurn, ProductView, ProgressItem,
-                                    TurnResult)
+                                    Suggestion, TurnResult)
 from nick_of_time.policy import queue
 from nick_of_time.policy.calendars import CalendarNotCovered, add_business_days
 from nick_of_time.policy.clock import deadline
@@ -57,6 +58,8 @@ NO_REASON_NEEDED = {"take", "approve_credit", "approve_block"}        # AnalystA
 TEMPLATE_EVENT = {"take": "in_review", "reopen_case": "in_review", "resolve": "resolved"}   # status change -> template
 ZONE_ORDER = {"high": 0, "medium": 1, "human": 2}
 TELEGRAM_TTL, EMAIL_TTL = dt.timedelta(minutes=15), dt.timedelta(hours=24)
+
+log = logging.getLogger("nick_of_time.api")
 
 
 class Denied(Exception):
@@ -359,22 +362,47 @@ def create_live_app(store: Store, *, catalog: Optional[Catalog] = None, verifier
     def _sse(event: str, data: dict) -> str:
         return f"event: {event}\ndata: {json.dumps(data, default=str)}\n\n"
 
+    def unavailable_turn(s: dict, trace_id: str) -> str:
+        """A normal `turn` for a Platform failure (customer text from messages.yaml, nothing internal)."""
+        lang, msgs = s.get("language") or "es", messages()
+        turn = CustomerTurn(
+            reply=msgs["system"]["agent_unavailable"][lang], language=lang, mode=s["mode"], trace_id=trace_id,
+            suggestions=[Suggestion(id="retry", label=msgs["system"]["retry_chip"][lang], kind="text"),
+                         Suggestion(id="talk_to_person", label=msgs["suggest"]["talk_to_person"][lang], kind="action",
+                                    action={"type": "request_call"})])
+        return _sse("turn", turn.model_dump(mode="json"))
+
     @app.post("/api/agent/threads/{thread_id}/runs/stream")
     def agent_stream(thread_id: str, request: Request, payload: dict = Body(default={}),
-                     s: dict = Depends(own_thread)):
+                     s: dict = Depends(known_session)):
+        trace_id = _trace()
+        try:
+            owner = need_platform().thread_session(thread_id)
+        except (PlatformError, ApiError) as error:           # Platform down before the run: a turn, not a 503
+            log.error("platform unavailable (thread check) trace_id=%s error=%s", trace_id, error)
+            return StreamingResponse(iter([unavailable_turn(s, trace_id)]), media_type="text/event-stream")
+        if owner != s["session_id"]:                               # unknown or foreign: the same 404
+            raise ApiError(404, "NOT_FOUND", "Thread not found")
         config = run_config(s)
         request.app.state.runs.append(config)
         upstream = need_platform()
 
         def events():
+            turned = False
             try:
                 for event, data in upstream.stream(thread_id, config, payload):
                     if event == "progress":
                         yield _sse("progress", ProgressItem.model_validate(data).model_dump(mode="json"))
                     elif event == "turn":       # only the customer projection leaves the api (D-013)
                         yield _sse("turn", turn_of(data).for_customer().model_dump(mode="json"))
-            except (PlatformError, ValueError):
-                yield _sse("error", {"code": "UNAVAILABLE", "message": "The agent is not available"})
+                        turned = True
+            except (PlatformError, ValueError) as error:
+                log.error("platform stream failed trace_id=%s error=%s", trace_id, error)
+                turned = None
+            if not turned:                  # failed, dropped mid-run or ended with no turn
+                if turned is not None:
+                    log.error("platform run ended without a turn trace_id=%s", trace_id)
+                yield unavailable_turn(s, trace_id)
 
         return StreamingResponse(events(), media_type="text/event-stream")
 
