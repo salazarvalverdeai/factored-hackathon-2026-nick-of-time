@@ -31,7 +31,7 @@ def test_ac_06_a_returning_customer_gets_get_cases_label_deadline_and_next_step(
     body = turn.reply.splitlines()[-3:]                  # a new thread: the greeting comes first (AC-15)
     assert body == ["Estado de tu caso K-104233: En revisión (consultado el 2026-06-01 15:04 UTC).",
                     "Plazo legal del banco para pronunciarse sobre los fondos en disputa: 2026-06-03. Fuente: "
-                    "Banxico Circular 3/2012, as amended by Circular 14/2018.",
+                    "Banxico, Circular 3/2012 (modificada por la Circular 14/2018).",
                     intake.msg.text("receipt.what_a_person_does", "es")]
     assert (turn.decision, turn.case_id) == ("answer_status", "K-104233") and not turn.actions
     assert [s.id for s in turn.suggestions] == ["view_case", "add_info", "request_call"]

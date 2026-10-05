@@ -22,7 +22,7 @@ from mcp_server.gate import UNAVAILABLE, Call, Handler
 from mcp_server.gold import Gold
 from mcp_server.writes import NO_CARD, NO_CASE, probe
 from nick_of_time.contracts import CONTRACTS_DIR
-from nick_of_time.policy import Policies
+from nick_of_time.policy import Policies, clock
 from nick_of_time.store import CUSTOMER_VISIBLE, VERIFIED_WITH, WRITE_TOOL, CaseRecord, NotVerified, Store
 
 ACTOR = "agent"
@@ -125,6 +125,7 @@ def case_reads_handlers(gold: Gold, policies: Policies, store: Store, *, cards: 
             taken_by_person=any(e.type == "assigned" for e in events), related_case_id=related(case, events),
             credit_deadline=case.credit_deadline, ruling_deadline=case.ruling_deadline,
             deadline_source=case.deadline_source, deadline_source_url=case.deadline_source_url,
+            deadline_source_label=clock.source_label(case.deadline_source, lang(call), policies),   # DLANG
             deadline_verified_on=case.deadline_verified_on, **(verified or {"read_at": now()}))
 
     def list_my_cases(call: Call, args: t.ListMyCasesIn):

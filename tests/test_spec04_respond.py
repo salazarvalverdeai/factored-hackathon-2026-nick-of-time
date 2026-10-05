@@ -33,7 +33,7 @@ def test_ac_21_ac_01_ev_0001_receipt_has_last4_verification_case_deadline_and_ne
                                                                              "2026-06-01T15:04:11+00:00")
     assert [(a.label, a.verification_id) for a in r.actions] == [("Apertura del caso", "V-0C6A93F1B57D"),
                                                                  ("Bloqueo de la tarjeta", "V-8B2D41C7E0A9")]
-    assert (str(r.deadline.credit_deadline), r.deadline.deadline_source) == ("2026-06-03", CASE["deadline_source"])
+    assert (str(r.deadline.credit_deadline), r.deadline.deadline_source) == ("2026-06-03", CASE["deadline_source_label"])
     assert r.what_ai_did == msg.text("receipt.what_ai_did_blocked", "es")
     assert r.what_a_person_does == msg.text("receipt.what_a_person_does", "es")
     assert {f.source_id for f in r.verified_facts} == {TRX["transaction_id"], "K-104233", "V-8B2D41C7E0A9"}

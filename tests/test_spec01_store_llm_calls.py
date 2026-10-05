@@ -73,3 +73,14 @@ def test_ac_14_spec04_run_id_is_required_and_a_negative_zero_cost_reads_back_as_
         store.add_llm_call(trace_id="t", provider="p", model="m", tokens_in=1, tokens_out=1, latency_ms=1, cost_usd=0)
     row = call(store, cost_usd=Decimal("-0"))
     assert not row.cost_usd.is_signed() and not store.list_llm_calls(run_id=RUN)[0].cost_usd.is_signed()
+
+
+def test_g_ops_01_the_day_spend_sums_every_run_from_an_instant():
+    """Spec 04 §5 daily cap: the summed cost of every run (production, eval) created at or after `since`, 0 when none."""
+    store = ticking_store()
+    first = call(store, cost_usd=Decimal("0.5"))
+    second = call(store, run_id=None, cost_usd=Decimal("0.25"))
+    call(store, run_id="EV-0002:S1:1", cost_usd=Decimal("0.125"))
+    assert store.llm_spend_since(first.created_at) == Decimal("0.875")
+    assert store.llm_spend_since(second.created_at) == Decimal("0.375")
+    assert store.llm_spend_since(dt.datetime(2026, 6, 2, tzinfo=dt.UTC)) == 0

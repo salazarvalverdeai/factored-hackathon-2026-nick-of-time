@@ -187,6 +187,18 @@
       "title": "Deadline Source",
       "type": "string"
      },
+     "deadline_source_label": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "title": "Deadline Source Label"
+     },
      "product": {
       "enum": [
        "debit",
@@ -494,6 +506,18 @@
       ],
       "default": null,
       "title": "Deadline Source"
+     },
+     "deadline_source_label": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "title": "Deadline Source Label"
      },
      "deadline_source_url": {
       "anyOf": [
@@ -1411,6 +1435,18 @@
       ],
       "default": null,
       "title": "Deadline Source"
+     },
+     "deadline_source_label": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "title": "Deadline Source Label"
      },
      "deadline_source_url": {
       "anyOf": [
