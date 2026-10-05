@@ -6,7 +6,7 @@ PYTHON ?= python3
 PY := .venv/bin/python
 SOURCE ?= s3
 
-.PHONY: setup deps pipeline fixture report test lint hooks check-bedrock check-telegram check-resend check-jev check-all telegram-profile env-pull gold-pull labels-pull eval eval-stub eval-local eval-heldout
+.PHONY: setup deps pipeline fixture report test lint hooks check-bedrock check-telegram check-resend check-jev check-all telegram-profile env-pull gold-pull labels-pull eval eval-stub eval-local classifier classifier-test eval-heldout
 
 setup: deps pipeline fixture report
 
@@ -109,3 +109,15 @@ eval-local: $(PY)
 # The api stub with the evaluation hooks on and the fake LLM, on EVAL_API's default port, for `make eval` offline.
 eval-stub: $(PY)
 	cd apps/api && PYTHONPATH=../../packages:../.. EVAL_MODE=true LLM_PROVIDER=fake ../../$(PY) -m uvicorn app.main:create_app --factory --port 8000
+
+# Classifier arms of spec 11 (eval/README.md "Classifier evaluation"). `classifier`: development run on validation,
+# written to eval/.runs/ only. `classifier-test`: the one test-split run; refused while eval/PROTOCOL.md is UNSEALED or untagged.
+# The test run always scores the pre-registered arms B0,B1,B2 (AC-02, PROTOCOL §1.2); CLASSIFIER_ARMS is for validation only.
+# B2 (the S1 model) needs LLM_PROVIDER=bedrock AWS_PROFILE=nickoftime; on validation it is opt-in: CLASSIFIER_ARMS=B0,B1,B2.
+CLASSIFIER_ARMS ?= B0,B1
+
+classifier: $(PY)
+	PYTHONPATH=packages $(PY) -m eval.classifier.evaluate --split validation --arms $(CLASSIFIER_ARMS)
+
+classifier-test: $(PY)
+	PYTHONPATH=packages $(PY) -m eval.classifier.evaluate --split test --arms B0,B1,B2

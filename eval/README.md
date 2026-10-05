@@ -25,6 +25,7 @@ harness of spec 10 when it scores.
 | `local/` | the real stack for `make eval` on one machine (`make eval-local`): api with the eval hooks, MCP server, graph | 10 T6 |
 | `classifier/generate.py`, `classifier/draft/` | classifier sentence drafts from three model families and their run record | 09 §7.6 |
 | `classifier/review.py` | review sheets of the drafts and promotion to `classifier/{train,validation,test}.jsonl` | 09 §7.6 |
+| `classifier/evaluate.py` | scores B0, B1 and B2, picks τ on validation, exports `classifier.json` after the seal | 11 T3, T4, T6 |
 
 ## Demo index
 `python -m eval.demo_index` rewrites `demo_index.csv` from `data/gold/` (it needs `make setup`). The same gold gives
@@ -151,8 +152,8 @@ make eval EVAL_ARMS=S0 EVAL_RUNS=1      # a quick pass with no model call
   guardrails, actions, usage, latency) and from fresh store and gold reads of the run (case, queue status, card
   status, notifications, call requests, denials). `handoff_emitted` is a handoff card in any turn or a call to a person
   registered in the run (spec 09 §7.5). `other_customer_data_exposed` is any transaction, card or case id in what the
-  customer received that is not theirs in the run. `status_replies` stays empty until the graph states them (spec 04
-  T5), so `coherence_rate` has no denominator yet. A turn that ended without a graph turn makes the run `failed`.
+  customer received that is not theirs in the run. `status_replies` has one entry per case or card line of a `status`
+  turn (the status told vs a store read at the end of that turn, D-056), the denominator of `coherence_rate`. A turn that ended without a graph turn makes the run `failed`.
 - **Safety.** Loopback only; no `.env` is read and `DATABASE_URL` is dropped (the in-memory store only); no Telegram or
   e-mail is sent; replay "today" is 2026-06-01 (ADR 0020). The harness refuses the production host. S0 calls no model;
   S1 calls Bedrock Haiku 4.5 with `AWS_PROFILE` (default `nickoftime`, us-east-2), at most one `understand` call per
@@ -240,3 +241,29 @@ a split file: the manifest hashes top-level files only.
 
 Not done yet: the second labeling of 20 cases (AC-06), and the review and promotion of the classifier set (AC-04,
 AC-10).
+
+## Classifier evaluation (spec 11 T3, T4, T6)
+B1 (TF-IDF + logistic regression) is fit on train and calibrated on validation; τ is the lowest B1 threshold that keeps
+precision ≥ 0.95 on validation (AC-07). Every arm is reported at τ. B2 is the S1 model (Haiku 4.5) with the prompt
+and schema of the graph's `understand` step and forced tool use (D-011); a reply with no valid tool input is a wrong
+prediction (D-022). On validation it is opt-in (`CLASSIFIER_ARMS=B0,B1,B2`); `make classifier-test` always scores it.
+Both need `LLM_PROVIDER=bedrock AWS_PROFILE=nickoftime`. B2 refuses the fake provider, a provider without a price row
+(D-058) and, before any call, a projected spend above `--max-usd` (default 1 USD). Before the test run is claimed and before anything is written (the B1
+file included) one preflight call on the first validation sentence must get a reply, so an unavailable provider
+refuses the run before test is touched. A reply with no valid tool input counts in `missing_tool_calls`; a provider
+error with no reply is also scored wrong but counts in `provider_errors`. `classifier.json` records its provider,
+model, toolChoice mode, temperature, measured cost and the preflight.
+
+- `make classifier`: **development run on validation**. Writes `.runs/classifier/<time>/classifier.json` and the B1
+  file there (ignored by git), labeled "development run on validation"; never a result path of `PROTOCOL.md`. Before
+  the split files are promoted it reads the human-reviewed train and validation drafts; it never reads test.
+- `make classifier-test`: **the one test-split run, after the seal (M02)**. Refused while `PROTOCOL.md` is UNSEALED, when no
+  `protocol-v1` tag in HEAD's history holds this same `PROTOCOL.md`, or when the promoted split files do not hash to
+  the sealed manifest. It scores exactly the pre-registered arms B0, B1 and B2 and refuses any other set (AC-02,
+  `PROTOCOL.md` §1.2). It runs once: before B1 is saved and `test.jsonl` is read, the shared guard of
+  `harness/seal_guard.py` checks the seal and the committed sealed inputs, then claims the run
+  (`results/classifier-test/classifier-test.start.json`); a marker or an output of an earlier run refuses it. It saves
+  B1 before `test.jsonl` is read, then writes `models/intent-b1-v1.joblib`,
+  `results/classifier.csv` and `apps/web/public/data/classifier.json` (spec 11 §7.1). The export records
+  `test_review` (`rules-v1` or `human`) and, for `rules-v1`, the label "test split decided by fixed rules, without
+  independent human review" (ADR 0028), plus the B1 file's sha256 and the scikit-learn version that wrote it.

@@ -1,6 +1,6 @@
 """Understanding of a customer message (spec 11 §6): intent, slots, language and injection flag.
 
-Only the B0 rules arm exists here (task 11a). B1 and B2 land with their tasks behind the same `load_nlu` call.
+B0 rules live here (task 11a); B1 and B2 in `learned` (tasks 11b, T3/T4). `load_nlu` loads B0 or an exported B1 file.
 """
 from __future__ import annotations
 
@@ -47,7 +47,12 @@ class NLU:
         return NLUResult.model_validate(parse_rules(text, language_hint, today))
 
 
-def load_nlu(arm: str = "B0", path: Optional[str] = None) -> NLU:
-    if arm != "B0":
-        raise NotImplementedError(f"arm {arm} is not implemented yet (spec 11 T3/T4); only B0 needs no model file")
-    return NLU()
+def load_nlu(arm: str = "B0", path: Optional[str] = None):
+    """B0 needs no file (AC-09); B1 loads the joblib file the evaluation exports with its version (AC-05). B2 needs an
+    LLM client: build `learned.B2NLU(client)`."""
+    if arm == "B0":
+        return NLU()
+    if arm == "B1" and path:
+        from .learned import B1NLU
+        return B1NLU.load(path)
+    raise NotImplementedError(f"arm {arm} cannot be loaded here (B1 needs path=; B2 is learned.B2NLU(client))")

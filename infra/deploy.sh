@@ -70,7 +70,7 @@ write_env() {  # $1 = image tag to run. Writes infra/.env with mode 0600, no val
     local name value
     echo "GOLD_HOST_DIR=$GOLD_DIR"
     echo "AWS_REGION=$AWS_REGION"
-    echo "DEFAULT_SESSION_MODE=live"
+    echo "DEFAULT_SESSION_MODE=replay"                          # the demo picker customers are dataset cases (ADR 0020, D-061): live finds no charge after gold ends
     echo "DEMO_TODAY=2026-06-01"
     echo "LANGGRAPH_ASSISTANT=${LANGGRAPH_ASSISTANT:-dispute_intake}"
     echo "RATE_SESSIONS_PER_IP_HOUR=100"                        # judging day: a jury behind one NAT IP must not be blocked

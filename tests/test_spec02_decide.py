@@ -52,6 +52,9 @@ ROWS = [
     row("1", dict(session_state="expired", intent="human_request"), "reauthenticate", ["POL-SESSION"], ["G-SES-01"]),
     row("2", dict(injection_flagged=True), "deny", ["POL-INJECTION"], ["G-IN-01"]),
     row("3", dict(cross_customer=True), "deny", ["POL-CROSS-CUSTOMER"], ["G-SES-02"]),
+    # EV-0116 [assumption]: a flagged request for another customer's data cites rule 3 too, so G-SES-02 is recorded
+    row("2+3", dict(injection_flagged=True, cross_customer=True), "deny", ["POL-INJECTION", "POL-CROSS-CUSTOMER"],
+        ["G-IN-01", "G-SES-02"]),
     row("3a", dict(intent="human_request"), "connect_person", ["POL-HUMAN-REQUEST"], call="active_or_general"),
     row("3a-charge-high", dict(intent="human_request", dispute_detected=True), "connect_person",
         ["POL-HUMAN-REQUEST", "POL-ZONE-HIGH", "POL-TICKET-ALWAYS"], zone="high", allowed=OPEN,
@@ -196,7 +199,7 @@ def test_ac_12_the_engine_refuses_to_start_without_an_id_or_reason_it_emits(path
 
 @pytest.mark.parametrize("winner, overrides", [
     ("POL-SESSION", dict(session_state="unverified", injection_flagged=True, cross_customer=True, intent="human_request")),
-    ("POL-INJECTION", dict(injection_flagged=True, cross_customer=True, intent="human_request")),
+    ("POL-INJECTION", dict(injection_flagged=True, intent="human_request")),     # with cross_customer: row "2+3"
     ("POL-CROSS-CUSTOMER", dict(cross_customer=True, intent="human_request")),
     ("POL-HUMAN-REQUEST", dict(intent="human_request", intent_confidence=0.1, product_type="Prestamo")),
     ("POL-STATUS", dict(intent="status_inquiry", intent_confidence=0.1, product_type="Prestamo")),
