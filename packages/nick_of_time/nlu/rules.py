@@ -14,7 +14,7 @@ from datetime import date
 from decimal import Decimal, InvalidOperation
 from typing import Optional
 
-from .dates import parse_date
+from .dates import _MONTHS, parse_date
 from .injection import injection_flagged
 from .text import fold
 
@@ -51,6 +51,10 @@ _INTENT_RULES: list[tuple[str, list[str]]] = [
         r"^(?:un |una |um |uma |o |a |el |la )?" + _STAFF + r"(?: humano| real)?(?:,? por favor)?[.!? ]*$",
         r"\b(?:atienda|atiende|atenda|atendid[oa] por) (?:\w+ )?" + _PERSON,
         r"\b(?:atencion|atendimento) (?:humana|humano|personal)\b",
+        # English (the customer must always reach a person, whatever the language): "can I talk to a person please?"
+        r"\b(?:talk|speak|chat|connect|transfer|put) (?:\w+ ){0,3}(?:to|with|through) (?:a |an |the |some |my )?(?:real |live |human )?"
+        r"(?:person|human|agent|representative|rep|someone|somebody|operator|advisor|supervisor|manager)\b",
+        r"\b(?:want|need|get|give) (?:\w+ ){0,2}(?:a |an |the )?(?:real |live )?(?:human|person|agent|representative|operator)\b",
     ]),
     ("status_inquiry", [
         r"\b(?:como va|como esta|como anda|en que va|en que esta|como esta indo|status|estado(?! de cuenta)|andamento|novedades|"
@@ -139,7 +143,9 @@ _NUM = r"\d{1,3}(?:[.,\s]\d{3})+(?:[.,]\d{1,2})?|\d+(?:[.,]\d{1,2})?"
 _AMOUNT_BEFORE = re.compile(rf"(?<![\w/-])({_CUR})\s*({_NUM})(?![\d/-])")
 _AMOUNT_AFTER = re.compile(rf"(?<![\w/-])({_NUM})\s*({_CUR})(?!\w)")
 _AMOUNT_CUE = re.compile(rf"\b(?:cargo|compra|cobro|cobranca|monto|importe|valor|por|de|pagos?)\s+({_NUM})(?![\d/-])")
-_DATE_NOISE = re.compile(r"\d{4}-\d{2}-\d{2}|\d{1,2}/\d{1,2}/\d{4}|\d{1,2} de [a-zç]+(?: de \d{4})?", re.I)
+# "13 abril" (day + month name, no "de") is a date too, so its day never reads as an amount ("pesos 13 abril")
+_DATE_NOISE = re.compile(r"\d{4}-\d{2}-\d{2}|\d{1,2}/\d{1,2}/\d{4}|\d{1,2} de [a-zç]+(?: de \d{4})?|\b\d{1,2} (?:" + "|".join(_MONTHS)
+                         + r")\b", re.I)
 _MERCHANT = re.compile(r"\b(?:en|em|de|do|da)\s+((?:[A-ZÁÉÍÓÚÑÃÕÇ][\w&'.-]*)(?:\s+[A-ZÁÉÍÓÚÑÃÕÇ][\w&'.-]*){0,3})(?![\w$])")
 _THOUSANDS = re.compile(r"(\d+(?:[.,]\d{1,2})?) ?mil\b")
 _MIL_COMPOUND = re.compile(r"\d[.,]\d{3}(?:[.,]\d+)? ?mil\b|\bmil (?:e|y) \d")   # "2,500 mil", "15 mil e 500": unsafe
