@@ -158,6 +158,18 @@ export const MESSAGES = {
     "case_link": {
       "es": "Sigue tu caso aquí: {case_url}",
       "pt": "Acompanhe seu caso aqui: {case_url}"
+    },
+    "credit_deadline": {
+      "es": "Plazo legal del banco para pronunciarse sobre los fondos en disputa: {credit_deadline}. Fuente: {deadline_source} ({source_url}, verificada el {verified_on}).",
+      "pt": "Prazo legal do banco para se pronunciar sobre os valores contestados: {credit_deadline}. Fonte: {deadline_source} ({source_url}, verificada em {verified_on})."
+    },
+    "ruling_deadline": {
+      "es": "Plazo legal del banco para resolver tu caso: {ruling_deadline}. Fuente: {deadline_source} ({source_url}, verificada el {verified_on}).",
+      "pt": "Prazo legal do banco para resolver seu caso: {ruling_deadline}. Fonte: {deadline_source} ({source_url}, verificada em {verified_on})."
+    },
+    "deadline_unknown": {
+      "es": "Aún no hay un plazo legal verificado para tu caso; una persona lo confirmará.",
+      "pt": "Ainda não há um prazo legal verificado para o seu caso; uma pessoa vai confirmá-lo."
     }
   }
 } as const;

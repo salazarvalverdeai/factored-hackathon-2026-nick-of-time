@@ -12,13 +12,12 @@ import { ApiError, api } from "@/lib/api";
 import { MESSAGES, fill } from "@/lib/mock/messages";
 import { DEMO_TODAY, statusLabel } from "@/lib/mock/store";
 import type { Language, NotificationEntry } from "@/lib/types";
-import { useMockState, useQuery } from "@/lib/use-query";
+import { useQuery } from "@/lib/use-query";
 
 /** The customer's case page: proof, not promises (ADR 0013). Never shows the score, policy ids or the transcript. */
 export function CaseView({ id }: { id: string }) {
-  const found = useQuery((s) => s.getCustomerCase(id));
-  const notifications = useQuery((s) => s.notificationsFor(id));
-  const { telegram, emails } = useMockState();
+  const found = useQuery((a) => a.getCase(id), [id]);
+  const notifications = useQuery((a) => a.getNotifications(id), [id]);
   const [busy, setBusy] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -51,8 +50,9 @@ export function CaseView({ id }: { id: string }) {
 
   const c = found.data;
   const left = c.deadline_countdown_days;
-  const linked = telegram[id]?.linked ?? false;
-  const confirmedEmail = emails[id]?.confirmed ? emails[id].address : null;
+  const linked = c.channels.telegram;
+  const confirmedEmail = c.channels.email;
+  const live = api.mode === "live";
 
   /** Runs an action; the feedback is the text the action returns, or `done`. */
   async function act(action: () => Promise<unknown>, done = "") {
@@ -85,7 +85,10 @@ export function CaseView({ id }: { id: string }) {
                 <p className="text-xs uppercase tracking-wide text-muted-foreground">Legal deadline</p>
                 <p className="text-2xl font-semibold text-amber-700 dark:text-amber-400">{left === null ? "Pending" : left <= 0 ? "Due today" : `${left} day${left === 1 ? "" : "s"} left`}</p>
                 <p>{c.credit_deadline ?? "Pending: a person will confirm it"}</p>
-                <p className="text-xs text-muted-foreground">Source: {c.deadline_source ?? "pending"} · demo date {DEMO_TODAY} [simulated]</p>
+                <p className="text-xs text-muted-foreground">
+                  Source: {c.deadline_source ?? "pending"}
+                  {c.mode === "live" ? "" : ` · demo date ${live ? "(replay)" : DEMO_TODAY} [simulated]`}
+                </p>
               </div>
               <Button disabled={busy} variant="outline" onClick={() =>
                   act(async () => {
@@ -179,12 +182,20 @@ export function CaseView({ id }: { id: string }) {
                     </Button>
                     {link ? (
                       <div className="space-y-2 rounded-lg border p-2 text-xs">
-                        <p className="break-all">
-                          Deep link [simulated]: <span className="font-mono">{link.deepLink}</span>
-                        </p>
-                        <Button size="xs" variant="outline" disabled={busy} onClick={() => act(() => api.simulateTelegramStart(id, link.token), "Telegram linked.")}>
-                          Simulate “/start” in Telegram
-                        </Button>
+                        {live ? (
+                          <a href={link.deepLink} target="_blank" rel="noreferrer" className="break-all underline">
+                            Open Telegram and press Start
+                          </a>
+                        ) : (
+                          <>
+                            <p className="break-all">
+                              Deep link [simulated]: <span className="font-mono">{link.deepLink}</span>
+                            </p>
+                            <Button size="xs" variant="outline" disabled={busy} onClick={() => act(() => api.simulateTelegramStart(id, link.token), "Telegram linked.")}>
+                              Simulate “/start” in Telegram
+                            </Button>
+                          </>
+                        )}
                       </div>
                     ) : null}
                   </>
@@ -192,18 +203,21 @@ export function CaseView({ id }: { id: string }) {
               </div>
 
               <div className="space-y-2">
-                <p className="font-medium">E-mail {confirmedEmail ? <span className="text-teal-700 dark:text-teal-300">· {confirmedEmail} ✓</span> : null}</p>
+                <p className="font-medium">E-mail {confirmedEmail ? <span className="text-teal-700 dark:text-teal-300">· confirmed ✓</span> : null}</p>
                 {!confirmedEmail ? (
                   <form
                     className="flex gap-2"
                     onSubmit={(e) => {
                       e.preventDefault();
-                      act(() => api.confirmEmail(id, email.trim()), "E-mail confirmed.");
+                      act(
+                        () => api.confirmEmail(id, email.trim()),
+                        live ? "We sent you a link. Open it to confirm your e-mail." : "E-mail confirmed.",
+                      );
                     }}
                   >
                     <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" aria-label="E-mail address" required />
                     <Button type="submit" size="sm" disabled={busy}>
-                      Confirm
+                      {live ? "Send link" : "Confirm"}
                     </Button>
                   </form>
                 ) : null}

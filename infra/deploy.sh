@@ -73,6 +73,7 @@ write_env() {  # $1 = image tag to run. Writes infra/.env with mode 0600, no val
     echo "DEFAULT_SESSION_MODE=live"
     echo "DEMO_TODAY=2026-06-01"
     echo "LANGGRAPH_ASSISTANT=${LANGGRAPH_ASSISTANT:-dispute_intake}"
+    echo "LLM_PROVIDER=bedrock"                                  # api: demo D persona and voice STT; creds from the instance role (IMDSv2, hop limit 2)
     echo "DEFAULT_ARM=${DEFAULT_ARM:-S1}"                       # demo sessions understand with Haiku 4.5 (lead, 2026-10-05)
     echo "PUBLIC_URL=https://nickoftime.salazarvalverdeai.com"
     echo "TELEGRAM_BOT_NAME=NickOfTimeUpdatesBot"
