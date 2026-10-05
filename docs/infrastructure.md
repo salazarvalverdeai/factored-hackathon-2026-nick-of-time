@@ -100,3 +100,25 @@ Uptime > Run workflow (a manual run on a failing check always alerts). Reviewer:
 | Dataset credentials | Local AWS profile `factored-dataset` (read-only, provided by the organizers) |
 
 `.env` is never committed; `.env.example` lists the variable names. gitleaks runs as a pre-commit hook and in CI.
+
+## Limits and capacity (checked 2026-10-05)
+| Limit | Value | Where | Why |
+|---|---|---|---|
+| New demo sessions per IP | 100 / hour (global 1,000) | `infra/deploy.sh` → api (`RATE_SESSIONS_PER_IP_HOUR`, `RATE_SESSIONS_GLOBAL_HOUR`) | A jury behind one NAT IP must not be blocked |
+| Chat turns per IP | 600 / hour (global 6,000) | `RATE_TURNS_PER_IP_HOUR`, `RATE_TURNS_GLOBAL_HOUR` | Same |
+| Bedrock spend | 5 USD / day | `DAILY_LLM_CAP_USD` | The real cost guard: past it the agent understands by rules only (S0, G-OPS-01) |
+| Voice clip | 30 s, size-capped | api `POST /api/voice/transcribe` | Cost and abuse |
+| Customer session | 15 min | `policies.yaml` `identity.session_ttl_minutes` | Mock OTP (ADR 0017) |
+
+Load test against production `[data]` (2026-10-05, from one client, straight to the LangGraph Platform Development
+deployment so the per-IP limits did not apply; each run = one full agent turn with Haiku 4.5 (S1), the real MCP server,
+Postgres and gold):
+
+| Concurrent conversations | OK | p50 | p95 |
+|---|---|---|---|
+| 1 / 5 / 10 / 20 | all | 1.2–2.1 s | ≤ 2.4 s |
+| 40 / 60 | all | 3.0–7.3 s | ≤ 8.2 s |
+| 10 sustained for 2 min (920 turns) | 920/920 | 1.3 s | 1.5 s |
+
+The EC2 stayed idle (load 0.06, 2.7 GB free) and Platform answered `/ok` throughout. The Development deployment is
+preemptible (it can restart without notice); the uptime monitor (`.github/workflows/uptime.yml`) alerts on Telegram.
