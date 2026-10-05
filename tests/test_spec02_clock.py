@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import copy
 import inspect
+import logging
 import re
 from datetime import date as D, datetime, timedelta, timezone
 from pathlib import Path
@@ -11,7 +12,7 @@ import pytest
 import yaml
 from pydantic import ValidationError
 
-from nick_of_time.policy import clock
+from nick_of_time.policy import calendars, clock
 from nick_of_time.policy.model import POLICIES_PATH, Policies, load_policies
 
 RAW = yaml.safe_load(POLICIES_PATH.read_text())
@@ -40,12 +41,17 @@ def boom():
 
 ROWS = [  # country, product, kwargs, credit_deadline, ruling_deadline, weekday holidays skipped, source
     ("MX", "debit", {"charged_at": D(2026, 5, 31)}, D(2026, 6, 3), D(2026, 7, 16), [], "Banxico Circular 3/2012"),
+    ("MX", "debit", {"charged_at": D(2026, 5, 31), "abroad": True}, D(2026, 6, 3), D(2026, 11, 28), [],
+     "Banxico Circular 3/2012"),
     ("MX", "debit", {"charged_at": D(2026, 3, 2)}, None, D(2026, 7, 16), [], "LTOSF art. 23"),
     ("MX", "debit", {"charged_at": D(2026, 3, 2), "abroad": True}, None, D(2026, 11, 28), [], "LTOSF art. 23"),
-    ("MX", "credit", {}, None, D(2026, 7, 16), [], "LTOSF art. 23"),
-    ("MX", "credit", {"abroad": True}, None, D(2026, 11, 28), [], "LTOSF art. 23"),
-    ("AR", "debit", {}, D(2026, 6, 16), D(2026, 6, 16), [D(2026, 6, 15)], "BCRA"),
-    ("AR", "credit", {"abroad": True}, D(2026, 6, 16), D(2026, 6, 16), [D(2026, 6, 15)], "BCRA"),
+    ("MX", "credit", {"charged_at": D(2026, 5, 31)}, D(2026, 6, 3), D(2026, 7, 16), [], "Banxico Circular 34/2010"),
+    ("MX", "credit", {"charged_at": D(2026, 5, 31), "abroad": True}, D(2026, 6, 3), D(2026, 11, 28), [],
+     "Banxico Circular 34/2010"),
+    ("MX", "credit", {"charged_at": D(2026, 3, 2)}, None, D(2026, 7, 16), [], "LTOSF art. 23"),
+    ("MX", "credit", {"charged_at": D(2026, 3, 2), "abroad": True}, None, D(2026, 11, 28), [], "LTOSF art. 23"),
+    ("AR", "debit", {}, None, D(2026, 6, 16), [D(2026, 6, 15)], "BCRA"),
+    ("AR", "credit", {"abroad": True}, None, D(2026, 6, 16), [D(2026, 6, 15)], "BCRA"),
 ]
 
 
@@ -60,10 +66,12 @@ def test_ac_03_every_country_and_product_row_from_the_demo_date(country, product
     assert d.rule_ids == [] and d.policies_version == 2 and not d.extendable_once
 
 
+@pytest.mark.parametrize("product", ["debit", "credit"])
 @pytest.mark.parametrize("age, credited", [(0, True), (89, True), (90, True), (91, False), (200, False)])
-def test_ac_03_mx_debit_credit_only_for_a_claim_within_90_days_of_the_charge(age, credited):
-    """AC-03 as verified in T3: art. 19 Bis 3 fr. II; an older charge gets the LTOSF art. 23 ruling instead."""
-    d = clock.deadline("MX", "debit", OPENED, charged_at=OPENED - timedelta(days=age))
+def test_ac_03_mx_credit_only_for_a_claim_within_90_days_of_the_charge(product, age, credited):
+    """AC-03 (ADR 0023, proposed): Circular 3/2012 art. 19 Bis 3 fr. II (debit) and Circular 34/2010 numeral 3.4 b)
+    (credit); an older charge gets the LTOSF art. 23 ruling instead. Day 90 still qualifies [assumption]."""
+    d = clock.deadline("MX", product, OPENED, charged_at=OPENED - timedelta(days=age))
     assert d.credit_deadline == (D(2026, 6, 3) if credited else None) and d.ruling_deadline == D(2026, 7, 16)
 
 
@@ -74,22 +82,49 @@ def test_ac_03_the_charge_date_is_local_near_midnight():
     assert clock.deadline("MX", "debit", OPENED, charged_at=late + timedelta(hours=1)).credit_deadline == D(2026, 6, 3)
 
 
+def test_ac_03_naive_times_are_rejected_and_utc_is_read_in_local_time():
+    """Spec 01 §Time: timestamps are UTC. Live notice at 2026-10-06 05:30Z is Monday 2026-10-05 in Mexico City."""
+    notice_day = clock.today("live", "MX", utc_now=datetime(2026, 10, 6, 5, 30, tzinfo=timezone.utc))
+    assert notice_day == D(2026, 10, 5)
+    with pytest.raises(ValueError, match="timezone-aware"):
+        clock.deadline("MX", "debit", notice_day, charged_at=datetime(2026, 10, 6, 5, 0))
+    utc_charge = datetime(2026, 10, 6, 5, 0, tzinfo=timezone.utc)              # 23:00 the day before, local
+    assert clock.deadline("MX", "debit", notice_day, charged_at=utc_charge).credit_deadline == D(2026, 10, 7)
+    # Transaction.transaction_date may be the UTC date, one day ahead of the local notice date [assumption]
+    assert clock.deadline("MX", "debit", notice_day, charged_at=D(2026, 10, 6)).credit_deadline == D(2026, 10, 7)
+
+
 @pytest.mark.parametrize("before, credited", [(timedelta(hours=47, minutes=59), True), (timedelta(hours=48), True),
                                               (timedelta(hours=48, minutes=1), False)])
 def test_ac_03_an_hours_window_is_exact_to_the_minute(before, credited):
     """AC-03 boundary 47:59 / 48:00 / 48:01 for an entry shaped `when_charged_within: {hours: 48}` (fr. I, theft or loss)."""
     p = Policies.model_validate(policies_with("regulatory_clock.MX.debit.0.when_charged_within", {"hours": 48}))
     noticed = datetime(2026, 6, 1, 16, 0, tzinfo=timezone.utc)                  # 10:00 in Mexico City
-    charged = datetime(2026, 6, 1, 10, 0) - before                               # naive = local time
-    d = clock.deadline("MX", "debit", OPENED, charged_at=charged, noticed_at=noticed, policies=p)
+    d = clock.deadline("MX", "debit", OPENED, charged_at=noticed - before, noticed_at=noticed, policies=p)
     assert d.credit_deadline == (D(2026, 6, 3) if credited else None)
+    with pytest.raises(ValueError, match="timezone-aware"):
+        clock.deadline("MX", "debit", OPENED, charged_at=noticed - before, noticed_at=noticed.replace(tzinfo=None),
+                       policies=p)
 
 
 def test_ac_03_a_charge_age_rule_needs_its_inputs():
     with pytest.raises(ValueError, match="charged_at"):
-        clock.deadline("MX", "debit", OPENED)
+        clock.deadline("MX", "credit", OPENED)
     with pytest.raises(ValueError, match="after the notice"):
-        clock.deadline("MX", "debit", OPENED, charged_at=D(2026, 6, 2))
+        clock.deadline("MX", "debit", OPENED, charged_at=D(2026, 6, 3))
+
+
+NOTICES = [  # notice on a weekend or a holiday, through deadline(): country, product, opened_on, credit, ruling
+    ("MX", "debit", D(2026, 5, 30), D(2026, 6, 2), D(2026, 7, 14)),       # Saturday
+    ("MX", "credit", D(2026, 9, 16), D(2026, 9, 18), D(2026, 10, 31)),    # Independence Day
+    ("AR", "debit", D(2026, 6, 15), None, D(2026, 6, 29))]                # Güemes Day
+
+
+@pytest.mark.parametrize("country, product, opened_on, credit, ruling", NOTICES)
+def test_ac_03_a_notice_on_a_weekend_or_holiday_counts_from_the_next_business_day(country, product, opened_on, credit,
+                                                                                   ruling):
+    d = clock.deadline(country, product, opened_on, charged_at=opened_on - timedelta(days=1))
+    assert (d.credit_deadline, d.ruling_deadline) == (credit, ruling)
 
 
 ADD = [("MX", D(2026, 6, 1), 1, D(2026, 6, 2)),       # D-008
@@ -125,7 +160,10 @@ def test_ac_14_no_business_day_is_invented_past_the_verified_calendar():
     with pytest.raises(clock.CalendarNotCovered):
         clock.add_business_days("MX", D(2026, 12, 31), 1)
     assert clock.deadline("AR", "debit", D(2026, 12, 21)).rule_ids == ["POL-CLOCK-UNKNOWN"]
-    assert clock.deadline("MX", "credit", D(2026, 12, 1)).ruling_deadline == D(2027, 1, 15)   # calendar days
+    old = clock.deadline("MX", "credit", D(2026, 12, 1), charged_at=D(2026, 6, 1))           # LTOSF, calendar days
+    assert old.ruling_deadline == D(2027, 1, 15)
+    fresh = clock.deadline("MX", "debit", D(2026, 12, 30), charged_at=D(2026, 12, 29))       # all or nothing
+    assert (fresh.credit_deadline, fresh.ruling_deadline, fresh.rule_ids) == (None, None, ["POL-CLOCK-UNKNOWN"])
 
 
 def test_ac_06_no_amount_reaches_the_clock_and_a_deadline_never_reads_today(monkeypatch):
@@ -183,7 +221,7 @@ INVALID = [
     ("ADR 0019 no source_url", "regulatory_clock.AR.any.0.source_url", None),
     ("ADR 0019 no verified_on", "regulatory_clock.AR.any.0.verified_on", None),
     ("ADR 0019 plain http", "regulatory_clock.MX.debit.0.source_url", "http://www.banxico.org.mx/"),
-    ("AC-03 entry without a term", "regulatory_clock.MX.credit.0.ruling", None),
+    ("AC-03 entry without a term", "regulatory_clock.AR.any.0.ruling", None),
     ("AC-03 window in hours and days", "regulatory_clock.MX.debit.0.when_charged_within", {"hours": 48, "days": 90}),
     ("AC-03 unknown product", "regulatory_clock.MX.prepaid", []),
     ("AC-16 unknown time zone", "countries.MX.time_zone", "America/Mexico_Cty"),
@@ -203,3 +241,31 @@ def test_ac_14_an_unverified_or_malformed_clock_fails_at_startup(case, path, val
 def test_d008_contact_window_is_one_business_day_and_optional():
     assert load_policies().contact.callback_within_business_days == 1
     assert Policies.model_validate(policies_with("contact", None)).contact is None
+
+
+def test_fr_01_holiday_files_are_validated_with_the_policies(monkeypatch, tmp_path):
+    """FR-01: a missing or unverified holiday file fails at startup, not on the first deadline of a turn."""
+    monkeypatch.setattr(calendars, "HOLIDAYS_DIR", tmp_path)
+    calendars.holidays.cache_clear()
+    try:
+        with pytest.raises(ValidationError, match="no holiday file"):
+            Policies.model_validate(RAW)
+        (tmp_path / "mx_2026.yaml").write_text("source: CNBV\nsource_url: http://dof.gob.mx/\nverified_on: 2026-10-04\n"
+                                               "holidays: {2026-01-01: New Year}\n")
+        calendars.holidays.cache_clear()
+        with pytest.raises(ValidationError, match="holiday file of MX"):
+            Policies.model_validate(RAW)
+    finally:
+        calendars.holidays.cache_clear()
+
+
+def test_ac_16_a_stale_demo_today_variable_only_warns(monkeypatch, caplog):
+    """ADR 0020: the constant wins; a local .env with the superseded 2026-06-03 is logged, never used."""
+    monkeypatch.setenv("DEMO_TODAY", "2026-06-03")
+    with caplog.at_level(logging.WARNING, logger=clock.__name__):
+        clock.warn_if_demo_today_env_differs()
+    assert "DEMO_TODAY=2026-06-03 is ignored" in caplog.text and clock.today("replay", "MX") == D(2026, 6, 1)
+    caplog.clear()
+    monkeypatch.setenv("DEMO_TODAY", "2026-06-01")
+    clock.warn_if_demo_today_env_differs()
+    assert not caplog.records

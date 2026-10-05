@@ -17,6 +17,7 @@ import yaml
 from pydantic import BaseModel, ConfigDict, Field, StrictInt, StringConstraints, field_serializer, model_validator
 
 from nick_of_time.contracts import CONTRACTS_DIR, HTTPS_URL, Zone
+from nick_of_time.policy.calendars import holidays
 
 CountryCode = Annotated[str, StringConstraints(pattern=r"^[A-Z]{2}$")]
 ApprovalMode = Literal["auto", "manual_check", "human_required"]
@@ -223,6 +224,14 @@ class Policies(_Strict):
                      if g.low >= g.high]
         problems += [f"regulatory_clock {c} needs countries.{c}.time_zone" for c in self.regulatory_clock
                      if c not in self.countries]
+        for country, products in self.regulatory_clock.items():      # FR-01: holiday files load with the policies
+            terms = [t for entries in products.values() for e in entries for t in (e.credit, e.ruling, e.ruling_abroad)]
+            if any(t and t.calendar == "business" for t in terms):
+                try:
+                    if not holidays(country):
+                        problems.append(f"regulatory_clock {country} counts business days but has no holiday file")
+                except ValueError as e:                              # pydantic's ValidationError is a ValueError
+                    problems.append(f"holiday file of {country}: {e}")
         if problems:
             raise ValueError("; ".join(problems))
         return self

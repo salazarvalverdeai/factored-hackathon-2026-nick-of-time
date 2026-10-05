@@ -6,33 +6,34 @@ amount enters here, so the amount tier can never move a deadline (AC-06).
 """
 from __future__ import annotations
 
+import logging
+import os
 from datetime import date, datetime, timedelta, timezone
-from functools import cache
-from pathlib import Path
 from typing import Literal, Optional
 from zoneinfo import ZoneInfo
 
-import yaml
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict
 
-from nick_of_time.contracts import HTTPS_URL, Mode
+from nick_of_time.contracts import Mode
+from nick_of_time.policy.calendars import CalendarNotCovered, add_business_days, holidays, is_business_day, walk
 from nick_of_time.policy.model import ChargeWindow, Policies, Term, load_policies
 
+__all__ = ["DEMO_TODAY", "CalendarNotCovered", "Deadline", "add_business_days", "deadline", "holidays",
+           "is_business_day", "time_zone", "today"]
+
 DEMO_TODAY = date(2026, 6, 1)          # replay "today" (ADR 0020): a Monday, the day after the gold ends
-HOLIDAYS_DIR = Path(__file__).parent / "holidays"
 UNKNOWN = "POL-CLOCK-UNKNOWN"
+log = logging.getLogger(__name__)
 
 
-class CalendarNotCovered(LookupError):
-    """A business-day count reached a year with no verified holiday file: no date is invented (AC-14)."""
+def warn_if_demo_today_env_differs() -> None:
+    """The constant wins (reproducible evaluation, ADR 0020); a stale DEMO_TODAY in a local .env only gets a warning."""
+    value = os.environ.get("DEMO_TODAY")
+    if value and value != DEMO_TODAY.isoformat():
+        log.warning("DEMO_TODAY=%s is ignored: replay uses %s (ADR 0020)", value, DEMO_TODAY)
 
 
-class HolidayFile(BaseModel):
-    model_config = ConfigDict(extra="forbid", frozen=True)
-    source: str = Field(min_length=1)
-    source_url: str = Field(pattern=HTTPS_URL)
-    verified_on: date
-    holidays: dict[date, str]
+warn_if_demo_today_env_differs()
 
 
 class Deadline(BaseModel):
@@ -76,46 +77,10 @@ def today(mode: Mode, country: str, *, utc_now: Optional[datetime] = None,
     return now.astimezone(time_zone(country, policies)).date()
 
 
-@cache
-def holidays(country: str) -> dict[int, HolidayFile]:
-    """The country's verified holiday files by year, from holidays/{cc}_{year}.yaml."""
-    files = {}
-    for path in sorted(HOLIDAYS_DIR.glob(f"{country.lower()}_*.yaml")):
-        year = int(path.stem.split("_")[1])
-        files[year] = HolidayFile.model_validate(yaml.safe_load(path.read_text()))
-        if any(day.year != year for day in files[year].holidays):
-            raise ValueError(f"{path.name} lists a day outside {year}")
-    return files
-
-
-def is_business_day(country: str, day: date) -> bool:
-    """Monday to Friday and not a holiday of the country (spec 02 §4.3)."""
-    calendar = holidays(country).get(day.year)
-    if calendar is None:
-        raise CalendarNotCovered(f"no verified {country} holiday file for {day.year}")
-    return day.weekday() < 5 and day not in calendar.holidays
-
-
-def _walk(country: str, start: date, n: int) -> tuple[date, list[date]]:
-    if type(n) is not int or n < 1:
-        raise ValueError("n must be a positive integer")
-    day, skipped = start, []
-    while n:
-        day += timedelta(days=1)
-        if is_business_day(country, day):
-            n -= 1
-        elif day.weekday() < 5:
-            skipped.append(day)
-    return day, skipped
-
-
-def add_business_days(country: str, start: date, n: int) -> date:
-    """The n-th business day after `start` (D-008: MX 2026-06-01 + 1 → 2026-06-02). Raises CalendarNotCovered."""
-    return _walk(country, start, n)[0]
-
-
-def _local(moment: datetime, tz: ZoneInfo) -> datetime:
-    return moment.astimezone(tz) if moment.tzinfo else moment.replace(tzinfo=tz)   # naive = local time [assumption]
+def _aware(moment: datetime) -> datetime:
+    if moment.tzinfo is None:            # spec 01 §Time: timestamps are UTC; a naive one is ambiguous, never guessed
+        raise ValueError("charged_at and noticed_at must be timezone-aware datetimes, or charged_at a date")
+    return moment
 
 
 def _charge_in_window(window: ChargeWindow, tz: ZoneInfo, opened_on: date, charged_at: date | datetime | None,
@@ -123,12 +88,16 @@ def _charge_in_window(window: ChargeWindow, tz: ZoneInfo, opened_on: date, charg
     if charged_at is None:
         raise ValueError("this country's deadline depends on the charge's age: pass charged_at")
     if window.days is not None:          # calendar days between local dates; the last day counts [assumption]
-        charged_on = _local(charged_at, tz).date() if isinstance(charged_at, datetime) else charged_at
-        age, limit = opened_on - charged_on, timedelta(days=window.days)
+        if isinstance(charged_at, datetime):
+            age = opened_on - _aware(charged_at).astimezone(tz).date()
+        else:                            # a bare date may be the UTC date, one day ahead of the local notice date
+            age = opened_on - charged_at
+            age = timedelta(0) if age == timedelta(days=-1) else age      # [assumption] same day, the earlier deadline
+        limit = timedelta(days=window.days)
     else:
         if noticed_at is None or not isinstance(charged_at, datetime):
             raise ValueError("an hours window needs the charge and notice times")
-        age, limit = _local(noticed_at, tz) - _local(charged_at, tz), timedelta(hours=window.hours)
+        age, limit = _aware(noticed_at) - _aware(charged_at), timedelta(hours=window.hours)
     if age < timedelta(0):
         raise ValueError("the charge is after the notice")
     return age <= limit
@@ -137,7 +106,7 @@ def _charge_in_window(window: ChargeWindow, tz: ZoneInfo, opened_on: date, charg
 def _add(country: str, start: date, term: Term) -> tuple[date, list[date]]:
     if term.calendar == "calendar":
         return start + timedelta(days=term.days), []
-    return _walk(country, start, term.days)
+    return walk(country, start, term.days)
 
 
 def deadline(country: str, product: str, opened_on: date, *, abroad: bool = False,
@@ -145,13 +114,13 @@ def deadline(country: str, product: str, opened_on: date, *, abroad: bool = Fals
              policies: Optional[Policies] = None) -> Deadline:
     """Legal deadlines of a case opened on `opened_on` (the notice date), from the first applicable verified entry.
 
-    `charged_at` is required when the entry depends on the charge's age (MX debit); a naive time is the country's local
-    time. No verified entry or calendar → both dates null and POL-CLOCK-UNKNOWN (AC-14).
+    `charged_at` (an aware datetime, or a date) is required when the entry depends on the charge's age (MX). No
+    verified entry, or a business-day term past the last holiday file → no date at all and POL-CLOCK-UNKNOWN (AC-14).
     """
     p = policies or load_policies()
     base = dict(country=country, product=product, opened_on=opened_on, policies_version=p.version)
     by_product = p.regulatory_clock.get(country, {})
-    rows = by_product.get(product, by_product.get("any", [])) if product in ("debit", "credit") else []
+    rows = by_product.get(product, by_product.get("any", ())) if product in ("debit", "credit") else ()
     tz = time_zone(country, p)
     entry = next((e for e in rows if e.when_charged_within is None
                   or _charge_in_window(e.when_charged_within, tz, opened_on, charged_at, noticed_at)), None)
