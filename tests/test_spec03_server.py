@@ -183,7 +183,8 @@ def test_ac_12_unexpected_arguments_are_denied_and_written_to_policy_denials():
 
 
 def test_ac_12_a_handler_deny_is_written_to_policy_denials_with_g_pol_01():
-    """Until T4 maps each rule's guardrail, a handler's ToolError DENY is recorded with the spec 01 §6.5 fallback."""
+    """A handler's ToolError DENY whose rule the gate has no guardrail for is recorded with the spec 01 §6.5 fallback
+    (T4 passes policies.yaml's map; tests/test_spec03_case_and_block.py checks the mapped ids)."""
     h = Harness(handlers={"open_case": lambda call, args: tools.ToolError(code="DENY", policy_id="POL-ZONE-MISMATCH",
                                                                           message="Not allowed.")})
     [result] = h.run(("open_case", _args("open_case")))

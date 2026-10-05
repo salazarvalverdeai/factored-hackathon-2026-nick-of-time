@@ -127,7 +127,8 @@ which answers `DENY` to an unexpected argument such as `customer_id`. A rate-lim
 a failing handler or a failing audit answers `UNAVAILABLE`. Tool outputs are typed data, delimited when passed to the
 LLM (G-IN-01). Every call is audited as one JSON line on stdout (D-040) with `trace_id` (`X-Trace-Id`, else a minted
 `mcp-` id), actor `agent` and hashes of the input and the session id, never either one; every `DENY` is a
-`policy_denials` row (AC-12); a handler's `DENY` cites G-POL-01 until T4 maps its rule's guardrail. A handler's
+`policy_denials` row (AC-12); a handler's `DENY` cites its rule's guardrail (`policies.yaml` `rules.<id>.guardrail`,
+passed to the gate), else G-POL-01 (T4). A handler's
 `NOT_FOUND` that carries a policy id (a cross-customer probe) is written as a denial too, best-effort and with the
 rule's own guardrail, and answered without it (D-052, confirmed 2026-10-05).
 The analysts' actions never appear in this server.
@@ -151,7 +152,9 @@ The analysts' actions never appear in this server.
 ## 7. Data model touched
 Reads gold `transactions_enriched`, `products` and `customers` through DuckDB; from `customers` the loader selects only
 `customer_id`, `first_name` and `country`, so `email`, phones, `document_number` and `address` are never loaded (AC-11,
-AC-21). Card transactions are loaded at startup into an in-memory table indexed by `customer_id` (≈ 516k rows). Reads
+AC-21). From `products` (`apps/mcp/mcp_server/cards.py`, T4) only the card rows' `product_id`, `customer_id`, type,
+`product_status` and the last 4 digits of `product_number` (the full number is never loaded); from
+`transactions_enriched` also each card transaction's `transaction_country`, which tells `open_case` an operation abroad. Card transactions are loaded at startup into an in-memory table indexed by `customer_id` (≈ 516k rows). Reads
 and writes Postgres through `nick_of_time.store`: `sessions` (read), `demo_transactions` (read, `live` only), `cases`,
 `case_events`, `product_overrides`, `idempotency`, `policy_denials`, `notifications`, `notification_deliveries` (read),
 `customer_channels` (read).
@@ -206,8 +209,17 @@ Implementation goes in one `feat/03-*` branch per task (T1: `feat/03-mcp-server`
 - [x] T3 — `get_customer_profile`, `get_fraud_score`, `compute_deadline`, `convert_amount` · AC-11, AC-20. Profile,
       score and convert in `reads.py` (task 03b part 1, PR #106); `compute_deadline` and live search on
       `clock.today` (task 03b2), tests in `tests/test_spec03_{reads,deadline}.py`
-- [ ] T4 — `open_case` (duplicates, related case), `block_card` with idempotency, engine re-check and denials · AC-03,
-      04, 09, 10, 12, 15
+- [x] T4 — `open_case` (duplicates, related case), `block_card` with idempotency, engine re-check and denials · AC-03,
+      04, 09, 10, 12, 15 · `apps/mcp/mcp_server/{writes,cards}.py`, `tests/test_spec03_case_and_block.py` (task 03c);
+      the entry point wires the factory `writes_handlers(gold, policies, store)`, and the card rows load once per
+      process from `GOLD_PATH` (`cards.shared_cards()`).
+      `POL-ZONE-MISMATCH` (G-IN-02) added to `policies.yaml` `rules`. `[assumption]`s: the block is for the newest
+      active (not closed) case of that card of the session's customer and run, since a case records no session; the
+      hold reads any `handoff_emitted` `person_requested` of the case (a superset of the opening turn's, fail closed,
+      pending D-055); `supervised_mode` is false in `check()` until the store exposes `settings_events` (spec 05;
+      the file's switch still applies); the idempotency arguments hash leaves out `session_id`; a key reused with other
+      arguments answers `DENY` `POL-DEFAULT-DENY`; a related case that is open answers `DENY` `POL-DEFAULT-DENY`; a
+      transaction with no `transaction_country` is not abroad. Neither tool changes the queue status (spec 04 / 05)
 - [ ] T5 — read tools (`get_product_status`, `list_my_cards`, `get_case`, `list_my_cases`) + latency benchmark on
       gold v1 · AC-04, AC-13, AC-16
 - [ ] T6 — follow-up tools (`add_case_info`, `request_call`, `request_reevaluation`) · AC-17, AC-18, AC-19
