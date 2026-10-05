@@ -528,7 +528,14 @@ Implementation goes in one `feat/01-*` branch per task (for example `feat/01-pac
       `TEST_DATABASE_URL` is set (`-m postgres`), and `[postgres]`-only tests back the lock and the transaction
       (concurrent writers and first reads, the unique-index backstop). Owners of the other §6.5 accessors: `sessions`
       (read), `policy_denials` (insert), `customer_channels` and `idempotency` → task 01g's second PR
-      (`feat/01-store-accessors`); `llm_calls` → task 04f; `demo_transactions` → task 03b; `link_tokens` and
+      (`feat/01-store-accessors`); `llm_calls` → task 01h (`add_llm_call` and
+      `list_llm_calls(run_id, trace_id?)` on both backends, `store/accounts.py`, `tests/test_spec01_store_llm_calls.py`:
+      a store-made `LC-` id `[assumption]`, non-negative integer counts, a finite `cost_usd` in [0, 10^6] per call
+      `[assumption]` with a scale Postgres `numeric` holds, kept as a decimal (`-0` stored as `0`), `run_id` required
+      with no default so `None` (production) is passed on purpose (D-023), no update or delete, oldest first; the api
+      writes one row per billed call from a run's usage, spec 04 AC-14, spec 18 AC-10; no column beyond the §6.5
+      table; `cost_usd` is never null, so any arm that can write an `llm_calls` row must have a configured price
+      `[assumption]`, pending lead decision D-058, with no schema change); `demo_transactions` → task 03b; `link_tokens` and
       `settings_events` → spec 05 (api). The api checks `AnalystActionIn.idempotency_key` through the `idempotency`
       accessor before it calls `record_analyst_action`. Once task 02c merges, `record_analyst_action` takes the new
       status from `nick_of_time.policy.transition(current, action, actor)` (`Moved.status`), and the store's

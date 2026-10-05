@@ -31,7 +31,8 @@ from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, model_validato
 from nick_of_time import ids
 from nick_of_time.contracts import (CONTRACTS_DIR, HTTPS_URL, AnalystActionIn, AnalystActionOut, Mode, ProductType,
                                     QueueStatus, VERIFIED_WITH as VERIFIED_WITH, Zone)
-from nick_of_time.store.accounts import ChannelEvent, CustomerChannel, LinkedChannel, Once, PolicyDenial, SessionRecord
+from nick_of_time.store.accounts import (ChannelEvent, CustomerChannel, LinkedChannel, LLMCall, Once, PolicyDenial,
+                                         SessionRecord)
 
 EventType = Literal["case_opened", "card_blocked", "block_verified", "action_verified", "status_changed",
                     "handoff_emitted", "assigned", "analyst_action", "customer_info_added", "call_requested",
@@ -391,6 +392,16 @@ class Store(Protocol):
     def list_denials(self, *, run_id: Optional[str], session_id: Optional[str] = None) -> list[PolicyDenial]:
         """The denials of `run_id` (None = production), only `session_id`'s when given, oldest first (`created_at`,
         then `denial_id`)."""
+
+    def add_llm_call(self, *, trace_id: str, provider: str, model: str, tokens_in: int, tokens_out: int,
+                     latency_ms: int, cost_usd: Any, run_id: Optional[str]) -> LLMCall:
+        """Insert one `llm_calls` row (NewLLMCall, spec 04 AC-14, spec 18 AC-10) under a fresh `LC-` id and the
+        store's clock; counts are non-negative integers and `cost_usd` a finite non-negative number, kept as a
+        decimal. Append-only: the interface has no update or delete. `run_id` is the session's (D-023)."""
+
+    def list_llm_calls(self, *, run_id: Optional[str], trace_id: Optional[str] = None) -> list[LLMCall]:
+        """The calls of `run_id` (None = production), only `trace_id`'s when given, oldest first (`created_at`, then
+        `call_id`), so a run's tokens and cost sum alone."""
 
     def add_channel_event(self, case_id: str, channel: LinkedChannel, address: str, event: ChannelEvent, *,
                           actor: str, trace_id: str) -> CustomerChannel:

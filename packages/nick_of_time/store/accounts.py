@@ -1,4 +1,5 @@
-"""Rows and rules of `sessions`, `policy_denials` and `customer_channels`, shared by every backend (spec 01 §6.5, T9).
+"""Rows and rules of `sessions`, `policy_denials`, `customer_channels`, `idempotency` and `llm_calls`, shared by every
+backend (spec 01 §6.5, T9).
 
 - `sessions`: the api or the eval seed inserts a row under a store-made id and every tool reads it (spec 03 AC-02).
   The store has no update, so `mode` and `run_id` stay as created (AC-07, §6.8) [assumption]: OTP verification and
@@ -8,6 +9,9 @@
 - `customer_channels` (AO): the latest row of each channel (the one inserted last) wins. A Telegram `/start` writes
   `linked` with `telegram_linked` on the case (spec 13 AC-02); a typed e-mail writes `linked`, its confirmation link
   `confirmed` with `email_confirmed`. The store returns raw addresses; tools mask them (spec 03 AC-11).
+- `llm_calls` (AO): one row per billed LLM call under a store-made `LC-` id, written from a run's usage; `run_id` has no
+  default, so a caller passes `None` for production on purpose (D-023); `cost_usd` is a finite decimal in
+  [0, 10^6] `[assumption]` with a scale Postgres `numeric` holds, and is never null (spec 01 §6.5, §10).
 - `idempotency` (spec 03 AC-03, §6.3 Idempotency, §6.5): `once` runs a W or N tool's write at most once per key and returns
   the stored result afterwards; the row's key is `[run_id:]<scope>:<key>` with `<scope>` = `c=<customer_id>` or `-` (the api's
   analyst actions) [assumption: §6.5 names only the run prefix; the scope keeps one customer from replaying another's
@@ -18,6 +22,7 @@ The accessors take plain arguments and refuse bad ones with StoreError before an
 from __future__ import annotations
 
 import datetime as dt
+from decimal import Decimal
 import hashlib
 import json
 import re
@@ -29,8 +34,8 @@ from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, ValidationErro
 from nick_of_time import ids
 from nick_of_time.contracts import Language, Mode
 
-# [assumption] §6.7 fixes no shape for these two ids; they take ids.py's 12 upper-case hex characters.
-DENIAL_ID, CHANNEL_ID = r"^PD-[0-9A-F]{12}$", r"^CH-[0-9A-F]{12}$"
+# [assumption] §6.7 fixes no shape for these three ids; they take ids.py's 12 upper-case hex characters.
+DENIAL_ID, CHANNEL_ID, LLM_CALL_ID = r"^PD-[0-9A-F]{12}$", r"^CH-[0-9A-F]{12}$", r"^LC-[0-9A-F]{12}$"
 DENIAL_ACTOR = r"^(agent|customer|analyst:.*\S.*)$"                  # §6.5: a closed list, no `system`
 POLICY_ID, GUARDRAIL_ID = r"^POL-[A-Z0-9-]+$", r"^G-[A-Z]+-[0-9]{2}$"   # the policies.yaml shapes
 RULE_ONLY_GUARDRAIL = "G-POL-01"
@@ -42,7 +47,7 @@ CHANNEL_CASE_EVENT: dict[tuple[str, str], str] = {("telegram", "linked"): "teleg
 
 
 def new_row_id(pattern: str) -> str:
-    """A fresh id for DENIAL_ID or CHANNEL_ID: the prefix and 48 random bits."""
+    """A fresh id for DENIAL_ID, CHANNEL_ID or LLM_CALL_ID: the prefix and 48 random bits."""
     return pattern[1:pattern.index("[")] + secrets.token_hex(6).upper()
 
 
@@ -95,6 +100,32 @@ class NewDenial(_Row):
         if re.fullmatch(DENIAL_ACTOR, value) is None:
             raise ValueError("not a denial actor (agent, customer or analyst:<sub>)")
         return value
+
+
+class NewLLMCall(_Row):
+    """One billed LLM call as the api writes it from a run's usage (spec 04 AC-14, spec 18 AC-10); `run_id` is the
+    session's, so a run's tokens and cost sum alone (D-023). Counts are non-negative and `cost_usd` a finite decimal."""
+    trace_id: str = Field(min_length=1)
+    provider: str = Field(min_length=1)
+    model: str = Field(min_length=1)
+    tokens_in: int = Field(ge=0, strict=True, le=2**31 - 1)               # Postgres integer
+    tokens_out: int = Field(ge=0, strict=True, le=2**31 - 1)
+    latency_ms: int = Field(ge=0, strict=True, le=2**31 - 1)
+    cost_usd: Decimal = Field(ge=0, le=Decimal(10) ** 6, allow_inf_nan=False)   # per-call cap [assumption]
+    run_id: Optional[str]                                   # no default: None (production) must be passed on purpose
+
+    @field_validator("cost_usd")
+    @classmethod
+    def _cost_fits_numeric(cls, value: Decimal) -> Decimal:
+        # Postgres `numeric` keeps at most 16383 digits after the point; memory must refuse what the column refuses.
+        if value.as_tuple().exponent < -16383:
+            raise ValueError("more decimal places than a Postgres numeric holds")
+        return abs(value) if value.is_zero() else value       # -0 reads back as 0 from Postgres
+
+
+class LLMCall(NewLLMCall):
+    call_id: str = Field(pattern=LLM_CALL_ID)
+    created_at: AwareDatetime
 
 
 class Once(_Row):
