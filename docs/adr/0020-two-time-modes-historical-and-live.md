@@ -1,6 +1,8 @@
 # 0020. Two time modes: historical (replay) for evaluation and processed cases, live for the demo
 
 - **Status:** Accepted (supersedes [0012](0012-frozen-demo-date.md))
+- **Amended by:** [ADR 0023](0023-mx-provisional-credit-90-days.md) (proposed): `DEMO_TODAY` stays 2026-06-01, but the
+  MX 48 h rationale is replaced by the 90-calendar-day window (every MX charge from 2026-03-03 qualifies in replay)
 - **Date:** 2026-10-04
 - **Deciders:** Freddy · **Owner:** @salazarvalverdeai
 - **Related:** specs 01, 02, 03, 04, 05, 09, 10, 11, 15 · ADRs 0007, 0012, 0019

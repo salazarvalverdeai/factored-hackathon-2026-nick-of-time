@@ -24,7 +24,8 @@ deleted: a new ADR supersedes them. How and when to write one: [`CONTRIBUTING.md
 | [0016](0016-guardrails-injection-detector-and-exact-grounding.md) | Guardrails: injection detector with rules + LR, exact-match output grounding | Accepted | 2026-09-29 |
 | [0017](0017-identity-mock-otp-customers-cognito-analysts.md) | Identity: mock session + OTP for customers, Cognito for analysts | Accepted | 2026-10-03 |
 | [0018](0018-data-and-model-lifecycle.md) | Data and model lifecycle: an operational medallion that feeds evaluation | Accepted | 2026-10-03 |
-| [0019](0019-official-sources-for-regulatory-figures.md) | Every regulatory or external figure cites an official public source and a verification date | Accepted | 2026-10-04 |
-| [0020](0020-two-time-modes-historical-and-live.md) | Two time modes: historical (replay) for evaluation and processed cases, live for the demo (supersedes 0012) | Accepted | 2026-10-04 |
+| [0019](0019-official-sources-for-regulatory-figures.md) | Every regulatory or external figure cites an official public source and a verification date | Accepted · amended by [0023](0023-mx-provisional-credit-90-days.md) (proposed) | 2026-10-04 |
+| [0020](0020-two-time-modes-historical-and-live.md) | Two time modes: historical (replay) for evaluation and processed cases, live for the demo (supersedes 0012) | Accepted · amended by [0023](0023-mx-provisional-credit-90-days.md) (proposed) | 2026-10-04 |
 | [0021](0021-continuous-evaluation-and-outcome-audit.md) | Continuous evaluation and outcome audit: inventory of models and decision engines, deterministic auditor, advisory judge, sealed regression sets | Accepted | 2026-10-04 |
 | [0022](0022-fraud-labels-for-model-training.md) | Fraud labels may train our fraud model, by time window, and never reach the runtime | Accepted | 2026-10-04 |
+| [0023](0023-mx-provisional-credit-90-days.md) | MX provisional credit by business day 2 for unrecognized-charge claims within 90 calendar days (debit and credit); the 48 h window is for theft or loss only; AR promises the 10-business-day resolution only (amends 0019, 0020) | Proposed | 2026-10-04 |
