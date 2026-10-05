@@ -2,7 +2,7 @@
 
 - **Feature:** the contract the three of us build against — folders, REST API, MCP tools, graph I/O, Postgres schema,
   customer receipt, evaluation hooks — plus stubs so nobody waits for anybody.
-- **Status:** Draft (contract 1.4.0, updated 2026-10-05: 16 customer tools, two time modes, action states, delivery
+- **Status:** Draft (contract 1.5.0, updated 2026-10-05: 16 customer tools, two time modes, action states, delivery
   status, the store's §6.5 rules, the lead's 2026-10-05 follow-ups)
 - **Owner:** @salazarvalverdeai · **Priority:** P0 · **Size:** M
 - **Challenge dimension:** AI Engineering, Technical Judgment
@@ -10,7 +10,7 @@
   0020
 - **Issue:** #3 · **Approval:** all three (@salazarvalverdeai, @gianzk, @vldiego)
 
-> Full profile: this spec *is* the contract. Contract version **1.4.0** (1.0.0 was the first review draft; 1.1.0 adds
+> Full profile: this spec *is* the contract. Contract version **1.5.0** (1.0.0 was the first review draft; 1.1.0 adds
 > the approved improvements #12–#16 before approval; 1.2.0 is additive: the handoff rules of §6.4, `GOLD_PATTERN`, the
 > `zone_medium` and `supervised_mode` handoff reasons; 1.3.0 is additive, from task 01c, §6.5: the `action_verified`
 > event type, `cases.opened_on` and the `on` business date of `status_changed` (D-023), an `action_id` on each customer
@@ -27,7 +27,10 @@
 > lands with PR #80; (5) the store's §6.5 additions of tasks 01g2 and 01g3 (PRs #87, #99): `idempotency` append-only
 > with `args_hash` (a key replayed with other arguments is refused), `row_no` and the latest-row rule (highest
 > `row_no`, never the latest `created_at`), `read` on `action_verified`, and the refusal of NUL and lone surrogates; and
-> D-033's `score_source` and `score_version` in `handoff.schema.json`, already on main).
+> D-033's `score_source` and `score_version` in `handoff.schema.json`, already on main); 1.5.0 is additive, task DLANG:
+> `deadline_source_label` on `ComputeDeadlineOut` and on the case deadlines of `get_case` (`open_case` leaves it
+> null), the clock entry's `source_label` (`policies.yaml`) in the session's language, `es` by default, so the customer
+> reads the legal source in Spanish or Portuguese from a tool result; `deadline_source` keeps the analyst's name.
 > Any change after approval is a PR that all three approve and that bumps the version (minor = additive, major =
 > breaking).
 
@@ -184,12 +187,12 @@ shape of `data` is fixed in the producing spec.
 | `get_customer_profile` | R | First name, language, country, display currency, confirmed channels | — | — |
 | `search_transaction` | R | Find the disputed charge (gold; plus `demo_transactions` in `live`) | — | — |
 | `get_fraud_score` | R | The bank's score with its source and version | — | — |
-| `compute_deadline` | R | Legal deadline for a new case, with `source_url` and `verified_on` | — | — |
+| `compute_deadline` | R | Legal deadline for a new case, with `source_url`, `verified_on` and `deadline_source_label` in the session's language (1.5.0) | — | — |
 | `open_case` | W | Open the case; no duplicate active case; closed case → new case with `related_case_id` | `cases`, `case_events` (`case_opened`) | `get_case` |
 | `block_card` | W | Block the card | `product_overrides`, `case_events` (`card_blocked`) | `get_product_status` |
 | `get_product_status` | R | One card: type, last 4, status, `read_at`; `action_id` + `verification_id` only when called with a write's `action_id` (D-025) | — | — |
 | `list_my_cards` | R | The customer's cards with status; never a `V-` (plain reads); the listing's own `read_at`, set even with no cards (1.4.0) | — | — |
-| `get_case` | R | Customer view of a case: status label, stored deadlines with source and `deadline_verified_on`, visible timeline, `taken_by_person`, `related_case_id`, `read_at` (replaces `get_case_status`) | — | — |
+| `get_case` | R | Customer view of a case: status label, stored deadlines with source, `deadline_source_label` in the session's language (1.5.0) and `deadline_verified_on`, visible timeline, `taken_by_person`, `related_case_id`, `read_at` (replaces `get_case_status`) | — | — |
 | `list_my_cases` | R | The customer's cases | — | — |
 | `add_case_info` | W | Customer adds information to an active case | `case_events` (`customer_info_added`) | `get_case` |
 | `request_call` | W | Customer asks a person to call; with no `case_id` it is reported only as `requested`, since no read verifies it (D-026) | `case_events` (`call_requested`); with no case, a `call_requests` row (task 03d) | `get_case` |

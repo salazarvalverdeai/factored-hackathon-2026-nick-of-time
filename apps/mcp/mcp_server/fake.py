@@ -27,10 +27,11 @@ from contracts.tools import CUSTOMER_TOOLS, VERIFIED_WITH, ToolError
 SESSION_ID = "S-demoreplay000001"
 _CASE, _TRX, _PRD = "K-104233", "TRX-FIXTURE0000000000001", "PRD-FIXTURE00001"   # the sample receipt's ids
 _SOURCE = "Banxico Circular 3/2012, as amended by Circular 14/2018"
+_LABEL = "Banxico, Circular 3/2012 (modificada por la Circular 14/2018)"   # the es session's source (1.5.0)
 _URL = ("https://www.gob.mx/condusef/prensa/cargos-no-reconocidos-en-tarjeta-de-debito-se-restituiran-en-dos-dias-"
         "habiles-bancarios?idiom=es")
-_DEADLINE = {"credit_deadline": "2026-06-03", "deadline_source": _SOURCE, "deadline_source_url": _URL,
-             "deadline_verified_on": "2026-10-04"}
+_DEADLINE = {"credit_deadline": "2026-06-03", "deadline_source": _SOURCE, "deadline_source_label": _LABEL,
+             "deadline_source_url": _URL, "deadline_verified_on": "2026-10-04"}
 _CARD = {"product_id": _PRD, "type": "debit", "last4": "4417", "status": "Blocked", "read_at": "2026-06-01T15:04:09Z"}
 _TELEGRAM = {"channel": "telegram", "masked_address": "···4821"}
 _EVENT = {"case_id": _CASE, "event_id": "E-5D0E7A21C9B4"}
@@ -43,7 +44,8 @@ FIXTURES: dict[str, dict[str, Any]] = {
         "currency": "USD", "amount_usd": 1250.0, "merchant": "TIENDA X", "transaction_status": "Approved"}]},
     "get_fraud_score": {"transaction_id": _TRX, "score": 72.0, "source": "dataset", "version": "gold-v1"},
     "compute_deadline": {"country": "MX", "product": "debit", "credit_deadline": "2026-06-03", "ruling_deadline": None,
-                         "deadline_source": _SOURCE, "source_url": _URL, "verified_on": "2026-10-04"},
+                         "deadline_source": _SOURCE, "deadline_source_label": _LABEL, "source_url": _URL,
+                         "verified_on": "2026-10-04"},
     # writes stay "requested" and carry no V- id: the read of VERIFIED_WITH mints it when asked about the write (D-025)
     "open_case": {"action_id": "A-71C0D5E8A2F3", "case_id": _CASE, "country": "MX", **_DEADLINE},
     "block_card": {"action_id": "A-3E9F20B7C164", "product_id": _PRD},

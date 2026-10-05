@@ -112,6 +112,7 @@ handoff:
   never_include_raw_transcript: true
 
 regulatory_clock:                        # [external] spec 02 §4.3; amount_gate never changes these. ADR 0019: every entry has source_url + verified_on
+  # source_label: the customer's es/pt name of the same `source` and source_url (DLANG); `source` stays for the analyst.
   # Per country and product (debit | credit | any), the first entry whose `when_charged_within` holds (or that has none) wins;
   # a country or product with no entry gets no deadline (POL-CLOCK-UNKNOWN). Terms count from the notice date
   # (clock.today); business days skip weekends and packages/nick_of_time/policy/holidays/{cc}_{year}.yaml.
@@ -128,6 +129,7 @@ regulatory_clock:                        # [external] spec 02 §4.3; amount_gate
         ruling: {days: 45, calendar: calendar}
         ruling_abroad: {days: 180, calendar: calendar}
         source: "Banxico Circular 3/2012, arts. 19 Bis 3 and 19 Bis 4 (as amended by Circular 14/2018)"
+        source_label: {es: "Banxico, Circular 3/2012, arts. 19 Bis 3 y 19 Bis 4 (modificada por la Circular 14/2018)", pt: "Banxico, Circular 3/2012, arts. 19 Bis 3 e 19 Bis 4 (modificada pela Circular 14/2018)"}
         source_url: https://www.banxico.org.mx/marco-normativo/normativa-emitida-por-el-banco-de-mexico/circular-3-2012/%7B4E0281A4-7AD8-1462-BC79-7F2925F3171D%7D.pdf
         verified_on: 2026-10-04
       # LTOSF art. 23 fr. II (text in force, last reform DOF 2024-01-24): ruling within 45 days ("días": art. 23 does not define them,
@@ -137,6 +139,7 @@ regulatory_clock:                        # [external] spec 02 §4.3; amount_gate
         ruling: {days: 45, calendar: calendar}
         ruling_abroad: {days: 180, calendar: calendar}
         source: "LTOSF art. 23"
+        source_label: {es: "Ley para la Transparencia y Ordenamiento de los Servicios Financieros (LTOSF), art. 23", pt: "Ley para la Transparencia y Ordenamiento de los Servicios Financieros (LTOSF, México), art. 23"}
         source_url: https://www.ordenjuridico.gob.mx/Documentos/Federal/pdf/wo46.pdf
         verified_on: 2026-10-04
     credit:
@@ -148,6 +151,7 @@ regulatory_clock:                        # [external] spec 02 §4.3; amount_gate
         ruling: {days: 45, calendar: calendar}
         ruling_abroad: {days: 180, calendar: calendar}
         source: "Banxico Circular 34/2010, numerals 3.4 and 3.6 (as amended by Circular 13/2018)"
+        source_label: {es: "Banxico, Circular 34/2010, numerales 3.4 y 3.6 (modificada por la Circular 13/2018)", pt: "Banxico, Circular 34/2010, numerais 3.4 e 3.6 (modificada pela Circular 13/2018)"}
         source_url: https://www.banxico.org.mx/marco-normativo/normativa-emitida-por-el-banco-de-mexico/circular-34-2010/%7B0C55B906-6DB4-6B88-FED0-67987E9FB3CC%7D.pdf
         verified_on: 2026-10-04
       - *ltosf_23                        # while pending: no payment of the claimed amount, no credit bureau reporting (fr. I, V)
@@ -158,6 +162,7 @@ regulatory_clock:                        # [external] spec 02 §4.3; amount_gate
       # party's charge the customer does not recognize.
       - ruling: {days: 10, calendar: business}
         source: "BCRA, Protección de los Usuarios de Servicios Financieros, item 3.1.6"
+        source_label: {es: "BCRA, Protección de los Usuarios de Servicios Financieros, punto 3.1.6", pt: "BCRA, Protección de los Usuarios de Servicios Financieros, item 3.1.6"}
         source_url: https://www.bcra.gob.ar/archivos/Pdfs/texord/t-pusf.pdf
         verified_on: 2026-10-04
   CO:
@@ -169,6 +174,7 @@ regulatory_clock:                        # [external] spec 02 §4.3; amount_gate
       - ruling: {days: 15, calendar: business}
         extendable_once: true
         source: "SFC; Ley 1755 de 2015, art. 14"
+        source_label: {es: "Superintendencia Financiera de Colombia (SFC); Ley 1755 de 2015, art. 14", pt: "Superintendencia Financiera de Colombia (SFC); Ley 1755 de 2015, art. 14"}
         source_url: https://www.superfinanciera.gov.co/preguntas-frecuentes/3/3-derechos-de-peticion-ante-entidades-vigiladas/
         verified_on: 2026-10-04
   BR:
@@ -178,6 +184,7 @@ regulatory_clock:                        # [external] spec 02 §4.3; amount_gate
       - ruling: {days: 10, calendar: business}
         extendable_once: true
         source: "Resolução CMN 4.860/2020, art. 6, § 2"
+        source_label: {es: "Resolução CMN 4.860/2020 (Brasil), art. 6, § 2", pt: "Resolução CMN 4.860/2020, art. 6, § 2"}
         source_url: https://www.bcb.gov.br/estabilidadefinanceira/exibenormativo?tipo=Resolu%C3%A7%C3%A3o%20CMN&numero=4860
         verified_on: 2026-10-04
 
