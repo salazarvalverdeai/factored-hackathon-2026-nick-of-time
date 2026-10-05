@@ -2,6 +2,7 @@
 contracts/customer_receipt.schema.json. No LLM, no tools, no network."""
 from __future__ import annotations
 
+import importlib.util
 import json
 import sys
 from pathlib import Path
@@ -46,7 +47,25 @@ def test_ac_04_echo_graph_takes_a_chip_press_and_defaults_to_spanish():
     assert turn.language == "es" and "send_summary" in turn.reply
 
 
-def test_ac_04_echo_graph_needs_the_session_the_api_injects():
+def test_ac_04_echo_graph_needs_the_session_the_api_injects_and_a_known_language():
     with pytest.raises(ValueError, match="session_id"):
         graph.invoke({"messages": [{"role": "user", "content": "hola"}]}, {"configurable": {}})
-    assert graph.name == "dispute_intake"
+    with pytest.raises(ValueError, match="language"):
+        graph.invoke({"messages": [{"role": "user", "content": "hello"}], "language": "en"}, CONFIG)
+
+
+def test_ac_04_output_schema_is_typed_from_turn_result():
+    schema = graph.get_output_jsonschema()
+    assert set(schema["properties"]) == set(c.TurnResult.model_fields)
+    assert schema["properties"]["language"]["enum"] == ["es", "pt"]
+
+
+def test_ac_04_langgraph_json_serves_the_echo_graph():
+    config = json.loads((ROOT / "langgraph.json").read_text())
+    path, attr = config["graphs"]["dispute_intake"].split(":")
+    spec = importlib.util.spec_from_file_location("dispute_intake_probe", ROOT / path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    assert getattr(module, attr).name == graph.name == "dispute_intake"
+    assert config["python_version"] == "3.13"                       # spec 01 §6.1 (Platform defaults to 3.11)
+    assert {"./packages", "./contracts"} <= set(config["dependencies"])

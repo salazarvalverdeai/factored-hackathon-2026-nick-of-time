@@ -3,9 +3,9 @@
 Every turn answers a valid `TurnResult` that echoes the customer's last message and carries the sample receipt
 [simulated], so the api, the web and the harness can build against the real I/O before spec 04. No LLM, no tools, no
 network. `configurable.session_id` is required, as the api always injects it; `configurable.mode` defaults to replay.
+Served by `langgraph.json` (graph id `dispute_intake`); locally `PYTHONPATH=.:packages langgraph dev`.
 """
-from __future__ import annotations
-
+# No `from __future__ import annotations`: the state types must resolve when the server loads this file by path.
 import uuid
 from typing import Any, Optional, TypedDict
 
@@ -21,7 +21,8 @@ class InputState(TypedDict, total=False):
     action: Optional[dict[str, Any]]  # a chip or button press: {"type": …, "value": …}
 
 
-OutputState = TypedDict("OutputState", dict.fromkeys(TurnResult.model_fields, Any), total=False)
+OutputState = TypedDict("OutputState", {name: field.annotation for name, field in TurnResult.model_fields.items()},
+                        total=False)
 State = TypedDict("State", {**InputState.__annotations__, **OutputState.__annotations__}, total=False)
 
 TEXT = {   # customer-facing, so ES/PT
@@ -37,6 +38,8 @@ def echo(state: State, config: RunnableConfig) -> dict[str, Any]:
     if not settings.get("session_id"):
         raise ValueError("configurable.session_id is required; the api injects it (spec 01 §6.4)")
     language = state.get("language") or "es"
+    if language not in TEXT:
+        raise ValueError(f"language must be es, pt or null, not {language!r} (spec 01 §6.4)")
     messages, action = state.get("messages") or [], state.get("action") or {}
     text = messages[-1].get("content", "") if messages else action.get("type", "")
     receipt, words = sample_receipt(), TEXT[language]
