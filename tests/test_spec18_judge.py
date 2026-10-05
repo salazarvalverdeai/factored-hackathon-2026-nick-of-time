@@ -6,13 +6,26 @@ import json
 import time
 from pathlib import Path
 
+import pytest
+from pydantic import ValidationError
+
 from nick_of_time.audit import Finding, opinion, record_decision
 from nick_of_time.llm import FakeClient, ProviderUnavailable
 
 CASE = json.loads((Path(__file__).parent / "fixtures" / "audit" / "judge_case.json").read_text())
-TRX, ACT = "TRX-FIXTURE0000000000001", "A-000000000001"
+TRX, ACT, VER, PRD = "TRX-FIXTURE0000000000001", "A-000000000001", "V-0123456789AB", "PRD-FIXTURE00001"
 NOW = dt.datetime(2026, 6, 3, tzinfo=dt.timezone.utc)
 PRICES = {"input_per_1m": 1.1, "output_per_1m": 5.5}   # Haiku 4.5 row of eval/bench/prices.yaml
+
+
+class Slow(FakeClient):
+    def __init__(self, delay, **kw):
+        super().__init__(**kw)
+        self.delay = delay
+
+    def _call(self, *a, **k):
+        time.sleep(self.delay)
+        return super()._call(*a, **k)
 
 
 def ask(script, **kw):
@@ -35,7 +48,7 @@ def test_ac_07_structured_opinion_with_cited_reasons_and_questions():
     assert op.model == "fake" and op.prompt_hash and op.created_at == NOW and op.dropped == 0
     call = client.calls[0]
     assert call["temperature"] == 0 and call["schema"]["required"] == ["verdict", "reasons", "questions"]
-    assert "1." in call["system"] and "social engineering" in call["system"]
+    assert "1." in call["system"] and "social engineering" in call["system"] and "in English" in call["system"]
 
 
 def test_ac_07_caps_reasons_and_questions():
@@ -66,8 +79,10 @@ def test_ac_08_verdict_without_grounded_reason_becomes_uncertain():
 
 
 def test_ac_08_judge_never_sees_labels():
-    _, client = ask([out("uncertain")])
-    assert "is_fraud" not in client.calls[0]["user"]
+    """Constitution #7, whatever the key's case or underscores (is_fraud, IS_FRAUD, isFraud)."""
+    client = FakeClient(script=[out("uncertain")], prices=PRICES)
+    opinion(dict(CASE["handoff"], IS_FRAUD=True, isFraud=True), [], CASE["tool_results"], client=client, now=NOW)
+    assert "fraud" not in client.calls[0]["user"].casefold()
 
 
 def test_ac_11_failure_returns_no_second_opinion():
@@ -77,12 +92,7 @@ def test_ac_11_failure_returns_no_second_opinion():
 
 
 def test_ac_11_timeout_returns_no_second_opinion():
-    class Slow(FakeClient):
-        def _call(self, *a, **k):
-            time.sleep(0.5)
-            return super()._call(*a, **k)
-
-    op, _ = ask(None, client=Slow(script=[out("agree")]), timeout_s=0.05)
+    op, _ = ask(None, client=Slow(0.5, script=[out("agree")]), timeout_s=0.05)
     assert op is None
 
 
@@ -100,15 +110,46 @@ def test_ac_11_no_prices_fails_closed_before_calling():
 
 
 def test_ac_11_over_budget_input_under_the_token_cap_makes_zero_calls():
-    mid = dict(CASE["handoff"], request="x" * 30_000)   # about 7.5k tokens: under the 12k cap, over 0.01 USD at 1.1/5.5
-    client = FakeClient(script=[out("agree")], prices=PRICES)
-    assert opinion(mid, [], [], client=client, now=NOW) is None and client.calls == []
+    """About 7.5k tokens (under the 12k cap, over 0.01 USD at Haiku prices) in the handoff, the transcript or a tool."""
+    for handoff, transcript, tools in ((dict(CASE["handoff"], request="x" * 30_000), [], []),
+                                       (CASE["handoff"], ["x" * 30_000], []),
+                                       (CASE["handoff"], [], [{"note": "x" * 30_000}])):
+        client = FakeClient(script=[out("agree")], prices=PRICES)
+        assert opinion(handoff, transcript, tools, client=client, now=NOW) is None and client.calls == []
 
 
-def test_ac_11_oversized_input_is_not_sent():
-    big = dict(CASE["handoff"], request="x" * 200_000)
-    client = FakeClient(script=[out("agree")], prices=PRICES)
-    assert opinion(big, [], [], client=client) is None and client.calls == []
+def test_ac_11_input_cap_applies_even_when_cheap():
+    cheap = {"input_per_1m": 0.035, "output_per_1m": 0.14}   # nova-micro row: the budget alone would allow both
+    client = FakeClient(script=[out("agree")], prices=cheap)
+    assert opinion(dict(CASE["handoff"], request="x" * 50_000), [], [], client=client) is None and client.calls == []
+    assert opinion(dict(CASE["handoff"], request="x" * 40_000), [], [], client=client) is not None
+
+
+def test_ac_11_billed_cost_over_the_cap_gives_none():
+    class Pricey(FakeClient):   # the provider bills far more input than estimated
+        def _call(self, *a, **k):
+            return dict(super()._call(*a, **k), tokens_in=1_000_000)
+
+    seen = []
+    op, _ = ask(None, client=Pricey(script=[out("agree", [item("fine", TRX)])], prices=PRICES),
+                on_call=lambda res, why: seen.append((res.cost_usd, why)))
+    assert op is None and seen[0][0] > 0.01 and seen[0][1] == "budget"
+
+
+def test_ac_11_on_call_sees_every_path_and_never_breaks_the_judge():
+    log = []
+    hook = lambda res, why: log.append((res, why))   # noqa: E731
+    op, _ = ask(None, client=Slow(0.02, script=[out("agree", [item("fine", TRX)])], prices=PRICES), on_call=hook)
+    ask([out("agree")], prices=None, on_call=hook)
+    ask([ProviderUnavailable("down")], on_call=hook)
+    ask([{"verdict": "maybe"}], on_call=hook)   # billed, but not the schema (NoStructuredOutput)
+    ask(None, client=Slow(0.5, script=[out("agree")], prices=PRICES), timeout_s=0.05, on_call=hook)
+    assert [(res is not None, why) for res, why in log] == [
+        (True, "ok"), (False, "budget"), (False, "error"), (True, "error"), (False, "timeout")]
+    res = log[0][0]
+    assert (op.cost_usd, op.tokens_in, op.tokens_out, op.latency_ms) == (
+        res.cost_usd, res.tokens_in, res.tokens_out, res.latency_ms) and op.latency_ms >= 20 and op.tokens_out > 0
+    assert ask([out("agree", [item("fine", TRX)])], on_call=lambda res, why: 1 / 0)[0] is not None   # a broken logger
 
 
 def test_ac_08_trace_id_digits_do_not_ground_invented_counts():
@@ -119,12 +160,31 @@ def test_ac_08_trace_id_digits_do_not_ground_invented_counts():
 def test_ac_08_probe_strings_are_dropped():
     probes = ["dos mil pesos", "two thousand pesos", "mil doscientos cincuenta", "the twenty-first of May",
               "used three times", "ref_TRX-OTHERABCDEFGHIJKL", "trx-otherabcdefgh", "TRX-FIXTURE0000000000001X",
-              "seeTRX-OTHER0000000000002", "the customer had 1 prior dispute", "el veinte de mayo", "em janeiro"]
-    op, _ = ask([out("agree", [item(f"{p} {TRX}", TRX) for p in probes[:5]]
-                     , [item(f"{p}", TRX) for p in probes[5:8]])])
-    assert op.reasons == [] and op.questions == []
-    op, _ = ask([out("agree", [item(f"{p}", TRX) for p in probes[8:]])])
-    assert op.reasons == []
+              "seeTRX-OTHER0000000000002", "the customer had 1 prior dispute", "el veinte de mayo", "em janeiro",
+              "hubo dos cargos", "case k-000042", "charged twice", "quinhentos reais", "veintidós cargos"]
+    for p in probes:
+        op, _ = ask([out("agree", [item(f"{p} {TRX}", TRX)], [item(p, TRX)])])
+        assert op.reasons == [] and op.questions == [], p
+
+
+def test_ac_08_grounded_prose_is_kept():
+    """Must keep: 10 realistic grounded reasons with ordinary words the lexicon or the id shape used to drop."""
+    reasons = [
+        item(f"{TRX} is the one the customer disputes: MXN 1250.50 on 2026-05-20.", TRX),
+        item(f"Once the card was blocked ({ACT}), verification {VER} confirmed it.", ACT, VER),
+        item(f"The customer was charged once, by {TRX}, a card-not-present e-commerce purchase at AMAZON-MARKETPLACE.",
+             TRX),
+        item(f"No one checked a one-time code or a multi-factor step for {TRX}; Marc-Antoine is not in it.", TRX),
+        item(f"The bank's score is 42, so a person reviews it; the anti-fraud block {ACT} was not re-issued.", ACT),
+        item(f"The deadline follows Banxico 3/2012 for MX; {PRD} is the debit card.", PRD),
+        item(f"O valor dos cargos em {TRX} é 1250.50, o mesmo da compra e-commerce de 2026-05-20.", TRX),
+        item(f"O bloqueio anti-fraude {ACT} foi confirmado pela verificação {VER}.", ACT, VER),
+        item(f"El cargo {TRX} de 1250.50 del 2026-05-20 coincide; Julio, el co-titular, no aparece en la evidencia.", TRX),
+        item(f"La pre-autorización de {TRX} no está en la evidencia; el bloqueo {ACT} está verificado ({VER}).",
+             TRX, ACT, VER)]
+    for chunk in (reasons[:5], reasons[5:]):
+        op, _ = ask([out("agree", chunk)])
+        assert [r.text for r in op.reasons] == [r["text"] for r in chunk] and op.dropped == 0
 
 
 def test_ac_08_transcript_is_not_evidence():
@@ -133,10 +193,11 @@ def test_ac_08_transcript_is_not_evidence():
     assert op.reasons == [] and op.dropped == 3
 
 
-def test_ac_07_citations_are_handoff_evidence_not_tool_only_ids():
-    """D-036: an id seen only in a tool result is not citable, but may be mentioned as a fact."""
-    op, _ = ask([out("agree", [item("tool-only", "TRX-TOOLONLY00000000002"), item("mentions TRX-TOOLONLY00000000002", TRX)])])
-    assert [r.text for r in op.reasons] == ["mentions TRX-TOOLONLY00000000002"]
+def test_ac_07_citations_are_handoff_evidence_and_verified_fact_sources():
+    """D-036: a reason may cite or name the handoff's evidence ids and verified_facts source ids, not tool-only ids."""
+    op, _ = ask([out("agree", [item("tool-only", "TRX-TOOLONLY00000000002"), item("mentions TRX-TOOLONLY00000000002", TRX),
+                               item(f"the card is {PRD}", PRD)])])
+    assert [r.text for r in op.reasons] == [f"the card is {PRD}"]
 
 
 def test_ac_07_inputs_reach_the_model_and_labels_do_not():
@@ -153,10 +214,10 @@ def test_ac_07_only_a_question_survives_gives_uncertain():
     assert op.verdict == "uncertain" and op.reasons == [] and len(op.questions) == 1
 
 
-def test_ac_07_judge_enforces_temperature_zero():
+def test_ac_07_judge_enforces_temperature_zero_and_restores_the_client():
     client = FakeClient(script=[out("uncertain")], prices=PRICES, temperature=0.7)
     opinion(CASE["handoff"], [], [], client=client, now=NOW)
-    assert client.calls[0]["temperature"] == 0
+    assert client.calls[0]["temperature"] == 0 and client.temperature == 0.7
 
 
 def test_ac_10_decision_recorded_with_match():
@@ -176,3 +237,21 @@ def test_ac_10_decision_recorded_with_match():
     assert rec("approve_block", unsure).matched_second_opinion is None
     none = rec("approve_block", None)
     assert none.matched_second_opinion is None and none.judge_verdict is None and none.analyst == "analyst:s1"
+    # copilot_proposal is optional in the handoff: no proposal, nothing to match
+    assert rec("approve_block", agree, None).matched_second_opinion is None
+    assert rec("resolve", disagree, None).matched_second_opinion is None
+    with pytest.raises(ValidationError):
+        rec("approve_block", agree, "bogus")
+
+
+def test_ac_10_only_the_first_decisive_action_is_matched():
+    agree, _ = ask([out("agree", [item("fine", TRX)])])
+
+    def lifecycle(actions, proposal):
+        return [record_decision("K-1", "analyst:s1", a, proposal_action=proposal, second_opinion=agree,
+                                prior_actions=actions[:i], now=NOW).matched_second_opinion for i, a in enumerate(actions)]
+
+    assert lifecycle(["take", "approve_block", "resolve", "close_case"], "approve_block") == [None, True, None, None]
+    assert lifecycle(["take", "resolve", "close_case"], "close_without_action") == [None, True, None]
+    assert lifecycle(["take", "mark_ambiguous", "request_customer_info", "approve_block"], "approve_block") == [
+        None, None, False, None]

@@ -111,12 +111,26 @@ Notes on A3–A7 (task 18a):
 - **Rubric (fixed):** (1) Does the transaction match the customer's account of it? (2) Is anything in the story
   inconsistent with the evidence, or a sign of social engineering? (3) Is the proposal consistent with the policy
   decision and the evidence? (4) Did the agent leave anything unverified? (5) What should the analyst ask?
-- **Output:** structured — `verdict`, `reasons [{text, evidence_ids}]`, `questions [{text, evidence_ids}]`,
-  `model`, `prompt_hash`, `created_at`, `dropped` (items removed by grounding). Details of the code `[assumption]`: the
-  evidence a reason may cite is the handoff's `evidence` plus the `verified_facts` source ids (D-036); the facts it may
-  state come from the handoff and the tool results, minus A4's skipped keys, never the transcript; an item with a
-  spelled-out number, a month name or an id-shaped token that is not exactly an evidence id is dropped; a verdict with
-  no grounded reason becomes `uncertain`; more than 5 reasons or 3 questions is invalid output and gives no opinion.
+- **Output:** structured, reasons and questions in English (the console's language) — `verdict`,
+  `reasons [{text, evidence_ids}]`, `questions [{text, evidence_ids}]`, `model`, `prompt_hash`, `created_at`, `dropped`
+  (items removed by grounding), and the call's `cost_usd`, `tokens_in`, `tokens_out`, `latency_ms`. An optional
+  `on_call(result, reason)` hook sees every outcome (`ok`, `budget`, `timeout`, `error`), so the paths without an opinion
+  can be logged as `llm_calls` rows too. Details of the code `[assumption]`: the evidence a reason may cite is the
+  handoff's `evidence` plus the `verified_facts` source ids (D-036); the facts it may state come from the handoff and the
+  tool results, minus A4's skipped keys, never the transcript; an item with a spelled-out number, a month name or an
+  id-shaped token that is not exactly an id of the handoff evidence or a `verified_facts` source (D-036) is dropped; a
+  verdict with no grounded reason becomes `uncertain`; more than 5 reasons or 3 questions is invalid output and gives no
+  opinion. The judge asks for temperature 0 and restores the client's own setting after the call.
+- **Limits of grounding (inherent, ADR 0016):** grounding matches tokens, not meaning. A real fact's number can ground
+  an unrelated count ("3 prior disputes" via `Banxico 3/2012`, "used 42 times" via the score), and a paraphrase without
+  digits or ids passes. To avoid dropping ordinary prose, the lexicon leaves out EN `one`, `once` and `may`, ignores PT
+  `dos` (de + os) in a Portuguese item, and counts ES/PT month names only in lower case (`Julio` is a name); an id shape
+  is a CLI-, PRD-, RC- or TRX- prefix not glued to a letter, or a 1–4 letter prefix whose suffix has a digit, so
+  `e-commerce` and `Marc-Antoine` are words.
+- **Analyst match (AC-10):** only the case's **first decisive action** is matched. `approve_credit`, `approve_block` and
+  `request_customer_info` read as themselves; `resolve` and `close_case` read as `close_without_action` when none of
+  those came before. `take`, `unblock_card`, `mark_ambiguous`, `reopen_case`, every action after the first decisive one,
+  a handoff without `copilot_proposal`, no opinion and `uncertain` record `null`.
 - **Bias controls:** a fixed rubric and structured output instead of free comparison (position and verbosity effects);
   a model family different from the agent's (self-enhancement); temperature 0; every reason must cite evidence
   (AC-08).
@@ -138,12 +152,17 @@ comes from the policy engine, not from an LLM, so the judge does not grade its o
 - Judge: at most one call per case in review; cost under 0.01 USD per case `[assumption]`, estimated before the call
   and the call is skipped when over budget or when the client has no prices; input capped at about 12k tokens; timeout
   10 s because G-OPS-01's 800 ms would always expire on a model call (D-037) `[assumption]`; the customer never sees it.
+  The cap reserves 700 output tokens, so it implies a **Haiku-class judge**, and AC-12's choice must respect it: at the
+  `eval/bench/prices.yaml` prices `[external]`, Sonnet 4.6 (16.5 USD per 1M output tokens) can never fit, and Haiku 4.5
+  (1.1 in, 5.5 out) fits up to about 5.6k estimated input tokens, so the cost cap binds before the 12k input cap.
 
 ## 6. API contract (additions to spec 01, minor version)
 ```python
 findings: list[Finding] = audit.run(records)            # records: TurnResult, trace, tool results, case events
-opinion: SecondOpinion | None = judge.opinion(handoff, transcript, evidence, client=llm, audit=findings)   # None = "No second opinion"
-decision: AnalystDecision = judge.record_decision(case_id, analyst, action, proposal_action=..., second_opinion=opinion)
+opinion: SecondOpinion | None = judge.opinion(handoff, transcript, evidence, client=llm, audit=findings,
+                                              on_call=log_llm_call)   # None = "No second opinion"
+decision: AnalystDecision = judge.record_decision(case_id, analyst, action, proposal_action=..., second_opinion=opinion,
+                                                  prior_actions=earlier_analyst_actions)
 ```
 - **Input mapping (for the `records_for_run(run_id)` adapter of T2, reused by T3).** `FinalState` does not change.
   - A3: the claims are the TurnResult `actions` (`ActionRecord`), `receipt.actions` and `handoff.actions`. The evidence
@@ -187,10 +206,13 @@ tools for the third line (internal audit).
 - [ ] T3 [P1] — api background task, `audit_findings`, critical flag and acknowledgment · AC-03, AC-04, AC-05
 - [x] T4 [P0] — judge: prompt with the fixed rubric, structured output, grounding of reasons, fallback · AC-07, AC-08,
       AC-10, AC-11 (`nick_of_time/audit/judge.py`, `tests/test_spec18_judge.py`; the fallback is `None`, the timeout and
-      the per-case cost cap are `[assumption]` defaults, see §4.2 and §5; the `AnalystDecision` record leaves persistence
-      to the store owner, see T5)
-- [ ] T5 [P0] — second-opinion panel in the console (with @gianzk) · AC-09; the api also calls `judge.record_decision`
-      and stores `matched_second_opinion` in the `analyst_action` payload and the opinion in `second_opinions` · AC-10
+      the per-case cost cap are `[assumption]` defaults, see §4.2 and §5; the `AnalystDecision` record matches only the
+      first decisive action and leaves persistence to the store owner, see T5)
+- [ ] T5 [P0] — second-opinion panel in the console (with @gianzk) · AC-09. The api owns persistence: it calls
+      `judge.record_decision` with the case's earlier analyst actions as `prior_actions` (only the first decisive action
+      is matched, §4.2) and stores `matched_second_opinion` in the `analyst_action` payload, the opinion in
+      `second_opinions`, and one `llm_calls` row per judge outcome through `on_call`, including those without an opinion
+      · AC-10
 - [ ] T5b [P1] — auditor panel and critical flag in the console (with @gianzk) · AC-06
 - [ ] T6 [P2] — `judge` as a spec 15 task; KPIs in `ops_kpis`; calibration report · AC-12, AC-13, AC-14
 
