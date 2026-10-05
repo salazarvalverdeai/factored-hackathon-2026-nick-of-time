@@ -41,10 +41,7 @@ test("spec 16 AC-03: mock mode answers without any backend", async () => {
   assert.equal((await api.listDemoCustomers()).length, CUSTOMERS.length);
 });
 
-test("spec 16 AC-03: live mode says it is not ready instead of faking data", async () => {
-  const live = createApi(new MockStore(), { mode: "live", delayMs: 0 });
-  await rejects(live.listDemoCustomers(), "LIVE_API_NOT_READY", 501);
-});
+// The live client has its own tests (lib/live.test.ts): it answers the api's error instead of faking data.
 
 test("spec 16 AC-03: weekends do not count in the legal deadline", () => {
   assert.equal(addBusinessDays("2026-06-03", 2), "2026-06-05"); // Wed + 2 business days

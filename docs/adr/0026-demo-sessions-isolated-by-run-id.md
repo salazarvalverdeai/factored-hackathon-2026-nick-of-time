@@ -43,6 +43,9 @@ The details that matter:
 and is read only by that run, so the same isolation holds: another visitor of the same customer, a replay session or a
 production session never sees it (spec 03 AC-14). Its score is a fixed `[assumption]` value labeled `synthetic`
 (D-027), never the visitor's; it never reaches gold, the lakehouse, the evaluation or a pitch number (ADR 0020).
+Demo type D, a generated persona (`POST /api/demo/persona`, spec 05 AC-20), only drafts the visitor's first message in
+a chosen character's voice: S1 writes it from the session's own charge with the name passed as data, its cost is an
+`llm_calls` row of the run, and the visitor edits and sends it like any message, so no tool, receipt or rule reads it.
 
 ## Alternatives considered
 | Option | Pros | Cons |
