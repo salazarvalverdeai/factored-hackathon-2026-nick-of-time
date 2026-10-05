@@ -392,7 +392,7 @@ Implementation goes in `feat/02-policy-engine` once this spec and spec 01 (packa
       (MX, AR, CO and BR done with `add_business_days` (D-008); PE and CL pending: until then they get `POL-CLOCK-UNKNOWN`)
 - [x] T4 — `transition()` and `sla()` (`policy/queue.py`, §4.5) · AC-10, AC-11
 - [x] T5 — decision-table tests (`tests/test_spec02_table.py`): zone × country × mode × tier, plus the boundaries 29/30/49/50 and null · AC-01…AC-13
-- [ ] T6 — `docs`: policy ids listed in `/agent` content (spec 04 AC-08)
+- [x] T6 — `docs`: policy ids listed in `/agent` content (spec 04 AC-08; generated from `policies.yaml` by `apps/web/scripts/sync-agent.mjs`)
 - [ ] T7 — `clock.today(mode, country)`, time zones, `fx_reference` values from the official series with `as_of`
       and `verified_on`, `fx.convert()`, `reevaluation_allowed()` · AC-16, AC-17, AC-18 (`today` and time zones done;
       fx and re-evaluation pending)

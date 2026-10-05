@@ -7,8 +7,9 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "node scripts/sync-messages.mjs --check && node --test \"lib/**/*.test.ts\"",
-    "sync:messages": "node scripts/sync-messages.mjs"
+    "test": "node scripts/sync-messages.mjs --check && node scripts/sync-agent.mjs --check && node --test \"lib/**/*.test.ts\"",
+    "sync:messages": "node scripts/sync-messages.mjs",
+    "sync:agent": "node scripts/sync-agent.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.8.0",
