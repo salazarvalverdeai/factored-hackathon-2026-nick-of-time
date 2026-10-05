@@ -68,4 +68,4 @@ def test_ac_04_langgraph_json_serves_the_echo_graph():
     spec.loader.exec_module(module)
     assert getattr(module, attr).name == graph.name == "dispute_intake"
     assert config["python_version"] == "3.13"                       # spec 01 §6.1 (Platform defaults to 3.11)
-    assert {"./packages", "./contracts"} <= set(config["dependencies"])
+    assert {".", "./packages"} <= set(config["dependencies"])          # "." carries the graph and contracts
