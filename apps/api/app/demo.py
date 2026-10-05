@@ -115,6 +115,16 @@ def clean_name(raw: Optional[str]) -> Optional[str]:
     return name
 
 
+def picker_label(label: str, first_name: Optional[str]) -> str:
+    """The picker label with gold's first name in place of the hand-written one ("Ana (MX · debit)" + "Gerardo Lucas"
+    → "Gerardo Lucas (MX · debit)"), so the picker, the web's greeting and `get_customer_profile` name the same person
+    (spec 07 AC-07). Without a gold name the label is kept: such a customer cannot open a session anyway."""
+    if not first_name:
+        return label
+    _, sep, rest = label.partition(" (")
+    return f"{first_name}{sep}{rest}" if sep else first_name
+
+
 def new_run_id(now: dt.datetime) -> str:
     """`demo-<UTC yyyymmddThhmmssZ>-<6 base32>`: a fresh run per demo session, so nothing of another run is seen."""
     stamp = now.astimezone(dt.timezone.utc).strftime("%Y%m%dT%H%M%SZ")

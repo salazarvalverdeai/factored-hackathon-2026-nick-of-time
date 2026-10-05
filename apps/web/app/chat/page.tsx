@@ -3,15 +3,17 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { StatusBadge } from "@/components/badges";
+import { TracePanel } from "@/components/chat/trace-panel";
 import { PageShell } from "@/components/page-shell";
 import { DenyState, ErrorState, LoadingState } from "@/components/states";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { ApiError, api } from "@/lib/api";
+import { greetingName, showWebGreeting } from "@/lib/chat-view";
 import { formatDeadline } from "@/lib/format";
 import { MESSAGES, fill } from "@/lib/mock/messages";
-import type { AgentReply, DemoCustomer, Receipt, Suggestion, TraceStep, TurnAction } from "@/lib/types";
+import type { AgentReply, DemoCustomer, Receipt, Suggestion, TurnAction } from "@/lib/types";
 import { useMounted, useSession } from "@/lib/use-query";
 
 interface Message {
@@ -233,10 +235,10 @@ function Conversation({ onExpired }: { onExpired: () => void }) {
         </div>
 
         <div className="min-h-64 space-y-3 rounded-xl border p-3" aria-live="polite">
-          {messages.length === 0 ? (
+          {showWebGreeting(messages) ? (
             <div className="space-y-1 text-sm text-muted-foreground">
-              {/* spec 04 AC-15: greet with the capabilities; texts from contracts/messages.yaml */}
-              <p>{fill(MESSAGES.greet.hello, lang, { first_name: customer?.display_name.split(" ")[0] ?? "" })}</p>
+              {/* spec 04 AC-15, spec 07 AC-07: one greeting, gone once the agent greets; texts from contracts/messages.yaml */}
+              <p>{fill(MESSAGES.greet.hello, lang, { first_name: greetingName(customer?.display_name) })}</p>
               <p>{MESSAGES.greet.capability_1[lang]}</p>
               <p>{MESSAGES.greet.capability_2[lang]}</p>
               <p>{MESSAGES.greet.capability_3[lang]}</p>
@@ -255,7 +257,7 @@ function Conversation({ onExpired }: { onExpired: () => void }) {
                   <DenyState message={m.text} />
                 ) : (
                   <p
-                    className={`inline-block break-words rounded-2xl px-3 py-2 text-left text-sm ${
+                    className={`inline-block whitespace-pre-line break-words rounded-2xl px-3 py-2 text-left text-sm ${
                       m.role === "customer" ? "bg-primary text-primary-foreground" : "bg-muted"
                     }`}
                   >
@@ -351,59 +353,5 @@ function ReceiptCard({ receipt }: { receipt: Receipt }) {
         </Link>
       </CardContent>
     </Card>
-  );
-}
-
-const KIND_LABEL: Record<TraceStep["kind"], string> = {
-  ok: "done",
-  accepted: "accepted",
-  verified: "verified ✓",
-  not_confirmed: "not confirmed",
-  guardrail: "guardrail",
-  deny: "DENY",
-};
-
-const KIND_CLASS: Record<TraceStep["kind"], string> = {
-  ok: "bg-muted text-muted-foreground",
-  accepted: "bg-amber-500/15 text-amber-700 dark:text-amber-400",
-  verified: "bg-brand-teal/15 text-teal-700 dark:text-teal-300",
-  not_confirmed: "bg-red-500/15 text-red-700 dark:text-red-400",
-  guardrail: "bg-red-500/15 text-red-700 dark:text-red-400",
-  deny: "bg-red-500/15 text-red-700 dark:text-red-400",
-};
-
-/** Each graph step with its result, and the guardrails that fired. "accepted" is not "verified". */
-function TracePanel({ trace, guardrails }: { trace: TraceStep[]; guardrails: string[] }) {
-  return (
-    <aside aria-label="Trace" className="min-w-0">
-      <Card>
-        <CardHeader>
-          <CardTitle>Trace</CardTitle>
-          <CardDescription>What the agent did on the last message</CardDescription>
-        </CardHeader>
-        <CardContent>
-          {trace.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No steps yet.</p>
-          ) : (
-            <ol className="space-y-2 text-sm">
-              {trace.map((t, i) => (
-                <li key={`${t.step}-${i}`} className="rounded-lg border p-2">
-                  <span className="flex items-center justify-between gap-2">
-                    <span className="font-mono text-xs">{t.step}</span>
-                    <span className={`inline-flex h-5 items-center rounded-4xl px-2 text-xs font-medium ${KIND_CLASS[t.kind]}`}>
-                      {KIND_LABEL[t.kind]}
-                    </span>
-                  </span>
-                  <span className="mt-1 block break-words text-xs text-muted-foreground">{t.result}</span>
-                </li>
-              ))}
-            </ol>
-          )}
-          <p className="mt-3 text-xs">
-            <b>Guardrails fired:</b> {guardrails.length ? guardrails.join(", ") : "none"}
-          </p>
-        </CardContent>
-      </Card>
-    </aside>
   );
 }
