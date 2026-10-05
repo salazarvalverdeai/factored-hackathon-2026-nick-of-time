@@ -119,10 +119,9 @@ def test_ac_16_d063_reads_never_move_a_case_own_foreign_or_unrelated(gold_dir):
 
 
 def test_ac_10_d063_a_held_high_zone_case_is_not_moved_by_a_denied_block(gold_dir):
-    """The D-029 call-request case is moved by request_call (task 03d1); a denied block moves nothing."""
+    """A denied block moves nothing. The D-029 call-request case is moved to `review` by request_call itself (task
+    03d1, PR #124); this test writes the `call_requested` event directly, so only the denied block is under test."""
     run = reads_run(gold_dir)
     case = run.open(1)
     run.call_requested(case.case_id)
     assert denied(run.block(), "POL-HUMAN-REQUEST") and moves(run, case.case_id) == []
-    run.analyst(case.case_id, "take", "review")
-    assert status(run, case.case_id) == "review"
