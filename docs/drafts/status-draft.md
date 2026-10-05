@@ -1,6 +1,6 @@
 # Status (DRAFT for the lead's review)
 
-**Cut:** 2026-10-05 · **Branch:** `main` at `4ca799a` · **Milestones:** `v0.2.0` tagged · `v0.3.0` reached (per the lead;
+**Cut:** 2026-10-05 · **Branch:** `main` at `5636caa` · **Milestones:** `v0.2.0` tagged · `v0.3.0` reached (per the lead;
 no tag in `origin` yet) · **Next:** `v0.4.0`, the three mandatory cases on the public URL, pending INT3. Supersedes the
 2026-10-03 cut in `STATUS.md` once the lead moves it. Sizes only, no hours (working agreement).
 
@@ -20,7 +20,7 @@ Verified with `curl https://nickoftime.salazarvalverdeai.com/api/health` on 2026
 
 | What | State | Evidence |
 |---|---|---|
-| `https://nickoftime.salazarvalverdeai.com` | Live, TLS through Caddy; api answers `status: ok`, `git_sha: 4ca799a...` (equals `origin/main` head), contract `1.4.0`, policies version 2 | `/api/health` |
+| `https://nickoftime.salazarvalverdeai.com` | Live, TLS through Caddy; api answers `status: ok`, `git_sha: 218ecac...`, contract `1.6.0`, policies version 2 (read 2026-10-05 later in the day; `main` is ahead at `5636caa`, contract `1.7.0`, so the next deploy has not reached the URL yet) | `/api/health` |
 | Models reported by the api | graph `us.anthropic.claude-sonnet-4-6`, fast `us.anthropic.claude-haiku-4-5-20251001-v1:0` (Bedrock, `us-east-2`) | `/api/health` |
 | Time modes | replay `2026-06-01`, live `2026-10-05` | `/api/health`; ADR 0020 |
 | `https://mcp.nickoftime.salazarvalverdeai.com` | Deployed from `apps/mcp` since [#122](https://github.com/salazarvalverdeai/factored-hackathon-2026-nick-of-time/pull/122) and [#136](https://github.com/salazarvalverdeai/factored-hackathon-2026-nick-of-time/pull/136) (CI-gated deploy); not re-probed here because it needs the API key | `infra/compose.yml`, `deploy.yml` |
@@ -29,7 +29,7 @@ Verified with `curl https://nickoftime.salazarvalverdeai.com/api/health` on 2026
 | Deploy gate | Deploy runs only after a green CI on `main` ([#136](https://github.com/salazarvalverdeai/factored-hackathon-2026-nick-of-time/pull/136)) | `.github/workflows/deploy.yml` |
 
 ## Built since the 2026-10-03 cut
-93 PRs merged on 2026-10-05 (UTC), after the 2026-10-04 ones; the 2026-10-05 list is in `CHANGELOG-draft.md`.
+118 PRs merged on 2026-10-05 (UTC) up to `5636caa`; the list is in `CHANGELOG-draft.md`. Added since the first cut of this draft: demo sessions with `demo-` run ids and typed names ([#151](https://github.com/salazarvalverdeai/factored-hackathon-2026-nick-of-time/pull/151)), demo type C synthetic charge ([#160](https://github.com/salazarvalverdeai/factored-hackathon-2026-nick-of-time/pull/160)), abuse guard and daily LLM cap, calm Platform-down turn ([#150](https://github.com/salazarvalverdeai/factored-hackathon-2026-nick-of-time/pull/150)), progress stream ([#156](https://github.com/salazarvalverdeai/factored-hackathon-2026-nick-of-time/pull/156)), tolerant tool outputs ([#153](https://github.com/salazarvalverdeai/factored-hackathon-2026-nick-of-time/pull/153)), uptime monitor ([#147](https://github.com/salazarvalverdeai/factored-hackathon-2026-nick-of-time/pull/147)), `make eval-local` ([#164](https://github.com/salazarvalverdeai/factored-hackathon-2026-nick-of-time/pull/164)), robustness suite ([#157](https://github.com/salazarvalverdeai/factored-hackathon-2026-nick-of-time/pull/157)), ops lakehouse bronze, silver and gold ([#145](https://github.com/salazarvalverdeai/factored-hackathon-2026-nick-of-time/pull/145), [#146](https://github.com/salazarvalverdeai/factored-hackathon-2026-nick-of-time/pull/146)), spec 12 screenshots ([#163](https://github.com/salazarvalverdeai/factored-hackathon-2026-nick-of-time/pull/163)).
 - **Data and contracts:** contract `1.4.0` (D-052, idempotency key, cards `read_at`) [#107](https://github.com/salazarvalverdeai/factored-hackathon-2026-nick-of-time/pull/107); gold, `policies.yaml` v2.
 - **Policy:** engine with rule ids [#63](https://github.com/salazarvalverdeai/factored-hackathon-2026-nick-of-time/pull/63), clock rows MX, AR [#67](https://github.com/salazarvalverdeai/factored-hackathon-2026-nick-of-time/pull/67) and CO, BR [#68](https://github.com/salazarvalverdeai/factored-hackathon-2026-nick-of-time/pull/68), queue `transition` and `sla` [#86](https://github.com/salazarvalverdeai/factored-hackathon-2026-nick-of-time/pull/86), D-029 call request [#80](https://github.com/salazarvalverdeai/factored-hackathon-2026-nick-of-time/pull/80).
 - **MCP:** gated FastMCP server and the 16 tools (spec 03 T1-T7 checked), image runs the real server [#122](https://github.com/salazarvalverdeai/factored-hackathon-2026-nick-of-time/pull/122).
@@ -40,18 +40,16 @@ Verified with `curl https://nickoftime.salazarvalverdeai.com/api/health` on 2026
 - **Infra and CI:** compose, OIDC and SSM deploy [#41](https://github.com/salazarvalverdeai/factored-hackathon-2026-nick-of-time/pull/41), idempotent schema on every deploy [#129](https://github.com/salazarvalverdeai/factored-hackathon-2026-nick-of-time/pull/129), Postgres suite in CI [#108](https://github.com/salazarvalverdeai/factored-hackathon-2026-nick-of-time/pull/108), ruff and AC coverage gates [#57](https://github.com/salazarvalverdeai/factored-hackathon-2026-nick-of-time/pull/57).
 
 ## In review (open PRs, 2026-10-05)
-[#127](https://github.com/salazarvalverdeai/factored-hackathon-2026-nick-of-time/pull/127) `make eval` ·
-[#128](https://github.com/salazarvalverdeai/factored-hackathon-2026-nick-of-time/pull/128) spec statuses ·
-[#130](https://github.com/salazarvalverdeai/factored-hackathon-2026-nick-of-time/pull/130) `/evaluation` benchmark sections ·
-[#142](https://github.com/salazarvalverdeai/factored-hackathon-2026-nick-of-time/pull/142) confirm an unnamed charge (D-067) ·
-[#143](https://github.com/salazarvalverdeai/factored-hackathon-2026-nick-of-time/pull/143), [#144](https://github.com/salazarvalverdeai/factored-hackathon-2026-nick-of-time/pull/144) eval data kits ·
-[#145](https://github.com/salazarvalverdeai/factored-hackathon-2026-nick-of-time/pull/145), [#146](https://github.com/salazarvalverdeai/factored-hackathon-2026-nick-of-time/pull/146) ops lakehouse ·
-[#147](https://github.com/salazarvalverdeai/factored-hackathon-2026-nick-of-time/pull/147) uptime monitor ·
-[#148](https://github.com/salazarvalverdeai/factored-hackathon-2026-nick-of-time/pull/148) demo rate limits and spend cap ·
-[#149](https://github.com/salazarvalverdeai/factored-hackathon-2026-nick-of-time/pull/149) contract 1.5.0 ·
-[#150](https://github.com/salazarvalverdeai/factored-hackathon-2026-nick-of-time/pull/150) Platform-outage turn ·
-[#151](https://github.com/salazarvalverdeai/factored-hackathon-2026-nick-of-time/pull/151), [#152](https://github.com/salazarvalverdeai/factored-hackathon-2026-nick-of-time/pull/152) demo sessions by scenario ·
-[#153](https://github.com/salazarvalverdeai/factored-hackathon-2026-nick-of-time/pull/153) tool-output schema tolerance.
+[#161](https://github.com/salazarvalverdeai/factored-hackathon-2026-nick-of-time/pull/161) demo type D persona ·
+[#166](https://github.com/salazarvalverdeai/factored-hackathon-2026-nick-of-time/pull/166) rule-decided test split ·
+[#167](https://github.com/salazarvalverdeai/factored-hackathon-2026-nick-of-time/pull/167) status replies in FinalState ·
+[#168](https://github.com/salazarvalverdeai/factored-hackathon-2026-nick-of-time/pull/168) web live mode ·
+[#169](https://github.com/salazarvalverdeai/factored-hackathon-2026-nick-of-time/pull/169) dev eval bugs EV4-EV6 ·
+[#170](https://github.com/salazarvalverdeai/factored-hackathon-2026-nick-of-time/pull/170) api on the Bedrock provider in production ·
+[#171](https://github.com/salazarvalverdeai/factored-hackathon-2026-nick-of-time/pull/171) as-is vs with Nick of Time panel ·
+[#155](https://github.com/salazarvalverdeai/factored-hackathon-2026-nick-of-time/pull/155) this draft
+
+In progress outside `main`: speech to text via Bedrock Mistral Voxtral behind `POST /api/voice/transcribe` (branch `feat/05-voice-stt`) and browser text to speech; real-time speech to speech is out (D-072).
 
 ## Tests
 Not re-run for this draft. The last result recorded in `STATUS.md` (12 Python tests passing, 2026-10-03) is stale; the
@@ -61,7 +59,7 @@ suite), web lint and build, gitleaks, ruff, AC coverage (`.github/workflows/ci.y
 ## Not done yet
 Specs 07 and 08 live wiring, spec 05 on Postgres on the public URL, evaluation runs on the sealed held-out set, model
 selection ADR, fraud benchmark JSON, pitch and submission package (issues #19, #20). Per-spec blockers are in
-`specs-readme-draft.md`. P2, not started: voice, ops lakehouse on Databricks, MLOps beyond the benchmark.
+`specs-readme-draft.md`. P2, documented only in `roadmap-p2.md`: monitoring and alerting, MLflow, continuous evaluation, model tests in CI, retrain loop, versioning, Databricks lakehouse.
 
 ## Open items
 - Confirm the Platform deployment revision and whether to push tag `v0.3.0` (proposed at `4ca799a`).

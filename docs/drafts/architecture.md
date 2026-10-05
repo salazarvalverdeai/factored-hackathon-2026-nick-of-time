@@ -1,6 +1,6 @@
 # Architecture (DRAFT for the lead's review)
 
-Status: **draft**, written 2026-10-05 against `origin/main` at `4ca799a`. Nothing here replaces a current document; the
+Status: **draft**, refreshed 2026-10-05 against `origin/main` at `5636caa`. Nothing here replaces a current document; the
 lead decides what moves to `docs/`. Every claim names the file it comes from. Where a figure appears it carries a label
 from CLAUDE.md rule 8 (`[data]` `[external]` `[assumption]` `[simulated]` `[projected]`). Legend used in every diagram:
 **solid = current** (in `main`), **dashed = future (P2) or not yet verified on the public URL**.
@@ -19,7 +19,7 @@ flowchart LR
   subgraph ec2["EC2 nickoftime-app, us-east-2 · Docker Compose"]
     caddy["Caddy 2<br/>TLS, two hosts, only 80/443 published"]
     web["web<br/>Next.js 16 + shadcn/ui :3000"]
-    api["api<br/>FastAPI :8000"]
+    api["api<br/>FastAPI :8000<br/>abuse guard, daily LLM cap,<br/>GoldCatalog, demo sessions"]
     mcp["mcp<br/>FastMCP server :8001<br/>16 customer tools"]
     pg[("Postgres 17<br/>cases, append-only events, audit")]
     gold[/"gold Parquet v1<br/>read-only mount"/]
@@ -28,6 +28,8 @@ flowchart LR
   platform["LangGraph Platform (LangSmith)<br/>graph dispute_intake"]
   bedrock["Amazon Bedrock us-east-2<br/>Sonnet 4.6 · Haiku 4.5"]
   anth["Anthropic API<br/>fallback"]
+  uptime["GitHub Actions uptime.yml<br/>every 15 minutes"]
+  stt["Bedrock Mistral Voxtral us-east-2<br/>speech to text (in progress)"]
   cognito["Cognito pool<br/>nickoftime-analysts"]
   s3[("S3 nickoftime-gold<br/>gold/v1 · backups · labels/v1 protected")]
   ssm["SSM Parameter Store<br/>/nickoftime/prod/*"]
@@ -47,6 +49,9 @@ flowchart LR
   platform -->|"MCP over HTTPS, key"| caddy
   platform --> bedrock
   platform -.-> anth
+  uptime -->|"health checks"| caddy
+  uptime -.->|"alert on healthy to failing"| tg
+  api -.->|"POST /api/voice/transcribe"| stt
   mcp --> pg
   mcp --> gold
   s3 -.->|"deploy syncs gold to host"| gold
@@ -71,7 +76,7 @@ Notes, each from its source:
 - Gold lives in S3 `gold/v1/`; labels (`is_fraud`) sit apart in `labels/v1/` behind a deny-by-default policy and are not
   readable by the EC2 role, Platform or the deploy role (`docs/infrastructure.md`, CLAUDE.md rule 7).
 - Verification state: `GET /api/health` on the public URL answered `git_sha` `4ca799a...`, contract `1.4.0`, policies
-  version 2, `platform_revision: null` (2026-10-05). The Platform link is drawn solid because the api code and graph are
+  version 2 (a point-in-time reading earlier on 2026-10-05; `main` is now contract `1.7.0`, `packages/nick_of_time/__init__.py`), `platform_revision: null` (2026-10-05). The Platform link is drawn solid because the api code and graph are
   in `main`; the null revision means the lead should confirm the deployed revision before this goes in a final doc.
 
 ## 2. Deploy path
@@ -172,6 +177,72 @@ How each stage maps to the repo:
 | Person closes | No case is closed without a person; provisional credit is always a human decision | CLAUDE.md rule 6 |
 | Notifications | Every status change reaches in-app log, Telegram and e-mail; never score, policy ids or transcript | spec 13; CLAUDE.md |
 
+## 3b. Demo sessions and public hardening (current in `main`)
+
+Sources: spec 05 AC-14 to AC-19 and tasks 8-10, ADR 0026, `apps/api/app/guard.py`, `apps/api/app/catalog.py`,
+`packages/nick_of_time/llm/steps.py`, `apps/api/app/live.py`, spec 04 AC-17, `.github/workflows/uptime.yml`.
+
+```mermaid
+flowchart TD
+  v([Public visitor]) --> guard["Abuse guard (guard.py)<br/>per-IP and global hourly limits on sessions and turns,<br/>429 with a bilingual message"]
+  guard --> sess["POST /api/sessions<br/>name, language, scenario<br/>server picks the customer"]
+  sess --> cat["GoldCatalog<br/>read-only gold + demo customers of spec 09"]
+  sess --> run["run_id demo-...<br/>isolated like an eval run (ADR 0026),<br/>no Telegram or e-mail channel"]
+  run --> turn["Agent turn via Platform proxy"]
+  turn -->|"Platform down"| calm["Calm retry turn in ES/PT"]
+  turn --> llm{"Daily LLM cap reached?<br/>llm_spend_since, DAILY_LLM_CAP_USD"}
+  llm -->|yes| s0["S0 rules fallback"]
+  llm -->|no| s12["S1/S2 understand"]
+  turn --> prog["Progress stream:<br/>one customer label per step"]
+  sess --> typec["Demo type C: synthetic-charge<br/>row in demo_transactions for this run"]
+  typec --> turn
+```
+
+- Limits: 10 sessions and 60 agent requests per IP per rolling hour, 300 and 1500 globally `[assumption]`, in process
+  memory, one uvicorn worker on one EC2 (`guard.py`, spec 05 AC-18).
+- The daily LLM cap defaults to 5.0 USD `[assumption]` and degrades `understand` to the S0 rules arm
+  (`llm/steps.py`: `DAY_CAP_USD`, `DAILY_LLM_CAP_USD`).
+- A Platform outage answers a calm retry turn instead of an error (PR #150, `tests/test_spec05_platform_down.py`).
+- Tool inputs stay strict while tool outputs ignore unknown fields (PR #153); the legal deadline source is named in the
+  customer's language (contract 1.5.0, PR #149). Contract is `1.7.0` in `main`.
+- Demo type C lets a live visitor register a simulated charge `[simulated]` for its own run (PR #160, spec 05 AC-19);
+  type D, a generated persona that drafts the first message, is open PR #161.
+- The uptime workflow checks the public endpoints every 15 minutes and alerts on Telegram only on a healthy to failing
+  change, plus one recovery message (`uptime.yml`, PR #147).
+
+## 3c. Local stacks for tests and evaluation (current)
+
+```mermaid
+flowchart LR
+  subgraph int1["INT1: tests/local_mcp.py, test_spec04_int_local.py"]
+    g1["real graph dispute_intake"] --> m1["real MCP server"] --> st1[("in-memory store")]
+  end
+  subgraph evl["make eval-local (spec 10 T6)"]
+    api2["store-backed api<br/>with eval hooks :8000"] --> plat2["langgraph dev :2024<br/>real graph"]
+    plat2 --> mcp2["real MCP server :8001"]
+    api2 --> st2[("one in-memory store")]
+    mcp2 --> st2
+    h["make eval: harness<br/>dev set, S0 and S1"] --> api2
+  end
+  rob["Robustness suite (eval/robustness):<br/>simulated customer characters +<br/>constitution checker, in CI offline"] --> g1
+```
+
+- INT1 runs the graph against the real MCP server offline (PR #138); `make eval-local` starts the store-backed api, the
+  real MCP server and the real graph over one in-memory store, with `EVAL_PROVIDER=fake` to stay off Bedrock
+  (`Makefile`, PR #164). The robustness suite is outside the sealed evaluation (`tests/test_robustness_suite.py`,
+  PR #157).
+
+## 3d. Voice
+
+| Part | State | Source |
+|---|---|---|
+| Speech to text: Bedrock Mistral Voxtral in `us-east-2` behind `POST /api/voice/transcribe` | **Current, in progress**: being built in a separate PR (branch `feat/05-voice-stt`), not in `main` | lead's brief, 2026-10-05 |
+| Text to speech: browser `speechSynthesis` in the web app (GianMarco) | **Current, in progress** | lead's brief |
+| Real-time speech to speech (Nova Sonic) | **Out**: available only in `us-east-1`, we run in `us-east-2` (decision D-072) | lead's brief |
+
+Voice must keep the constitution: the transcript goes through the same graph, so the LLM understands, rules decide and
+`customer_id` still comes only from the session.
+
 ## 4. Data and evaluation plane
 
 Sources: ADR 0004, 0007, 0018, 0022, `contracts/gold_contract.md`, specs 09, 10, 12, 14, 15, 17, 18, CLAUDE.md rule 7.
@@ -194,18 +265,21 @@ The dashed edge labeled "never reads" marks that the runtime does not read label
 
 ## 5. Current vs future
 
-| Area | Current (in `main`) | Future / not done | Source |
-|---|---|---|---|
-| Web | Next.js 16 shells for `/chat`, `/console`, `/login`, `/case/{id}`, `/evaluation`, `/analytics`, `/data`, `/agent`; mock data client, live wiring pending | Live wiring of chat and console (specs 07, 08 tasks 4-5, spec 16 task 5) | `apps/web/app/`; specs 07, 08, 16 section 10 |
-| API | Store-backed FastAPI: sessions, case projections, analyst actions, Cognito check, channels, agent proxy (PR #111); demo customers from gold (PR #141) | Running on Postgres on the public URL (spec 05 task 7); rate limits and spend cap (open PR #148) | spec 05 section 10 |
-| MCP | Gated server and the 16 tools through spec 03 T7 | Entry point, Dockerfile, compose service verified (spec 03 T8 unchecked) | spec 03 section 10 |
-| Agent | All graph nodes in `intake.py`; S1/S2 understand with S0 fallback; INT1 end-to-end test against the real MCP server locally | INT3 on the public URL (gates `v0.4.0`); Platform deployment and `/agent` content (spec 04 T8) | spec 04 section 10; PRs #133, #138 |
-| Policy | Rules engine, MX/AR/CO/BR clock rows, queue transitions, D-029 | PE and CL clock rows and holidays (spec 02 T3 unchecked) | spec 02 section 10; ADR 0023 |
-| Data | Bronze to gold pipeline with contracts and manifest | none planned | ADR 0004 |
-| Evaluation | Harness, held-out guard, 20 dev and 80 held-out cases, B0 rules arm | Held-out run on S0/S1/S2 and sealed protocol (spec 10 T6-T7, spec 09 M02) | specs 09, 10 section 10 |
-| Voice channel | not built | **P2**: voice | task brief; no spec in `specs/` |
-| Ops lakehouse | Bronze/silver/gold on the in-memory store (open PRs #145, #146) | **P2 parts**: Databricks Delta tables and notebooks (spec 14 T7), per-engine outcomes (T6) | spec 14 section 10 |
-| MLOps | Fraud screen with calibration and cost harness (spec 17 T3); model benchmark arms and budget guard | **P2**: continuous retraining and model registry beyond the benchmark; `model_score` in the handoff (spec 17 T5, P1) | specs 15, 17; ADR 0018 |
+**Current** = merged in `main` at `5636caa`. **In progress** = open PR or branch. **Future** = documented only, nothing
+built (see `roadmap-p2.md`).
+
+| Area | Current (in `main`) | In progress | Future | Source |
+|---|---|---|---|---|
+| Web | Page shells, `/evaluation` with benchmark sections, `/data`, `/analytics`, screenshots (PR #163) | Live mode on the spec 05 api (open PR #168) | | `apps/web/app/`; specs 07, 08, 12, 16 |
+| API | Store-backed FastAPI, Cognito check, channels, agent proxy, GoldCatalog, demo sessions with `demo-` run ids, abuse guard, daily LLM cap, calm Platform-down turn | Demo type D (open PR #161); `POST /api/voice/transcribe` | Run on Postgres on the public URL (spec 05 task 7) | spec 05 section 10 |
+| MCP | 16 tools, gated server, tolerant outputs, contract `1.7.0` | | | spec 03; `packages/nick_of_time/__init__.py` |
+| Agent | All nodes, S1/S2 with S0 fallback, progress stream, confirm-first for an unnamed charge | | INT3 on the public URL (gates `v0.4.0`) | spec 04; PRs #133, #156, #142 |
+| Policy | Rules engine, MX/AR/CO/BR clock rows, queue, D-029 | | PE and CL clock rows (spec 02 T3) | spec 02 |
+| Evaluation | Harness, 20 dev and 80 held-out cases, `make eval-local`, robustness suite | Rule-decided test split (open PR #166), status replies in FinalState (open PR #167) | Held-out run on S0/S1/S2 after sealing the protocol | specs 09, 10 |
+| Ops lakehouse | Bronze, silver, gold `ops_kpis` on the in-memory store, `make ops`, `ops_kpis.json` (PRs #145, #146) | | Run on Postgres (spec 14 T5); Databricks Delta (T7) | spec 14; `roadmap-p2.md` |
+| Monitoring | Uptime workflow with Telegram alert (PR #147) | | Metrics, dashboards, alerting on quality | `roadmap-p2.md` |
+| Voice | | Speech to text (Voxtral), browser text to speech (see 3d) | Real-time speech to speech is out (D-072) | lead's brief |
+| MLOps | Fraud screen, model benchmark arms, budget guard, gate evidence | | Registry, continuous evaluation, retrain loop | `roadmap-p2.md` |
 
 ## 6. Figures used here
 
@@ -219,4 +293,4 @@ The dashed edge labeled "never reads" marks that the runtime does not read label
 | Customers and transactions in demo | synthetic bank data | `[simulated]` | CLAUDE.md "What it is" |
 
 Open points for the lead: confirm the Platform deployment revision (health shows `null`); decide whether the future
-rows for voice and MLOps stay in the final diagram or only in the pitch.
+rows for MLOps stay in the final diagram or only in the pitch.

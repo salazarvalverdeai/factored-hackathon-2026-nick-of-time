@@ -6,6 +6,8 @@ task checkboxes of each spec on `origin/main` at `4ca799a` (2026-10-05) and the 
 checklist of CLAUDE.md applies to Implemented: every AC has a passing test that cites it, spec marked Implemented, ADR
 for any decision, lessons added to `CLAUDE.md`.
 
+Refresh note (main at `5636caa`): PRs named below as open (#127, #128, #130, #142-#153) have since merged; spec 05 AC-14 to AC-19 and tasks 8-10, spec 14 T1-T4, spec 10 T6 and spec 16's live wiring (open PR #168) moved. Per-row blockers are as of the first cut and should be re-read from each spec's section 10 before the lead applies them.
+
 Result: **no spec is ready for Implemented today.** Two header fields also disagree with their own checkboxes (noted in
 the last column) and should be reconciled in the same PR that moves the status.
 

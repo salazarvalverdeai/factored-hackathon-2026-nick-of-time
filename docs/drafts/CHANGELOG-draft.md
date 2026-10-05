@@ -1,11 +1,11 @@
 # Changelog draft (for the lead's review)
 
 Draft of the `[Unreleased]` section of `CHANGELOG.md`, which has not been updated since the deploy path entry
-(`CHANGELOG.md`, 2026-10-03). It lists the 93 pull requests merged into `main` with `mergedAt` on 2026-10-05 (UTC),
-taken from `gh pr list --state merged --limit 100` on 2026-10-05 and grouped by area from each Conventional Commit scope.
-Every entry links its PR and the merge commit on `main`. Milestones: `v0.2.0` is tagged (`dcca724`); `v0.3.0` is
-reported reached by the lead but no tag exists in `origin` yet (`git ls-remote --tags origin`, 2026-10-05).
-Open PRs not included: #127, #128, #130, #142-#153.
+(`CHANGELOG.md`, 2026-10-03). It lists the 118 pull requests merged into `main` with `mergedAt` on 2026-10-05 (UTC), up
+to `origin/main` at `5636caa`, taken from `gh pr list --state merged --limit 300` on 2026-10-05 and grouped by area from
+each Conventional Commit scope. Every entry links its PR and the merge commit on `main`. Milestones: `v0.2.0` is tagged
+(`dcca724`); `v0.3.0` is reported reached by the lead but no tag exists in `origin` yet (`git ls-remote --tags origin`,
+2026-10-05).
 
 ## [Unreleased] - 2026-10-05
 
@@ -22,6 +22,8 @@ Open PRs not included: #127, #128, #130, #142-#153.
 - feat: serve the real graph as dispute_intake (D-048) ([#134](https://github.com/salazarvalverdeai/factored-hackathon-2026-nick-of-time/pull/134), `91e82d0`)
 - test: bound only block_card in the retry-timeout test ([#135](https://github.com/salazarvalverdeai/factored-hackathon-2026-nick-of-time/pull/135), `e345b39`)
 - test: run dispute_intake end to end against the real MCP server locally (INT1) ([#138](https://github.com/salazarvalverdeai/factored-hackathon-2026-nick-of-time/pull/138), `4ca799a`)
+- fix: confirm a charge the customer did not name before acting (spec 04, D-067) ([#142](https://github.com/salazarvalverdeai/factored-hackathon-2026-nick-of-time/pull/142), `e9ce62c`)
+- feat: stream one progress label per step to the customer (spec 04 AC-17) ([#156](https://github.com/salazarvalverdeai/factored-hackathon-2026-nick-of-time/pull/156), `458829b`)
 
 ### Auditor and judge
 - feat: add the advisory judge with grounded reasons and fallback (spec 18 T4) ([#73](https://github.com/salazarvalverdeai/factored-hackathon-2026-nick-of-time/pull/73), `be26d1d`)
@@ -34,6 +36,9 @@ Open PRs not included: #127, #128, #130, #142-#153.
 - feat: spec 05 backend on the case store (Cognito, analyst actions, channels, agent proxy) ([#111](https://github.com/salazarvalverdeai/factored-hackathon-2026-nick-of-time/pull/111), `e1e8b21`)
 - feat: demo sessions understand with S1 and the deploy passes the public link config ([#140](https://github.com/salazarvalverdeai/factored-hackathon-2026-nick-of-time/pull/140), `451a387`)
 - feat: serve the spec 09 demo customers and their cards from gold (spec 05 T7) ([#141](https://github.com/salazarvalverdeai/factored-hackathon-2026-nick-of-time/pull/141), `71f8a40`)
+- feat: per-IP rate limits and a daily LLM spend cap for the public demo (spec 05 AC-18) ([#148](https://github.com/salazarvalverdeai/factored-hackathon-2026-nick-of-time/pull/148), `44cda23`)
+- fix: answer a Platform outage with a calm retry turn in ES/PT ([#150](https://github.com/salazarvalverdeai/factored-hackathon-2026-nick-of-time/pull/150), `552508e`)
+- feat: demo sessions open by scenario with a typed name and their own run (spec 05 AC-14 to AC-17, D-068) ([#152](https://github.com/salazarvalverdeai/factored-hackathon-2026-nick-of-time/pull/152), `bcbdeb5`)
 
 ### CI
 - fix: give the entry-point gold fixture the transaction_country column (main is red) ([#137](https://github.com/salazarvalverdeai/factored-hackathon-2026-nick-of-time/pull/137), `74cb531`)
@@ -42,6 +47,11 @@ Open PRs not included: #127, #128, #130, #142-#153.
 - fix: close the 01a final-review follow-ups ([#65](https://github.com/salazarvalverdeai/factored-hackathon-2026-nick-of-time/pull/65), `c6c9f2d`)
 - feat: add refuse, clarify and cancel ES/PT messages ([#77](https://github.com/salazarvalverdeai/factored-hackathon-2026-nick-of-time/pull/77), `dcca724`)
 - feat: contract 1.4.0 (D-052, idempotency key, cards read_at) ([#107](https://github.com/salazarvalverdeai/factored-hackathon-2026-nick-of-time/pull/107), `7a07fd4`)
+- fix: tool outputs ignore unknown fields, inputs stay strict ([#153](https://github.com/salazarvalverdeai/factored-hackathon-2026-nick-of-time/pull/153), `dbd3fb2`)
+
+### Data
+- feat: ops lakehouse bronze and silver on the in-memory store (spec 14 T1-T2) ([#145](https://github.com/salazarvalverdeai/factored-hackathon-2026-nick-of-time/pull/145), `226981d`)
+- feat: ops gold tables, manifest and ops_kpis.json export (spec 14 T3-T4) ([#146](https://github.com/salazarvalverdeai/factored-hackathon-2026-nick-of-time/pull/146), `b6cbbd9`)
 
 ### Deploy and infrastructure
 - feat: add compose stack, deploy through OIDC and SSM, and Postgres backup ([#41](https://github.com/salazarvalverdeai/factored-hackathon-2026-nick-of-time/pull/41), `1993964`)
@@ -60,6 +70,7 @@ Open PRs not included: #127, #128, #130, #142-#153.
 - docs: add spec 12 insight pages ([#91](https://github.com/salazarvalverdeai/factored-hackathon-2026-nick-of-time/pull/91), `90f0d11`)
 - docs: add spec 14 operational lakehouse ([#92](https://github.com/salazarvalverdeai/factored-hackathon-2026-nick-of-time/pull/92), `644a2fd`)
 - docs: fix the data shape of the three /evaluation result files (spec 12 Q1) ([#116](https://github.com/salazarvalverdeai/factored-hackathon-2026-nick-of-time/pull/116), `d57c5ab`)
+- docs: mark specs 09, 10, 12 in progress; approve and defer 14 ([#128](https://github.com/salazarvalverdeai/factored-hackathon-2026-nick-of-time/pull/128), `1fe7a83`)
 
 ### Evaluation and eval data
 - feat: add auditor checks A3-A7 as pure functions ([#54](https://github.com/salazarvalverdeai/factored-hackathon-2026-nick-of-time/pull/54), `6371676`)
@@ -76,6 +87,13 @@ Open PRs not included: #127, #128, #130, #142-#153.
 - fix: spec 09 case follow-ups ([#114](https://github.com/salazarvalverdeai/factored-hackathon-2026-nick-of-time/pull/114), `84741bd`)
 - feat: classifier set drafts from three model families (ADR 0025) ([#118](https://github.com/salazarvalverdeai/factored-hackathon-2026-nick-of-time/pull/118), `345ec07`)
 - fix: cover the D-029 call request on a high-zone charge ([#121](https://github.com/salazarvalverdeai/factored-hackathon-2026-nick-of-time/pull/121), `efcc1f8`)
+- feat: add make eval and make eval-stub ([#127](https://github.com/salazarvalverdeai/factored-hackathon-2026-nick-of-time/pull/127), `7d2e58e`)
+- feat: second-labeling kit for the 20 dev cases (spec 09 T6) ([#143](https://github.com/salazarvalverdeai/factored-hackathon-2026-nick-of-time/pull/143), `621e8c1`)
+- feat: deterministic review hints for the classifier drafts ([#144](https://github.com/salazarvalverdeai/factored-hackathon-2026-nick-of-time/pull/144), `2ed9252`)
+- feat: robustness suite with simulated customer characters and a constitution checker ([#157](https://github.com/salazarvalverdeai/factored-hackathon-2026-nick-of-time/pull/157), `77751c6`)
+- feat: live LLM simulated customer for the robustness suite ([#158](https://github.com/salazarvalverdeai/factored-hackathon-2026-nick-of-time/pull/158), `cec4342`)
+- feat: make eval-local runs the dev set against the real graph, MCP server and store-backed api (spec 10 T6) ([#164](https://github.com/salazarvalverdeai/factored-hackathon-2026-nick-of-time/pull/164), `21a8809`)
+- feat: review the classifier train and validation splits ([#165](https://github.com/salazarvalverdeai/factored-hackathon-2026-nick-of-time/pull/165), `5636caa`)
 
 ### Fraud model (ML)
 - feat: sklearn fraud screen with calibration and cost harness (spec 17 T3) ([#46](https://github.com/salazarvalverdeai/factored-hackathon-2026-nick-of-time/pull/46), `5088ce2`)
@@ -85,6 +103,8 @@ Open PRs not included: #127, #128, #130, #142-#153.
 - feat: add B0 rules arm, ES/PT date parser and injection rules ([#55](https://github.com/salazarvalverdeai/factored-hackathon-2026-nick-of-time/pull/55), `0b7f15b`)
 - fix: widen B0 rules coverage (task 11c) ([#74](https://github.com/salazarvalverdeai/factored-hackathon-2026-nick-of-time/pull/74), `a3cf8cf`)
 - fix: flag PT/ES policy-override and staff role-play injections in B0 ([#139](https://github.com/salazarvalverdeai/factored-hackathon-2026-nick-of-time/pull/139), `5853749`)
+- fix: answer a clear non-ES/PT sentence by rule in the session language plus English ([#154](https://github.com/salazarvalverdeai/factored-hackathon-2026-nick-of-time/pull/154), `d437030`)
+- fix: B0 reads 13 abril as a date and English person requests (spec 11e) ([#159](https://github.com/salazarvalverdeai/factored-hackathon-2026-nick-of-time/pull/159), `ad750ad`)
 
 ### LLM client
 - feat: add shared LLM client (fake, bedrock, anthropic) and config.resolve ([#53](https://github.com/salazarvalverdeai/factored-hackathon-2026-nick-of-time/pull/53), `b9fef96`)
@@ -101,6 +121,8 @@ Open PRs not included: #127, #128, #130, #142-#153.
 - feat: add the case and card read tools and the latency benchmark ([#125](https://github.com/salazarvalverdeai/factored-hackathon-2026-nick-of-time/pull/125), `212bce8`)
 - feat: add the notification tools send_case_summary and list_my_notifications ([#126](https://github.com/salazarvalverdeai/factored-hackathon-2026-nick-of-time/pull/126), `6804d41`)
 - feat: move the queue status after the agent's writes ([#132](https://github.com/salazarvalverdeai/factored-hackathon-2026-nick-of-time/pull/132), `1738511`)
+- fix: name the legal deadline source in the customer's language (contract 1.5.0) ([#149](https://github.com/salazarvalverdeai/factored-hackathon-2026-nick-of-time/pull/149), `b2909e3`)
+- test: make the AC-12 card-number leak check deterministic ([#162](https://github.com/salazarvalverdeai/factored-hackathon-2026-nick-of-time/pull/162), `70bd65d`)
 
 ### Shared package and cross-cutting
 - feat: add TurnResult, FinalState, view models and customer projections ([#45](https://github.com/salazarvalverdeai/factored-hackathon-2026-nick-of-time/pull/45), `68fb41a`)
@@ -108,6 +130,9 @@ Open PRs not included: #127, #128, #130, #142-#153.
 - feat: add the shared package skeleton, ids and the receipt contract ([#52](https://github.com/salazarvalverdeai/factored-hackathon-2026-nick-of-time/pull/52), `f4559d6`)
 - ci: add ruff and acceptance-criteria coverage gates ([#57](https://github.com/salazarvalverdeai/factored-hackathon-2026-nick-of-time/pull/57), `5f66be9`)
 - ci: run the PostgresStore suite on a postgres:16 service ([#108](https://github.com/salazarvalverdeai/factored-hackathon-2026-nick-of-time/pull/108), `777045d`)
+- ci: add a 15-minute uptime monitor with Telegram alerts ([#147](https://github.com/salazarvalverdeai/factored-hackathon-2026-nick-of-time/pull/147), `b5495a5`)
+- feat: demo sessions carry a display name and a demo run the console can read (spec 05, D-068) ([#151](https://github.com/salazarvalverdeai/factored-hackathon-2026-nick-of-time/pull/151), `218ecac`)
+- feat: demo type C, a live demo visitor registers a simulated charge for its own run (spec 05 AC-19, spec 03 AC-14) ([#160](https://github.com/salazarvalverdeai/factored-hackathon-2026-nick-of-time/pull/160), `5817e92`)
 
 ### Policy engine and clock
 - feat: add the policies.yaml v2 model, loader and rule ids ([#63](https://github.com/salazarvalverdeai/factored-hackathon-2026-nick-of-time/pull/63), `ac60c62`)
@@ -133,3 +158,5 @@ Open PRs not included: #127, #128, #130, #142-#153.
 - feat: add the /evaluation page for the harness results ([#102](https://github.com/salazarvalverdeai/factored-hackathon-2026-nick-of-time/pull/102), `a8b4398`)
 - feat: add the /data page and data_quality.json ([#103](https://github.com/salazarvalverdeai/factored-hackathon-2026-nick-of-time/pull/103), `275205b`)
 - fix: spec 12 page follow-ups ([#112](https://github.com/salazarvalverdeai/factored-hackathon-2026-nick-of-time/pull/112), `c164a09`)
+- feat: add the benchmark, classifier and fraud sections to /evaluation ([#130](https://github.com/salazarvalverdeai/factored-hackathon-2026-nick-of-time/pull/130), `bab5311`)
+- docs: add the spec 12 T7 screenshots and the script that takes them ([#163](https://github.com/salazarvalverdeai/factored-hackathon-2026-nick-of-time/pull/163), `73c9518`)
