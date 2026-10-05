@@ -194,8 +194,11 @@ shown as `YYYY-MM-DD HH:MM UTC` (D-051) matches the tool's `read_at` and a wrong
 not a fact `[assumption]`. `nick_of_time.receipt.build.papers` is the one entry point that builds and gates both
 documents; what an unmatched field does comes from its contract schema (`customer_receipt.schema.json`,
 `handoff.schema.json`): required and not nullable drops the whole receipt or card, nullable becomes null, any other
-is left out (task 04d review). An action is listed only when a tool result states its `action_id`. A dropped fact adds `G-OUT-01`
-to `guardrails_triggered` and marks the `respond` trace step `error` with the count; a reply with no line left says
+is left out (task 04d review); so an ungrounded receipt `deadline` becomes null rather than dropping the receipt
+`[assumption]` (D-056, pending the lead). An action is listed only when a tool result states its `action_id`. The score
+and the policy ids ground only the handoff card, never a reply line or a receipt fact (`notifications.never_send`). A
+dropped fact adds `G-OUT-01` to `guardrails_triggered` and marks the `respond` trace step `error` with the count; a card
+the gate trimmed also carries `G-OUT-01` in its own `guardrails_triggered`; a reply with no line left says
 `status.read_failed` `[assumption]`. Statuses are checked by the four-state rule (AC-18) and A5, not here (AC-05).
 
 ### 4.4 Arms and modes (spec 01 §6.8)
@@ -298,13 +301,16 @@ messages.
       (no template claims an assignment), AC-29, AC-30; AC-31 and AC-32 were done in T2. Also finishes AC-01 (the
       receipt with a date) and the handoff cards of AC-11 and AC-12, plus D-043 and D-030. AC-26 (send by channel) is
       P1 (D-001) and open. Open follow-ups: `add_case_info` for the "Agregar información" chip (AC-06, T6); the
-      empty-card reading time once contract 1.4.0 gives `list_my_cards` a top-level `read_at`; once PR #80 lands,
-      the receipt row swaps "Enviarme el comprobante" for "¿Cómo va mi caso?" until AC-26, and the `verify` lines
-      show `verified_at` as `YYYY-MM-DD HH:MM UTC` (D-051), both of which change `tests/test_spec04_act.py`.
+      empty-card reading time now that contract 1.4.0 gives `list_my_cards` a top-level `read_at`; the receipt row
+      swaps "Enviarme el comprobante" for "¿Cómo va mi caso?" until AC-26; the `verify` lines show `verified_at` as
+      `YYYY-MM-DD HH:MM UTC` (D-051). These three go in a separate follow-up PR (they change
+      `tests/test_spec04_act.py`). `case_url`: when the public host is configured, build it only from `get_case`'s
+      `case_id` and pass it through the gate.
       Status grounding (D-056, pending the lead): nothing fills `FinalState.status_replies` yet, so before T7 (S1/S2)
       either the api emits `status_replies` from the `status` turns or the gate matches the status label against the
       read's `queue_status`/`status`. Spec 18 follow-up: A4 still reduces a timestamp to its date; port the gate's
-      exact time match into A4. Every end-to-end spec 04 test asserts how many facts the gate dropped (0 unless it
+      exact time match into A4, and give A4 a `POL-[A-Z-]+` id shape (today only some policy ids yield a token, e.g.
+      `POL-ZONE-HIGH` yields none), or add a `never_send` check in `respond`, before T7. Every end-to-end spec 04 test asserts how many facts the gate dropped (0 unless it
       injects one), so a node that does not hand `respond` a tool result it states fails the suite
 - [ ] T6 — `status` and `connect` nodes and the returning-customer path · AC-06, AC-19, AC-24, AC-28. Task 04e:
       AC-19 and AC-28 done (re-read per status question, failed reads reported, the call on the active case or a

@@ -20,6 +20,7 @@ SCHEMAS = {"receipt": load_schema("customer_receipt.schema.json"), "handoff": lo
 REASONS = SCHEMAS["handoff"]["properties"]["handoff_reason"]["enum"]
 STEP = re.compile(r"^\d+\. ")       # [assumption] a plan step's own number is the template's, not a fact
 NO_CLOCK = "POL-CLOCK-UNKNOWN"
+ALERT = "G-OUT-01"                  # a fact the gate dropped (ADR 0016)
 # a time as a tool returns it (ISO) or as the customer sees it ('YYYY-MM-DD HH:MM UTC', D-051)
 TIME = re.compile(r"\b\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:?\d{2}| UTC)?")
 SECONDS = re.compile(r"\d{2}:\d{2}:\d{2}")
@@ -102,13 +103,16 @@ def returned(actions: list[dict[str, Any]], facts: list[Any]) -> set[str]:
 def papers(paper: dict[str, Any], facts: list[Any]) -> tuple[Optional[dict[str, Any]], Optional[dict[str, Any]], int]:
     """The turn's receipt and handoff card, each built from `paper` and passed through the gate against the turn's tool
     results `facts` (the handoff also against the score and the decision's rule and guardrail ids, since it never
-    reaches the customer); and how many facts the gate dropped. The only way respond gets either document."""
+    reaches the customer); and how many facts the gate dropped. The only way respond gets either document. A card the
+    gate trimmed carries G-OUT-01 in its own guardrails_triggered, so the analyst sees that a fact was removed."""
     paper = {**paper, "returned": returned(paper["actions"], facts)}
     route = paper["route"]
     policy = [*route.get("rule_ids", []), *route.get("guardrail_ids", []), NO_CLOCK]
     draft, card = receipt(paper), handoff(paper)
     kept, dropped = gate(draft, facts, schema="receipt") if draft else (None, 0)
     shown_card, more = gate(card, [*facts, paper["score"] or {}], policy, schema="handoff") if card else (None, 0)
+    if shown_card and more:
+        shown_card["guardrails_triggered"] = [*shown_card["guardrails_triggered"], ALERT]
     return kept, shown_card, dropped + more
 
 

@@ -129,6 +129,7 @@ def test_ac_05_property_every_receipt_and_handoff_fact_matches_a_tool_result_and
     results, sc, paper = facts(*cell)
     receipt, handoff, dropped = build.papers(paper, results)
     assert dropped == 0 and handoff["verified_facts"][-1]["source_id"] == paper["route"]["rule_ids"][0]
+    assert build.ALERT not in handoff["guardrails_triggered"]
     found = check_grounding([*results, sc or {}], receipt=CustomerReceipt.model_validate(receipt), handoff=handoff,
                             policy_facts=paper["route"]["rule_ids"] + [build.NO_CLOCK])
     assert found.status == "passed", found.observed                # the auditor's A4 finds nothing to report
@@ -168,6 +169,25 @@ def test_ac_05_n24i_the_gate_reads_every_required_field_from_the_contract_schema
         lists = {k for k, p in build.SCHEMAS[name]["properties"].items() if p.get("type") == "array"}
         assert {k for k, v in fate.items() if v == "drop"} - lists == drops, name
     assert build.fates(build.SCHEMAS["receipt"])["deadline"] == "null"
+
+
+@pytest.mark.parametrize("where", ["reply", "receipt"])
+@pytest.mark.parametrize("said", ["Puntaje de riesgo 72.", "Regla POL-TICKET-ALWAYS."])
+def test_ac_05_the_score_and_policy_ids_are_never_customer_grounding(monkeypatch, where, said):
+    """notifications.never_send: the score (72.0 from get_fraud_score) and the decision's policy ids ground only the
+    analyst's card, so a reply line or a receipt fact that states one is dropped (P4/P5/W3)."""
+    real, receipt = msg.text, build.receipt
+    if where == "reply":                 # plan.intro is a reply-only line
+        monkeypatch.setattr(msg, "text", lambda key, language, **f: real(key, language, **f) + (
+            f" {said}" if key == "plan.intro" else ""))
+    else:
+        monkeypatch.setattr(build, "receipt", lambda f: {**receipt(f), "verified_facts": [
+            *receipt(f)["verified_facts"], {"fact": said, "source_id": TRX["transaction_id"]}]})
+    turn = Chat(mcp_transport=server()).say(EV_0001, language="es", dropped=1)
+    assert "POL-TICKET-ALWAYS" in turn.handoff["verified_facts"][-1]["source_id"] + json.dumps(
+        next(s.detail for s in turn.trace if s.node == "decide"))           # the id is the decision's own
+    assert said not in turn.reply + json.dumps(turn.receipt.model_dump(mode="json"), ensure_ascii=False)
+    assert "G-OUT-01" not in turn.handoff["guardrails_triggered"]       # the card itself was not trimmed
 
 
 def test_ac_05_an_ungrounded_handoff_deadline_drops_the_card_end_to_end(monkeypatch):
@@ -257,6 +277,7 @@ def test_ac_05_m25_m26_respond_gates_the_receipt_and_the_handoff_it_builds(monke
     turn = Chat(mcp_transport=server()).say(EV_0001, language="es", dropped=2)
     assert "999.99" not in json.dumps(turn.receipt.model_dump(mode="json")) and len(turn.receipt.verified_facts) == 3
     assert "K-999999" not in turn.handoff["evidence"] and "G-OUT-01" in turn.guardrails_triggered
+    assert "G-OUT-01" in turn.handoff["guardrails_triggered"]       # the analyst sees the card was trimmed
     assert turn.trace[-1].detail == "G-OUT-01: 2 ungrounded fact(s) dropped"
 
 

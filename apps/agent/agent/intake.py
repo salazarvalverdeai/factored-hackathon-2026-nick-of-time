@@ -669,7 +669,7 @@ def respond(state: State) -> dict[str, Any]:
     kept = [line for line in lines + body if not build.bad(line, facts)]
     receipt, handoff, dropped = papers(state, facts)
     dropped += len(lines) + len(body) - len(kept)
-    alerts = ["G-OUT-01"] * bool(dropped)
+    alerts = [build.ALERT] * bool(dropped)
     turn = TurnResult(
         # [assumption] nothing left to say: the line that states nothing it could not verify
         reply="\n".join(kept) or msg.text("status.read_failed", language), language=language,
