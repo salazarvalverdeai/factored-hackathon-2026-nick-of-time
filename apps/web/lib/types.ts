@@ -202,7 +202,7 @@ export interface SessionSnapshot {
 export interface TraceStep {
   step: string;
   result: string;
-  kind: "ok" | "accepted" | "verified" | "not_confirmed" | "guardrail" | "deny";
+  kind: "ok" | "in_progress" | "accepted" | "verified" | "not_confirmed" | "guardrail" | "deny";
 }
 
 /** One step label of a running agent turn (spec 04 AC-17): in progress only, never a result. */
