@@ -93,7 +93,9 @@ def test_ac_11_run_writes_the_web_summary_in_the_contract_shape(tmp_path, monkey
     assert data["cases_sha256"] == report.sha256_of(EXAMPLE_FILE) and set(data["protocol"]) == {"status", "sha256"}
     assert [arm["arm"] for arm in data["arms"]] == ["S0", "S1"]
     arm = data["arms"][1]
-    assert set(arm) == {"arm", "run_meta", "overall", "cells", "latency_ms", "cost_usd", "blocks_vs_label"}
+    assert set(arm) == {"arm", "run_meta", "overall", "cells", "latency_ms", "cost_usd", "blocks_vs_label",
+                        "second_turn_recovery"}
+    assert arm["second_turn_recovery"] is None and data["variant_cases"] == 0     # AC-13: no recovery variant here
     assert arm["run_meta"]["prompt_hash"] == "sha256:feed" and set(arm["overall"]) == set(metrics.RATES)
     assert arm["overall"]["pass_4"] == {"value": 1.0, "numerator": 5, "denominator": 5, "ci_low": 0.5655,
                                         "ci_high": 1.0}

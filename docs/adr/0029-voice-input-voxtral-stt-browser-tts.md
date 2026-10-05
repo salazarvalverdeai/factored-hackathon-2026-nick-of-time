@@ -3,7 +3,7 @@
 - **Status:** Accepted (lead decision D-072, 2026-10-05)
 - **Date:** 2026-10-05
 - **Deciders:** Freddy (lead) · **Owner:** @salazarvalverdeai
-- **Related:** specs 05 (AC-21), 07 (AC-10) · ADRs 0009, 0017
+- **Related:** specs 05 (AC-24), 07 (AC-10) · ADRs 0009, 0017
 
 ## Context
 - Customers report disputes by phone as much as by chat; speaking a claim lowers the effort of first contact.

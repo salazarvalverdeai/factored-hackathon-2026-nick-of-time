@@ -1,6 +1,12 @@
-"""HTTP side of the harness (spec 10 §6): seed a case, send its scripted messages, read FinalState. No text is read."""
+"""HTTP side of the harness (spec 10 §6): seed a case, send its scripted messages, read FinalState. No text is read.
+
+A scripted message with a `chip` (D-071, AC-14) is a chip press: the harness reads the suggestions of the last reply's
+`turn` event, never its text, and sends that chip the way the web does (apps/web/lib/live.ts): an action chip as
+`{"messages": [], "action": ...}`, a text chip as its label. A chip the last reply did not offer cannot be pressed, so
+the run fails (AC-09: it stays in every denominator)."""
 from __future__ import annotations
 
+import json
 from typing import Any
 from urllib.parse import urlsplit
 
@@ -12,6 +18,10 @@ TURN_TIMEOUT_S = 60.0                                        # [assumption] spec
 
 class HarnessError(RuntimeError):
     """The run set cannot go on (wrong mode, production host, unsealed held-out). Never recorded as a failed run."""
+
+
+class ChipNotOffered(RuntimeError):
+    """The script presses a chip the last reply did not offer: a failed run, never a stopped set (AC-09)."""
 
 
 class Api:
@@ -39,11 +49,13 @@ class Api:
         if seeded.get("mode") != "replay":                   # AC-06, ADR 0020: an evaluation never runs in live mode
             raise HarnessError(f"{run_id}: the seeded session is in mode {seeded.get('mode')!r}, not 'replay'")
         cookie = {"Cookie": f"not_session={seeded['session_id']}"}          # D-019: the same way as a browser
+        offered: list[dict[str, Any]] = []
         for message in case["messages"]:
             turn = self.http.post(f"/api/agent/threads/{seeded['thread_id']}/runs/stream", headers=cookie, json={
-                "input": {"messages": [{"role": "user", "content": message["text"]}], "language": case["language"]}})
+                "input": {**turn_input(message, offered), "language": case["language"]}})
             self._ok(turn)
-            turn.read()                                      # only to know the turn ended; the reply is never scored
+            # the turn ended; only its chips are kept, to press one as the web does (the reply is never scored)
+            offered = suggestions(turn.read())
         return self._json(self.http.get(f"/api/eval/final-state/{seeded['session_id']}"))
 
     @staticmethod
@@ -63,3 +75,32 @@ class Api:
     def _json(cls, response: httpx.Response) -> dict[str, Any]:
         cls._ok(response)
         return response.json()
+
+
+def turn_input(message: dict[str, Any], offered: list[dict[str, Any]]) -> dict[str, Any]:
+    """The run input of one scripted message: typed text, or the press of chip `message["chip"]` among the chips the
+    last reply `offered`, sent as apps/web/lib/live.ts sends it (spec 04 AC-32, spec 10 AC-14)."""
+    if not message.get("chip"):
+        return {"messages": [{"role": "user", "content": message["text"]}]}
+    chip = next((item for item in offered if item.get("id") == message["chip"]), None)
+    if chip is None or chip.get("kind") == "link":
+        raise ChipNotOffered(f"the last reply did not offer the chip {message['chip']!r} "
+                             f"(offered: {[item.get('id') for item in offered]})")
+    if chip.get("kind") == "action":
+        return {"messages": [], "action": chip["action"]}
+    return {"messages": [{"role": "user", "content": chip["label"]}]}
+
+
+def suggestions(body: bytes) -> list[dict[str, Any]]:
+    """The chips of the last `turn` event of an SSE body (`event:` then one `data:` JSON line); [] when there is none."""
+    chips: list[dict[str, Any]] = []
+    for block in body.decode("utf-8", "replace").replace("\r\n", "\n").split("\n\n"):
+        lines = block.split("\n")
+        if "event: turn" not in lines:
+            continue
+        try:
+            turn = json.loads("".join(line[len("data:"):].strip() for line in lines if line.startswith("data:")))
+        except ValueError:
+            continue
+        chips = (turn.get("suggestions") or []) if isinstance(turn, dict) else []
+    return chips

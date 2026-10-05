@@ -51,7 +51,7 @@ AC-01 to AC-05 are copied from issue #9 with the same numbers. None is dropped o
 - AC-09 — Agent replies shall keep their line breaks (capability bullets, numbered plan) and shall render as text,
   never as HTML. · [T] `lib/chat-view.test.ts` ("spec 07 AC-09: …")
 - AC-10 — (lead, D-072) Where the browser can record audio, the chat shall offer push-to-talk: the clip goes to
-  `POST /api/voice/transcribe` (spec 05 AC-21) and the returned `text` lands in the composer as an editable draft that
+  `POST /api/voice/transcribe` (spec 05 AC-24) and the returned `text` lands in the composer as an editable draft that
   the customer sends like typed text (never sent on its own); with the read-aloud toggle on, each agent reply shall be
   spoken with the browser's `speechSynthesis` in the session language. A 413, 415 or 503 shall show the api's calm
   message and keep typing available; with no microphone, no permission or no `speechSynthesis`, the chat works as
@@ -84,7 +84,7 @@ AC-01 to AC-05 are copied from issue #9 with the same numbers. None is dropped o
   The agent greets with the typed name, else the gold name, from `get_customer_profile`. Each session starts clean.
   Telegram and e-mail are off in a demo session (the link routes answer 403): the case page and the in-app log show
   every update.
-- Decided (lead, D-072, 2026-10-05; ADR 0029): voice for live mode, built by the web owner on spec 05 AC-21.
+- Decided (lead, D-072, 2026-10-05; ADR 0029): voice for live mode, built by the web owner on spec 05 AC-24.
   1. **Mic button and push-to-talk:** hold (pointer or Space while focused) to record, release to send; a tap toggles
      for touch users. Recording stops at 30 s. `MediaRecorder` with `audio/webm;codecs=opus` (Chrome, Firefox,
      Safari 18.4+), else `audio/ogg;codecs=opus`, else 16 kHz mono WAV encoded in the page; the raw blob is the POST

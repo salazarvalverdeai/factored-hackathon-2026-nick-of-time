@@ -22,13 +22,14 @@
 #   act.block_held (D-043), status.read_failed_cards and status.read_failed_case; task 04d2 gave status.no_cards a
 #   {read_at} (contract 1.4.0); task 04h added clarify.confirm_one, clarify.confirm_call and
 #   suggest.confirm_charge (D-067).
-#   Task PROG (T7) added progress.* (AC-17).
+#   Task PROG (T7) added progress.* (AC-17). D-071 (lead, 2026-10-05) added clarify.ask_intent,
+#   clarify.confirm_again, suggest.intent_unrecognized and suggest.intent_wrongful (0.10.0).
 # - Chips: `kind` is static here; the action payload ({type}, spec 01 §6.4) is set by the server code.
 # - Never a placeholder or text for the fraud score, policy ids, rule ids, zones or the transcript
 #   (notifications.never_send in policies.yaml).
 # - Never promise an outcome or a provisional credit: a person reviews and decides (CLAUDE.md rule 6).
 # - Dates are absolute (YYYY-MM-DD) and come from tools; the template never computes them.
-version: "0.9.0"
+version: "0.10.0"
 
 system:
   # The agent platform is unreachable, timed out, answered an error or dropped the stream (spec 05 AC-05). Calm, no
@@ -286,6 +287,17 @@ suggest:
     kind: action
     es: "Pedir reevaluación"
     pt: "Pedir reavaliação"
+  intent_unrecognized:
+    # D-071 (lead, 2026-10-05): row ask_intent, after clarify.ask_intent. Typed or pressed, it is read as an
+    # unrecognized charge about the card shown (AC-33), so the next turn goes on with that charge.
+    kind: text
+    es: "No reconozco este cargo"
+    pt: "Não reconheço esta cobrança"
+  intent_wrongful:
+    # D-071: row ask_intent; read as a wrongful charge about the card shown.
+    kind: text
+    es: "Lo reconozco, pero el cobro está mal"
+    pt: "Reconheço, mas a cobrança está errada"
   report_another:
     kind: text
     es: "Reportar otro cargo"
@@ -393,6 +405,16 @@ clarify:
     # WAS registered, so it does not say that nothing changed. No case is opened until the customer confirms it.
     es: "¿Es este el cargo que quieres reportar?"
     pt: "É esta a cobrança que você quer informar?"
+  ask_intent:
+    # D-071 (lead, 2026-10-05): the customer named one charge (shown below as a card from search_transaction) but the
+    # intent is below τ, so the rules ask (D-065 cap kept). The ask_intent chips state the intent about this card.
+    es: "Encontré este cargo. ¿Qué pasó con él? Aún no hice ningún cambio."
+    pt: "Encontrei esta cobrança. O que aconteceu com ela? Ainda não fiz nenhuma alteração."
+  confirm_again:
+    # D-071: the reply to plan.confirm_ask was not a yes or a no and named no other charge; the charge and the plan
+    # stay, and the confirm chips are offered again.
+    es: "No entendí tu respuesta. ¿Quieres que continúe con los pasos de arriba? Aún no hice ningún cambio."
+    pt: "Não entendi sua resposta. Quer que eu continue com os passos acima? Ainda não fiz nenhuma alteração."
   exhausted:
     # Spec 04 task 04b (pending the lead): AC-13, rule 5b. No single charge after the clarification turns; a general
     # call request follows in the same reply (connect.requested*). No case is opened without a charge.

@@ -161,7 +161,7 @@ prices:
     source_url: https://opper.ai/typesafe/jev-1-13-0
     checked_on: "2026-10-04"
     note: "third-party gateway listing, not TypeSafe; output free per spec 15 section 4.1; not confirmed with TypeSafe"
-  # Voice speech-to-text (D-072, spec 05 AC-21): not benchmark arms (no text task), priced for llm_calls and the daily
+  # Voice speech-to-text (D-072, spec 05 AC-24): not benchmark arms (no text task), priced for llm_calls and the daily
   # cap. On-demand standard tier, offer file publicationDate 2026-10-05. Usage types as the offer file spells them:
   # USE2-Voxtral-Mini-3B-2507-* (Mini) and USE2-Voxtral-Mini-24B-2507-* (sic: its description says "Voxtral Small 1.0").
   voxtral-mini-3b:

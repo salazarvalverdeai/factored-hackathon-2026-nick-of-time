@@ -64,6 +64,33 @@ def test_ac_01_llm_arms_send_exactly_the_smoke_request_d011(monkeypatch):
     assert out["items"][0]["cost_usd"] == pytest.approx((600 * 1.1 + 50 * 5.5) / 1e6)
 
 
+def test_ac_01_the_bench_request_is_the_production_request_d011():
+    """AC-01 with D-011: the B1 request equals what the production Bedrock client sends for the `understand` step,
+    tool description included, so the bench measures the D-082 prompt that S1 runs."""
+    from nick_of_time.llm.bedrock import BedrockClient
+    from nick_of_time.llm.steps import MAX_TOKENS
+    arm = next(a for a in core.load_arms() if a["id"] == "haiku-4-5")
+    user = b1.user_text(b1.SMOKE_TEXT)
+    production = BedrockClient(arm["model_id"], boto_client=object()).request(
+        b1.UNDERSTAND, user, b1.INTENT_SCHEMA, smoke.TOOL_NAME, MAX_TOKENS, "tool", 0)
+    assert smoke.converse_request(arm["model_id"], b1.UNDERSTAND, user, b1.INTENT_SCHEMA, "tool", 0) == production
+
+
+def test_ac_01_d078_missing_slot_keys_are_null_not_a_schema_failure(monkeypatch):
+    """D-078: a reply that leaves out slot keys is a tool call with those slots null; it is scored, not dropped."""
+    provider, _ = stub_bedrock(monkeypatch, lambda req: {**reading("unrecognized_charge"), "slots": {"amount": "45"}})
+    arm = next(a for a in core.load_arms() if a["id"] == "nova-micro")
+    items = b1.llm_items(arm, ROWS, provider, PRICES["nova-micro"])["items"]
+    assert all(i["tool_call"] for i in items)
+    assert items[0]["pred_slots"] == {"amount": "45", "currency": None, "date": None, "merchant": None}
+
+
+def test_ac_05_adr_0027_records_the_prompt_hash_the_bench_measures():
+    """AC-05 with D-082: the prompt hash every row stores is the one ADR 0027 records for the validation iteration."""
+    adr = (b1.ROOT / "docs/adr/0027-model-selection.md").read_text(encoding="utf-8")
+    assert f"`{core.prompt_hash(b1.PROMPT)}`" in adr
+
+
 def test_ac_01_missing_tool_call_scores_as_wrong_d022(monkeypatch):
     """D-022 (PROTOCOL §2.1): a reply without a tool call stays in the denominator as a wrong prediction."""
     provider, _ = stub_bedrock(monkeypatch, lambda req: None if "Como" in req["messages"][0]["content"][0]["text"]

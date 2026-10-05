@@ -12,11 +12,11 @@ import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ApiError, api } from "@/lib/api";
 import { type AnalystActionName, type ConsoleAction, consoleActions } from "@/lib/console-actions";
+import { DONE_STATUSES, OPEN_STATUSES, loadBoard, slaOf } from "@/lib/console-metrics";
 import { formatDeadline } from "@/lib/format";
-import type { CaseStatus, ConsoleCase } from "@/lib/types";
+import type { ConsoleCase } from "@/lib/types";
 import { useMounted, useQuery, useSession } from "@/lib/use-query";
-
-const ORDER: CaseStatus[] = ["new", "verification", "review", "resolved", "closed"];
+import { ClosedList, KpiStrip, SlaLight } from "./board";
 
 export default function ConsolePage() {
   const router = useRouter();
@@ -41,16 +41,19 @@ export default function ConsolePage() {
 function Console({ actor }: { actor: string }) {
   const router = useRouter();
   const { supervised, audit } = useSession();
-  const cases = useQuery((a) => a.listCases());
+  // The inbox with each case's events and the api's countdown: the KPI strip, the SLA lights and the Closed tab read it.
+  const cases = useQuery((a) => loadBoard(a));
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [tab, setTab] = useState("inbox");
+  const [inboxTab, setInboxTab] = useState("open");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [confirming, setConfirming] = useState<{ caseId: string; action: AnalystActionName } | null>(null);
   const [reason, setReason] = useState("");
 
-  // The inbox lists summaries; the selected case (the first one until a person picks) is read with its handoff card.
-  const firstId = cases.status === "ok" ? (cases.data[0]?.id ?? null) : null;
+  // The inbox lists summaries; the selected case (the first open one until a person picks) is read with its handoff card.
+  const firstId =
+    cases.status === "ok" ? (cases.data.find((c) => OPEN_STATUSES.includes(c.status))?.id ?? cases.data[0]?.id ?? null) : null;
   const activeId = selectedId ?? firstId;
   const detail = useQuery((a) => (activeId ? a.getConsoleCase(activeId) : Promise.resolve(null)), [activeId]);
 
@@ -92,52 +95,73 @@ function Console({ actor }: { actor: string }) {
     }
   }
 
+  function select(id: string) {
+    setSelectedId(id);
+    setConfirming(null);
+    setMessage(null);
+    setReason("");
+    setTab("case");
+  }
+
+  const openCount = all.filter((c) => OPEN_STATUSES.includes(c.status)).length;
+  const doneCount = all.filter((c) => DONE_STATUSES.includes(c.status)).length;
+  const openList = (
+    <div className="space-y-4">
+      {openCount === 0 ? <EmptyState title="No open cases" hint={all.length === 0 ? "Open one from /chat." : undefined} /> : null}
+      {OPEN_STATUSES.map((status) => {
+        const rows = all.filter((c) => c.status === status);
+        if (rows.length === 0) return null;
+        return (
+          <section key={status} aria-label={status}>
+            <h3 className="mb-1 flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              <StatusBadge status={status} /> {rows.length}
+            </h3>
+            <ul className="space-y-1">
+              {rows.map((c) => (
+                <li key={c.id}>
+                  <button
+                    type="button"
+                    onClick={() => select(c.id)}
+                    aria-current={activeId === c.id}
+                    className="w-full space-y-1 rounded-lg border p-2 text-left text-sm hover:bg-accent aria-[current=true]:border-foreground"
+                  >
+                    <span className="flex items-center justify-between gap-2">
+                      <span className="font-mono text-xs">{c.id}</span>
+                      <ZoneBadge zone={c.zone} />
+                    </span>
+                    <span className="block truncate">{c.customerName}</span>
+                    <span className="block text-xs text-muted-foreground">
+                      Deadline {formatDeadline(c.deadline)} · priority {c.priority}
+                    </span>
+                    {/* SLA light: text + icon, never color alone (spec 08 AC-08). */}
+                    <SlaLight sla={slaOf(c)} />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </section>
+        );
+      })}
+    </div>
+  );
+
   const inbox = (
     <Card>
       <CardHeader>
         <CardTitle>Inbox</CardTitle>
-        <CardDescription>Cases by status · zone · deadline · priority</CardDescription>
+        <CardDescription>Open cases by status · zone · deadline · priority; resolved and closed ones under Closed</CardDescription>
       </CardHeader>
-      <CardContent className="space-y-4">
-        {all.length === 0 ? <EmptyState title="No cases yet" hint="Open one from /chat." /> : null}
-        {ORDER.map((status) => {
-          const rows = all.filter((c) => c.status === status);
-          if (rows.length === 0) return null;
-          return (
-            <section key={status} aria-label={status}>
-              <h3 className="mb-1 flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                <StatusBadge status={status} /> {rows.length}
-              </h3>
-              <ul className="space-y-1">
-                {rows.map((c) => (
-                  <li key={c.id}>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setSelectedId(c.id);
-                        setConfirming(null);
-                        setMessage(null);
-                        setReason("");
-                        setTab("case");
-                      }}
-                      aria-current={activeId === c.id}
-                      className="w-full rounded-lg border p-2 text-left text-sm hover:bg-accent aria-[current=true]:border-foreground"
-                    >
-                      <span className="flex items-center justify-between gap-2">
-                        <span className="font-mono text-xs">{c.id}</span>
-                        <ZoneBadge zone={c.zone} />
-                      </span>
-                      <span className="block truncate">{c.customerName}</span>
-                      <span className="block text-xs text-muted-foreground">
-                        Deadline {formatDeadline(c.deadline)} · priority {c.priority}
-                      </span>
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </section>
-          );
-        })}
+      <CardContent>
+        <Tabs value={inboxTab} onValueChange={(v) => setInboxTab(String(v))}>
+          <TabsList className="w-full">
+            <TabsTrigger value="open">Open ({openCount})</TabsTrigger>
+            <TabsTrigger value="closed">Closed ({doneCount})</TabsTrigger>
+          </TabsList>
+          <TabsContent value="open">{openList}</TabsContent>
+          <TabsContent value="closed">
+            <ClosedList board={all} activeId={activeId} onSelect={select} />
+          </TabsContent>
+        </Tabs>
       </CardContent>
     </Card>
   );
@@ -217,6 +241,8 @@ function Console({ actor }: { actor: string }) {
           Sign out
         </Button>
       </div>
+
+      <KpiStrip board={all} />
 
       {/* Three columns from 1024 px up; tabs below that (spec 08 AC-06). */}
       <div className="hidden gap-4 lg:grid lg:grid-cols-3">

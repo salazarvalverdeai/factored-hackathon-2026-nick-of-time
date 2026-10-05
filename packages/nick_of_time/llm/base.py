@@ -21,6 +21,7 @@ from jsonschema import ValidationError, validate
 
 LADDER = ("tool", "any", "auto")
 DEFAULT_TOOL = "record_output"
+TOOL_DESCRIPTION = "Record the output."   # the one tool description every provider sends (D-011)
 TRANSCRIBE_PROMPT = ("Transcribe this audio word for word, in the language spoken (Spanish or Portuguese). Do not "
                      "translate, answer or comment: reply with the transcript only.")
 

@@ -83,7 +83,7 @@ STT_PRICE_ROWS = {VOXTRAL_MINI: "voxtral-mini-3b", VOXTRAL_SMALL: "voxtral-small
 
 
 def stt(env: Mapping[str, str] | None = None) -> tuple[ArmConfig, dict | None]:
-    """Voice speech-to-text (D-072, spec 05 AC-21): `BEDROCK_MODEL_STT` (default Voxtral Mini) on `LLM_PROVIDER`, and
+    """Voice speech-to-text (D-072, spec 05 AC-24): `BEDROCK_MODEL_STT` (default Voxtral Mini) on `LLM_PROVIDER`, and
     its prices.yaml row (None when unpriced: the caller fails closed, D-058). Only `bedrock` transcribes."""
     env = os.environ if env is None else env
     cfg = ArmConfig("STT", env.get("LLM_PROVIDER") or "fake", env.get("BEDROCK_MODEL_STT") or VOXTRAL_MINI)

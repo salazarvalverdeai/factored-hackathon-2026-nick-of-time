@@ -30,7 +30,7 @@ ROUTES = (("POST", re.compile(r"/api/sessions"), "session"),
           ("POST", re.compile(r"/api/agent/threads(/[^/]+/runs/stream)?"), "turn"),
           ("POST", re.compile(r"/api/sessions/[^/]+/synthetic-charge"), "turn"),     # demo type C (spec 05 AC-19)
           ("POST", re.compile(r"/api/demo/persona"), "turn"),                         # demo type D (spec 05 AC-20)
-          ("POST", re.compile(r"/api/voice/transcribe"), "turn"))                   # voice input (spec 05 AC-21)
+          ("POST", re.compile(r"/api/voice/transcribe"), "turn"))                   # voice input (spec 05 AC-24)
 MESSAGE = ("Recibimos muchas solicitudes desde tu conexión. Intenta de nuevo en unos minutos. / Recebemos muitas "
            "solicitações da sua conexão. Tente novamente em alguns minutos.")
 

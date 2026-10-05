@@ -81,6 +81,7 @@ interface WireCaseSummary {
   priority: "normal" | "high";
 }
 interface WireCaseView extends WireCaseSummary {
+  mode?: "replay" | "live";
   deadline_countdown_days: number | null;
   deadline_source: string | null;
 }
@@ -459,7 +460,14 @@ export function createLiveApi(options: LiveOptions = {}): ApiClient {
           zone: r.zone,
           priority: r.priority,
           status: r.queue_status,
-          deadline: { country: r.country, product: "", creditDeadline: r.credit_deadline, deadlineSource: "", daysLeft: null },
+          deadline: {
+            country: r.country,
+            product: "",
+            creditDeadline: r.credit_deadline,
+            rulingDeadline: r.ruling_deadline,
+            deadlineSource: "",
+            daysLeft: null,
+          },
         })),
       );
     },
@@ -478,6 +486,7 @@ export function createLiveApi(options: LiveOptions = {}): ApiClient {
         country: c.country,
         product: h.deadline?.product ?? "",
         creditDeadline: c.credit_deadline,
+        rulingDeadline: c.ruling_deadline,
         deadlineSource: c.deadline_source ?? h.deadline?.deadline_source ?? "",
         daysLeft: c.deadline_countdown_days,
       };
@@ -493,6 +502,7 @@ export function createLiveApi(options: LiveOptions = {}): ApiClient {
         deadline,
         events: out.events.map((e) => ({ id: e.event_id, at: e.created_at, type: e.type, actor: e.actor })),
         handoffEmitted: emitted,
+        ...(c.mode ? { mode: c.mode } : {}),
         handoff: {
           case_id: c.case_id,
           language,

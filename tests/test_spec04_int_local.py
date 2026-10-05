@@ -325,6 +325,45 @@ def test_ac_03_ev_0115_pt_injection_is_denied_and_opens_nothing(serve, tmp_path)
     assert (turn.decision, turn.guardrails_triggered) == ("deny", ["G-IN-01"])
 
 
+def press_or_type(chat: L.Chat, message: dict, last, language: str):
+    """One scripted message: typed, or a chip of the last reply pressed as the web and the harness press it (spec 04
+    AC-32, spec 10 AC-14): an action chip sends its action, a text chip its label."""
+    if "chip" not in message:
+        return chat.say(message["text"], language=language)
+    chip = next(s for s in last.suggestions if s.id == message["chip"])
+    return chat.say(action=chip.action.model_dump()) if chip.kind == "action" else chat.say(chip.label, language=language)
+
+
+# Known gap (found here, not D-071's): when block_card is never confirmed (EV-0118's fault) no write moves the new case
+# to `review`, so it stays `new` while spec 09 §7.5 expects `review`. Strict, so the fix shows up here.
+QUEUE_GAP = pytest.mark.xfail(strict=True, reason="an unconfirmed block leaves the case in new, not review (follow-up)")
+RECOVERY = [pytest.param(f"EV-{n:04d}", marks=[QUEUE_GAP] if n in (125, 126) else []) for n in range(121, 129)]
+
+
+@pytest.mark.parametrize("case_id", RECOVERY)
+def test_ac_35_ac_36_d_071_the_dev_recovery_variants_end_as_expected_after_the_ask(serve, tmp_path, case_id):
+    """AC-35, AC-36 (D-071) on the dev recovery variants against the real MCP server: the original case's script ends in
+    an ask whose chips include a person, and the one more message (typed or a chip press) reaches the case's expected
+    outcome, with the handoff card the analyst closes it from (AC-34, D-070)."""
+    case = CASES[case_id]
+    state = case["initial_state"]
+    mcp = serve(L.fixture_gold(tmp_path / "gold", case))
+    sid, chat = session(mcp, case, tool_faults=tuple(state.get("tool_faults", ())))
+    turn = None
+    for message in case["messages"][:-1]:
+        turn = checked(press_or_type(chat, message, turn, case["language"]))
+    assert turn.decision == "ask" and turn.case_id is None and {"talk_to_person"} <= {s.id for s in turn.suggestions}
+    assert [s.id for s in turn.suggestions][:2] == (["confirm_yes", "confirm_no"] if case["variant_of"] == "EV-0104"
+                                                    else ["intent_unrecognized", "intent_wrongful"])
+    turn = checked(press_or_type(chat, case["messages"][-1], turn, case["language"]))
+    expected_outcome(turn, mcp, sid, case)
+    assert bool(turn.handoff) == case["expected"]["final_state"]["handoff_emitted"] is True
+    assert turn.intent == case["expected"]["intent"]
+    verified = [a for a in turn.actions if a.state == "verified"]
+    assert verified and verified[0].tool == "open_case"
+    verified_actions(turn, mcp)
+
+
 # ---------- opt-in: the full gold (GOLD_PATH) ----------
 REAL = ["EV-0101", "EV-0102", "EV-0103", "EV-0104", "EV-0106", "EV-0107"]
 

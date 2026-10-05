@@ -1,4 +1,4 @@
-"""Spec 05 AC-21 (D-072, ADR 0029): `POST /api/voice/transcribe`. Offline: MemoryStore and the scripted `fake` STT
+"""Spec 05 AC-24 (D-072, ADR 0029): `POST /api/voice/transcribe`. Offline: MemoryStore and the scripted `fake` STT
 provider; CI never calls Bedrock (CLAUDE.md)."""
 from __future__ import annotations
 
@@ -50,7 +50,7 @@ def post(env: Env, body: bytes, ctype: str = "audio/wav", client=None):
     return (client or env.client).post("/api/voice/transcribe", content=body, headers={"Content-Type": ctype})
 
 
-def test_ac_21_a_verified_session_is_required(env):
+def test_ac_24_a_verified_session_is_required(env):
     assert post(env, wav(1)).status_code == 401                     # no cookie
     r = env.client.post("/api/sessions", json={"customer_id": ME, "mode": "replay"})
     assert r.status_code == 201 and post(env, wav(1)).status_code == 401   # opened, OTP not passed
@@ -62,14 +62,14 @@ def test_ac_21_a_verified_session_is_required(env):
     (b"\x1a\x45\xdf\xa3" + bytes(64), "audio/wav", 415),        # webm bytes declared as wav
     (b"RIFF\x00\x00\x00\x00WAVEjunk", "audio/wav", 415),       # unreadable wav
     (wav(31), "audio/wav", 413), (ogg_opus(31), "audio/ogg", 413)])
-def test_ac_21_type_and_duration_limits(env, body, ctype, status):
+def test_ac_24_type_and_duration_limits(env, body, ctype, status):
     env.login()
     r = post(env, body, ctype)
     assert r.status_code == status and r.json()["code"] == "INVALID" and env.stt.calls == []
     assert r.json()["message"] == (voice.TOO_LONG if status == 413 else voice.UNREADABLE)["es"]   # calm, ES/PT
 
 
-def test_ac_21_limit_messages_follow_the_session_language(env):
+def test_ac_24_limit_messages_follow_the_session_language(env):
     """A pt session gets the Portuguese calm text for 413 and 415, like the 503."""
     r = env.client.post("/api/sessions", json={"customer_id": ME, "mode": "replay", "language": "pt"})
     env.client.post(f"/api/sessions/{r.json()['session_id']}/verify", json={"otp": r.json()["otp_demo"]})
@@ -77,7 +77,7 @@ def test_ac_21_limit_messages_follow_the_session_language(env):
     assert post(env, wav(1), "text/plain").json()["message"] == voice.UNREADABLE["pt"]
 
 
-def test_ac_21_byte_cap(env, monkeypatch):
+def test_ac_24_byte_cap(env, monkeypatch):
     env.login()
     monkeypatch.setattr(voice, "MAX_BYTES", 4_000)
     assert post(env, b"\x1a\x45\xdf\xa3" + bytes(5_000), "audio/webm").status_code == 413
@@ -86,7 +86,7 @@ def test_ac_21_byte_cap(env, monkeypatch):
     assert r.status_code == 413 and env.stt.calls == []
 
 
-def test_ac_21_the_llm_calls_row_carries_the_sessions_demo_run(monkeypatch):
+def test_ac_24_the_llm_calls_row_carries_the_sessions_demo_run(monkeypatch):
     """No new_run_id patch: a public session gets its own demo-… run (ADR 0026), and the voice row is written to it."""
     monkeypatch.setenv("TELEGRAM_WEBHOOK_SECRET", SECRET)
     e = Env()
@@ -97,7 +97,7 @@ def test_ac_21_the_llm_calls_row_carries_the_sessions_demo_run(monkeypatch):
     assert run.startswith("demo-") and [c.run_id for c in e.store._llm_calls] == [run]
 
 
-def test_ac_21_fake_stt_returns_text_and_language_and_one_priced_llm_calls_row(env):
+def test_ac_24_fake_stt_returns_text_and_language_and_one_priced_llm_calls_row(env):
     env.login()
     r = post(env, ogg_opus(4), "audio/ogg; codecs=opus")
     assert r.status_code == 200 and r.json() == {"text": SAID, "language": "pt"}
@@ -109,7 +109,7 @@ def test_ac_21_fake_stt_returns_text_and_language_and_one_priced_llm_calls_row(e
     assert post(env, b"\x1a\x45\xdf\xa3" + bytes(64), "audio/webm").json()["language"] == "es"
 
 
-def test_ac_21_no_audio_or_transcript_is_kept_logged_or_notified(env, caplog):
+def test_ac_24_no_audio_or_transcript_is_kept_logged_or_notified(env, caplog):
     env.login()
     before = set(os.listdir(tempfile.gettempdir()))
     with caplog.at_level(logging.DEBUG):
@@ -121,7 +121,7 @@ def test_ac_21_no_audio_or_transcript_is_kept_logged_or_notified(env, caplog):
     assert env.notifier.sent == []
 
 
-def test_ac_21_a_silent_wav_is_not_sent_and_segment_stamps_are_dropped(env):
+def test_ac_24_a_silent_wav_is_not_sent_and_segment_stamps_are_dropped(env):
     """Voxtral invents sentences for silence (live smoke 2026-10-05): a silent 16-bit WAV costs no call."""
     env.login()
     assert post(env, wav(2, level=0)).json() == {"text": "", "language": "es"} and env.stt.calls == []
@@ -129,7 +129,7 @@ def test_ac_21_a_silent_wav_is_not_sent_and_segment_stamps_are_dropped(env):
     assert post(env, wav(2)).json() == {"text": "Hola, no reconozco un cargo", "language": "es"}
 
 
-def test_ac_21_over_the_daily_cap_answers_a_calm_503_and_calls_nothing(env):
+def test_ac_24_over_the_daily_cap_answers_a_calm_503_and_calls_nothing(env):
     env.login()
     env.store.add_llm_call(trace_id="tr-x", provider="bedrock", model="m", tokens_in=1, tokens_out=1, latency_ms=1,
                            cost_usd=Decimal("5"), run_id=None)
@@ -138,14 +138,14 @@ def test_ac_21_over_the_daily_cap_answers_a_calm_503_and_calls_nothing(env):
     assert env.stt.calls == [] and len(env.store._llm_calls) == 1
 
 
-def test_ac_21_a_provider_failure_is_a_calm_503_without_a_row(env):
+def test_ac_24_a_provider_failure_is_a_calm_503_without_a_row(env):
     env.login()
     env.stt.script[:] = [ProviderUnavailable("throttled")]
     r = post(env, wav(1))
     assert r.status_code == 503 and r.json()["policy_id"] is None and env.store._llm_calls == []
 
 
-def test_ac_21_rate_limited_in_the_turn_bucket(env):
+def test_ac_24_rate_limited_in_the_turn_bucket(env):
     env.login()
     env.app.state.limiter.limits["turn"] = (1, 100)
     env.stt.script.append(SAID)
@@ -153,7 +153,7 @@ def test_ac_21_rate_limited_in_the_turn_bucket(env):
     assert post(env, wav(1)).status_code == 429 and len(env.stt.calls) == 1
 
 
-def test_ac_21_stt_defaults_to_voxtral_mini_priced_and_only_bedrock_transcribes():
+def test_ac_24_stt_defaults_to_voxtral_mini_priced_and_only_bedrock_transcribes():
     cfg, prices = stt({"LLM_PROVIDER": "bedrock"})
     assert cfg.model == VOXTRAL_MINI and prices == PRICES
     assert stt({"BEDROCK_MODEL_STT": "mistral.voxtral-small-24b-2507"})[1] == {"input_per_1m": 0.1,
@@ -163,7 +163,7 @@ def test_ac_21_stt_defaults_to_voxtral_mini_priced_and_only_bedrock_transcribes(
         FakeClient(VOXTRAL_MINI).transcribe(wav(1), "wav")             # unconfigured: 'type instead'
 
 
-def test_ac_21_bedrock_sends_one_converse_audio_block():
+def test_ac_24_bedrock_sends_one_converse_audio_block():
     from nick_of_time.llm.bedrock import BedrockClient
 
     class Boto:
