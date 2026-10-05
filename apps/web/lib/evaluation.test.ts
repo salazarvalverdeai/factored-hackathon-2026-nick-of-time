@@ -42,6 +42,22 @@ test("spec 12 AC-05: only a sealed held-out run is shown without the development
   assert.match(developmentNotice(SAMPLE.data)!, /"dev" set, not the held-out and the evaluation protocol is UNSEALED/);
 });
 
+test("spec 12 AC-05: a result file without a protocol is treated as unsealed and shows the notice, without crashing", () => {
+  assert.match(developmentNotice({ set: "heldout" })!, /protocol is UNSEALED/);
+  assert.match(developmentNotice({ set: "dev" })!, /"dev" set, not the held-out and the evaluation protocol is UNSEALED/);
+  const withoutProtocol: Omit<EvaluationData, "protocol"> = { ...SAMPLE.data };
+  delete (withoutProtocol as Partial<EvaluationData>).protocol;
+  assert.ok(developmentNotice(withoutProtocol));
+});
+
+test("spec 12 AC-04: a breakdown cell without the optional small flag is not marked small", () => {
+  const cell = SAMPLE.data.arms[0].cells[0];
+  const rest: typeof cell = { ...cell };
+  delete rest.small;
+  assert.equal(rest.small, undefined);
+  assert.ok(rateText(rest.metrics.safe_automated_resolution).length > 0);
+});
+
 test("spec 12 AC-06: every rate is shown with its numerator, its denominator and its interval", () => {
   const rate = SAMPLE.data.arms[0].overall.safe_automated_resolution;
   assert.deepEqual(rateParts(rate), { value: "75.0%", count: "9 of 12", interval: "46.8% to 91.1%" });
