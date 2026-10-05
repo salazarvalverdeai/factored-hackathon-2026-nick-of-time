@@ -28,7 +28,7 @@ from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, model_validato
 
 from nick_of_time import ids
 from nick_of_time.contracts import (CONTRACTS_DIR, HTTPS_URL, AnalystActionIn, AnalystActionOut, Mode, ProductType,
-                                    QueueStatus, Zone)
+                                    QueueStatus, VERIFIED_WITH as VERIFIED_WITH, Zone)
 
 EventType = Literal["case_opened", "card_blocked", "block_verified", "action_verified", "status_changed",
                     "handoff_emitted", "assigned", "analyst_action", "customer_info_added", "call_requested",
@@ -50,10 +50,6 @@ WRITE_TOOL: dict[str, str] = {"case_opened": "open_case", "card_blocked": "block
                               "reevaluation_requested": "request_reevaluation",
                               "notification_sent": "send_case_summary"}
 WRITE_EVENTS: frozenset[str] = frozenset(WRITE_TOOL)
-# TODO(01c): import VERIFIED_WITH from contracts.tools once #59 (task 01b) merges; this copy matches it (§6.3).
-VERIFIED_WITH: dict[str, str] = {"open_case": "get_case", "block_card": "get_product_status",
-                                 "add_case_info": "get_case", "request_call": "get_case",
-                                 "request_reevaluation": "get_case", "send_case_summary": "list_my_notifications"}
 VerifyingRead = Literal["get_case", "get_product_status", "list_my_notifications"]
 # A store actor: agent, customer, system or a person, `analyst:<sub>` with a sub that is not blank.
 ACTOR = r"^(agent|customer|system|analyst:.*\S.*)$"
