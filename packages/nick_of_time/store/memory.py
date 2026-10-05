@@ -14,7 +14,7 @@ from typing import Any, Literal, Optional, get_args
 
 from nick_of_time import ids
 from nick_of_time.contracts import AnalystActionIn, AnalystActionOut, QueueStatus
-from nick_of_time.store import (CUSTOMER_VISIBLE, RESERVED_EVENTS, UNDELIVERED, VERIFIED_WITH, WRITE_EVENTS, WRITE_TOOL,
+from nick_of_time.store import (in_runs, CUSTOMER_VISIBLE, RESERVED_EVENTS, UNDELIVERED, VERIFIED_WITH, WRITE_EVENTS, WRITE_TOOL,
                                 CallRequest, CaseEvent, CaseRecord, Channel, DeliveryStatus, EventType, NewCase, Notification,
                                 NotVerified, ProductOverride, StoreError, VerifyingRead, _check_writer, _json,
                                 _utc_now, check_action_id, check_actor, check_business_date, check_text, check_transition,
@@ -67,17 +67,18 @@ class MemoryStore:
             self._append(related, "related_case_opened", actor, case.trace_id, {"case_id": case_id})
         return self._cases[case_id]
 
-    def get_case(self, case_id: str, *, run_id: Optional[str], customer_id: Optional[str]) -> Optional[CaseRecord]:
+    def get_case(self, case_id: str, *, run_id: Optional[str], customer_id: Optional[str],
+                 demo_runs: bool = False) -> Optional[CaseRecord]:
         case = self._cases.get(case_id)
-        if case is None or case.run_id != run_id or customer_id not in (None, case.customer_id):
+        if case is None or not in_runs(case.run_id, run_id, demo_runs) or customer_id not in (None, case.customer_id):
             return None
         return self._read(case)
 
     def list_cases(self, customer_id: str, *, run_id: Optional[str]) -> list[CaseRecord]:
         return self._listed(lambda c: c.customer_id == customer_id and c.run_id == run_id)
 
-    def list_all_cases(self, *, run_id: Optional[str]) -> list[CaseRecord]:
-        return self._listed(lambda c: c.run_id == run_id)
+    def list_all_cases(self, *, run_id: Optional[str], demo_runs: bool = False) -> list[CaseRecord]:
+        return self._listed(lambda c: in_runs(c.run_id, run_id, demo_runs))
 
     def _listed(self, keep: Callable[[CaseRecord], bool]) -> list[CaseRecord]:
         mine = [c for c in self._cases.values() if keep(c)]

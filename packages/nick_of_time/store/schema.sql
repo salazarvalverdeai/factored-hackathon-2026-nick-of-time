@@ -18,6 +18,7 @@ create table if not exists sessions (
   tool_faults text[] not null default array[]::text[],
   run_id text null,                                                  -- run_id and arm: eval seed only (§6.8)
   arm text null,
+  display_name text null,                                            -- a demo visitor's typed name (ADR 0026)
   created_at timestamptz not null default now()
 );
 

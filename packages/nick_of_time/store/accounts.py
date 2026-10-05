@@ -70,6 +70,7 @@ class NewSession(_Row):
     tool_faults: tuple[str, ...] = ()                       # set only by the eval seed (spec 03 AC-05)
     run_id: Optional[str] = None
     arm: Optional[str] = None
+    display_name: Optional[str] = Field(None, min_length=1, max_length=40)   # a demo visitor's typed name (ADR 0026)
 
 
 class SessionRecord(NewSession):

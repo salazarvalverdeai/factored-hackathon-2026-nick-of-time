@@ -84,7 +84,9 @@ def read_handlers(gold: Gold, policies: Policies, *, channels: Optional[Callable
         row, country = found
         listed = [t.ConfirmedChannel(channel=c.channel, masked_address=mask(c.channel, c.address))
                   for c in (channels(row.customer_id) if channels else ()) if c.confirmed]
-        return t.GetCustomerProfileOut(first_name=row.first_name, language=call.session.language, country=country,
+        # the name the demo visitor typed (stored on the session, ADR 0026), else gold's: a tool fact either way
+        name = call.session.display_name or row.first_name
+        return t.GetCustomerProfileOut(first_name=name, language=call.session.language, country=country,
                                        display_currency=display_currency(call, country), channels=listed)
 
     def usd(trx: GoldTransaction) -> Optional[float]:

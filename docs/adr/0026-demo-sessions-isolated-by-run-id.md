@@ -1,0 +1,48 @@
+# 0026. Public demo sessions: a scenario picks the customer server-side and each session runs under its own run_id
+
+- **Status:** Accepted (lead decision D-068, 2026-10-05)
+- **Date:** 2026-10-05
+- **Deciders:** Freddy (lead; D-068, demo mode types A+B) · **Owner:** @salazarvalverdeai
+- **Related:** specs 01 (§6.5 `sessions`, §6.8 isolation), 05 (AC-14 to AC-17), 07, 09 · ADRs 0004, 0017, 0020
+
+## Context
+- The public `/chat` lets any visitor try the agent on the six spec 09 demo customers (`eval/demo/customers.json`).
+  Many visitors use the same six customers at the same time, and the store is append-only: nothing may be reset or
+  deleted (constitution #2, spec 01 §6.5).
+- Evaluation runs already solve the same problem: every row written while serving a seeded session carries the
+  session's `run_id`, and every read of mutable state filters by it (spec 01 §6.8, D-023). The MCP server reads the
+  session row on every call, so it scopes cases, blocks and idempotency keys by that `run_id` without other changes.
+- `customer_id` comes only from the session, never from the customer's text (constitution #3). The greeting name
+  must be a tool fact (spec 04 AC-15), and the picker showed `customers.json` names that gold does not hold.
+
+## Decision
+A demo session is opened with a scenario, not a customer: `POST /api/sessions {display_name?, language, country?,
+scenario?}`. The api maps the scenario (or `auto`) to one of the demo customers gold serves and stores, on the session
+row, a fresh `run_id = demo-<UTC yyyymmddThhmmssZ>-<6 base32>` and the visitor's typed `display_name`.
+
+The details that matter:
+- **Scenarios** come from `customers.json` tagged with the spec 09 dev and sample cases of the same customer. A file or
+  folder named `heldout` or `test` is refused before it is opened, and a row of another set is dropped.
+- **Name.** `display_name` is optional, trimmed, at most 40 characters, letters with spaces, apostrophes, hyphens and
+  dots only (no digits, URL, e-mail, control character or injection pattern; 422 otherwise). `get_customer_profile`
+  returns it when present, else gold's first name, so the greeting stays a tool fact.
+- **Isolation.** The demo `run_id` follows the eval path unchanged: two demo sessions of one customer never see each
+  other's cases, blocks, notifications or idempotency keys. No row is deleted.
+- **Analysts.** The console lists and acts on production cases and on demo-run cases (`demo_runs=True` in
+  `get_case`/`list_all_cases`), never on eval runs; Telegram links also resolve demo-run cases.
+- The original picker (`customer_id`) still opens a production-run session until the web moves to scenarios.
+
+## Alternatives considered
+| Option | Pros | Cons |
+|---|---|---|
+| A fresh `run_id` per demo session (chosen) | Reuses the eval isolation already enforced by the MCP gate and the store; append-only intact | The console needs a demo-run filter; `sessions` gains one column |
+| Reset the demo customers between visitors | One shared state | Deletes or rewrites audit rows (breaks #2); visitors collide mid-demo |
+| One synthetic customer per visitor | Full isolation | Not a gold customer, so the MCP finds no transactions (D-052) |
+
+## Consequences
+- Each visitor starts clean and the analyst still sees every demo case. Eval runs stay out of the console.
+- `sessions.display_name` is a new nullable column (`schema.sql`, migration 0002).
+- A demo case is tied to a short-lived session: once it expires, the visitor sees it only through the case page link.
+
+## Confidence
+High for isolation (the same mechanism the eval harness relies on). Revisit if demo traffic needs the store pruned.
