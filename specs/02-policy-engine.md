@@ -75,7 +75,8 @@ AC-01 to AC-06 come from issue #4 with the same numbers; AC-07 onward are added 
   call on the opened case; in the high zone the case shall wait in `review` with `person_requested`, unless the amount
   tier or supervised mode already needs a person (that reason instead); and after the mode check, `check()` with
   `call_requested` true shall deny every money action citing `POL-HUMAN-REQUEST`, also on a later turn whose decision
-  would block, since the tool passes the flag until the analyst acts (D-042, ADR 0024). · [T]
+  would block, since the tool passes the flag until the analyst runs `approve_block`, `resolve` or `close_case`
+  (D-042, D-043, ADR 0024). · [T]
 
 ## 4. Functional requirements
 - **FR-01** Load and validate `policies.yaml` once (Pydantic model); an invalid file fails at startup, not at decision time.
@@ -97,7 +98,7 @@ AC-01 to AC-06 come from issue #4 with the same numbers; AC-07 onward are added 
 | 1 | `POL-SESSION` | session expired or unverified | `reauthenticate` | G-SES-01 |
 | 2 | `POL-INJECTION` | input flagged by the injection detector (spec 11) | `deny` | G-IN-01, logged |
 | 3 | `POL-CROSS-CUSTOMER` | request targets another customer's data | `deny` | G-SES-02, logged |
-| 3a | `POL-HUMAN-REQUEST` | intent `human_request` | `connect_person` | `request_call` on the active case, or a general request; never refused (CFPB 2023). If the message also reports a charge (`dispute_detected`), 3a is not terminal (D-020): the call goes on the case opened for the one card transaction, and that case follows rules 6–9 like a confirmed dispute, except that nothing is blocked in that turn (D-029, ADR 0024, AC-19): the analyst decides the block after the call, and the block stays held until the analyst acts (D-042). `check()` enforces it on the tool side: after the mode check, with `call_requested=True` it denies a money action citing `POL-HUMAN-REQUEST`. τ gates this case-opening branch (D-031, decided 2026-10-04): below τ only the call is registered (`active_or_general`), and nothing is opened or blocked (spec 04 AC-02). High zone: `connect_person`, `open_case` only, case in `review` with `person_requested`; when the block needs a person anyway (amount tier, supervised mode), that reason instead. Medium and human zones: `connect_person`, `open_case` only (never a block, no confirmation asked), case in `review` with `zone_medium` / `zone_human`. With no single card transaction, or one the customer rejected (`customer_confirmed` false), only the call (`active_or_general`) |
+| 3a | `POL-HUMAN-REQUEST` | intent `human_request` | `connect_person` | `request_call` on the active case, or a general request; never refused (CFPB 2023). If the message also reports a charge (`dispute_detected`), 3a is not terminal (D-020): the call goes on the case opened for the one card transaction, and that case follows rules 6–9 like a confirmed dispute, except that nothing is blocked in that turn (D-029, ADR 0024, AC-19): the analyst decides the block after the call, and the block stays held until the analyst approves the block, resolves or closes the case (D-042). `check()` enforces it on the tool side: after the mode check, with `call_requested=True` it denies a money action citing `POL-HUMAN-REQUEST`. τ gates this case-opening branch (D-031, decided 2026-10-04): below τ only the call is registered (`active_or_general`), and nothing is opened or blocked (spec 04 AC-02). High zone: `connect_person`, `open_case` only, case in `review` with `person_requested`; when the block needs a person anyway (amount tier, supervised mode), that reason instead. Medium and human zones: `connect_person`, `open_case` only (never a block, no confirmation asked), case in `review` with `zone_medium` / `zone_human`. With no single card transaction, or one the customer rejected (`customer_confirmed` false), only the call (`active_or_general`) |
 | 3b | `POL-STATUS` | intent `status_inquiry` | `answer_status` | read-only: the agent re-reads cards or cases (spec 04 AC-19); no case is opened. With `dispute_detected` and `active_case` false (the customer has no active case), 3b is not terminal: the turn goes on like a dispute (rules 4–9), citing `POL-STATUS` first (D-020). With an active case, or `active_case` not known (null), the status is answered |
 | 4 | `POL-OUT-OF-SCOPE` | intent `out_of_scope` with confidence ≥ τ and no reported charge (below τ, rule 5 asks; D-024), or the one identified transaction's product is not a card | `deny` (polite abstention) | G-IN-04. Never for `human_request`. With `dispute_detected` the intent branch is off and rule 5 asks: a message that reports a charge never gets an abstention for its label alone (D-032, the D-020 default pending the lead); the product branch still applies. `product_type` also takes the gold labels `Tarjeta Débito` / `Tarjeta Crédito`; one candidate without a product type is an input error |
 | 5 | `POL-CLARIFY` | confidence < τ, or candidates > 1 (≤ 3), or candidates = 0, or intent `out_of_scope` with a reported charge (D-032) | `ask` (≤ 2 turns) | then rule 5b |
@@ -140,11 +141,12 @@ case in `review` (D-024, and the rule 3a cases of D-020, so every handoff card i
 `zone_human`, `zone_medium`, `amount_over_case_gate` (over the gate or no tier), `supervised_mode`,
 `person_requested` (a high-zone call request, D-029) or `clarification_exhausted` (a handoff with no case). `check()`
 answers for automated callers and requires `supervised_mode` and `call_requested` (the customer asked for a person and
-no analyst has acted since) as bools (`None` or a missing flag raises `TypeError`, never "off"). The mode check comes first:
-`human_required` is a `Deny` citing the rule that raised the mode, else `POL-DEFAULT-DENY`. Then, after the mode check,
-`check()` denies a money action when `call_requested` is true, citing `POL-HUMAN-REQUEST` (D-029, ADR 0024). The
-hold lasts until the analyst acts (D-042): `decide()` reads no store, so the `block_card` tool passes `call_requested`
-true while the case has an open call (spec 03 §8), and a later turn whose decision would block is denied there.
+the hold has not ended, D-042) as bools (`None` or a missing flag raises `TypeError`, never "off"). The mode check
+comes first: `human_required` is a `Deny` citing the rule that raised the mode, else `POL-DEFAULT-DENY`. Then, after
+the mode check, `check()` denies a money action when `call_requested` is true, citing `POL-HUMAN-REQUEST` (D-029, ADR
+0024). The hold lasts until the analyst runs `approve_block`, `resolve` or `close_case` (D-042): `decide()` reads no
+store (D-043), so the `block_card` tool passes `call_requested` true while the case has an open call (spec 03 §8), and
+a later turn whose decision would block is denied there.
 
 ### 4.3 Regulatory clock (LATAM, data-driven)
 The clock is a **table of verified country entries** in `policies.yaml`, not code. Each entry carries the regulator, the
@@ -314,9 +316,14 @@ fx.convert(amount=1250.0, from_currency="USD", to_currency="MXN") -> {amount, ra
   waits in `review` with `person_requested`, and the analyst decides the block after the call. Medium and human zones
   do not change. `check(call_requested=True)` withholds the block on the tool side too. `POL-HUMAN-REQUEST` and
   `POL-ZONE-HIGH` state the exception.
-- **D-042 — how long the D-029 hold lasts (decided by the lead, 2026-10-04; ADR 0024, AC-19):** until the analyst
-  acts on the case, not only in the turn of the call request. `call_requested` is read from the store while a call is
-  open on the case (spec 03 §8), so a later plain-dispute turn about the same transaction cannot block either.
+- **D-042 — how long the D-029 hold lasts (decided by the lead, 2026-10-04; end condition 2026-10-05; ADR 0024,
+  AC-19):** until the analyst runs `approve_block`, `resolve` or `close_case` on the case, not only in the turn of the
+  call request; `take`, `request_customer_info`, `mark_ambiguous` and any other analyst action keep it.
+  `call_requested` is read from the store while a call is open on the case (spec 03 §8, task 03c), so a later
+  plain-dispute turn about the same transaction cannot block either.
+- **D-043 — the later-turn block (decided by the lead, 2026-10-05; ADR 0024, AC-19):** `decide()` stays without the
+  store and `DecisionInput` gains no field. While the hold is open, a later turn whose decision proposes `block_card`
+  is denied by the tool's `check()` re-check citing `POL-HUMAN-REQUEST`, and the agent reports it as not done.
 - Assumption: MXN 18.0 per USD for the MX amount tiers (`[assumption]`, already in `policies.yaml`); it is never shown to
   a customer — customer-facing conversions use the official reference rate of §4.4.
 - Assumption: holiday lists are verified against official sources while implementing; each file cites its URL.

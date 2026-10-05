@@ -150,9 +150,9 @@ class PolicyEngine:
               country: Optional[str] = None) -> Union[Allow, Deny]:
         """May an automated caller (agent or customer tool) run `action` now? human_required is denied here: only a
         person runs it, through the analyst api. supervised_mode and call_requested (the customer asked for a person
-        and no analyst has acted since; the tool reads the open call from the store, D-042) are required bools: a
-        value read as None is not "off" (fail closed). A call request withholds the money actions, so the tool's
-        re-check enforces D-029: the analyst decides the block after the call."""
+        and no approve_block, resolve or close_case followed; the tool reads the open call from the store, D-042) are
+        required bools: a value read as None is not "off" (fail closed). A call request withholds the money actions,
+        so the tool's re-check enforces D-029 and D-043: the analyst decides the block after the call."""
         for name, flag in (("supervised_mode", supervised_mode), ("call_requested", call_requested)):
             if not isinstance(flag, bool):
                 raise TypeError(f"{name} must be a bool, got {flag!r}")

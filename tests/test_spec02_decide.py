@@ -341,9 +341,11 @@ def test_ac_19_every_confident_high_zone_call_request_defers_the_block_to_the_an
 @pytest.mark.parametrize("country, currency, amount", [("MX", "USD", 50.0), ("CO", "COP", 5_000_000.0),
                                                        ("BR", "BRL", 6_000.0)])
 def test_ac_19_d042_a_later_turn_cannot_block_while_the_call_is_open(intent, country, currency, amount):
-    """AC-19, D-042 (ADR 0024): the hold lasts until the analyst acts. decide() reads no store, so a later plain-dispute
-    turn on the same high-zone transaction still allows the block; the block_card tool passes call_requested=True while
-    the case's call is open (spec 03 §8), and check() denies the block. Once the analyst acted, the flag is false."""
+    """AC-19, D-042 and D-043 (ADR 0024): the hold lasts until the analyst runs approve_block, resolve or close_case.
+    decide() reads no store (D-043), so a later plain-dispute turn on the same high-zone transaction still allows the
+    block; the block_card tool passes call_requested=True while the case's call is open (spec 03 §8), and check() denies
+    the block. Once one of those three actions ends the hold, the flag is false; which actions end it is the store's
+    rule, tested in task 03c."""
     later = ENGINE.decide(turn(intent=intent, active_case=True, customer_confirmed=True, country=country,
                                currency=currency, amount=amount))
     assert (later.decision, later.zone, later.allowed_actions) == ("block_and_open_case", "high", BLOCK)

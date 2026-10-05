@@ -166,12 +166,18 @@ and writes Postgres through `nick_of_time.store`: `sessions` (read), `demo_trans
 - **Source of `call_requested` for `block_card` (task 03c, T4) — decided by the lead, 2026-10-04 (D-042, ADR 0024):**
   store-backed. `BlockCardIn` gains no field: like every other `check()` input (the case zone, `settings_events`, the
   gold transaction), the flag comes from trusted state, not from the agent. It is true while the case has an open call,
-  that is a `call_requested` event with no analyst action on that case after it, so the D-029 hold lasts until the
-  analyst acts, and a later plain-dispute turn about the same transaction is denied with `POL-HUMAN-REQUEST`. This
-  refines the `block_card` row of §6: "asked for a person in that turn" reads as "has an open call". In the turn of the
-  call request the order is spec 04's `act` → `verify` → `connect` (`open_case`, then `request_call` on that case);
-  until that write, `decide()` leaving `block_card` out of `allowed_actions` is the guard. `[assumption]` any analyst
-  action recorded on the case (spec 05) ends the hold, since from then on the block is the analyst's decision.
+  that is a `call_requested` event with no `approve_block`, `resolve` or `close_case` on that case after it, so a
+  later plain-dispute turn about the same transaction is denied with `POL-HUMAN-REQUEST`. This refines the
+  `block_card` row of §6: "asked for a person in that turn" reads as "has an open call". In the turn of the call
+  request the order is spec 04's `act` → `verify` → `connect` (`open_case`, then `request_call` on that case); until
+  that write, `decide()` leaving `block_card` out of `allowed_actions` is the guard.
+- **End of the hold and the later-turn block (decided by the lead, 2026-10-05; D-042, D-043, ADR 0024):** only the
+  analyst actions `approve_block`, `resolve` and `close_case` (spec 05) end the hold, while `take`,
+  `request_customer_info`, `mark_ambiguous` and every other analyst action keep it (D-042); `decide()` stays without
+  the store and gains no input, so on a later turn that proposes `block_card` while the hold is open, the tool's
+  `check()` re-check denies it with `POL-HUMAN-REQUEST` and the agent reports it as not done (D-043). The end
+  condition lives in the store and is built and tested in task 03c: a test there shows `take` and
+  `request_customer_info` keep the deny, and each of `approve_block`, `resolve` and `close_case` lifts it.
 - Assumption: the DuckDB in-memory load fits the EC2 (t3.medium, 4 GB) — measured in T5.
 
 ## 9. Out of scope
