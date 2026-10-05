@@ -2,7 +2,8 @@
 
 `send_case_summary` renders only the approved `messages.yaml receipt.*` lines with the case's stored facts, sends only to
 a channel the customer confirmed (`customer_channels`, never the dataset's e-mails), at most 3 per hour per session
-(D-041), once per idempotency key; it answers `state: "requested"`. `list_my_notifications` is its verifying read: with
+(D-041), once per idempotency key; it answers `state: "requested"`. The provider is called only after the write is
+committed and only on a first call, never on a replay or inside the store's transaction. `list_my_notifications` is its verifying read: with
 the send's `action_id` it mints a `V-` only while that send's latest delivery is not failed or bounced (D-035, D-025).
 Addresses leave this module masked only; the raw address goes only to the sender.
 """
@@ -18,7 +19,6 @@ from mcp_server.gate import ACTOR, Call, Handler
 from mcp_server.gold import Gold
 from mcp_server.reads import mask
 from nick_of_time import ids
-from nick_of_time.policy import Policies
 from nick_of_time.receipt import amount_text, text
 from nick_of_time.store import CaseRecord, NotVerified, Store
 
@@ -39,9 +39,10 @@ def _utc_now() -> dt.datetime:
     return dt.datetime.now(dt.UTC)                           # audit time only, never a business date
 
 
-def notify_handlers(store: Store, policies: Policies, gold: Optional[Gold] = None, *, sender: Optional[Sender] = None,
+def notify_handlers(store: Store, gold: Optional[Gold] = None, *, sender: Optional[Sender] = None,
                     now: Callable[[], dt.datetime] = _utc_now) -> dict[str, Handler]:
-    """The T8 entry point wires `store`, `policies` and `gold` by name; `gold` gives the charge line of the summary."""
+    """The T8 entry point wires `store` and `gold` by name (no policy input: the templates are messages.yaml's and the
+    limit is D-041's); `gold` gives the charge line of the summary, `sender` the provider (none: stays `queued`)."""
 
     def owned(call: Call, case_id: str) -> t.ToolError | CaseRecord:
         session = call.session
@@ -75,8 +76,18 @@ def notify_handlers(store: Store, policies: Policies, gold: Optional[Gold] = Non
             done = "what_ai_did_block_unconfirmed"
         return "\n".join([*lines, text(f"receipt.{done}", language), text("receipt.what_a_person_does", language)])
 
+    def deliver(notification_id: str, channel: str, address: str, body: str) -> None:
+        """One more delivery row after the committed write: `sent` with the provider's message id (to match a later
+        bounce, D-035), or `failed`, never `sent` on an error."""
+        try:
+            provider_message_id = sender(channel, address, body)
+        except Exception as error:
+            store.add_delivery(notification_id, "failed", {"error": type(error).__name__})
+        else:
+            store.add_delivery(notification_id, "sent", {"provider_message_id": provider_message_id})
+
     def send_case_summary(call: Call, args: t.SendCaseSummaryIn):
-        session = call.session
+        session, pending = call.session, {}
 
         def write() -> dict:
             found = owned(call, args.case_id)
@@ -93,12 +104,7 @@ def notify_handlers(store: Store, policies: Policies, gold: Optional[Gold] = Non
             sent = store.add_notification(found.case_id, event="case_summary", channel=args.channel,
                                           masked_address=masked, text=body, trigger="on_request", actor=ACTOR,
                                           trace_id=call.trace_id, action_id=action_id)
-            if sender is not None:                           # [assumption] no sender: the api's notifier sends it
-                try:
-                    sender(args.channel, address, body)
-                    store.add_delivery(sent.notification_id, "sent")
-                except Exception as error:                   # the send is recorded as failed, never as sent
-                    store.add_delivery(sent.notification_id, "failed", {"error": type(error).__name__})
+            pending.update(notification_id=sent.notification_id, channel=args.channel, address=address, body=body)
             return t.SendCaseSummaryOut(action_id=action_id, notification_id=sent.notification_id,
                                         channel=args.channel, masked_address=masked).model_dump(mode="json")
         try:
@@ -107,6 +113,8 @@ def notify_handlers(store: Store, policies: Policies, gold: Optional[Gold] = Non
                                 write=write)
         except _Refused as refused:                          # nothing kept: a replay of the key is refused again
             return refused.error
+        if sender is not None and pending and not stored.replayed:   # [assumption] no sender: the api's notifier
+            deliver(**pending)
         return t.SendCaseSummaryOut.model_validate(stored.result)
 
     def list_my_notifications(call: Call, args: t.ListMyNotificationsIn):

@@ -9,6 +9,7 @@ import secrets
 from types import SimpleNamespace
 
 from contracts import tools
+from nick_of_time import ids
 from nick_of_time.receipt import text
 from tests.test_spec01_store import backend, new_store, open_case  # noqa: F401
 from tests.test_spec03_followups import ANA, BRUNO, NOW, POLICIES, Sessions
@@ -20,17 +21,38 @@ GOLD = SimpleNamespace(transaction=lambda c, _: SimpleNamespace(amount=69.44, cu
                                                                 merchant="Tienda Don José") if c == ANA else None)
 
 
+def in_transaction(store) -> bool:
+    """PostgresStore: whether its connection is inside a transaction now (MemoryStore has none)."""
+    conn = getattr(store, "_conn", None)
+    return conn is not None and conn.info.transaction_status != conn.info.transaction_status.IDLE
+
+
+def last_provider_event(store, notification_id):
+    """The latest delivery's provider_event; the Store interface exposes only its status, so the test reads the row."""
+    if hasattr(store, "_deliveries"):
+        return store._deliveries[notification_id][-1][1]
+    return store._rows("select provider_event from notification_deliveries where notification_id = %s "
+                       "order by row_no desc limit 1", (notification_id,))[0]["provider_event"]
+
+
 class Run:
     def __init__(self, limiter=None, sender="fake"):
         self.store, self.denials, self.sent = new_store(), [], []
-        fake = (lambda *message: self.sent.append(message)) if sender == "fake" else sender
+
+        def fake(*message):                                # a provider: records the call, returns its message id
+            self.sent.append((*message, in_transaction(self.store)))
+            return f"pm-{len(self.sent)}"
+        fake = fake if sender == "fake" else sender
         guardrails = {rule_id: rule.guardrail for rule_id, rule in POLICIES.rules.items() if rule.guardrail}
-        self.gate = gate.Gate(Sessions(self.store), notify.notify_handlers(self.store, POLICIES, GOLD, sender=fake),
+        self.gate = gate.Gate(Sessions(self.store), notify.notify_handlers(self.store, GOLD, sender=fake),
                               denials=self.denials.append, audit=lambda _: None, now=lambda: NOW, guardrails=guardrails,
                               limiter=limiter or gate.RateLimiter(clock=itertools.count(0, 4000).__next__))
-        self.ana = self.store.create_session(customer_id=ANA, otp_hash="h", verified_at=NOW, language="es",
-                                             expires_at=NOW + dt.timedelta(hours=1), mode="replay").session_id
+        self.ana = self.session()
         self.case_id = open_case(self.store, customer_id=ANA).case_id
+
+    def session(self, customer=ANA):
+        return self.store.create_session(customer_id=customer, otp_hash="h", verified_at=NOW, language="es",
+                                         expires_at=NOW + dt.timedelta(hours=1), mode="replay").session_id
 
     def link(self, channel="email", address=EMAIL, events=("linked", "confirmed")):
         for event in events:
@@ -39,10 +61,10 @@ class Run:
     def mine(self):                                   # this run's case: Postgres runs share one scratch schema
         return [n for n in self.store.list_notifications(ANA, run_id=None) if n.case_id == self.case_id]
 
-    def __call__(self, tool, **args):
+    def __call__(self, tool, session=None, **args):
         if tool == "send_case_summary":
             args = {"idempotency_key": secrets.token_hex(4), "case_id": self.case_id, "channel": "email", **args}
-        return self.gate.call(tool, {"session_id": self.ana, **args}, "trace-t7")
+        return self.gate.call(tool, {"session_id": session or self.ana, **args}, "trace-t7")
 
 
 def test_ac_21_the_summary_is_the_receipt_template_sent_once_to_the_confirmed_channel_masked():
@@ -60,7 +82,8 @@ def test_ac_21_the_summary_is_the_receipt_template_sent_once_to_the_confirmed_ch
         text("receipt.credit_deadline", "es", credit_deadline="2026-06-03", **source),
         text("receipt.what_ai_did_case_only", "es"), text("receipt.what_a_person_does", "es")]
     assert (sent.notification_id, sent.trigger, sent.delivery_status) == (out.notification_id, "on_request", "sent")
-    assert run.sent == [("email", EMAIL, sent.text)] and EMAIL not in out.model_dump_json()   # raw address: sender only
+    assert run.sent == [("email", EMAIL, sent.text, False)] and EMAIL not in out.model_dump_json()  # after commit
+    assert last_provider_event(run.store, sent.notification_id) == {"provider_message_id": "pm-1"}    # D-035 match
     assert run.store.events(run.case_id)[-1].payload["action_id"] == out.action_id
     assert run("send_case_summary", idempotency_key="k1") == out and len(run.sent) == 1       # replayed, not resent
 
@@ -122,3 +145,30 @@ def test_d035_a_send_is_verified_only_while_its_latest_delivery_did_not_fail_or_
     [row] = failing.mine()
     assert row.delivery_status == "failed" and failing("list_my_notifications",
                                                        action_id=lost.action_id).verification_id is None
+
+
+def test_ac_21_the_what_the_assistant_did_line_follows_the_verified_block():
+    run = Run(sender=None)
+    run.link()
+    block, product_id = ids.new_id("action"), run.store.get_case(run.case_id, run_id=None, customer_id=ANA).product_id
+    run.store.block_product(run.case_id, product_id, action_id=block, actor="agent", trace_id="t")
+    run("send_case_summary")                                              # blocked, not yet verified
+    run.store.record_verification(run.case_id, block, read="get_product_status", run_id=None, customer_id=ANA,
+                                  actor="agent", trace_id="t")
+    run("send_case_summary")
+    lines = [n.text.splitlines()[-2] for n in reversed(run.mine())]
+    assert lines == [text("receipt.what_ai_did_block_unconfirmed", "es"), text("receipt.what_ai_did_blocked", "es")]
+
+
+def test_d041_a_new_session_gets_a_fresh_allowance_and_another_customers_send_reads_plain():
+    run = Run()
+    run.link()
+    assert all(isinstance(run("send_case_summary"), tools.SendCaseSummaryOut) for _ in range(3))
+    assert run("send_case_summary").policy_id == "POL-DEFAULT-DENY"
+    assert isinstance(run("send_case_summary", session=run.session()), tools.SendCaseSummaryOut)   # D-041: per session
+    bruno_case = open_case(run.store, customer_id=BRUNO).case_id
+    run.store.add_channel_event(bruno_case, "telegram", "987654321", "linked", actor="customer", trace_id="t")
+    theirs = run("send_case_summary", session=run.session(BRUNO), case_id=bruno_case, channel="telegram")
+    read = run("list_my_notifications", action_id=theirs.action_id)
+    assert (read.action_id, read.verification_id) == (None, None)
+    assert theirs.notification_id not in {n.notification_id for n in read.notifications}
