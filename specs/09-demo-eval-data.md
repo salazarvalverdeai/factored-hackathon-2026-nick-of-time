@@ -3,8 +3,8 @@
 - **Feature:** real gold customers and transactions for the demo and the evaluation, with team-written ES/PT messages
   ("synthetic message over real state"): the demo index, the demo customers, the agent cases and the classifier set
   (written by three model families and reviewed line by line, ADR 0025).
-- **Status:** Draft
-- **Owner:** @vldiego · **Priority:** P0 · **Size:** M
+- **Status:** In progress
+- **Owner:** @vldiego (follow-ups from 2026-10-05: @salazarvalverdeai) · **Priority:** P0 · **Size:** M
 - **Challenge dimension:** Data Analytics, Machine Learning
 - **Depends on:** gold v1 (`contracts/gold_contract.md`) · **Enables:** 04 (tests), 10, 11, 15, M02 (protocol seal) ·
   **ADRs:** 0007, 0015, 0020, 0021, 0025

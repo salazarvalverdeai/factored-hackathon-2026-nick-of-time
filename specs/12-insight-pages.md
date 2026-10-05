@@ -2,8 +2,8 @@
 
 - **Feature:** three pages where a judge sees the results, the business numbers and the data quality without reading
   code. `/evaluation` is P0; `/analytics` and `/data` are P1.
-- **Status:** Draft
-- **Owner:** @vldiego · **Priority:** P0 / P1 · **Size:** M
+- **Status:** In progress
+- **Owner:** @vldiego (follow-ups from 2026-10-05: @salazarvalverdeai) · **Priority:** P0 / P1 · **Size:** M
 - **Challenge dimension:** Data Analytics
 - **Depends on:** 16 (web foundation), 10, 11, 15, 17 (result files), 14 (operational KPIs, P1) · **Enables:** E1
   (pitch) · **ADRs:** 0007, 0014, 0015
