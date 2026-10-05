@@ -275,23 +275,31 @@ the case) · `analyst_action` · `customer_info_added` ✓ · `call_requested` �
 `related_case_opened` ✓ · `notification_sent` ✓ · `receipt_issued` ✓ · `telegram_linked` ✓ · `email_confirmed` ✓.
 Queue statuses (from `policies.yaml`): `new → verification | review → resolved → closed`. A case's status is the `to`
 of its last `status_changed` event (payload `{from, to, on, reason?}`, `on` = business date, D-023), `new` before the
-first one; `analyst_action` carries `{action, reason}` with actor `analyst:<sub>`. The store accepts only
-`case_queue.transitions` (spec 02 `engine.transition` once task 02a merges); `resolved` and `closed` come only through
-an analyst action (`closed` only from `close_case`), `close_case` moves a case only to `closed`, `resolve` only to
-`resolved` and `take` only to `review` or `verification`; a closed case never moves `[assumption]` (task 01c). Each
-of the six customer writes carries its own `action_id`, used once, and no `V-` id: `case_opened {action_id}`
-(`open_case`, or `request_reevaluation` on a closed case), `card_blocked {action_id, product_id}`,
-`customer_info_added`, `call_requested` and `reevaluation_requested` `{action_id, …}`, and `notification_sent
-{notification_id, event, channel, action_id}` for `send_case_summary` (an `auto` send has no `action_id`). The
-verifying read mints the `V-` id in `action_verified {action_id, verification_id, read_at}`, one per read; the first
-read of a `card_blocked` action also writes `block_verified {action_id, product_id}`, once. The case and
-product-status reads return the latest `V-` id, and the store's `verifications(case_id, action_id)` returns every
-`action_verified` of the action by `read_at`, so the auditor accepts any `V-` id a turn showed whose `read_at` is at
-or after the request. A read with no action to verify stays plain (`read_at`, no `V-` id), and a call request with
-no case (D-026) stays `requested`, with no verifying read (D-025 `[assumption]`). The store alone writes
-`case_opened`, `status_changed`, `analyst_action`, `assigned`, `related_case_opened` (with the new case),
-`card_blocked` (with its override), `action_verified` and `block_verified` (from a read) and `notification_sent`
-(with its notification).
+first one; `analyst_action` carries `{action, reason}` with actor `analyst:<sub>` (a blank sub is refused). Every
+event's actor is `agent`, `customer`, `system` or `analyst:<sub>`, and every payload is JSON. The store accepts only
+`case_queue.transitions` (spec 02 `engine.transition` once task 02a merges) and a status on every change. Analyst
+actions follow D-034 `[assumption]` (task 01c, until spec 02 AC-10): `resolved` comes only from `resolve` and `closed`
+only from `close_case`; `take` starts from `new`, `verification` or `review` and moves to `review` or `verification`;
+`reopen_case` moves only `resolved → review`; the other actions keep the status; a closed case takes no analyst
+action and never moves. A closed case also takes no customer write (`block_card`, `add_case_info`, `request_call`,
+`request_reevaluation`): the store refuses them, and the tool opens a related case instead; `related_case_id` must
+name a closed case of the same customer and run. Each of the six customer writes carries its own `action_id`, used
+once, and no `V-` id: `case_opened {action_id}` (`open_case`, or `request_reevaluation` on a closed case),
+`card_blocked {action_id, product_id}`, `customer_info_added`, `call_requested` and `reevaluation_requested`
+`{action_id, …}`, and `notification_sent {notification_id, event, channel, action_id}` for `send_case_summary` (an
+`auto` send has no `action_id`). A read returns a `V-` id only when it is called with a write's `action_id`: the
+read of that write in §6.3 "Verified with" (`get_case`, `get_product_status` or `list_my_notifications`; the two
+without a case id find the case with the store's `action_write`) mints it in `action_verified {action_id,
+verification_id, read_at}`, one per read; another read is refused. A `card_blocked` action is verified only while its
+override is the card's latest in the run and `Blocked`, and its first read also writes `block_verified {action_id,
+product_id}`, once. A plain read, with no `action_id`, returns `read_at` only. The case and product-status reads
+return the latest `V-` id, and the store's `verifications(case_id, action_id)` returns every `action_verified` of the
+action by `read_at`, so the auditor accepts any `V-` id a turn showed whose `read_at` is at or after the request. A
+call request with no case (D-026) lives in 03d's `call_requests`, stays `requested` and has no verifying read (D-025
+`[assumption]`). The store alone writes `case_opened`, `status_changed`, `analyst_action`, `assigned`,
+`related_case_opened` (with the new case), `card_blocked` (with its override), `action_verified` and `block_verified`
+(from a read) and `notification_sent` (with its notification); `telegram_linked` and `email_confirmed` are reserved
+until 03a's `customer_channels` accessor writes them with their row.
 
 ### 6.6 View models (api)
 - `CaseSummary`: `{case_id, customer_id, country, zone, queue_status, credit_deadline, ruling_deadline, sla_due_at,
@@ -460,10 +468,13 @@ Implementation goes in one `feat/01-*` branch per task (for example `feat/01-pac
 - [x] T7 — remove the empty `apps/api/{audit,classifier,graph,policy,tools}` folders
 - [ ] T8 — tests `tests/test_spec01_*.py` citing AC-02, AC-03, AC-04, AC-06, AC-07, AC-08
 - [x] T9 — `nick_of_time.store`: `Store` interface and in-memory backend for cases, events, queue status and
-      transitions, analyst actions, product blocks, verification reads (D-025) and notifications, scoped by `run_id`
-      and customer (D-002, D-003); the case insert retries with a fresh `ids.new_id("case")` on a `case_id`
-      primary-key conflict and a test forces one collision · covers AC-01 · `tests/test_spec01_store.py`. C1 builds
-      the Postgres backend and the other tables' accessors in task 03a `[assumption]` (D-023); the api checks
+      transitions, analyst actions, product blocks, verification reads (D-025) and notifications (D-002, D-003). Every
+      read is scoped by `run_id`; the case reads, `action_write` and `record_verification` also by customer; the
+      per-case calls expect a case loaded with `get_case`. The case insert retries with a fresh `ids.new_id("case")`
+      on a `case_id` primary-key conflict and a test forces one collision · covers AC-01 ·
+      `tests/test_spec01_store.py`. C1 builds the Postgres backend and the other tables' accessors in task 03a
+      `[assumption]` (D-023): its `record_verification` reads the post-condition (for a block, the product's latest
+      override) and inserts `action_verified` and `block_verified` in one transaction. The api checks
       `AnalystActionIn.idempotency_key` through the `idempotency` accessor before it calls `record_analyst_action`.
       Once task 02a merges, `record_analyst_action` takes the new status from `engine.transition(current, action,
       actor)`, and the store's `check_transition` stays for agent and customer changes

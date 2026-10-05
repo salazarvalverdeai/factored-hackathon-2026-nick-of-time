@@ -1,16 +1,18 @@
 """Spec 01 — the store: case ids (T9), append-only events, status as the last event, transitions, customer and run
-scoping, verification ids (AC-01, §6.5, §6.8, D-014, D-023, D-025). Runs against the in-memory backend, which keeps
-the same rules as Postgres."""
+scoping, verification ids (AC-01, §6.5, §6.8, D-014, D-023, D-025, D-034). Runs against the in-memory backend, which
+keeps the same rules as Postgres."""
 from __future__ import annotations
 
 import datetime as dt
+from typing import get_args
 
 import pytest
 from pydantic import ValidationError
 
 from nick_of_time import ids
 from nick_of_time.contracts import AnalystActionIn
-from nick_of_time.store import CUSTOMER_VISIBLE, RESERVED_EVENTS, NewCase, Store, StoreError
+from nick_of_time.store import (CUSTOMER_VISIBLE, RESERVED_EVENTS, VERIFIED_WITH, WRITE_EVENTS, WRITE_TOOL, NewCase,
+                                ProductOverride, Store, StoreError, VerifyingRead)
 from nick_of_time.store.memory import MemoryStore
 
 FACTS = dict(customer_id="CLI-000001", transaction_id="TRX-" + "A" * 20, product_id="PRD-" + "B" * 12, country="MX",
@@ -20,6 +22,8 @@ FACTS = dict(customer_id="CLI-000001", transaction_id="TRX-" + "A" * 20, product
              mode="replay", trace_id="trace-1")
 ON = dt.date(2026, 6, 2)
 RUN = "EV-0001:S1:1"
+STATUSES = ["new", "verification", "review", "resolved", "closed"]
+ANALYST_ACTIONS = get_args(AnalystActionIn.model_fields["action"].annotation)
 
 
 def new_case(**changes) -> NewCase:
@@ -30,14 +34,28 @@ def open_case(store: MemoryStore, actor: str = "agent", **changes):
     return store.create_case(new_case(**changes), actor=actor, action_id=ids.new_id("action"))
 
 
-def act(store: MemoryStore, case_id: str, action: str, new_status: str | None, reason: str | None = "x"):
-    request = AnalystActionIn(case_id=case_id, actor_id="sub-1", action=action, reason=reason, idempotency_key="k")
+def act(store: MemoryStore, case_id: str, action: str, new_status: str | None, reason: str | None = "x",
+        actor_id: str = "sub-1"):
+    request = AnalystActionIn(case_id=case_id, actor_id=actor_id, action=action, reason=reason, idempotency_key="k")
     return store.record_analyst_action(request, new_status=new_status, on=ON, trace_id="t")
 
 
-def close(store: MemoryStore, case_id: str) -> None:
-    for action, status in (("take", "review"), ("resolve", "resolved"), ("close_case", "closed")):
-        act(store, case_id, action, status)
+def verify(store: MemoryStore, case_id: str, action_id: str, read: str = "get_case", run_id: str | None = None,
+           customer_id: str | None = None):
+    return store.record_verification(case_id, action_id, read=read, run_id=run_id, customer_id=customer_id,
+                                     actor="agent", trace_id="t")
+
+
+def at(store: MemoryStore, status: str, **changes) -> str:
+    """A case moved to `status` along the queue."""
+    case_id = open_case(store, **changes).case_id
+    if status == "verification":
+        store.change_status(case_id, "verification", on=ON, actor="agent", trace_id="t")
+    steps = {"review": 1, "resolved": 2, "closed": 3}.get(status, 0)
+    for action, to in [("take", "review"), ("resolve", "resolved"), ("close_case", "closed")][:steps]:
+        act(store, case_id, action, to)
+    assert store.queue_status(case_id) == status
+    return case_id
 
 
 def ticking_store() -> MemoryStore:
@@ -96,7 +114,8 @@ def test_ac_01_events_are_append_only():
     store = MemoryStore()
     case_id = open_case(store).case_id
     assert RESERVED_EVENTS == {"case_opened", "status_changed", "analyst_action", "assigned", "related_case_opened",
-                               "card_blocked", "action_verified", "block_verified", "notification_sent"}
+                               "card_blocked", "action_verified", "block_verified", "notification_sent",
+                               "telegram_linked", "email_confirmed"}
     for reserved in sorted(RESERVED_EVENTS):
         with pytest.raises(StoreError, match="written only by the store"):
             store.append_event(case_id, reserved, actor="agent", trace_id="t")
@@ -110,6 +129,24 @@ def test_ac_01_events_are_append_only():
         store.append_event("K-999999", "handoff_emitted", actor="agent", trace_id="t")
 
 
+def test_ac_01_payloads_are_json_as_in_jsonb():
+    """A payload or provider_event comes back as JSON gives it (a tuple as a list); a date or NaN is refused."""
+    store = MemoryStore()
+    case_id = open_case(store).case_id
+    event = store.append_event(case_id, "handoff_emitted", actor="agent", trace_id="t", payload={"ids": ("a", "b")})
+    assert event.payload == {"ids": ["a", "b"]} == store.events(case_id)[-1].payload
+    written = len(store.events(case_id))
+    for bad in ({"on": dt.date(2026, 6, 2)}, {"score": float("nan")}):
+        with pytest.raises(StoreError, match="not JSON"):
+            store.append_event(case_id, "handoff_emitted", actor="agent", trace_id="t", payload=bad)
+    assert len(store.events(case_id)) == written
+    sent = store.add_notification(case_id, event="case_opened", channel="log", masked_address=None, text="Abrimos.",
+                                  trigger="auto", actor="system", trace_id="t")
+    with pytest.raises(StoreError, match="not JSON"):
+        store.add_delivery(sent.notification_id, "delivered", {"at": dt.date(2026, 6, 2)})
+    assert [n.delivery_status for n in store.list_notifications("CLI-000001", run_id=None)] == ["queued"]
+
+
 def test_ac_01_only_a_person_resolves_and_closes_and_closed_is_final():
     """Constitution #6 and spec 18 A7: `resolved` and `closed` come only from analysts; a closed case never moves."""
     store = MemoryStore()
@@ -121,17 +158,20 @@ def test_ac_01_only_a_person_resolves_and_closes_and_closed_is_final():
     assert (closed.previous_status, closed.new_status, store.queue_status(case_id)) == ("resolved", "closed", "closed")
     by_analyst = [e for e in store.events(case_id) if e.type in {"analyst_action", "assigned", "status_changed"}]
     assert {e.actor for e in by_analyst} == {"analyst:sub-1"} and "assigned" in {e.type for e in by_analyst}
+    assert [e.payload for e in by_analyst if e.type == "analyst_action"] == [
+        {"action": "take", "reason": None}, {"action": "resolve", "reason": "x"},
+        {"action": "close_case", "reason": "x"}]
     written = len(store.events(case_id))
-    for attempt in (lambda: store.change_status(case_id, "review", on=ON, actor="agent", trace_id="t"),
-                    lambda: act(store, case_id, "reopen_case", "review")):
-        with pytest.raises(StoreError, match="closed -> review is not in case_queue.transitions"):
-            attempt()
+    with pytest.raises(StoreError, match="closed -> review is not in case_queue.transitions"):
+        store.change_status(case_id, "review", on=ON, actor="agent", trace_id="t")
     assert store.queue_status(case_id) == "closed" and len(store.events(case_id)) == written   # refused = no write
     other = open_case(store, transaction_id="TRX-" + "E" * 20).case_id
     assert act(store, other, "take", "verification").new_status == "verification"
     kept = act(store, other, "request_customer_info", None)                     # None keeps the status
     assert (kept.previous_status, kept.new_status) == ("verification", "verification")
     assert types(store, other)[-1] == "analyst_action" and store.queue_status(other) == "verification"
+    act(store, other, "resolve", "resolved")
+    assert act(store, other, "reopen_case", "review").new_status == "review"     # resolved -> review
 
 
 @pytest.mark.parametrize("actor", ["agent", "customer", "system", "analyst:x"])
@@ -139,13 +179,65 @@ def test_ac_01_change_status_never_resolves_whatever_the_actor(actor):
     """Spec 18 A7: like `closed`, `resolved` comes only through record_analyst_action, even where the queue allows it
     and even from an actor that looks like an analyst."""
     store = MemoryStore()
-    case_id = open_case(store).case_id
-    store.change_status(case_id, "verification", on=ON, actor="agent", trace_id="t")
+    case_id = at(store, "verification")
     written = len(store.events(case_id))
-    with pytest.raises(StoreError, match="only an analyst action resolves"):
+    with pytest.raises(StoreError, match="only an analyst resolve resolves"):
         store.change_status(case_id, "resolved", on=ON, actor=actor, trace_id="t")
     assert store.queue_status(case_id) == "verification" and len(store.events(case_id)) == written
     assert act(store, case_id, "resolve", "resolved").new_status == "resolved"
+
+
+@pytest.mark.parametrize("start", STATUSES)
+@pytest.mark.parametrize("to, error", [(None, "needs a status"), ("archived", "-> archived is not in")])
+def test_ac_01_change_status_needs_a_known_status_from_every_start(start, to, error):
+    """A `status_changed {to: null}` would leave the case with no status and no way to close it."""
+    store = MemoryStore()
+    case_id = at(store, start)
+    written = len(store.events(case_id))
+    with pytest.raises(StoreError, match=error):
+        store.change_status(case_id, to, on=ON, actor="agent", trace_id="t")
+    assert store.queue_status(case_id) == start and len(store.events(case_id)) == written
+
+
+@pytest.mark.parametrize("action", ANALYST_ACTIONS)
+def test_d034_a_closed_case_takes_no_analyst_action(action):
+    store = MemoryStore()
+    case_id = at(store, "closed")
+    written = len(store.events(case_id))
+    for new_status in (None, "review"):
+        with pytest.raises(StoreError, match="a closed case takes no analyst action"):
+            act(store, case_id, action, new_status)
+    assert store.queue_status(case_id) == "closed" and len(store.events(case_id)) == written
+
+
+@pytest.mark.parametrize("actor_id", ["", " "])
+def test_ac_01_an_analyst_action_needs_a_person(actor_id):
+    """Spec 18 A7: `analyst:` with a blank sub is no person; nothing is written."""
+    store = MemoryStore()
+    case_id = open_case(store).case_id
+    with pytest.raises(StoreError, match="not a store actor"):
+        act(store, case_id, "take", "review", actor_id=actor_id)
+    assert types(store, case_id) == ["case_opened"]
+
+
+@pytest.mark.parametrize("actor", ["", "bot", "analyst:", "analyst: "])
+def test_ac_01_every_write_names_a_store_actor(actor):
+    store = MemoryStore()
+    case = open_case(store)
+    for write in (lambda: store.create_case(new_case(transaction_id="TRX-" + "H" * 20), actor=actor,
+                                            action_id=ids.new_id("action")),
+                  lambda: store.append_event(case.case_id, "handoff_emitted", actor=actor, trace_id="t"),
+                  lambda: store.change_status(case.case_id, "review", on=ON, actor=actor, trace_id="t"),
+                  lambda: store.block_product(case.case_id, case.product_id, action_id=ids.new_id("action"),
+                                              actor=actor, trace_id="t"),
+                  lambda: store.record_verification(case.case_id, case.action_id, read="get_case", run_id=None,
+                                                    customer_id=None, actor=actor, trace_id="t"),
+                  lambda: store.add_notification(case.case_id, event="case_opened", channel="log",
+                                                 masked_address=None, text="Abrimos.", trigger="auto", actor=actor,
+                                                 trace_id="t")):
+        with pytest.raises(StoreError, match="not a store actor"):
+            write()
+    assert types(store, case.case_id) == ["case_opened"] and len(store.list_cases("CLI-000001", run_id=None)) == 1
 
 
 @pytest.mark.parametrize("start, attempt, error", [
@@ -154,29 +246,27 @@ def test_ac_01_change_status_never_resolves_whatever_the_actor(actor):
     ("resolved", lambda s, c: act(s, c, "resolve", "resolved"), "resolved -> resolved"),
     ("new", lambda s, c: act(s, c, "close_case", "closed"), "new -> closed"),
     ("verification", lambda s, c: act(s, c, "take", "verification"), "verification -> verification"),
-    ("new", lambda s, c: act(s, c, "reopen_case", "archived"), "new -> archived"),
-    # only close_case closes
-    ("resolved", lambda s, c: s.change_status(c, "closed", on=ON, actor="agent", trace_id="t"), "close_case"),
-    ("resolved", lambda s, c: act(s, c, "reopen_case", "closed"), "close_case"),
-    # an analyst action and its status are tied (ANALYST_TARGETS)
+    # only an analyst resolve or close_case resolves or closes
+    ("resolved", lambda s, c: s.change_status(c, "closed", on=ON, actor="agent", trace_id="t"), "close_case closes"),
+    # an analyst action and its statuses are tied (ANALYST_SOURCES, ANALYST_TARGETS; D-034)
     ("review", lambda s, c: act(s, c, "take", "resolved"), "take moves a case only to review or verification"),
     ("review", lambda s, c: act(s, c, "take", None), "take moves"),
+    ("resolved", lambda s, c: act(s, c, "take", "review"), "take starts only from new or review or verification"),
     ("resolved", lambda s, c: act(s, c, "close_case", "review"), "close_case moves a case only to closed"),
     ("resolved", lambda s, c: act(s, c, "close_case", None), "close_case moves"),
+    ("review", lambda s, c: act(s, c, "close_case", "resolved"), "close_case moves"),
     ("review", lambda s, c: act(s, c, "resolve", "review"), "resolve moves a case only to resolved"),
     ("review", lambda s, c: act(s, c, "resolve", None), "resolve moves"),
+    ("resolved", lambda s, c: act(s, c, "reopen_case", "closed"), "reopen_case moves a case only to review"),
+    ("review", lambda s, c: act(s, c, "reopen_case", "review"), "reopen_case starts only from resolved"),
+    ("resolved", lambda s, c: act(s, c, "approve_credit", "review"), "approve_credit keeps the status"),
+    ("review", lambda s, c: act(s, c, "request_customer_info", "review"), "request_customer_info keeps the status"),
 ])
 def test_ac_01_status_changes_follow_case_queue_transitions(start, attempt, error):
-    """policies.yaml case_queue.transitions and the analyst action's own status (engine.transition once 02a merges);
+    """policies.yaml case_queue.transitions and the analyst action's own statuses (engine.transition once 02a merges);
     each case is refused by one rule only, and a refused change writes nothing."""
     store = MemoryStore()
-    case_id = open_case(store).case_id
-    if start == "verification":
-        store.change_status(case_id, "verification", on=ON, actor="agent", trace_id="t")
-    if start in {"review", "resolved"}:
-        act(store, case_id, "take", "review")
-    if start == "resolved":
-        act(store, case_id, "resolve", "resolved")
+    case_id = at(store, start)
     written = len(store.events(case_id))
     with pytest.raises(StoreError, match=error):
         attempt(store, case_id)
@@ -199,32 +289,49 @@ def test_ac_01_eval_runs_get_fresh_case_ids_and_never_see_each_other():
 
 def test_ac_01_reads_and_related_cases_are_scoped_to_the_session_customer():
     """Constitution #3: another customer's case reads as missing; customer_id=None is the analyst console; a related
-    case must be the same customer's, in the same run."""
+    case must be a closed case of the same customer, in the same run."""
     store = MemoryStore()
-    mine, theirs = open_case(store).case_id, open_case(store, customer_id="CLI-000002").case_id
+    mine, theirs = at(store, "closed"), at(store, "closed", customer_id="CLI-000002")
     assert store.get_case(theirs, run_id=None, customer_id="CLI-000001") is None
     assert store.get_case(theirs, run_id=None, customer_id=None).customer_id == "CLI-000002"
     assert store.get_case(mine, run_id=None, customer_id="CLI-000001").case_id == mine
-    with pytest.raises(StoreError, match="related case"):
-        open_case(store, related_case_id=theirs)
-    seeded = open_case(store, run_id=RUN).case_id
-    with pytest.raises(StoreError, match="related case"):
-        open_case(store, related_case_id=seeded)
-    assert len(store.list_cases("CLI-000001", run_id=None)) == 1                # refused = nothing written
+    seeded, active = at(store, "closed", run_id=RUN), open_case(store, transaction_id="TRX-" + "J" * 20).case_id
+    for related in (theirs, seeded, active):
+        with pytest.raises(StoreError, match="related case"):
+            open_case(store, related_case_id=related)
+    assert len(store.list_cases("CLI-000001", run_id=None)) == 2                # refused = nothing written
+    assert open_case(store, related_case_id=mine).related_case_id == mine
 
 
 def test_ac_01_a_related_case_is_written_on_both_cases_and_active_cases_come_first():
     """A closed case newer than two active ones still sorts after them."""
     store = ticking_store()
-    old = open_case(store).case_id
-    close(store, old)
+    old = at(store, "closed")
     related = open_case(store, actor="customer", related_case_id=old).case_id
-    assert store.events(old)[-1].type == "related_case_opened"
+    assert (store.events(old)[-1].type, store.events(old)[-1].actor) == ("related_case_opened", "customer")
     assert store.events(old)[-1].payload == {"case_id": related}
     active = open_case(store, transaction_id="TRX-" + "D" * 20).case_id
-    closed_newer = open_case(store, transaction_id="TRX-" + "F" * 20).case_id
-    close(store, closed_newer)
+    closed_newer = at(store, "closed", transaction_id="TRX-" + "F" * 20)
     assert [c.case_id for c in store.list_cases("CLI-000001", run_id=None)] == [active, related, closed_newer, old]
+
+
+def test_ac_01_a_closed_case_takes_no_customer_write():
+    """§6.5: block, information, call and re-evaluation on a closed case are refused (the tool opens a related case);
+    a summary send (N) and automatic notifications stay allowed."""
+    store = MemoryStore()
+    case = store.get_case(at(store, "closed"), run_id=None, customer_id=None)
+    written = len(store.events(case.case_id))
+    for write in ("customer_info_added", "call_requested", "reevaluation_requested"):
+        with pytest.raises(StoreError, match="is closed"):
+            store.append_event(case.case_id, write, actor="customer", trace_id="t",
+                               payload={"action_id": ids.new_id("action")})
+    with pytest.raises(StoreError, match="is closed"):
+        store.block_product(case.case_id, case.product_id, action_id=ids.new_id("action"), actor="agent", trace_id="t")
+    assert len(store.events(case.case_id)) == written and store.product_status(case.product_id, run_id=None) is None
+    store.add_notification(case.case_id, event="receipt", channel="log", masked_address=None, text="Resumen",
+                           trigger="on_request", actor="customer", trace_id="t", action_id=ids.new_id("action"))
+    store.append_event(case.case_id, "receipt_issued", actor="agent", trace_id="t")
+    assert types(store, case.case_id)[-2:] == ["notification_sent", "receipt_issued"]
 
 
 def test_d014_stored_deadlines_and_payloads_come_back_unchanged():
@@ -257,13 +364,14 @@ def test_d023_a_case_needs_its_business_date():
 
 
 def test_d025_a_write_has_no_verification_id_and_each_read_mints_one():
-    """The verifying read mints the V- id (`action_verified`); case_opened and card_blocked carry only the action."""
+    """The verifying read mints the V- id (`action_verified`); case_opened and card_blocked carry only the action.
+    The read must be of the case's own run and customer, and of an action written on that case."""
     store = ticking_store()
     case = open_case(store)
     assert case.verification_id is None and store.events(case.case_id)[0].payload == {"action_id": case.action_id}
     assert store.get_case(case.case_id, run_id=None, customer_id=None).verification_id is None
-    first = store.record_verification(case.case_id, case.action_id, run_id=None, actor="agent", trace_id="t")
-    second = store.record_verification(case.case_id, case.action_id, run_id=None, actor="agent", trace_id="t")
+    first = verify(store, case.case_id, case.action_id, customer_id="CLI-000001")
+    second = verify(store, case.case_id, case.action_id)
     assert set(first.payload) == {"action_id", "verification_id", "read_at"} and not first.customer_visible
     assert ids.is_valid("verification", first.payload["verification_id"])
     assert first.payload["verification_id"] != second.payload["verification_id"]
@@ -273,13 +381,50 @@ def test_d025_a_write_has_no_verification_id_and_each_read_mints_one():
     assert types(store, case.case_id).count("action_verified") == 2                    # the audit trail stays
     cited = ids.new_id("action")                                     # an action id outside a write does not count
     store.append_event(case.case_id, "handoff_emitted", actor="agent", trace_id="t", payload={"action_id": cited})
-    for bad in (lambda: store.record_verification(case.case_id, ids.new_id("action"), run_id=None, actor="agent",
-                                                  trace_id="t"),
-                lambda: store.record_verification(case.case_id, cited, run_id=None, actor="agent", trace_id="t"),
-                lambda: store.record_verification(case.case_id, case.action_id, run_id=RUN, actor="agent",
-                                                  trace_id="t")):
+    seeded, theirs = open_case(store, run_id=RUN), open_case(store, customer_id="CLI-000002")
+    other = open_case(store, transaction_id="TRX-" + "K" * 20)
+    written = {c: len(store.events(c)) for c in (case.case_id, seeded.case_id, theirs.case_id, other.case_id)}
+    for bad in (lambda: verify(store, case.case_id, ids.new_id("action")),
+                lambda: verify(store, case.case_id, cited),
+                lambda: verify(store, case.case_id, case.action_id, run_id=RUN),
+                lambda: verify(store, seeded.case_id, seeded.action_id, run_id=None),        # a run case, read live
+                lambda: verify(store, other.case_id, case.action_id),                       # case B, action of A
+                lambda: verify(store, theirs.case_id, theirs.action_id, customer_id="CLI-000001")):
         with pytest.raises(StoreError):
             bad()
+    assert {c: len(store.events(c)) for c in written} == written
+
+
+@pytest.mark.parametrize("write", sorted(WRITE_EVENTS))
+def test_d025_each_write_is_verified_only_by_its_read(write):
+    """VERIFIED_WITH (§6.3): a read verifies only the writes it can see; the reads without a case id find the case by
+    the action id (`action_write`); any other read is refused and writes nothing."""
+    store = MemoryStore()
+    case = open_case(store, run_id=RUN)
+    action_id = case.action_id if write == "case_opened" else ids.new_id("action")
+    if write == "card_blocked":
+        store.block_product(case.case_id, case.product_id, action_id=action_id, actor="agent", trace_id="t")
+    elif write == "notification_sent":
+        store.add_notification(case.case_id, event="receipt", channel="log", masked_address=None, text="Resumen",
+                               trigger="on_request", actor="customer", trace_id="t", action_id=action_id)
+    elif write != "case_opened":
+        store.append_event(case.case_id, write, actor="customer", trace_id="t", payload={"action_id": action_id})
+    found = store.action_write(action_id, run_id=RUN, customer_id="CLI-000001")
+    assert (found.type, found.case_id, found.payload["action_id"]) == (write, case.case_id, action_id)
+    found.payload["action_id"] = "A-000000000000"                                      # a copy, not the row
+    assert store.action_write(action_id, run_id=RUN, customer_id=None).payload["action_id"] == action_id
+    assert store.action_write(action_id, run_id=None, customer_id=None) is None
+    assert store.action_write(action_id, run_id=RUN, customer_id="CLI-000002") is None
+    right = VERIFIED_WITH[WRITE_TOOL[write]]
+    written = len(store.events(case.case_id))
+    for read in sorted(set(get_args(VerifyingRead)) - {right}):
+        with pytest.raises(StoreError, match=f"verified with {right}, not {read}"):
+            verify(store, found.case_id, action_id, read=read, run_id=RUN, customer_id="CLI-000001")
+    assert len(store.events(case.case_id)) == written
+    read = verify(store, found.case_id, action_id, read=right, run_id=RUN, customer_id="CLI-000001")
+    assert (read.type, read.payload["action_id"]) == ("action_verified", action_id)
+    assert set(WRITE_TOOL.values()) == set(VERIFIED_WITH)
+    assert set(VERIFIED_WITH.values()) == set(get_args(VerifyingRead))
 
 
 def test_d025_verifications_lists_every_read_of_one_action_in_read_order():
@@ -289,8 +434,9 @@ def test_d025_verifications_lists_every_read_of_one_action_in_read_order():
     case = open_case(store, run_id=RUN)
     block = ids.new_id("action")
     store.block_product(case.case_id, case.product_id, action_id=block, actor="agent", trace_id="t")
-    reads = [store.record_verification(case.case_id, action, run_id=RUN, actor="agent", trace_id="t").payload
-             for action in (case.action_id, block, case.action_id)]
+    reads = [verify(store, case.case_id, action, read=read, run_id=RUN).payload
+             for action, read in ((case.action_id, "get_case"), (block, "get_product_status"),
+                                  (case.action_id, "get_case"))]
     listed = store.verifications(case.case_id, case.action_id, run_id=RUN)
     assert [e.payload for e in listed] == [reads[0], reads[2]] and {e.type for e in listed} == {"action_verified"}
     assert [e.payload for e in store.verifications(case.case_id, block, run_id=RUN)] == [reads[1]]
@@ -305,20 +451,41 @@ def test_d025_the_first_read_of_a_block_writes_block_verified_once():
     action, never by append_event, never on a repeated read, never for another write."""
     store = MemoryStore()
     case = open_case(store)
-    store.record_verification(case.case_id, case.action_id, run_id=None, actor="agent", trace_id="t")
+    verify(store, case.case_id, case.action_id)
     block = ids.new_id("action")
     store.block_product(case.case_id, case.product_id, action_id=block, actor="agent", trace_id="t")
     assert "block_verified" not in types(store, case.case_id)
-    store.record_verification(case.case_id, block, run_id=None, actor="agent", trace_id="t")
+    verify(store, case.case_id, block, read="get_product_status")
     assert types(store, case.case_id)[-2:] == ["action_verified", "block_verified"]
-    store.record_verification(case.case_id, block, run_id=None, actor="agent", trace_id="t")
+    verify(store, case.case_id, block, read="get_product_status")
     again = ids.new_id("action")
     store.block_product(case.case_id, case.product_id, action_id=again, actor="agent", trace_id="t")
-    store.record_verification(case.case_id, again, run_id=None, actor="agent", trace_id="t")
+    verify(store, case.case_id, again, read="get_product_status")
     verified = [e for e in store.events(case.case_id) if e.type == "block_verified"]
     assert [(e.payload, e.customer_visible) for e in verified] == [
         ({"action_id": block, "product_id": case.product_id}, True),
         ({"action_id": again, "product_id": case.product_id}, True)]
+
+
+def test_d025_a_stale_block_read_verifies_nothing():
+    """The post-condition is the card's current status: a block is verified only while its override is the latest of
+    the product in the run and Blocked. Until the unblock writer lands (03/05), the test writes the Active row."""
+    store = MemoryStore()
+    case = open_case(store, run_id=RUN)
+    first, second = ids.new_id("action"), ids.new_id("action")
+    for block in (first, second):
+        store.block_product(case.case_id, case.product_id, action_id=block, actor="agent", trace_id="t")
+    written = len(store.events(case.case_id))
+    with pytest.raises(StoreError, match="no longer the card's current status"):
+        verify(store, case.case_id, first, read="get_product_status", run_id=RUN)
+    assert len(store.events(case.case_id)) == written
+    unblock = ids.new_id("action")
+    store._overrides[unblock] = ProductOverride(product_id=case.product_id, status="Active", case_id=case.case_id,
+                                                action_id=unblock, actor="analyst:sub-1", run_id=RUN,
+                                                created_at=dt.datetime.now(dt.UTC))
+    with pytest.raises(StoreError, match="no longer the card's current status"):
+        verify(store, case.case_id, second, read="get_product_status", run_id=RUN)
+    assert len(store.events(case.case_id)) == written and "block_verified" not in types(store, case.case_id)
 
 
 @pytest.mark.parametrize("write, payload", [("customer_info_added", {"text": "Nunca estuve en Monterrey"}),
@@ -329,7 +496,7 @@ def test_d025_add_case_info_and_request_call_are_verified_by_a_read_of_their_act
     case = open_case(store, run_id=RUN)
     action_id = ids.new_id("action")
     store.append_event(case.case_id, write, actor="customer", trace_id="t", payload={"action_id": action_id, **payload})
-    read = store.record_verification(case.case_id, action_id, run_id=RUN, actor="agent", trace_id="t")
+    read = verify(store, case.case_id, action_id, run_id=RUN, customer_id="CLI-000001")
     assert (read.type, read.payload["action_id"]) == ("action_verified", action_id)
     assert store.verifications(case.case_id, action_id, run_id=RUN)[0].payload == read.payload
     assert store.get_case(case.case_id, run_id=RUN, customer_id=None).verification_id is None   # opening unread
@@ -347,26 +514,33 @@ def test_d025_a_write_event_needs_a_fresh_action_id():
 
 
 def test_d025_an_action_id_is_written_once():
-    """One write per action id over case_opened, card_blocked and the other write events, so one read can never
-    verify two actions (Postgres: a unique index, T10)."""
+    """One write per action id over the six write events, so one read can never verify two actions (Postgres: a
+    unique index, T10)."""
     store = MemoryStore()
     case = open_case(store)
-    block = ids.new_id("action")
+    block, info, summary = ids.new_id("action"), ids.new_id("action"), ids.new_id("action")
     store.block_product(case.case_id, case.product_id, action_id=block, actor="agent", trace_id="t")
+    store.append_event(case.case_id, "customer_info_added", actor="customer", trace_id="t", payload={"action_id": info})
+    store.add_notification(case.case_id, event="receipt", channel="log", masked_address=None, text="Resumen",
+                           trigger="on_request", actor="customer", trace_id="t", action_id=summary)
     written = len(store.events(case.case_id))
     for reuse in (lambda: store.block_product(case.case_id, case.product_id, action_id=case.action_id, actor="agent",
                                               trace_id="t"),
                   lambda: store.block_product(case.case_id, case.product_id, action_id=block, actor="agent",
                                               trace_id="t"),
+                  lambda: store.block_product(case.case_id, case.product_id, action_id=info, actor="agent",
+                                              trace_id="t"),
                   lambda: store.create_case(new_case(transaction_id="TRX-" + "G" * 20), actor="agent",
                                             action_id=case.action_id),
                   lambda: store.create_case(new_case(transaction_id="TRX-" + "G" * 20), actor="agent",
-                                            action_id=block),
-                  lambda: store.append_event(case.case_id, "customer_info_added", actor="customer", trace_id="t",
+                                            action_id=summary),
+                  lambda: store.append_event(case.case_id, "call_requested", actor="customer", trace_id="t",
                                              payload={"action_id": block}),
+                  lambda: store.append_event(case.case_id, "call_requested", actor="customer", trace_id="t",
+                                             payload={"action_id": summary}),
                   lambda: store.add_notification(case.case_id, event="receipt", channel="log", masked_address=None,
                                                  text="Resumen", trigger="on_request", actor="customer",
-                                                 trace_id="t", action_id=case.action_id)):
+                                                 trace_id="t", action_id=info)):
         with pytest.raises(StoreError, match="already written"):
             reuse()
     assert len(store.events(case.case_id)) == written and len(store.list_cases("CLI-000001", run_id=None)) == 1
@@ -374,15 +548,15 @@ def test_d025_an_action_id_is_written_once():
 
 
 def test_d025_a_block_is_an_override_in_its_run_verified_only_by_a_read():
-    store = MemoryStore()
+    store = ticking_store()
     case = open_case(store, run_id=RUN)
     block = ids.new_id("action")
     event = store.block_product(case.case_id, case.product_id, action_id=block, actor="agent", trace_id="t")
     assert (event.type, event.payload) == ("card_blocked", {"action_id": block, "product_id": case.product_id})
     status = store.product_status(case.product_id, run_id=RUN)
     assert (status.status, status.action_id, status.verification_id, status.actor) == ("Blocked", block, None, "agent")
-    read = store.record_verification(case.case_id, block, run_id=RUN, actor="agent", trace_id="t")
-    assert store.product_status(case.product_id, run_id=RUN).verification_id == read.payload["verification_id"]
+    reads = [verify(store, case.case_id, block, read="get_product_status", run_id=RUN) for _ in range(2)]
+    assert store.product_status(case.product_id, run_id=RUN).verification_id == reads[1].payload["verification_id"]
     assert store.product_status(case.product_id, run_id=None) is None           # another run reads gold
     again = ids.new_id("action")
     store.block_product(case.case_id, case.product_id, action_id=again, actor="agent", trace_id="t")
@@ -415,6 +589,10 @@ def test_ac_01_notifications_belong_to_the_case_customer_and_show_the_latest_del
     store.add_delivery(sent.notification_id, "sent")
     store.add_delivery(sent.notification_id, "delivered", {"type": "email.delivered"})
     assert [n.delivery_status for n in store.list_notifications("CLI-000001", run_id=RUN)] == ["delivered"]
+    newer = store.add_notification(case_id, event="in_review", channel="log", masked_address=None, text="Revisando.",
+                                   trigger="auto", actor="system", trace_id="t")
+    assert [n.notification_id for n in store.list_notifications("CLI-000001", run_id=RUN)] == [
+        newer.notification_id, sent.notification_id]                               # newest first
     assert store.list_notifications("CLI-000001", run_id=None) == []
     with pytest.raises(StoreError):
         store.add_delivery("N-000000000000", "sent")
@@ -428,7 +606,7 @@ def test_d025_a_case_summary_send_carries_its_action_and_an_auto_send_has_none()
     store.add_notification(case_id, event="receipt", channel="email", masked_address="j***@example.com",
                            text="Resumen", trigger="on_request", actor="customer", trace_id="t", action_id=summary)
     assert store.events(case_id)[-1].payload["action_id"] == summary
-    read = store.record_verification(case_id, summary, run_id=None, actor="agent", trace_id="t")
+    read = verify(store, case_id, summary, read="list_my_notifications")
     assert read.payload["action_id"] == summary
     written = len(store.events(case_id))
     for bad in ({"trigger": "auto", "action_id": ids.new_id("action")}, {"trigger": "on_request", "action_id": None}):

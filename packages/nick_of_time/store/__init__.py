@@ -4,17 +4,21 @@
 Postgres backend over the §6.5 tables is built by C1 in task 03a [assumption] (D-023). Every backend keeps these rules:
 - events are append-only (no update or delete) and a case's status is its last `status_changed` event (FR-02);
 - the store generates every case id, retrying on a primary-key conflict (T9), so no eval run reuses one (§6.8);
-- a status change follows `case_queue.transitions`; only an analyst action resolves and only `close_case` closes
-  (constitution #6);
-- each customer write carries a fresh action id, used once; only a verifying read mints a V- id (D-025);
-- `get_case`, `list_cases`, `product_status`, `verifications` and `list_notifications` take the caller's `run_id` (and
-  the customer where it applies); `customer_id` comes from the session row, never from text. The calls that take only
-  a case id (`events`, `queue_status`, `append_event`, `change_status`, `block_product`, `add_notification`) expect a
-  case the caller first loaded with `get_case` in the session's scope; task 03a may add scope arguments to them.
+- a status change follows `case_queue.transitions` and the analyst-action table (D-034); only `resolve` resolves and
+  only `close_case` closes (constitution #6); a closed case takes no analyst action and no customer write;
+- each customer write carries a fresh action id, used once; only the read that verifies that write mints a V- id
+  (D-025);
+- payloads are JSON, as in Postgres `jsonb`;
+- `get_case`, `list_cases`, `action_write`, `record_verification` and `list_notifications` take the caller's
+  `run_id` and customer (None = system, analyst or auditor); `product_status` and `verifications` take the `run_id`.
+  `customer_id` comes from the session row, never from text. The calls that take only a case id (`events`,
+  `queue_status`, `append_event`, `change_status`, `block_product`, `add_notification`) expect a case the caller
+  first loaded with `get_case` in the session's scope; task 03a may add scope arguments to them.
 """
 from __future__ import annotations
 
 import datetime as dt
+import re
 from collections.abc import Callable
 from typing import Any, Literal, Optional, Protocol, get_args, runtime_checkable
 
@@ -33,20 +37,37 @@ CUSTOMER_VISIBLE: frozenset[str] = frozenset(get_args(EventType)) - {"action_ver
                                                                      "analyst_action"}               # §6.5 ✓
 # Written only by the store's own methods, so their invariants hold: one opening, checked status changes, analysts,
 # a related case that exists, a block with its override row, a V- id and a verified block only from a read, a send
-# with its row.
+# with its row. The channel events wait for the customer_channels accessor (task 03a), which writes them with the row.
 RESERVED_EVENTS: frozenset[str] = frozenset({"case_opened", "status_changed", "analyst_action", "assigned",
                                              "related_case_opened", "card_blocked", "action_verified",
-                                             "block_verified", "notification_sent"})
-# The events of the six customer writes (open_case, block_card, add_case_info, request_call, request_reevaluation,
-# send_case_summary; §6.3): each carries the write's own action id, which a verifying read cites (D-025).
-WRITE_EVENTS: frozenset[str] = frozenset({"case_opened", "card_blocked", "customer_info_added", "call_requested",
-                                          "reevaluation_requested", "notification_sent"})
+                                             "block_verified", "notification_sent", "telegram_linked",
+                                             "email_confirmed"})
+# Each write event and the customer tool that writes it (§6.3); each carries the write's own action id (D-025).
+# `case_opened` also comes from request_reevaluation on a closed case, which is verified with the same read.
+WRITE_TOOL: dict[str, str] = {"case_opened": "open_case", "card_blocked": "block_card",
+                              "customer_info_added": "add_case_info", "call_requested": "request_call",
+                              "reevaluation_requested": "request_reevaluation",
+                              "notification_sent": "send_case_summary"}
+WRITE_EVENTS: frozenset[str] = frozenset(WRITE_TOOL)
+# TODO(01c): import VERIFIED_WITH from contracts.tools once #59 (task 01b) merges; this copy matches it (§6.3).
+VERIFIED_WITH: dict[str, str] = {"open_case": "get_case", "block_card": "get_product_status",
+                                 "add_case_info": "get_case", "request_call": "get_case",
+                                 "request_reevaluation": "get_case", "send_case_summary": "list_my_notifications"}
+VerifyingRead = Literal["get_case", "get_product_status", "list_my_notifications"]
+# A store actor: agent, customer, system or a person, `analyst:<sub>` with a sub that is not blank.
+ACTOR = r"^(agent|customer|system|analyst:.*\S.*)$"
 # policies.yaml case_queue.transitions; switch to `engine.transition` (spec 02) when task 02a merges.
 TRANSITIONS: dict[str, list[str]] = yaml.safe_load((CONTRACTS_DIR / "policies.yaml").read_text())["case_queue"][
     "transitions"]
-# The statuses these analyst actions may move a case to [assumption] (task 01c); other actions follow TRANSITIONS.
-ANALYST_TARGETS: dict[str, frozenset[str]] = {"close_case": frozenset({"closed"}), "resolve": frozenset({"resolved"}),
-                                              "take": frozenset({"review", "verification"})}
+# [assumption] D-034 (task 01c) until spec 02 `engine.transition` (AC-10): the statuses an analyst action may move a
+# case to (None keeps the status) and the statuses it may start from. An action not in ANALYST_TARGETS keeps the
+# status; an action not in ANALYST_SOURCES may start from any status but closed.
+KEEP: frozenset[Optional[str]] = frozenset({None})
+ANALYST_TARGETS: dict[str, frozenset[Optional[str]]] = {
+    "take": frozenset({"review", "verification"}), "resolve": frozenset({"resolved"}),
+    "close_case": frozenset({"closed"}), "reopen_case": frozenset({"review"})}
+ANALYST_SOURCES: dict[str, frozenset[str]] = {"take": frozenset({"new", "verification", "review"}),
+                                              "reopen_case": frozenset({"resolved"})}
 Channel = Literal["log", "telegram", "email"]
 DeliveryStatus = Literal["queued", "sent", "delivered", "bounced", "failed"]
 MAX_CASE_ID_ATTEMPTS = 8      # 10^6 case ids; at 1% occupancy, 8 straight conflicts happen once in 10^16 inserts
@@ -104,7 +125,7 @@ class ProductOverride(_Row):
     case_id: str
     action_id: str = Field(pattern=ids.PATTERN["action"])
     verification_id: Optional[str] = Field(None, pattern=ids.PATTERN["verification"])   # latest read (D-025)
-    actor: str
+    actor: str = Field(pattern=ACTOR)
     run_id: Optional[str] = None
     created_at: AwareDatetime
 
@@ -114,8 +135,8 @@ class CaseEvent(_Row):
     case_id: str
     seq: int = Field(ge=1)
     type: EventType
-    actor: str                                              # agent | customer | system | analyst:<sub>
-    payload: dict[str, Any]
+    actor: str = Field(pattern=ACTOR)
+    payload: dict[str, Any]                                 # JSON only, as in jsonb
     customer_visible: bool
     trace_id: str
     created_at: AwareDatetime
@@ -145,21 +166,37 @@ def insert_with_fresh_case_id(try_insert: Callable[[str], bool]) -> str:
     raise StoreError(f"no free case id after {MAX_CASE_ID_ATTEMPTS} attempts")
 
 
+def check_actor(actor: str) -> str:
+    """Refuse an actor outside ACTOR, such as `analyst:` with a blank sub, before any write."""
+    if not isinstance(actor, str) or re.fullmatch(ACTOR, actor) is None:
+        raise StoreError(f"not a store actor: {actor!r} (agent, customer, system or analyst:<sub>)")
+    return actor
+
+
 def check_transition(current: str, to: Optional[str], *, analyst_action: Optional[str] = None) -> None:
-    """Refuse an analyst action outside ANALYST_TARGETS, a change outside `TRANSITIONS[current]` (a closed case has
-    none), `resolved` unless an analyst action resolves it (spec 18 A7) and `closed` unless an analyst `close_case`
-    asks for it (constitution #6). `to=None` keeps the status; only `record_analyst_action` passes `analyst_action`.
-    Every backend calls it before it writes anything. With 02a, `record_analyst_action` takes `to` from
-    `engine.transition(current, action, actor)` and this check stays for agent and customer changes."""
-    targets = ANALYST_TARGETS.get(analyst_action or "")
-    if targets is not None and to not in targets:
-        raise StoreError(f"{analyst_action} moves a case only to {' or '.join(sorted(targets))}")
-    if to is None:
-        return
-    if to == "closed" and analyst_action != "close_case":
-        raise StoreError("only an analyst close_case action closes a case (constitution #6)")
-    if to == "resolved" and analyst_action is None:
-        raise StoreError("only an analyst action resolves a case (spec 18 A7)")
+    """The status rules every backend checks before it writes anything; only `record_analyst_action` passes
+    `analyst_action`. Without one (agent, customer, system), a change needs a status and never resolves or closes.
+    With one, a closed case takes no action, the action must start from ANALYST_SOURCES and move only to
+    ANALYST_TARGETS (KEEP, `to=None`, for the others). Any change follows `TRANSITIONS[current]`. With 02a,
+    `record_analyst_action` takes `to` from `engine.transition(current, action, actor)` and this check stays for agent
+    and customer changes."""
+    if analyst_action is None:
+        if to is None:
+            raise StoreError("a status change needs a status")
+        if to in ("resolved", "closed"):
+            raise StoreError("only an analyst resolve resolves and only close_case closes a case (constitution #6)")
+    else:
+        if current == "closed":
+            raise StoreError(f"a closed case takes no analyst action ({analyst_action}, D-034)")
+        sources = ANALYST_SOURCES.get(analyst_action)
+        if sources is not None and current not in sources:
+            raise StoreError(f"{analyst_action} starts only from {' or '.join(sorted(sources))}")
+        targets = ANALYST_TARGETS.get(analyst_action, KEEP)
+        if to not in targets:
+            moves = "keeps the status" if targets == KEEP else f"moves a case only to {' or '.join(sorted(targets))}"
+            raise StoreError(f"{analyst_action} {moves}")
+        if to is None:
+            return
     if to not in TRANSITIONS.get(current, []):
         raise StoreError(f"{current} -> {to} is not in case_queue.transitions")
 
@@ -171,8 +208,8 @@ class Store(Protocol):
 
     def create_case(self, case: NewCase, *, actor: str, action_id: str) -> CaseRecord:
         """Insert the case under a fresh case id (T9) with `case_opened` `{action_id}` and, when `related_case_id` is
-        set (a case of the same customer and run), `related_case_opened` on that case, all in one operation. A write
-        has no V- id: only `record_verification` mints one (D-025). A used `action_id` is refused."""
+        set (a closed case of the same customer and run), `related_case_opened` on that case, all in one operation. A
+        write has no V- id: only `record_verification` mints one (D-025). A used `action_id` is refused."""
 
     def get_case(self, case_id: str, *, run_id: Optional[str], customer_id: Optional[str]) -> Optional[CaseRecord]:
         """The case if it belongs to `run_id` (None = production) and to `customer_id` (None = analyst console),
@@ -184,7 +221,8 @@ class Store(Protocol):
     def append_event(self, case_id: str, type: EventType, *, actor: str, trace_id: str,
                      payload: Optional[dict[str, Any]] = None) -> CaseEvent:
         """Append one event with the next `seq`; reserved types (RESERVED_EVENTS) are refused. A write event
-        (`customer_info_added`, `call_requested`, `reevaluation_requested`) needs a fresh `payload["action_id"]`."""
+        (`customer_info_added`, `call_requested`, `reevaluation_requested`) needs a fresh `payload["action_id"]` and
+        a case that is not closed."""
 
     def events(self, case_id: str) -> list[CaseEvent]:
         """Every event of the case in `seq` order."""
@@ -195,31 +233,38 @@ class Store(Protocol):
     def change_status(self, case_id: str, to: QueueStatus, *, on: dt.date, actor: str, trace_id: str,
                       reason: Optional[str] = None) -> CaseEvent:
         """Append `status_changed` `{from, to, on, reason?}` (`on` = business date) if `check_transition` allows it;
-        never `resolved` or `closed`, whatever the actor."""
+        never `resolved` or `closed`, whatever the actor, and never without a status."""
 
     def record_analyst_action(self, action: AnalystActionIn, *, new_status: Optional[QueueStatus], on: dt.date,
                               trace_id: str) -> AnalystActionOut:
-        """Append `analyst_action` (and `assigned` for `take`) with actor `analyst:<actor_id>`, then the
-        `status_changed` to `new_status` (None keeps the status). The only way to resolve or close; `close_case`,
-        `resolve` and `take` need a status of ANALYST_TARGETS. The api checks `action.idempotency_key` before
-        calling (spec 01 §10 T9)."""
+        """Append `analyst_action` `{action, reason}` (and `assigned` for `take`) with actor `analyst:<actor_id>`, then
+        the `status_changed` to `new_status` (None keeps the status). The only way to resolve or close; the status
+        must fit ANALYST_SOURCES and ANALYST_TARGETS; a blank `actor_id` is refused. The api checks
+        `action.idempotency_key` before calling (spec 01 §10 T9)."""
 
     def block_product(self, case_id: str, product_id: str, *, action_id: str, actor: str,
                       trace_id: str) -> CaseEvent:
-        """Block the case's own product in the case's run: a `product_overrides(Blocked)` row whose `override_id` is
-        a fresh `action_id`, and `card_blocked` `{action_id, product_id}`. Gold is never written; no V- id is
-        minted."""
+        """Block the product of a case that is not closed, in the case's run: a `product_overrides(Blocked)` row whose
+        `override_id` is a fresh `action_id`, and `card_blocked` `{action_id, product_id}`. Gold is never written; no
+        V- id is minted."""
 
     def product_status(self, product_id: str, *, run_id: Optional[str]) -> Optional[ProductOverride]:
         """The latest override of the product in `run_id`, with the V- id of the latest `action_verified` of its
         action (None until a read verified it); None = read gold."""
 
-    def record_verification(self, case_id: str, action_id: str, *, run_id: Optional[str], actor: str,
-                            trace_id: str) -> CaseEvent:
-        """Called by the verifying read after it read the post-condition of a write of the case (WRITE_EVENTS): mint
-        a V- id and append `action_verified` `{action_id, verification_id, read_at}` (D-025). Every read adds one;
-        earlier ones stay as the audit trail. The first read of a `card_blocked` action also writes `block_verified`
-        `{action_id, product_id}`, once. A read with nothing to verify does not call it."""
+    def action_write(self, action_id: str, *, run_id: Optional[str],
+                     customer_id: Optional[str]) -> Optional[CaseEvent]:
+        """The write event (WRITE_EVENTS) that carries `action_id`, in `run_id` and of `customer_id` (None = system,
+        analyst or auditor), else None. The reads without a case id (`get_product_status`, `list_my_notifications`)
+        find the case with it; the auditor takes `requested_at` from its `created_at`."""
+
+    def record_verification(self, case_id: str, action_id: str, *, read: VerifyingRead, run_id: Optional[str],
+                            customer_id: Optional[str], actor: str, trace_id: str) -> CaseEvent:
+        """Called by the read of VERIFIED_WITH, asked about a write of the case, after it read the post-condition:
+        mint a V- id and append `action_verified` `{action_id, verification_id, read_at}` (D-025). Every read adds
+        one; earlier ones stay as the audit trail. A `card_blocked` action verifies only while its override is the
+        product's latest in the run and `Blocked`; its first read also writes `block_verified` `{action_id,
+        product_id}`, once. A plain read (no action id) does not call it; it returns `read_at` only."""
 
     def verifications(self, case_id: str, action_id: str, *, run_id: Optional[str]) -> list[CaseEvent]:
         """Every `action_verified` of the action in `seq` order, which is `read_at` ascending ([] when the case is not
@@ -234,7 +279,7 @@ class Store(Protocol):
 
     def add_delivery(self, notification_id: str, status: DeliveryStatus,
                      provider_event: Optional[dict[str, Any]] = None) -> None:
-        """Append a delivery row; the notification's delivery status becomes `status`."""
+        """Append a delivery row (`provider_event` is JSON); the notification's delivery status becomes `status`."""
 
     def list_notifications(self, customer_id: str, *, run_id: Optional[str]) -> list[Notification]:
         """The customer's notifications whose case is in `run_id`, newest first, with their delivery status."""
