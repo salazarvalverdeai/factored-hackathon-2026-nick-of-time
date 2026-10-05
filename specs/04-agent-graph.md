@@ -358,9 +358,9 @@ messages.
       confirm chip, since B0 reads only a bare "sí" as the answer. Wiring fixed: the graph now sends `X-Trace-Id` = the
       state's `trace_id` (each node that calls tools gets it in its config through `traced`), so every store event of a
       turn carries its one trace id, also on a run with no run id (spec 03 §6). The full-gold variant has a postgres
-      param only when gold is present, so CI's `-m postgres` run (no gold) skips nothing. Open (B0 rules,
-      spec 11): dev EV-0115's pt injection is not flagged and opens a case (xfail); EV-0105, EV-0107, EV-0118 and EV-0119
-      are not understood by B0 as written
+      param only when gold is present, so CI's `-m postgres` run (no gold) skips nothing. Found here and fixed
+      in #139: dev EV-0115's pt injection opened a case (now DENY, G-IN-01). Open (B0 rules, spec 11): EV-0105, EV-0107,
+      EV-0118 and EV-0119 are not understood by B0 as written
 - [x] T-MSG — `contracts/messages.yaml`: ES/PT templates for greet, plan, connect, suggestion chips, status labels,
       receipt and notify (placeholders `{name}`, tool facts only). Supports AC-06, AC-10, AC-11, AC-15, AC-16, AC-18,
       AC-19, AC-21, AC-25, AC-26, AC-28, AC-29, AC-31, AC-32; behavior tested in T2–T6. T2–T7 extend the file (clarify,
