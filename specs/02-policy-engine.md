@@ -2,7 +2,7 @@
 
 - **Feature:** pure, deterministic code that turns `contracts/policies.yaml` into decisions — zone, decision, approval
   mode per action, allowed queue transitions and legal deadlines — with the rule ids that justify each one.
-- **Status:** In progress (T1 and T2 done; gate 1 closed; Q7 closed by ADR 0020 on 2026-10-04; adds
+- **Status:** In progress (T1, T2, T4 and T5 done; gate 1 closed; Q7 closed by ADR 0020 on 2026-10-04; adds
   `clock.today(mode)`, display currency and the re-evaluation window)
 - **Owner:** @salazarvalverdeai · **Priority:** P0 · **Size:** M
 - **Challenge dimension:** Technical Judgment (deterministic logic where AI is not appropriate)
@@ -198,6 +198,30 @@ rate is each central bank's official series; the value and `as_of` are filled in
 resolution (proposal: 30 days for every country `[assumption]`, a product policy with no regulatory source); later, the
 agent offers a call (AC-18). A closed case is never reopened by the customer: spec 03 opens a related case.
 
+### 4.5 Analyst queue (FR-06, AC-10, AC-11)
+`queue.transition()` and `queue.sla()` live in `policy/queue.py` as functions over the loaded policies, like the clock,
+so the queue adds no method to `PolicyEngine`. Analyst actions (`AnalystActionIn.action`) follow D-034:
+
+| Action | Starts from | Status after |
+|---|---|---|
+| `take` | `new`, `verification`, `review` | `review` `[assumption]`: the only D-034 target allowed from all three |
+| `resolve` | `verification`, `review` (`case_queue.transitions`) | `resolved` |
+| `close_case` | `resolved` | `closed` |
+| `reopen_case` | `resolved` | `review` |
+| `approve_credit`, `approve_block`, `unblock_card`, `request_customer_info`, `mark_ambiguous` | any but `closed` | unchanged |
+
+A closed case takes no analyst action; any other move is `POL-QUEUE-TRANSITION`, an unknown action
+`POL-DEFAULT-DENY`. Every analyst action needs a person (`analyst:<sub>`, sub not blank): `close_case` by anyone else
+is `POL-CLOSE-HUMAN`, any other action `POL-DEFAULT-DENY` `[assumption]`. The loader types `case_queue` and refuses a
+queue where something leaves `closed`, a status other than `resolved` reaches `closed`, a status is missing, an
+`sla_hours` value is not positive, or a `deadline_sla` alert is not after its priority rise.
+
+`sla()` gives `sla_due_at` = the time the case entered its status + `sla_hours` (none for `new`, `resolved` and
+`closed`). For an open (not resolved or closed) case in a `deadline_sla` scope (MX debit), priority is `high` from
+business day 1 after `opened_on` and `alert_due_at` is local midnight at the start of business day 2 (§4.3). `[assumption]`
+It applies to every open MX debit case, as AC-11 reads, with or without a credit deadline; a count past the last
+holiday file gives priority `high`, no alert time and `POL-CLOCK-UNKNOWN`. "Today" is an argument (AC-16).
+
 ## 5. Non-functional requirements
 - **Performance:** `decide()` < 5 ms p95 (pure Python, policies cached).
 - **Security:** read-only access to `policies.yaml`; no environment variable can loosen a rule (only `supervised_mode`
@@ -237,8 +261,11 @@ deadline: Deadline = clock.deadline(country="MX", product="debit", opened_on=tod
 # Deadline: credit_deadline, ruling_deadline, deadline_source, source_url, verified_on, calendar {credit|ruling:
 #   "business"|"calendar"}, holidays_skipped [..], extendable_once, rule_ids, policies_version; charged_at= (aware datetime
 #   or date) is required for a charge-age row (MX). Computed once at opening and stored (spec 03 AC-16).
-engine.transition(current="verification", action="resolve", actor="analyst:…") -> new status | Deny
-engine.sla(case) -> {priority, sla_due_at, alert_due_at}
+queue.transition(current="verification", action="resolve", actor="analyst:…") -> Moved | Deny   # §4.5
+# Moved: action, previous, status (the next status_changed `to`; = previous when the action keeps it), rule_ids,
+#   policies_version. The api appends the event; the status stays the last event (append-only).
+queue.sla(QueueCase(status, status_since, country, product_type, opened_on), today=today)
+#   -> Sla: priority "normal"|"high", sla_due_at, alert_due_at, rule_ids (case_queue keys), policies_version
 engine.reevaluation_allowed(country="MX", resolved_on=date(...), today=today) -> Allow | Deny("POL-REEVAL-WINDOW")
 fx.convert(amount=1250.0, from_currency="USD", to_currency="MXN") -> {amount, rate, rate_source, as_of} | None
 ```
@@ -313,8 +340,8 @@ Implementation goes in `feat/02-policy-engine` once this spec and spec 01 (packa
 - [x] T2 — `decide()` with the evaluation order of §4.1 and mode combination of §4.2 · AC-01, 02, 04, 05, 06, 07, 08, 09, 15
 - [ ] T3 — `clock.deadline()` + holiday files with sources for MX, AR, CO, BR, PE, CL; re-verify every clock source · AC-03, AC-14
       (MX, AR, CO and BR done with `add_business_days` (D-008); PE and CL pending: until then they get `POL-CLOCK-UNKNOWN`)
-- [ ] T4 — `transition()` and `sla()` · AC-10, AC-11
-- [ ] T5 — decision-table tests: zone × country × mode × tier, plus the boundaries 29/30/49/50 and null · AC-01…AC-13
+- [x] T4 — `transition()` and `sla()` (`policy/queue.py`, §4.5) · AC-10, AC-11
+- [x] T5 — decision-table tests (`tests/test_spec02_table.py`): zone × country × mode × tier, plus the boundaries 29/30/49/50 and null · AC-01…AC-13
 - [ ] T6 — `docs`: policy ids listed in `/agent` content (spec 04 AC-08)
 - [ ] T7 — `clock.today(mode, country)`, time zones, `fx_reference` values from the official series with `as_of`
       and `verified_on`, `fx.convert()`, `reevaluation_allowed()` · AC-16, AC-17, AC-18 (`today` and time zones done;
