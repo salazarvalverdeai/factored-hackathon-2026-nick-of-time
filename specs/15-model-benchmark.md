@@ -262,8 +262,16 @@ Public third-party leaderboards; fine-tuning; batch or provisioned throughput pr
       AC-11, AC-12
 - [ ] T3b — short list and B2 runner on the harness (spec 10), historical mode only, `coherence_rate` · AC-02, AC-09
 - [x] T4 — gate evaluation per arm with evidence and date · AC-10
-- [ ] T5 — table, Pareto chart, JSON for `/evaluation` · AC-03, AC-04
+- [x] T5 — table, Pareto chart, JSON for `/evaluation` · AC-03, AC-04 (`eval/bench/report.py`, `chart.py`; `make bench`
+      writes the result files only on the sealed test split, after the shared seal guard of spec 10
+      (`check_seal` with the classifier split manifest, then `claim_run("bench")` before any model call; it refuses a
+      second run or an existing official output) and labels them `test_review: rules-v1` (PROTOCOL §1.1, ADR 0028);
+      `make bench-dev` writes a labeled development run to the git-ignored `eval/.runs/bench/`; `--from-items`
+      re-renders the table and the chart without models; failed sentences are reported as `errors`, apart from missing
+      tool calls; `es_pt_quality` is written by the run, AC-10)
 - [ ] T6 — lean rule per task in `eval/PROTOCOL.md` before the run; "model selection" ADR with the three rows per task
+      (rule computed by `report.select`, with the reading of §2.3 where it is silent in `SELECTION_READING`,
+      `[assumption]` pending lead decision D-077; ADR 0027 drafted as Proposed with development numbers only)
       and the model map · AC-07
 
 ## 11. Sources

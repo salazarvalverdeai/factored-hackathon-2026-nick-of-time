@@ -113,3 +113,18 @@ classifier: $(PY)
 
 classifier-test: $(PY)
 	PYTHONPATH=packages $(PY) -m eval.classifier.evaluate --split test --arms B0,B1,B2
+
+# Spec 15 B1 (python -m eval.bench). `make bench` is the one post-seal run on the frozen test split: before any model
+# call it runs the seal guard (eval/harness/seal_guard.py check_seal + claim_run "bench"), refuses a second run or an
+# existing official output, and writes eval/results/bench_*, benchmark.json and the SVG. `make bench-dev` runs the
+# validation split as a development run into eval/.runs/bench/ (git-ignored); BENCH_PROVIDER=fake calls no model.
+# Re-render table and chart without models: python -m eval.bench --split S --from-items <items.jsonl>.
+BENCH_PROVIDER ?= bedrock
+BENCH_ARGS ?=
+
+.PHONY: bench bench-dev
+bench: $(PY)
+	PYTHONPATH=.:packages $(PY) -m eval.bench --split test
+
+bench-dev: $(PY)
+	PYTHONPATH=.:packages $(PY) -m eval.bench --split validation --provider $(BENCH_PROVIDER) $(BENCH_ARGS)
