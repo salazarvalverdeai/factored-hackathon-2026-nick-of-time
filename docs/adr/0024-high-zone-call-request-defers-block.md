@@ -27,7 +27,8 @@ the analyst acts (D-042).
 
 The details that matter:
 - **Scope.** It applies only where rule 3a opens a case: one identified card transaction the customer did not reject,
-  at intent confidence ≥ τ (D-031). Below τ only the call is registered and nothing is opened (spec 04 AC-02).
+  at intent confidence ≥ τ (D-031, decided 2026-10-04). Below τ only the call is registered and nothing is opened
+  (spec 04 AC-02).
 - **The other zones do not change.** In the medium and human zones the call path already opened the case without a
   block (`zone_medium`, `zone_human`). When the amount tier or supervised mode already needs a person, the case keeps
   `amount_over_case_gate` or `supervised_mode`.
