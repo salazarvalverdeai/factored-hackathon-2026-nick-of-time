@@ -96,7 +96,8 @@ packages/
   nick_of_time/           shared package — @salazarvalverdeai
     contracts.py          re-exports contracts/tools.py models + TurnResult + receipt models
     policy/               policy engine + regulatory clock (spec 02)
-    store/                `Store` interface used by api and mcp, in-memory backend, `postgres.py`, `schema.sql` (§6.5)
+    store/                `Store` interface used by api and mcp, in-memory backend, `postgres.py`, `accounts.py`
+                          (sessions, denials, channels), `schema.sql` (§6.5)
     receipt.py            deterministic receipt and handoff builders (ADR 0016)
     ids.py                identifier generation (§6.7)
 contracts/                policies.yaml · tools.py · *.schema.json — source of truth (lead approves)
@@ -268,9 +269,10 @@ shape of `data` is fixed in the producing spec.
 table. A column the table leaves untyped is `text` (timestamps `timestamptz`, counters `integer`) and a column is
 `not null` unless marked `null` `[assumption]`. Append-only tables are marked **AO** (no `UPDATE`, `DELETE` or
 `TRUNCATE`; enforced by a trigger in `schema.sql` and a test). The **latest** row of `product_overrides`,
-`notification_deliveries` or `settings_events` is the one inserted last, the highest `row_no` (the in-memory backend's insertion order),
-never the latest `created_at`, which a fixed or skewed clock can repeat or step back `[assumption]`. `list_cases`
-breaks a `created_at` tie by `case_id` and `list_notifications` by `notification_id`, both descending, in both
+`customer_channels` (per channel), `notification_deliveries` or `settings_events` is the one inserted last, the
+highest `row_no` (the in-memory backend's insertion order), never the latest `created_at`, which a fixed or skewed
+clock can repeat or step back `[assumption]`. `list_cases` breaks a `created_at` tie by `case_id` and
+`list_notifications` by `notification_id`, both descending, and `list_denials` (oldest first) by `denial_id`, in both
 backends `[assumption]`. "Sub not blank" means a character outside Python's `str.isspace()` set, spelled out in the
 actor CHECKs so no server locale changes it; their `(?p)` keeps a newline out of the sub, as in the store's `ACTOR`.
 
@@ -283,9 +285,9 @@ actor CHECKs so no server locale changes it; their `(?p)` keeps a newline out of
 | `product_overrides` **AO** | `override_id` PK · `product_id` · `status` · `case_id` · `actor` · `run_id` text null · `created_at` · `row_no` bigint identity | `status` is `Active\|Blocked\|Closed\|Suspended` and `actor` as in `case_events`; current status = latest row **for the same `run_id`**, else gold; `override_id` is the `action_id` of the write `[assumption]` (D-025) |
 | `notifications` **AO** | `notification_id` PK · `case_id` · `customer_id` · `event` · `channel` (`log\|telegram\|email`) · `masked_address` null · `text` · `trigger` (`auto\|on_request`) · `provider_message_id` null · `created_at` | |
 | `notification_deliveries` **AO** | `delivery_id` PK · `notification_id` FK · `status` (`queued\|sent\|delivered\|bounced\|failed`) · `provider_event` jsonb null · `created_at` · `row_no` bigint identity | delivery status = latest row |
-| `customer_channels` **AO** | `channel_id` PK · `customer_id` · `channel` · `address` (chat id or e-mail) · `event` (`linked\|confirmed\|revoked`) · `created_at` | latest row per channel wins |
+| `customer_channels` **AO** | `channel_id` PK · `customer_id` · `channel` · `address` (chat id or e-mail) · `event` (`linked\|confirmed\|revoked`) · `created_at` · `row_no` bigint identity | latest row per channel wins |
 | `link_tokens` | `token` PK · `case_id` · `channel` · `expires_at` · `used_at` null | one-time |
-| `idempotency` | `key` PK · `action` · `result` jsonb · `run_id` text null · `created_at` | the key is prefixed with `run_id` when present |
+| `idempotency` **AO** | `key` PK · `action` · `result` jsonb · `run_id` text null · `created_at` · `args_hash` | the key is prefixed with `run_id` when present, then the scope `c=<customer_id>` (`-` for the api); `args_hash` is the sha256 of the call's canonical arguments and a key replayed with other arguments is refused `[assumption]` |
 | `policy_denials` **AO** | `denial_id` PK · `trace_id` · `session_id` text null · `actor` (`agent\|customer\|analyst:<sub>`) · `policy_id` · `guardrail_id` · `detail` jsonb · `run_id` text null · `created_at` | `actor` is a closed list (no `system`; sub not blank); `session_id` null for an api or analyst denial; a rule-only denial cites `G-POL-01` (writers map a missing guardrail id to it) `[assumption]` (D-023) |
 | `llm_calls` **AO** | `call_id` PK · `trace_id` · `provider` · `model` · `tokens_in` · `tokens_out` · `latency_ms` · `cost_usd` numeric · `run_id` text null · `created_at` | `run_id` from the session, so a run's tokens and cost sum alone `[assumption]` (D-023) |
 | `settings_events` **AO** | `event_id` PK · `key` · `value` jsonb · `actor` · `created_at` · `row_no` bigint identity | `supervised_mode` = latest row |
@@ -324,8 +326,9 @@ action by `read_at`, so the auditor accepts any `V-` id a turn showed whose `rea
 call request with no case (D-026) lives in 03d's `call_requests`, stays `requested` and has no verifying read (D-025
 `[assumption]`). The store alone writes `case_opened`, `status_changed`, `analyst_action`, `assigned`,
 `related_case_opened` (with the new case), `card_blocked` (with its override), `action_verified` and `block_verified`
-(from a read) and `notification_sent` (with its notification); `telegram_linked` and `email_confirmed` are reserved
-until 01g's `customer_channels` accessor writes them with their row.
+(from a read), `notification_sent` (with its notification), and `telegram_linked` (a Telegram `linked` row) and
+`email_confirmed` (an e-mail `confirmed` row) with their `customer_channels` row, payload `{channel_id, channel}`
+and never the address (task 01g).
 
 ### 6.6 View models (api)
 - `CaseSummary`: `{case_id, customer_id, country, zone, queue_status, credit_deadline, ruling_deadline, sla_due_at,
@@ -511,7 +514,23 @@ Implementation goes in one `feat/01-*` branch per task (for example `feat/01-pac
       `settings_events` → spec 05 (api). The api checks `AnalystActionIn.idempotency_key` through the `idempotency`
       accessor before it calls `record_analyst_action`. Once task 02c merges, `record_analyst_action` takes the new
       status from `nick_of_time.policy.transition(current, action, actor)` (`Moved.status`), and the store's
-      `check_transition` stays for agent and customer changes
+      `check_transition` stays for agent and customer changes. Task 01g's second PR adds, on both backends
+      (`store/accounts.py`, `tests/test_spec01_store_accounts.py`): `sessions` insert under a store-made `S-` id and
+      read, with no update, so `mode` and `run_id` stay as created (AC-07; OTP verification and preferences are spec
+      05's `[assumption]`), and `summary_sends`, the `on_request` sends of the session's customer and run since the
+      session started, for spec 03 AC-21's per-session limit (D-041; a notification names no session, so another
+      session of the same customer and run counts too `[assumption]`); `policy_denials` insert (a `PD-` id, a session's
+      denial carries its `run_id`, a missing guardrail becomes `G-POL-01`) and read by run and session, oldest first
+      (`created_at`, then `denial_id`); and `customer_channels` insert, with its case event, and the latest row per
+      channel (the highest `row_no`), where only an e-mail is `confirmed`, on its `linked` address, and a channel takes
+      a summary only while its latest row is a Telegram `linked` or an e-mail `confirmed` `[assumption]`. Bad input to these
+      accessors is a `StoreError`, NUL and lone surrogates included. The `idempotency` accessor, in a separate small PR
+      of the same task (`feat/01-store-idempotency`), is `once(key, action, customer_id, run_id, arguments, write)`: the first call
+      runs `write()` and stores its JSON result, every later one returns it with `replayed` and writes nothing (spec 03
+      AC-03, §6.3 Idempotency), under the key's advisory lock on Postgres so concurrent callers write once; the stored key is
+      `[run_id:]c=<customer_id>:<key>` (`-` for the api's analyst actions, which check `AnalystActionIn.idempotency_key`
+      with it), so one customer never replays another's result `[assumption]`; a key reused for another action or with other arguments and a
+      result that is not a JSON object are a `StoreError`, and a refused write is not remembered and leaves none of its writes
 - [x] T10 — `store/schema.sql`: the §6.5 tables as Postgres DDL with the append-only trigger and the unique
       action-id index, adopted verbatim by `apps/api/migrations` as its first migration (D-002); its actor CHECKs
       give no result that depends on the server locale (the stock `postgres:16` image included) · covers AC-01 ·

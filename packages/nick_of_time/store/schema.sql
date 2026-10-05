@@ -140,13 +140,14 @@ create table notification_deliveries (                               -- AO; deli
   row_no bigint not null generated always as identity                -- insertion order: "latest" (T9)
 );
 
-create table customer_channels (                                     -- AO; latest row per channel wins
+create table customer_channels (                                     -- AO; latest row_no per channel wins
   channel_id text primary key,
   customer_id text not null,
   channel text not null,
   address text not null,
   event text not null check (event in ('linked', 'confirmed', 'revoked')),
-  created_at timestamptz not null default now()
+  created_at timestamptz not null default now(),
+  row_no bigint not null generated always as identity                -- insertion order: "latest" (T9)
 );
 
 create table link_tokens (                                           -- one-time
@@ -162,7 +163,8 @@ create table idempotency (                                           -- key pref
   action text not null,
   result jsonb not null,
   run_id text null,
-  created_at timestamptz not null default now()
+  created_at timestamptz not null default now(),
+  args_hash text not null                                            -- sha256 of the call's arguments: a reused key must match
 );
 
 create table policy_denials (                                        -- AO
@@ -215,7 +217,8 @@ do $$
 declare t text;
 begin
   foreach t in array array['cases', 'case_events', 'product_overrides', 'notifications', 'notification_deliveries',
-                           'customer_channels', 'policy_denials', 'llm_calls', 'settings_events'] loop
+                           'customer_channels', 'idempotency', 'policy_denials', 'llm_calls',
+                           'settings_events'] loop
     execute format('create trigger %I before update or delete or truncate on %I '
                    'for each statement execute function forbid_append_only_change()', t || '_append_only', t);
   end loop;

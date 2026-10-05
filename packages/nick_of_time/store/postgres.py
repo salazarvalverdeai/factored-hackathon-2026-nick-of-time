@@ -29,6 +29,10 @@ from nick_of_time.store import (CUSTOMER_VISIBLE, RESERVED_EVENTS, UNDELIVERED, 
                                 NotVerified, ProductOverride, StoreError, VerifyingRead, _check_writer, _json,
                                 _utc_now, check_action_id, check_business_date, check_text, check_transition,
                                 insert_with_fresh_case_id)
+from nick_of_time.store.accounts import (CHANNEL_CASE_EVENT, CHANNEL_ID, DENIAL_ID, ChannelEvent, CustomerChannel,
+                                         LinkedChannel, NewDenial, NewSession, Once, PolicyDenial,
+                                         SessionRecord, check_channel_event, check_denial_session, check_key,
+                                         arguments_hash, check_replay, idempotency_key, json_object, new_row_id, parse, window_start)
 
 WRITES = sorted(WRITE_EVENTS)
 EVENT = "event_id, case_id, seq, type, actor, payload, customer_visible, trace_id, created_at"
@@ -337,3 +341,79 @@ class PostgresStore:
             (ids.new_id("event"), case_id, type, actor, Jsonb(payload), type in CUSTOMER_VISIBLE, trace_id,
              self._now(), case_id))
         return CaseEvent(**rows[0])
+
+    # ---------- sessions, policy denials and customer channels (task 01g; arguments as in `Store`) ----------
+    def create_session(self, **fields: Any) -> SessionRecord:
+        session = parse(NewSession, fields)
+        record = SessionRecord(**session.model_dump(), session_id=ids.new_id("session"), created_at=self._now())
+        self._insert("sessions", {**record.model_dump(), "tool_faults": list(record.tool_faults)})
+        return record
+
+    def get_session(self, session_id: str) -> Optional[SessionRecord]:
+        rows = self._rows(f"select {', '.join(SessionRecord.model_fields)} from sessions where session_id = %s",
+                          (check_key(session_id),))
+        return SessionRecord(**rows[0]) if rows else None
+
+    def summary_sends(self, session_id: str, *, since: dt.datetime) -> int:
+        session = self.get_session(session_id)
+        start = window_start(session, session_id, since)
+        return self._rows(
+            "select count(*) as sends from notifications n join cases c on c.case_id = n.case_id "
+            "where n.customer_id = %s and n.trigger = 'on_request' and c.run_id is not distinct from %s "
+            "and n.created_at >= %s", (session.customer_id, session.run_id, start))[0]["sends"]
+
+    def add_denial(self, **fields: Any) -> PolicyDenial:
+        denial = parse(NewDenial, fields)
+        row = PolicyDenial(**{**denial.model_dump(), "detail": _json(denial.detail)},
+                           denial_id=new_row_id(DENIAL_ID), created_at=self._now())
+        # no lock needed: a session row is never changed by the store
+        check_denial_session(denial, self.get_session(denial.session_id) if denial.session_id else None)
+        self._insert("policy_denials", {**row.model_dump(), "detail": Jsonb(row.detail)})
+        return row
+
+    def list_denials(self, *, run_id: Optional[str], session_id: Optional[str] = None) -> list[PolicyDenial]:
+        rows = self._rows(
+            f"select {', '.join(PolicyDenial.model_fields)} from policy_denials where run_id is not distinct from %s "
+            "and (%s::text is null or session_id = %s) order by created_at, denial_id collate \"C\"",
+            (check_key(run_id), check_key(session_id), session_id))
+        return [PolicyDenial(**r) for r in rows]
+
+    def add_channel_event(self, case_id: str, channel: LinkedChannel, address: str, event: ChannelEvent, *,
+                          actor: str, trace_id: str) -> CustomerChannel:
+        _check_writer(actor, trace_id)
+        with self._tx(check_key(case_id)):                  # the case's lock, then the customer's channels' lock
+            customer_id = self._case(case_id)["customer_id"]
+            self._conn.execute("select pg_advisory_xact_lock(hashtext(%s))", ("channels:" + customer_id,))
+            check_channel_event(self.channels(customer_id), channel, address, event)
+            row = CustomerChannel(channel_id=new_row_id(CHANNEL_ID), customer_id=customer_id, channel=channel,
+                                  address=address, event=event, created_at=self._now())
+            self._insert("customer_channels", row.model_dump())
+            if (channel, event) in CHANNEL_CASE_EVENT:
+                self._append(case_id, CHANNEL_CASE_EVENT[channel, event], actor, trace_id,
+                             {"channel_id": row.channel_id, "channel": channel})
+            return row
+
+    def channels(self, customer_id: str) -> list[CustomerChannel]:
+        rows = self._rows(
+            "select distinct on (channel collate \"C\") channel_id, customer_id, channel, address, event, created_at "
+            "from customer_channels where customer_id = %s order by channel collate \"C\", row_no desc",
+            (check_key(customer_id),))
+        return [CustomerChannel(**r) for r in rows]
+
+    def once(self, key: str, *, action: str, customer_id: Optional[str], run_id: Optional[str],
+             arguments: dict[str, Any], write: Callable[[], dict[str, Any]]) -> Once:
+        stored, args = idempotency_key(key, action, customer_id, run_id), arguments_hash(arguments)
+        with self._tx("idempotency:" + stored):             # a second writer of the key waits, then replays
+            rows = self._rows("select action, run_id, args_hash, result from idempotency where key = %s", (stored,))
+            if rows:
+                check_replay((rows[0]["action"], rows[0]["run_id"], rows[0]["args_hash"]), action, run_id, args)
+                return Once(result=rows[0]["result"], replayed=True)
+            result = json_object(write())                   # its own writes nest in this transaction
+            self._insert("idempotency", {"key": stored, "action": action, "args_hash": args, "result": Jsonb(result),
+                                         "run_id": run_id, "created_at": self._now()})
+            return Once(result=result, replayed=False)
+
+    def _insert(self, table: str, row: dict[str, Any]) -> None:
+        """One row into a table whose columns are the row's keys (names from the models, never from input)."""
+        with self._tx():
+            self._rows(f"insert into {table} ({', '.join(row)}) values ({', '.join(f'%({c})s' for c in row)})", row)

@@ -31,6 +31,7 @@ from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, model_validato
 from nick_of_time import ids
 from nick_of_time.contracts import (CONTRACTS_DIR, HTTPS_URL, AnalystActionIn, AnalystActionOut, Mode, ProductType,
                                     QueueStatus, Zone)
+from nick_of_time.store.accounts import ChannelEvent, CustomerChannel, LinkedChannel, Once, PolicyDenial, SessionRecord
 
 EventType = Literal["case_opened", "card_blocked", "block_verified", "action_verified", "status_changed",
                     "handoff_emitted", "assigned", "analyst_action", "customer_info_added", "call_requested",
@@ -40,7 +41,7 @@ CUSTOMER_VISIBLE: frozenset[str] = frozenset(get_args(EventType)) - {"action_ver
                                                                      "analyst_action"}               # §6.5 ✓
 # Written only by the store's own methods, so their invariants hold: one opening, checked status changes, analysts,
 # a related case that exists, a block with its override row, a V- id and a verified block only from a read, a send
-# with its row. The channel events wait for the customer_channels accessor (task 01g), which writes them with the row.
+# with its row, a channel event with its customer_channels row (CHANNEL_CASE_EVENT).
 RESERVED_EVENTS: frozenset[str] = frozenset({"case_opened", "status_changed", "analyst_action", "assigned",
                                              "related_case_opened", "card_blocked", "action_verified",
                                              "block_verified", "notification_sent", "telegram_linked",
@@ -367,3 +368,50 @@ class Store(Protocol):
 
     def list_notifications(self, customer_id: str, *, run_id: Optional[str]) -> list[Notification]:
         """The customer's notifications whose case is in `run_id`, newest first, with their delivery status."""
+
+    # ---------- sessions, policy denials and customer channels (task 01g, store/accounts.py) ----------
+    def create_session(self, *, customer_id: Optional[str], otp_hash: str, expires_at: dt.datetime,
+                       language: str, mode: Mode, verified_at: Optional[dt.datetime] = None,
+                       display_currency: Optional[str] = None, tool_faults: tuple[str, ...] = (),
+                       run_id: Optional[str] = None, arm: Optional[str] = None) -> SessionRecord:
+        """Insert a session (NewSession) under a fresh `ids.new_id("session")`, `created_at` from the store's clock.
+        There is no update, so `mode` and `run_id` stay as created (AC-07, §6.8)."""
+
+    def get_session(self, session_id: str) -> Optional[SessionRecord]:
+        """The session row, read fresh on every call, else None; the caller checks verification and expiry (spec 03
+        AC-02). `customer_id` and `run_id` for every tool come from here (constitution #3)."""
+
+    def summary_sends(self, session_id: str, *, since: dt.datetime) -> int:
+        """D-041 (spec 03 AC-21): the `on_request` notifications of the session's customer whose case is in its run,
+        created at or after both `since` and the session's start. A notification row names no session, so another
+        session of the same customer and run counts too, which only tightens the limit [assumption]."""
+
+    def add_denial(self, *, trace_id: str, session_id: Optional[str], actor: str, policy_id: str,
+                   guardrail_id: Optional[str] = None, detail: Optional[dict[str, Any]] = None,
+                   run_id: Optional[str] = None) -> PolicyDenial:
+        """Insert one `policy_denials` row (NewDenial, spec 03 AC-12) under a fresh id; no guardrail id means
+        G-POL-01; a denial of a session must be of a known session and carry its `run_id` (D-023)."""
+
+    def list_denials(self, *, run_id: Optional[str], session_id: Optional[str] = None) -> list[PolicyDenial]:
+        """The denials of `run_id` (None = production), only `session_id`'s when given, oldest first (`created_at`,
+        then `denial_id`)."""
+
+    def add_channel_event(self, case_id: str, channel: LinkedChannel, address: str, event: ChannelEvent, *,
+                          actor: str, trace_id: str) -> CustomerChannel:
+        """Append a `customer_channels` row for the case's customer and, for CHANNEL_CASE_EVENT, its case event
+        `{channel_id, channel}` in the same operation. `confirmed` needs the channel's `linked` address and `revoked`
+        its current one; the address never goes into the event."""
+
+    def channels(self, customer_id: str) -> list[CustomerChannel]:
+        """The latest row (inserted last) of each of the customer's channels, by channel name; a tool sends only where
+        `confirmed` is true and shows only masked addresses (spec 03 AC-11, AC-21)."""
+
+    # ---------- idempotency (task 01g, store/accounts.py) ----------
+    def once(self, key: str, *, action: str, customer_id: Optional[str], run_id: Optional[str],
+             arguments: dict[str, Any], write: Callable[[], dict[str, Any]]) -> Once:
+        """Spec 03 AC-03 and spec 01 §6.3 Idempotency: the first call with this `key` (of this action, customer and
+        run) runs `write()`, stores its JSON result and returns it; every later one returns the stored result with
+        `replayed` and writes nothing. On Postgres a concurrent second call waits for the first. A `write` that raises
+        stores nothing and leaves none of its writes (both backends); a key used for another action or with other
+        `arguments` (the call's JSON arguments, hashed) is a StoreError. `customer_id` None is the api's analyst
+        actions (`AnalystActionIn`)."""
