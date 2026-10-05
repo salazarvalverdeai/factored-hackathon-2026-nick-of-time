@@ -15,5 +15,6 @@
  "transcript": ["No reconozco este cargo de 1250.50", "Tambien pague 9.999 en TRX-CUSTOMERSAID0000009"],
  "tool_results": [{"transaction_id": "TRX-FIXTURE0000000000001", "amount": 1250.5, "date": "2026-05-20",
                    "merchant": "AMAZON-MARKETPLACE", "is_fraud": true},
-                  {"transaction_id": "TRX-TOOLONLY00000000002", "amount": 1250.5}]
+                  {"transaction_id": "TRX-TOOLONLY00000000002", "amount": 1250.5,
+                   "trace_id": "1f3e5c7a-9b2d-4e6f-8a0c-12b34d56e789"}]
 }
