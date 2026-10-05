@@ -206,6 +206,22 @@ class SyntheticChargeIn(BaseModel):
     merchant: str                                    # checked by app.demo.clean_merchant (422 when not a plain name)
 
 
+class PersonaIn(BaseModel):
+    character: Literal["aggressive", "passive", "terse", "verbose", "confused", "code_switching"]
+    display_name: Optional[str] = None               # checked by app.demo.clean_name; else the session's typed name
+    transaction_id: Optional[str] = None             # one of the session's recent transactions; else the newest
+
+
+class PersonaOut(Out):
+    message: str                                     # a suggested first message: never a tool fact, never a receipt
+    source: Literal["llm", "template"]
+    language: Literal["es", "pt"]
+    character: str
+    transaction_id: str
+    synthetic: bool
+    suggested: Literal[True] = True
+
+
 class SyntheticChargeOut(Out):
     transaction_id: str
     date: dt.date

@@ -64,6 +64,10 @@ AC-01 to AC-05 are copied from issue #9 with the same numbers. None is dropped o
      country's currency, merchant) that posts `POST /api/sessions/{id}/synthetic-charge` (spec 05 AC-19); the answer
      and its chip carry the `[simulated]` label, and the chip list is re-read so the charge shows first. A 429 shows
      "one test charge per minute"; a 403 hides the form (a replay session).
+  8. demo type D (DEMOCD): six character chips (aggressive, passive, terse, verbose, confused, code-switching ES/PT)
+     that post `POST /api/demo/persona {character, transaction_id?}` (spec 05 AC-20; the chosen transaction chip, else
+     the newest) and put the answer's `message` into the composer as an editable draft, never sent on its own. The
+     draft is labeled "suggested" (`source: "llm"`, or "template" when the model was not used).
   The agent greets with the typed name, else the gold name, from `get_customer_profile`. Each session starts clean.
   Telegram and e-mail are off in a demo session (the link routes answer 403): the case page and the in-app log show
   every update.

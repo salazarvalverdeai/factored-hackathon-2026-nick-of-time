@@ -20,6 +20,7 @@ import re
 import secrets
 import uuid
 from collections import deque
+from decimal import Decimal
 from typing import Any, Literal, Optional
 from zoneinfo import ZoneInfo
 
@@ -28,18 +29,18 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse, RedirectResponse, StreamingResponse
 from pydantic import ValidationError
 
-from app import demo, voice
+from app import demo, persona, voice
 from app.auth import AuthError, CognitoVerifier
 from app.catalog import Catalog, FixtureCatalog, catalog_from_env
 from app.guard import install as install_guard
 from app.main import (COOKIE, SESSION_TTL, AckOut, ApiError, CallIn, CallOut, ConsoleCaseOut, EmailIn,
                       EmailOut, EventOut, HealthOut, InfoIn, NotificationOut, PrefsIn, PrefsOut, ReevalIn, ReevalOut,
-                      RecentTransactionOut, ScenarioOut, SessionIn, SessionOut, SettingsIn, SettingsOut,
+                      PersonaIn, PersonaOut, RecentTransactionOut, ScenarioOut, SessionIn, SessionOut, SettingsIn, SettingsOut,
                       SyntheticChargeIn, SyntheticChargeOut, TelegramOut,
                       ThreadOut, VerifyIn, VerifyOut, DemoCustomerOut, TIME_ZONES, _is_analyst_path, today)
 from app.notify import ChannelFailed, HttpNotifier, Notifier, mask_chat, mask_email
 from app.platform import HttpPlatform, Platform, PlatformError
-from nick_of_time import CONTRACT_VERSION, ids
+from nick_of_time import CONTRACT_VERSION, ids, llm
 from nick_of_time.contracts import (AnalystActionIn, AnalystActionOut, CaseSummary, CaseView, CustomerCaseSummary,
                                     CustomerCaseView, CustomerReceipt, CustomerTurn, ProductView, ProgressItem,
                                     Suggestion, TurnAction, TurnResult)
@@ -48,6 +49,7 @@ from nick_of_time.policy.calendars import CalendarNotCovered, add_business_days
 from nick_of_time.policy.clock import deadline
 from nick_of_time.policy.engine import Deny
 from nick_of_time.policy.model import load_policies
+from nick_of_time.llm.steps import over_day_cap
 from nick_of_time.receipt import messages
 from nick_of_time.store import CaseRecord, NewCase, Store, StoreError, is_demo_run
 
@@ -124,7 +126,7 @@ class LinkTokens:
 
 def create_live_app(store: Store, *, catalog: Optional[Catalog] = None, verifier: Optional[CognitoVerifier] = None,
                     platform: Optional[Platform] = None, notifier: Optional[Notifier] = None,
-                    now=_now, link_key: Optional[str] = None) -> FastAPI:
+                    now=_now, link_key: Optional[str] = None, persona_llm: Optional[llm.LLMClient] = None) -> FastAPI:
     catalog = catalog or FixtureCatalog()
     policies = load_policies()
     tokens = LinkTokens(link_key or os.getenv("LINK_SIGNING_KEY"))      # a dedicated key (SSM), never a shared secret
@@ -132,6 +134,7 @@ def create_live_app(store: Store, *, catalog: Optional[Catalog] = None, verifier
                   openapi_url="/api/openapi.json")
     app.state.store, app.state.runs, app.state.now = store, deque(maxlen=200), now
     app.state.charges = {}                          # session id -> its last synthetic charge (AC-19)
+    app.state.personas = persona.Budget()            # LLM openings per session and persona spend per day (AC-20)
     notifier = notifier or HttpNotifier.from_env()
     day_cap = float(os.getenv("DAILY_LLM_CAP_USD") or DAILY_LLM_CAP_USD)   # read once, at app creation
     install_guard(app, lambda: app.state.now())                     # per-IP and global hourly limits (AC-18)
@@ -539,11 +542,49 @@ def create_live_app(store: Store, *, catalog: Optional[Catalog] = None, verifier
         only the session in the cookie, and no score or label (D-013, constitution #7)."""
         if session_id != s["session_id"]:
             raise ApiError(404, "NOT_FOUND", "Unknown session")
+        return recent(s, limit)
+
+    def recent(s: dict, limit: int) -> list[dict]:
         last4 = {p["product_id"]: p["last4"] for p in catalog.products(s["customer_id"])}
         rows = [*run_charges(s["customer_id"], s["run_id"], s["mode"]),        # dated today: the newest
                 *catalog.recent_transactions(s["customer_id"], today(s["mode"], s["country"]), limit)][:limit]
         return [{**{k: v for k, v in t.items() if k != "product_id"}, "last4": last4.get(t["product_id"])}
                 for t in rows]
+
+    @app.post("/api/demo/persona", response_model=PersonaOut)
+    def demo_persona(body: PersonaIn, s: dict = Depends(session)):
+        """Demo type D (AC-20): a suggested opening in the session language about one of the session's recent charges,
+        written by S1 (Haiku 4.5) in the character's voice, else the fixed template; billed calls go to llm_calls."""
+        if not is_demo_run(s["run_id"]):
+            raise ApiError(403, "DENY", "Personas exist only in a demo session")
+        try:
+            name = demo.clean_name(body.display_name) or store.get_session(s["session_id"]).display_name
+        except ValueError as error:
+            raise ApiError(422, "INVALID", str(error)) from None
+        charge = next((t for t in recent(s, 20) if body.transaction_id in (None, t["transaction_id"])), None)
+        if charge is None:
+            raise ApiError(404, "NOT_FOUND", "No such transaction in this session")
+        language, message = s["language"], None
+        if not hasattr(app.state, "persona_llm"):
+            app.state.persona_llm = persona_llm or persona.default_client()
+        client, user = app.state.persona_llm, persona.payload(language, body.character, name, charge)
+        cost, config, now = (persona.estimate(client, user) if client else None), run_config(s), app.state.now()
+        # G-OPS-01 (AC-18): every run's llm_calls today plus this call's worst case under the daily cap, and the
+        # persona's own share of it, so persona traffic never pushes agent turns to S0
+        if (cost is not None and not over_day_cap({"configurable": config}, cost)
+                and app.state.personas.admit(s["session_id"], now, cost, float(config["llm_day_cap_usd"]))):
+            message, result = persona.generate(client, user)
+            if message and not persona.acceptable(message, language, body.character, charge):
+                message = None                                  # a suggestion outside the rules: the template
+            if result is not None:
+                spent = result.cost_usd or 0.0
+                app.state.personas.spend(now, spent)
+                store.add_llm_call(trace_id="persona-" + uuid.uuid4().hex[:16], provider=result.provider, model=result.model,
+                                   tokens_in=result.tokens_in, tokens_out=result.tokens_out,
+                                   latency_ms=result.latency_ms, cost_usd=Decimal(str(spent)), run_id=s["run_id"])
+        return {"message": message or persona.template(language, name, charge), "language": language,
+                "source": "llm" if message else "template", "character": body.character,
+                "transaction_id": charge["transaction_id"], "synthetic": bool(charge.get("synthetic"))}
 
     @app.post("/api/sessions/{session_id}/synthetic-charge", status_code=201, response_model=SyntheticChargeOut)
     def synthetic_charge(session_id: str, body: SyntheticChargeIn, s: dict = Depends(session)):

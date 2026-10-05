@@ -228,5 +228,12 @@ def test_ac_06_env_file_carries_the_demo_arm_and_public_links():
     """AC-06 / FR-09: the demo runs S1 (Haiku 4.5) and the links point at the public URL and the real bot."""
     script = (INFRA / "deploy.sh").read_text()
     for needle in ("DEFAULT_ARM=${DEFAULT_ARM:-S1}", "PUBLIC_URL=https://nickoftime.salazarvalverdeai.com",
-                   "TELEGRAM_BOT_NAME=NickOfTimeUpdatesBot", "EMAIL_FROM=", "BEDROCK_MODEL_FAST="):
+                   "TELEGRAM_BOT_NAME=NickOfTimeUpdatesBot", "EMAIL_FROM=", "BEDROCK_MODEL_FAST=", "LLM_PROVIDER=bedrock"):
+        assert needle in script, needle
+
+
+def test_ac_06_judging_limits_are_explicit_and_the_spend_cap_stays():
+    """AC-06 / FR-09: per-IP limits sized for a jury behind one IP; the daily Bedrock cap stays the cost guard."""
+    script = (INFRA / "deploy.sh").read_text()
+    for needle in ("RATE_SESSIONS_PER_IP_HOUR=100", "RATE_TURNS_PER_IP_HOUR=600", "DAILY_LLM_CAP_USD=5"):
         assert needle in script, needle

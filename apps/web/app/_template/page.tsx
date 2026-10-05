@@ -14,12 +14,11 @@ import { EmptyState, ErrorState, LoadingState } from "@/components/states";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { formatDeadline } from "@/lib/format";
-import { caseStatus } from "@/lib/mock/store";
 import { useQuery } from "@/lib/use-query";
 
 export default function TemplatePage() {
-  // Read through useQuery; act through `api` (lib/api.ts). Without an analyst login this shows the error state.
-  const cases = useQuery((store) => store.listCases());
+  // Read through useQuery (any `api` call); act through `api` (lib/api.ts). Without an analyst login this shows the error state.
+  const cases = useQuery((api) => api.listCases());
 
   return (
     <PageShell title="Template page" description="Copy this folder to start a page. Replace the query and the columns.">
@@ -51,7 +50,7 @@ export default function TemplatePage() {
                       <TableCell>
                         <ZoneBadge zone={c.zone} />
                       </TableCell>
-                      <TableCell>{caseStatus(c)}</TableCell>
+                      <TableCell>{c.status}</TableCell>
                       <TableCell>{formatDeadline(c.deadline)}</TableCell>
                     </TableRow>
                   ))}
