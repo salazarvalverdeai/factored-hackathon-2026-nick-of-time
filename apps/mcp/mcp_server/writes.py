@@ -27,7 +27,7 @@ from mcp_server.gold import Gold
 from mcp_server.reads import COUNTRY, NOT_FOUND, PROBE, STATUSES
 from nick_of_time import ids
 from nick_of_time.nlu.text import fold
-from nick_of_time.policy import Deny, Policies, PolicyEngine, clock
+from nick_of_time.policy import DecisionInput, Deny, Policies, PolicyEngine, clock
 from nick_of_time.store import CaseEvent, CaseRecord, NewCase, Store, StoreError
 from nick_of_time.store.accounts import idempotency_key
 
@@ -130,6 +130,30 @@ def writes_handlers(gold: Gold, policies: Policies, store: Store, *, cards: Opti
                              deadline_verified_on=case.deadline_verified_on, related_case_id=case.related_case_id,
                              **extra)
 
+    def move(call: Call, case: CaseRecord, to: str) -> None:
+        """[assumption] pending D-063/D-066: the agent's writes move the queue through `store.change_status`
+        (`case_queue.transitions`; `queue.transition()` is for analyst actions only), inside the write's `once`, so the
+        move commits or rolls back with the write. A move refused because another writer already moved the case is
+        not an error; any other failure (an outage) fails the write and nothing is stored."""
+        on = clock.today(call.session.mode, case.country, utc_now=now() if now else None, policies=policies)
+        try:
+            store.change_status(case.case_id, to, on=on, actor=ACTOR, trace_id=call.trace_id)
+        except StoreError:
+            if store.queue_status(case.case_id) == "new":   # still unmoved: not a race, so it surfaces
+                raise
+
+    def status_after(trx, card, country: str) -> Optional[str]:
+        """The engine's own `queue_status_after` for a confirmed dispute on this one transaction (spec 02 §4.2,
+        `_open()`): `review` for a handoff without an action (medium or human zone, a high-zone block a person must
+        approve: amount gate, supervised mode); `verification` only once a block ran, so block_card moves that."""
+        decision = engine.decide(DecisionInput(
+            session_state="verified", intent="unrecognized_charge", intent_confidence=1.0, dispute_detected=True,
+            injection_flagged=False, cross_customer=False, supervised_mode=False, candidates=1,
+            score=trx.fraud_score, score_source="dataset" if trx.fraud_score is not None else None,
+            amount=trx.amount, currency=trx.currency, country=country, product_type=card.type,
+            customer_confirmed=True))
+        return decision.queue_status_after
+
     def active(call: Call) -> list[CaseRecord]:
         cases = store.list_cases(call.session.customer_id, run_id=call.session.run_id)
         return [case for case in cases if store.queue_status(case.case_id) != "closed"]   # newest first
@@ -183,6 +207,8 @@ def writes_handlers(gold: Gold, policies: Policies, store: Store, *, cards: Opti
                 deadline_verified_on=legal.verified_on, related_case_id=args.related_case_id,
                 mode=call.session.mode, run_id=run_id, trace_id=call.trace_id), actor=ACTOR,
                 action_id=ids.new_id("action"))
+            if status_after(trx, card, country) == "review":     # same once as the case: one commit
+                move(call, case, "review")
             return case_out(case)
 
         return run_once(store, call, args, write)
@@ -211,6 +237,8 @@ def writes_handlers(gold: Gold, policies: Policies, store: Store, *, cards: Opti
             action_id = ids.new_id("action")
             store.block_product(case.case_id, args.product_id, action_id=action_id, actor=ACTOR,
                                 trace_id=call.trace_id)
+            if store.queue_status(case.case_id) == "new":   # the automatic action ran: same once as card_blocked
+                move(call, case, policies.approval.manual_check_leaves_case_in)
             return t.BlockCardOut(action_id=action_id, product_id=args.product_id)
 
         return run_once(store, call, args, write)

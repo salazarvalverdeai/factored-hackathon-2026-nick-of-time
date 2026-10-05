@@ -76,8 +76,8 @@ def gold_dir(tmp_path_factory) -> Path:
 
 
 def session(sid: str, customer: str, run_id=RUN, **extra) -> gate.SessionRow:
-    return gate.SessionRow(session_id=sid, customer_id=customer, verified_at=NOW, language="es", mode="replay",
-                           expires_at=NOW + dt.timedelta(minutes=15), run_id=run_id, **extra)
+    return gate.SessionRow(**{"session_id": sid, "customer_id": customer, "verified_at": NOW, "language": "es",
+                              "mode": "replay", "expires_at": NOW + dt.timedelta(minutes=15), "run_id": run_id, **extra})
 
 
 @functools.lru_cache(maxsize=8)
@@ -344,7 +344,8 @@ def test_ac_10_a_closed_case_allows_no_block(gold_dir):
 def test_ac_10_the_engine_re_check_denies_with_its_policy_id_and_writes_nothing(gold_dir, n, zone, policy_id):
     run = Run(gold_dir)
     case = run.open(n, zone)
-    assert denied(run.block(), policy_id) and types(run.store, case.case_id) == ["case_opened"]
+    before = types(run.store, case.case_id)
+    assert denied(run.block(), policy_id) and types(run.store, case.case_id) == before
 
 
 def test_ac_10_d052_another_customers_card_is_not_found_and_logged(gold_dir):

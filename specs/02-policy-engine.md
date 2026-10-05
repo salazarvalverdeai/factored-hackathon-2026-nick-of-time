@@ -235,6 +235,10 @@ so the queue adds no method to `PolicyEngine`. Analyst actions (`AnalystActionIn
 | `reopen_case` | `resolved` | `review` |
 | `approve_credit`, `approve_block`, `unblock_card`, `request_customer_info`, `mark_ambiguous` | any but `closed` | unchanged |
 
+The agent's write tools (spec 03 `open_case`, `block_card`) move a case through `store.change_status`, which checks the
+same `case_queue.transitions` table, not through `queue.transition()`, which is for analyst actions only `[assumption]`
+pending D-063.
+
 A closed case takes no analyst action; any other move is `POL-QUEUE-TRANSITION`, an unknown action
 `POL-DEFAULT-DENY`. Every analyst action needs a person (`analyst:<sub>`, sub not blank): `close_case` by anyone else
 is `POL-CLOSE-HUMAN`, any other action `POL-DEFAULT-DENY` `[assumption]`. The loader types `case_queue` and refuses a
