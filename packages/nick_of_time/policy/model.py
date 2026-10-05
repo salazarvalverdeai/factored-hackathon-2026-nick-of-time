@@ -2,7 +2,7 @@
 
 Loaded and validated once: an invalid file fails at startup, never at decision time. The loaded model is deeply frozen
 (mappings are read-only proxies, lists are tuples), so no caller can loosen a rule at runtime. Sections the engine does
-not read yet stay untyped until the task that uses them types them (queue: 02c).
+not read yet stay untyped until the task that uses them types them.
 """
 from __future__ import annotations
 
@@ -10,13 +10,13 @@ from datetime import date
 from functools import cache
 from pathlib import Path
 from types import MappingProxyType
-from typing import Annotated, Any, Literal, Optional
+from typing import Annotated, Any, Literal, Optional, get_args
 from zoneinfo import ZoneInfo
 
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, StrictInt, StringConstraints, field_serializer, model_validator
 
-from nick_of_time.contracts import CONTRACTS_DIR, HTTPS_URL, Zone
+from nick_of_time.contracts import CONTRACTS_DIR, HTTPS_URL, QueueStatus, Zone
 from nick_of_time.policy.calendars import holidays
 
 CountryCode = Annotated[str, StringConstraints(pattern=r"^[A-Z]{2}$")]
@@ -156,6 +156,42 @@ class Country(_Strict):
         return self
 
 
+class SlaScope(_Strict):
+    country: CountryCode
+    product: Literal["debit", "credit"]
+
+
+class DeadlineSla(_Strict):               # case_queue.deadline_sla: a person must act before the legal credit date
+    applies_to: SlaScope
+    deadline: str = Field(min_length=1)
+    raise_priority_on_business_day: int = Field(ge=1)
+    alert_before_business_day: int = Field(ge=1)
+
+
+class CaseQueue(_Strict):                 # spec 02 FR-06 (task 02c): typed, so a broken queue fails at startup
+    states: list[QueueStatus]
+    transitions: dict[QueueStatus, list[QueueStatus]]
+    sla_hours: dict[QueueStatus, float]
+    ambiguous_queue: dict[str, Any]
+    deadline_sla: dict[str, DeadlineSla]
+
+    @model_validator(mode="after")
+    def _a_person_closes(self) -> CaseQueue:
+        problems = []
+        if list(self.states) != list(get_args(QueueStatus)) or set(self.transitions) != set(self.states):
+            problems.append("case_queue needs every queue status, in order, each with its transitions")
+        if self.transitions.get("closed"):
+            problems.append("nothing leaves closed: a closed case is never reopened (spec 02 §4.4)")
+        if any("closed" in targets for status, targets in self.transitions.items() if status != "resolved"):
+            problems.append("only a resolved case can be closed")
+        problems += [f"sla_hours.{s} must be positive" for s, hours in self.sla_hours.items() if hours <= 0]
+        problems += [f"deadline_sla.{n}: the priority must rise before the alert is due" for n, d in
+                     self.deadline_sla.items() if d.raise_priority_on_business_day >= d.alert_before_business_day]
+        if problems:
+            raise ValueError("; ".join(problems))
+        return self
+
+
 class Contact(_Strict):                   # D-008: request_call's expected_contact_by; null promises no date
     callback_within_business_days: Optional[StrictInt] = Field(None, ge=1)
 
@@ -179,7 +215,7 @@ class Policies(_Strict):
     countries: dict[CountryCode, Country]
     reliability: dict[str, Any]
     security: dict[str, Any]
-    case_queue: dict[str, Any]
+    case_queue: CaseQueue
     notifications: dict[str, Any]
     guardrails: list[dict[str, Any]]
     data_splits: dict[str, Any]
