@@ -41,7 +41,9 @@ def test_ac_07_a_session_is_stored_under_a_store_id_and_keeps_its_mode_and_run()
     assert store.get_session(first.session_id) == first and store.get_session(second.session_id) == second
     assert (first.mode, first.run_id, first.arm, first.tool_faults) == ("live", RUN, "S1", ("block_card",))
     assert store.get_session("S-" + "x" * 16) is None
-    assert [n for n in dir(Store) if "session" in n] == ["create_session", "get_session"]
+    for interface in (Store, type(store)):                                   # the protocol and this backend
+        assert [n for n in dir(interface) if "session" in n and not n.startswith("_")] == ["create_session",
+                                                                                          "get_session"]
 
 
 def test_ac_07_the_eval_seed_sessions_none_and_expired_are_stored_as_given():
@@ -181,8 +183,23 @@ def test_ac_01_an_email_takes_summaries_only_once_its_typed_address_is_confirmed
     assert len(types(store, case_id)) == 3
 
 
+def test_ac_01_channels_come_back_by_name_and_a_telegram_link_is_never_confirmed():
+    """§6.5, spec 03 AC-21: a Telegram link made before an e-mail still lists after it (by channel name, on both
+    backends); a Telegram channel takes no `confirmed` row, since `/start` is the customer's own confirmation."""
+    store = ticking_store()
+    case_id = open_case(store).case_id
+    telegram = link(store, case_id, "telegram", "42", "linked")
+    email = link(store, case_id, "email", "ana@example.com", "linked")
+    assert store.channels("CLI-000001") == [email, telegram]
+    with pytest.raises(StoreError, match="not a customer channel event"):
+        link(store, case_id, "telegram", "42", "confirmed")
+    assert store.channels("CLI-000001") == [email, telegram] and telegram.confirmed and not email.confirmed
+    assert types(store, case_id) == ["case_opened", "telegram_linked"]
+
+
 @pytest.mark.parametrize("bad", [dict(actor="bot"), dict(trace_id=""), dict(case_id="K-999999"),
-                                 dict(channel="log"), dict(event="deleted"), dict(address=" "), dict(address=7),
+                                 dict(channel="log"), dict(channel=["telegram"]), dict(event="deleted"),
+                                 dict(event=["linked"]), dict(event="confirmed"), dict(address=" "), dict(address=7),
                                  dict(address="4" + NUL), dict(address=SURROGATE), dict(trace_id=SURROGATE),
                                  dict(case_id="K-" + NUL)])
 def test_ac_01_a_channel_row_checks_every_argument_before_writing(bad):

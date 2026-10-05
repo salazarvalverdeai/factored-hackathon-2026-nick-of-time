@@ -384,8 +384,7 @@ class PostgresStore:
         with self._tx(check_key(case_id)):                  # the case's lock, then the customer's channels' lock
             customer_id = self._case(case_id)["customer_id"]
             self._conn.execute("select pg_advisory_xact_lock(hashtext(%s))", ("channels:" + customer_id,))
-            check_channel_event({c.channel: c for c in self.channels(customer_id)}.get(channel), channel, address,
-                                event)
+            check_channel_event(self.channels(customer_id), channel, address, event)
             row = CustomerChannel(channel_id=new_row_id(CHANNEL_ID), customer_id=customer_id, channel=channel,
                                   address=address, event=event, created_at=self._now())
             self._insert("customer_channels", row.model_dump())

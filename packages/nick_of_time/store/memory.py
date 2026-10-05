@@ -295,7 +295,7 @@ class MemoryStore:
                           actor: str, trace_id: str) -> CustomerChannel:
         _check_writer(actor, trace_id)
         customer_id = self._case(check_key(case_id)).customer_id
-        check_channel_event({c.channel: c for c in self.channels(customer_id)}.get(channel), channel, address, event)
+        check_channel_event(self.channels(customer_id), channel, address, event)
         row = CustomerChannel(channel_id=new_row_id(CHANNEL_ID), customer_id=customer_id, channel=channel,
                               address=address, event=event, created_at=self._now())
         self._channels.append(row)

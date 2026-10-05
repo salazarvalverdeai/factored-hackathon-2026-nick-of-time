@@ -96,7 +96,8 @@ class CustomerChannel(_Row):
     @property
     def confirmed(self) -> bool:
         """Spec 03 AC-21 [assumption]: a channel takes a summary while its latest row is a Telegram link (the
-        customer sent `/start`) or a confirmed e-mail; a typed e-mail not yet confirmed or a revoked channel does not."""
+        customer sent `/start`; Telegram is never `confirmed`) or a confirmed e-mail; a typed e-mail not yet confirmed
+        or a revoked channel does not."""
         return self.event == "confirmed" or (self.channel, self.event) == ("telegram", "linked")
 
 
@@ -116,12 +117,15 @@ def parse(model: type[M], fields: dict[str, Any]) -> M:
     return row
 
 
-def check_channel_event(latest: Optional[CustomerChannel], channel: Any, address: Any, event: Any) -> None:
-    """A row may follow the channel's latest this way only: `linked` always (a new address replaces the old one);
-    `confirmed` only on the `linked` address; `revoked` only on the address not yet revoked."""
+def check_channel_event(current: list[CustomerChannel], channel: Any, address: Any, event: Any) -> None:
+    """A row may follow the channel's latest (in `current`, the customer's `channels()`) this way only: `linked`
+    always (a new address replaces the old one); `confirmed` only for an e-mail, on its `linked` address (a Telegram
+    link needs no confirmation); `revoked` only on the address not yet revoked."""
     from nick_of_time.store import StoreError, check_text
-    if channel not in get_args(LinkedChannel) or event not in get_args(ChannelEvent):
+    if (not isinstance(channel, str) or channel not in get_args(LinkedChannel) or not isinstance(event, str)
+            or event not in get_args(ChannelEvent) or (channel, event) == ("telegram", "confirmed")):
         raise StoreError(f"not a customer channel event: {channel!r} {event!r}")
+    latest = next((row for row in current if row.channel == channel), None)
     if not isinstance(address, str) or not address.strip():
         raise StoreError("a channel needs its address")
     check_text(address)

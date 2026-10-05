@@ -96,7 +96,8 @@ packages/
   nick_of_time/           shared package — @salazarvalverdeai
     contracts.py          re-exports contracts/tools.py models + TurnResult + receipt models
     policy/               policy engine + regulatory clock (spec 02)
-    store/                `Store` interface used by api and mcp, in-memory backend, `postgres.py`, `schema.sql` (§6.5)
+    store/                `Store` interface used by api and mcp, in-memory backend, `postgres.py`, `accounts.py`
+                          (sessions, denials, channels), `schema.sql` (§6.5)
     receipt.py            deterministic receipt and handoff builders (ADR 0016)
     ids.py                identifier generation (§6.7)
 contracts/                policies.yaml · tools.py · *.schema.json — source of truth (lead approves)
@@ -521,8 +522,8 @@ Implementation goes in one `feat/01-*` branch per task (for example `feat/01-pac
       session of the same customer and run counts too `[assumption]`); `policy_denials` insert (a `PD-` id, a session's
       denial carries its `run_id`, a missing guardrail becomes `G-POL-01`) and read by run and session, oldest first
       (`created_at`, then `denial_id`); and `customer_channels` insert, with its case event, and the latest row per
-      channel (the highest `row_no`), where `confirmed` only follows the `linked` address and a channel takes a summary
-      only while its latest row is a Telegram `linked` or an e-mail `confirmed` `[assumption]`. Bad input to these
+      channel (the highest `row_no`), where only an e-mail is `confirmed`, on its `linked` address, and a channel takes
+      a summary only while its latest row is a Telegram `linked` or an e-mail `confirmed` `[assumption]`. Bad input to these
       accessors is a `StoreError`, NUL and lone surrogates included. The `idempotency` accessor comes in a separate
       small PR of the same task
 - [x] T10 — `store/schema.sql`: the §6.5 tables as Postgres DDL with the append-only trigger and the unique
