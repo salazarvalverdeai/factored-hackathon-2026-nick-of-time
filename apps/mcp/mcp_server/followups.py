@@ -31,22 +31,45 @@ PROBE = NOT_FOUND.model_copy(update={"policy_id": "POL-CROSS-CUSTOMER"})     # t
 SECRET = re.compile(r"(?<!\d)(?:\d[ -]?){12,18}\d(?!\d)"
                     r"|(?i:\b(?:cvv2?|cvc|cvn|c[oó]digo de segur(?:idad|an[cç]a))\D{0,12}\d{3,4}\b)"
                     r"|(?i:\b(?:contrase[nñ]a|password|senha|clave|nip|pin)\b\s*(?:[:=]|es\b|é\b|is\b)\s*\S+)")
-# [assumption] G-IN-04's rule in policies.yaml is POL-OUT-OF-SCOPE; a PII rule id is a question for the lead.
-SECRET_DENY = t.ToolError(code="DENY", policy_id="POL-OUT-OF-SCOPE",
+# [assumption] D-062 pending: POL-PII (guardrail G-IN-04) in policies.yaml.
+SECRET_DENY = t.ToolError(code="DENY", policy_id="POL-PII",
                           message="Card numbers, CVV codes and passwords are never stored; nothing was saved.")
 CLOSED = t.ToolError(code="DENY", policy_id="POL-DEFAULT-DENY",
                      message="This case is closed; a closed case takes no customer change.")
 OUT_OF_WINDOW = t.ToolError(code="DENY", policy_id="POL-REEVAL-WINDOW",
                             message="The re-evaluation window of this case has passed; a person can call instead.")
 HOLD_ENDS = frozenset({"approve_block", "resolve", "close_case"})   # D-042: the analyst actions that end an open call
-ACTIVE = ("new", "verification", "review")
-# [assumption] spec 02 §4.4 proposes 30 days for every country until `reevaluation_allowed()` (spec 02 T7) ships.
-REEVALUATION_WINDOW_DAYS = 30
+ACTIVE = ("new", "verification", "review")             # AC-19's "active"; AC-15 and AC-17 mean "not closed"
 Reevaluation = Callable[[str, dt.date, dt.date], bool]       # (country, resolved_on, today) -> allowed
+TransactionCountry = Callable[[str, str], Optional[str]]     # (customer_id, transaction_id) -> gold transaction_country
 
 
-def within_window(country: str, resolved_on: dt.date, on: dt.date) -> bool:
-    return (on - resolved_on).days <= REEVALUATION_WINDOW_DAYS
+def policy_window(policies: Policies) -> Reevaluation:
+    """`reevaluation.window_days` of policies.yaml ([assumption] D-062, until spec 02 T7's `reevaluation_allowed()`):
+    day `window_days` after the resolution still qualifies; with no window in the policy nothing goes back."""
+    days = policies.reevaluation.window_days if policies.reevaluation else None
+
+    def allowed(country: str, resolved_on: dt.date, on: dt.date) -> bool:
+        return days is not None and (on - resolved_on).days <= days
+    return allowed
+
+
+def abroad(where: Optional[str], country: str) -> bool:
+    """A charge in another country than the customer's, by open_case's rule (PR #123); no country: not abroad."""
+    return bool(where) and COUNTRY.get(fold(where)) != country
+
+
+def holder(events: list[CaseEvent]) -> Optional[CaseEvent]:
+    """AC-19 (D-025): the write that holds an active case, its `case_opened`, or the `reevaluation_requested` that moved
+    it from resolved back to review (a related case's reason event holds nothing: its `case_opened` does)."""
+    held = None
+    for before, event in zip([None, *events], events):
+        if event.type == "case_opened":
+            held = event
+        elif (event.type == "status_changed" and event.payload.get("from") == "resolved" and before is not None
+              and before.type == "reevaluation_requested"):
+            held = before
+    return held
 
 
 def open_call(events: list[CaseEvent]) -> Optional[CaseEvent]:
@@ -76,28 +99,45 @@ def gold_country(gold: Gold) -> Callable[[str], Optional[str]]:
     return country_of
 
 
-def gold_deadline(gold: Gold, policies: Policies) -> Callable[[CaseRecord, dt.date], Optional[Deadline]]:
-    """A related case's deadline from the new notice over its gold charge; [assumption] `abroad` is False (the
-    loader has no transaction country), the earlier ruling date. A charge not in gold gets none."""
+def shared_transaction_country() -> Optional[TransactionCountry]:
+    """The gold card-transaction countries of PR #123 (`cards.shared_cards`) once it merges; until then None, so a
+    related case is not abroad [assumption]."""
+    try:
+        from mcp_server.cards import shared_cards
+    except ImportError:
+        return None
+    return lambda customer_id, transaction_id: shared_cards().transaction_country(customer_id, transaction_id)
+
+
+def gold_deadline(gold: Gold, policies: Policies,
+                  transaction_country: Optional[TransactionCountry]) -> Callable[[CaseRecord, dt.date], Optional[Deadline]]:
+    """A related case's deadline from the new notice over its gold charge, `abroad` as open_case derives it. A charge
+    not in gold gets none."""
     def deadline_of(case: CaseRecord, on: dt.date) -> Optional[Deadline]:
         trx = gold.transaction(case.customer_id, case.transaction_id)
-        return deadline(case.country, case.product_type, on, charged_at=trx.transaction_date,
-                        policies=policies) if trx else None
+        if trx is None:
+            return None
+        where = transaction_country(case.customer_id, case.transaction_id) if transaction_country else None
+        return deadline(case.country, case.product_type, on, abroad=abroad(where, case.country),
+                        charged_at=trx.transaction_date, policies=policies)
     return deadline_of
 
 
 def followups_handlers(store: Store, policies: Policies, gold: Optional[Gold] = None, *,
-                       reevaluation_allowed: Reevaluation = within_window,
+                       reevaluation_allowed: Optional[Reevaluation] = None,
                        country_of: Optional[Callable[[str], Optional[str]]] = None,
                        deadline_of: Optional[Callable[[CaseRecord, dt.date], Optional[Deadline]]] = None,
-                       ) -> dict[str, Handler]:
+                       transaction_country: Optional[TransactionCountry] = None,
+                       now: Optional[Callable[[], dt.datetime]] = None) -> dict[str, Handler]:
     """The T8 entry point wires `store`, `policies` and `gold` by name. `country_of(customer_id)` (default: gold) gives
     the country of a call with no case; without one that call promises no date. `deadline_of(case, opened_on)`
-    (default: gold) gives a related case's legal deadline; without one the related case opens with no deadline and a
-    person sets it [assumption]."""
+    (default: gold, with `transaction_country` or PR #123's cards) gives a related case's legal deadline; without one
+    the related case opens with no deadline and a person sets it [assumption]. `now` (aware UTC) feeds `clock.today`
+    in live mode only; None lets the clock read it (ADR 0020)."""
+    reevaluation_allowed = reevaluation_allowed or policy_window(policies)
     if gold is not None:
         country_of = country_of or gold_country(gold)
-        deadline_of = deadline_of or gold_deadline(gold, policies)
+        deadline_of = deadline_of or gold_deadline(gold, policies, transaction_country or shared_transaction_country())
     contact = policies.contact.callback_within_business_days if policies.contact else None
 
     def owned(call: Call, case_id: str) -> CaseRecord:
@@ -108,7 +148,7 @@ def followups_handlers(store: Store, policies: Policies, gold: Optional[Gold] = 
         return case
 
     def business_day(call: Call, country: str) -> dt.date:
-        return today(call.session.mode, country, policies=policies)
+        return today(call.session.mode, country, utc_now=now() if now else None, policies=policies)
 
     def contact_by(call: Call, country: Optional[str]) -> Optional[dt.date]:
         """D-008: `contact.callback_within_business_days` from today; None when the policy or calendar has none."""
@@ -144,6 +184,8 @@ def followups_handlers(store: Store, policies: Policies, gold: Optional[Gold] = 
 
     def request_call(call: Call, args: t.RequestCallIn):
         session = call.session
+        if args.preferred_time and SECRET.search(args.preferred_time):    # free customer text too (G-IN-04)
+            return SECRET_DENY
 
         def write():
             if args.case_id is None:                         # a general request: a call_requests row (D-026)
@@ -179,13 +221,17 @@ def followups_handlers(store: Store, policies: Policies, gold: Optional[Gold] = 
                                       payload={"action_id": ids.new_id("action"), "reason": args.reason,
                                                "origin": "customer"})
 
+        def in_progress(case: CaseRecord, events: list[CaseEvent]) -> t.RequestReevaluationOut:
+            held = holder(events)
+            return t.RequestReevaluationOut(action_id=held.payload["action_id"], event_id=held.event_id,
+                                            case_id=case.case_id, outcome="already_in_progress",
+                                            related_case_id=case.related_case_id)
+
         def write():
             case = owned(call, args.case_id)
             status, events = store.queue_status(case.case_id), store.events(case.case_id)
             if status in ACTIVE:                             # nothing written: the write that holds it active
-                holder = [e for e in events if e.type in ("case_opened", "reevaluation_requested")][-1]
-                return t.RequestReevaluationOut(action_id=holder.payload["action_id"], event_id=holder.event_id,
-                                                case_id=case.case_id, outcome="already_in_progress")
+                return in_progress(case, events)
             on = business_day(call, case.country)
             if status == "resolved":
                 resolved = [e for e in events if e.type == "status_changed" and e.payload["to"] == "resolved"][-1]
@@ -196,7 +242,13 @@ def followups_handlers(store: Store, policies: Policies, gold: Optional[Gold] = 
                                     reason="reevaluation_requested")
                 return t.RequestReevaluationOut(action_id=event.payload["action_id"], event_id=event.event_id,
                                                 case_id=case.case_id, outcome="back_to_review")
-            # closed: never reopened; a related case from the new notice, decided by a person (spec 03 §6 lifecycle)
+            # closed: never reopened; a related case from the new notice, decided by a person (spec 03 §6 lifecycle).
+            # AC-15: one case not closed per transaction, so an earlier related case (or open_case's) is the answer.
+            session = call.session
+            same = next((c for c in store.list_cases(session.customer_id, run_id=session.run_id)
+                         if c.transaction_id == case.transaction_id and store.queue_status(c.case_id) != "closed"), None)
+            if same is not None:
+                return in_progress(same, store.events(same.case_id))
             term = deadline_of(case, on) if deadline_of else None
             dates = {} if term is None or not (term.credit_deadline or term.ruling_deadline) else dict(
                 credit_deadline=term.credit_deadline, ruling_deadline=term.ruling_deadline,

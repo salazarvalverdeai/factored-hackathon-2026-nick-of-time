@@ -196,6 +196,10 @@ class Contact(_Strict):                   # D-008: request_call's expected_conta
     callback_within_business_days: Optional[StrictInt] = Field(None, ge=1)
 
 
+class Reevaluation(_Strict):              # spec 02 §4.4: a resolved case goes back to review within this many days
+    window_days: StrictInt = Field(ge=0)
+
+
 class Policies(_Strict):
     version: int = Field(ge=1)
     default: Literal["deny"]               # nothing runs unless a rule allows it (AC-05)
@@ -211,6 +215,7 @@ class Policies(_Strict):
     clarify: Clarify
     handoff: Handoff
     contact: Optional[Contact] = None
+    reevaluation: Optional[Reevaluation] = None   # absent: no window, so no resolved case goes back (POL-REEVAL-WINDOW)
     regulatory_clock: dict[CountryCode, dict[Literal["debit", "credit", "any"], list[ClockEntry]]]
     countries: dict[CountryCode, Country]
     reliability: dict[str, Any]

@@ -253,12 +253,17 @@ Implementation goes in one `feat/03-*` branch per task (T1: `feat/03-mcp-server`
       `review` with no analyst yet, a wording change recorded for spec 13
 - [x] T6 — follow-up tools (`add_case_info`, `request_call`, `request_reevaluation`) · AC-17, AC-18, AC-19 ·
       `apps/mcp/mcp_server/followups.py` (`followups_handlers`, wired by name by T8), the store's `call_requests`
-      (D-026), `tests/test_spec03_followups.py` on both backends. `[assumption]`s: a PII rejection cites
-      `POL-OUT-OF-SCOPE`, the only rule of G-IN-04 (the gate writes G-POL-01 until T4 maps rule guardrails); a call stays
-      open until `approve_block`, `resolve` or `close_case` (the D-042 hold end); the re-evaluation window is 30 days
-      (spec 02 §4.4 proposal) until `reevaluation_allowed()` ships; a related case copies the closed case's facts and
-      zone, opens on today, goes to `review`, keeps the reason in its `reevaluation_requested` and takes its deadline
-      from gold with `abroad` false (none without the charge); its result has `case_id` = the new case and
+      (D-026), `tests/test_spec03_followups.py` on both backends. "Active" means not closed for AC-15 and AC-17 (so a
+      resolved case takes information), and `new`, `verification` or `review` for AC-19's `already_in_progress`.
+      `[assumption]`s, pending lead decision D-062: a card number, CVV or password in any stored customer text
+      (`text`, `preferred_time`, `reason`) is denied with `POL-PII` (guardrail G-IN-04, policies.yaml) and nothing is
+      stored; the re-evaluation window is policies.yaml `reevaluation.window_days` (30, the spec 02 §4.4 proposal; day 30
+      qualifies, day 31 is denied) until `reevaluation_allowed()` ships. Other `[assumption]`s: a call stays open until
+      `approve_block`, `resolve` or `close_case` (the D-042 hold end); a closed case has no window, so any closed case
+      may open one related case; that related case copies the closed case's facts and zone, opens on today, goes to
+      `review`, keeps the reason in its `reevaluation_requested` and takes its deadline from gold with `abroad` derived
+      as `open_case` does (none without the charge); while a case of that transaction is not closed, a new request
+      answers `already_in_progress` with that case's `case_opened` (AC-15); the result has `case_id` = the new case and
       `related_case_id` = the closed one; a write on a closed case is `DENY POL-DEFAULT-DENY`
 - [ ] T7 — `send_case_summary`, `list_my_notifications` · AC-21, AC-22
 - [ ] T8 — entry point, Dockerfile and compose service `mcp` · AC-02, AC-06, AC-12 · `apps/mcp/mcp_server/__main__.py`,

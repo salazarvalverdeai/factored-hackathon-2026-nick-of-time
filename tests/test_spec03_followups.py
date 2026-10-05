@@ -49,9 +49,9 @@ class Run:
                               guardrails=guardrails, limiter=gate.RateLimiter(clock=itertools.count(0, 1000).__next__))
         self.ana, self.bruno = self.session(ANA), self.session(BRUNO)
 
-    def session(self, customer):
+    def session(self, customer, mode="replay"):
         return self.store.create_session(customer_id=customer, otp_hash="h", verified_at=NOW, language="es",
-                                         expires_at=NOW + dt.timedelta(hours=1), mode="replay").session_id
+                                         expires_at=NOW + dt.timedelta(hours=1), mode=mode).session_id
 
     def __call__(self, tool, session=None, key=None, **args):
         arguments = {"session_id": session or self.ana, "idempotency_key": key or secrets.token_hex(4), **args}
@@ -90,9 +90,23 @@ def test_ac_17_add_case_info_rejects_card_numbers_cvv_and_passwords_with_g_in_04
     run = Run()
     case_id = run.case()
     out = run("add_case_info", case_id=case_id, text=text)
-    assert (out.code, out.policy_id) == ("DENY", "POL-OUT-OF-SCOPE") and text not in out.message
-    assert POLICIES.rules["POL-OUT-OF-SCOPE"].guardrail == "G-IN-04"                # the rule's guardrail
-    assert types(run.store, case_id) == ["case_opened"] and [d.policy_id for d in run.denials] == ["POL-OUT-OF-SCOPE"]
+    assert (out.code, out.policy_id) == ("DENY", "POL-PII") and text not in out.message
+    assert [(d.policy_id, d.guardrail_id) for d in run.denials] == [("POL-PII", "G-IN-04")]   # D-062 [assumption]
+    assert types(run.store, case_id) == ["case_opened"]
+
+
+@pytest.mark.parametrize("tool, field, case", [("request_call", "preferred_time", "new"),
+                                               ("request_call", "preferred_time", None),
+                                               ("request_reevaluation", "reason", "resolved")])
+def test_ac_17_the_other_free_texts_refuse_card_data_too_and_store_nothing(tool, field, case):
+    """G-IN-04 on every customer text a follow-up stores: the call's preferred time (with or without a case) and the
+    re-evaluation reason."""
+    run = Run(gold=GOLD, transaction_country=lambda *_: None)
+    case_id = run.case(case) if case else None
+    before = types(run.store, case_id) if case_id else []
+    out = run(tool, **({"case_id": case_id} if case_id else {}), **{field: "tarde, mi tarjeta 4111 1111 1111 1111"})
+    assert (out.code, out.policy_id) == ("DENY", "POL-PII")
+    assert (types(run.store, case_id) if case_id else []) == before and run.store.call_requests(ANA, run_id=None) == []
 
 
 def test_ac_17_add_case_info_takes_plain_text_up_to_1000_characters_on_a_case_that_is_not_closed():
@@ -144,7 +158,7 @@ def test_ac_18_no_callback_term_in_the_policy_promises_no_date():
 
 @pytest.mark.parametrize("country, expected", [(None, None), ("MX", dt.date(2026, 6, 2))])
 def test_d026_a_call_with_no_case_is_a_call_requests_row_and_no_case_event(country, expected):
-    run = Run(**({"gold": GOLD} if country else {}))
+    run = Run(**({"gold": GOLD, "transaction_country": lambda *_: None} if country else {}))
     out = run("request_call", preferred_time="mañana")
     assert (out.case_id, out.expected_contact_by, out.state) == (None, expected, "requested")
     [row] = run.store.call_requests(ANA, run_id=None)
@@ -169,13 +183,20 @@ def test_ac_19_a_resolved_case_in_the_window_goes_back_to_review_with_the_reason
     assert (again.outcome, again.action_id, again.event_id) == ("already_in_progress", out.action_id, out.event_id)
 
 
-def test_ac_19_a_resolved_case_outside_the_window_is_denied_with_pol_reeval_window():
+@pytest.mark.parametrize("days, allowed", [(30, True), (31, False)])
+def test_ac_19_the_window_is_policies_reevaluation_window_days_and_day_31_is_denied(days, allowed):
+    """policies.yaml `reevaluation.window_days` (30 [assumption] D-062): day 30 after the resolution goes back to
+    review, day 31 gets POL-REEVAL-WINDOW and nothing is written."""
+    assert POLICIES.reevaluation.window_days == 30
     run = Run()
-    case_id = run.case("resolved", resolved_on=dt.date(2026, 4, 1))
+    case_id = run.case("resolved", resolved_on=dt.date(2026, 6, 1) - dt.timedelta(days=days))
     before = types(run.store, case_id)
     out = run("request_reevaluation", case_id=case_id, reason="No estoy de acuerdo")
-    assert (out.code, out.policy_id) == ("DENY", "POL-REEVAL-WINDOW") and types(run.store, case_id) == before
-    assert [d.policy_id for d in run.denials] == ["POL-REEVAL-WINDOW"]
+    if allowed:
+        assert out.outcome == "back_to_review" and run.store.queue_status(case_id) == "review"
+    else:
+        assert (out.code, out.policy_id) == ("DENY", "POL-REEVAL-WINDOW") and types(run.store, case_id) == before
+        assert [(d.policy_id, d.guardrail_id) for d in run.denials] == [("POL-REEVAL-WINDOW", "G-POL-01")]
 
 
 def test_ac_19_an_active_case_comes_back_unchanged_with_its_opening_write():
@@ -190,7 +211,7 @@ def test_ac_19_an_active_case_comes_back_unchanged_with_its_opening_write():
 
 @pytest.mark.parametrize("with_clock", [False, True])
 def test_ac_19_a_closed_case_opens_a_related_case_in_review_from_the_new_notice(with_clock):
-    run = Run(**({"gold": GOLD} if with_clock else {}))
+    run = Run(**({"gold": GOLD, "transaction_country": lambda *_: "México"} if with_clock else {}))
     closed = run.case("closed")
     out = run("request_reevaluation", case_id=closed, reason="Sigo sin reconocerlo")
     assert (out.outcome, out.related_case_id) == ("related_case_opened", closed) and out.case_id != closed
@@ -201,3 +222,37 @@ def test_ac_19_a_closed_case_opens_a_related_case_in_review_from_the_new_notice(
     assert run.store.events(out.case_id)[0].event_id == out.event_id and run.store.queue_status(out.case_id) == "review"
     assert types(run.store, closed)[-1] == "related_case_opened" and run.store.queue_status(closed) == "closed"
     assert ids.is_valid("case", out.case_id)
+    again = run("request_reevaluation", case_id=closed, reason="Otra vez")       # AC-15: no second active case
+    assert (again.outcome, again.case_id, again.action_id, again.event_id, again.related_case_id) == (
+        "already_in_progress", out.case_id, out.action_id, out.event_id, closed)
+    assert run("request_reevaluation", case_id=out.case_id, reason="Y?") == again     # the related case: same holder
+    assert len([c for c in run.store.list_cases(ANA, run_id=None) if c.related_case_id == closed]) == 1
+
+
+def test_ac_15_a_closed_case_whose_charge_already_has_an_active_case_opens_no_other():
+    """An active case of the same transaction, e.g. one open_case opened with related_case_id, is the answer."""
+    run = Run()
+    closed = run.case("closed")
+    active = open_case(run.store, customer_id=ANA, related_case_id=closed)
+    out = run("request_reevaluation", case_id=closed, reason="Sigo sin reconocerlo")
+    assert (out.outcome, out.case_id, out.action_id) == ("already_in_progress", active.case_id, active.action_id)
+    assert len(run.store.list_cases(ANA, run_id=None)) == 2
+
+
+@pytest.mark.parametrize("where, ruling", [("México", dt.date(2026, 7, 16)), ("Estados Unidos", dt.date(2026, 11, 28))])
+def test_ac_19_a_related_case_deadline_is_abroad_when_the_charge_was_abroad(where, ruling):
+    """The same `abroad` rule as open_case: the charge's gold transaction_country against the customer's country."""
+    run = Run(gold=GOLD, transaction_country=lambda *_: where)
+    out = run("request_reevaluation", case_id=run.case("closed"), reason="Sigo sin reconocerlo")
+    assert run.store.get_case(out.case_id, run_id=None, customer_id=ANA).ruling_deadline == ruling
+
+
+def test_d008_a_later_duplicate_request_keeps_the_stored_expected_contact_by():
+    """Live mode: asked on 2026-06-01 (-> 2026-06-02); asked again on 2026-06-03, the open request keeps 2026-06-02."""
+    clock = [NOW]
+    run = Run(now=lambda: clock[0])
+    live, case_id = run.session(ANA, mode="live"), run.case()
+    first = run("request_call", session=live, case_id=case_id)
+    clock[0] = NOW + dt.timedelta(days=2)
+    again = run("request_call", session=live, case_id=case_id)
+    assert first.expected_contact_by == again.expected_contact_by == dt.date(2026, 6, 2) and again == first
