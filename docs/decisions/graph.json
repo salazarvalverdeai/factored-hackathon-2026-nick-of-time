@@ -241,6 +241,14 @@
       "theme": "Platform and identity"
     },
     {
+      "id": "adr-0027",
+      "layer": "decision",
+      "label": "0027 Model selection per LLM task (understand, word, judge)",
+      "status": "Proposed",
+      "file": "docs/adr/0027-model-selection.md",
+      "theme": "Agent, rules and safety"
+    },
+    {
       "id": "adr-0028",
       "layer": "decision",
       "label": "0028 The classifier test split is decided by fixed rules when no independent person can review it",
@@ -932,6 +940,12 @@
       "to": "E-demo"
     },
     {
+      "from": "adr-0027",
+      "kind": "evidenced_by",
+      "source": "extra",
+      "to": "E-bench"
+    },
+    {
       "from": "adr-0028",
       "kind": "evidenced_by",
       "source": "extra",
@@ -1574,6 +1588,24 @@
       "to": "spec-09"
     },
     {
+      "from": "adr-0027",
+      "kind": "implemented_by",
+      "source": "adr-header",
+      "to": "spec-04"
+    },
+    {
+      "from": "adr-0027",
+      "kind": "implemented_by",
+      "source": "adr-header",
+      "to": "spec-11"
+    },
+    {
+      "from": "adr-0027",
+      "kind": "implemented_by",
+      "source": "adr-header",
+      "to": "spec-15"
+    },
+    {
       "from": "adr-0028",
       "kind": "implemented_by",
       "source": "adr-header",
@@ -1860,6 +1892,36 @@
       "kind": "related",
       "source": "adr-header",
       "to": "adr-0020"
+    },
+    {
+      "from": "adr-0027",
+      "kind": "related",
+      "source": "adr-header",
+      "to": "adr-0009"
+    },
+    {
+      "from": "adr-0027",
+      "kind": "related",
+      "source": "adr-header",
+      "to": "adr-0015"
+    },
+    {
+      "from": "adr-0027",
+      "kind": "related",
+      "source": "adr-header",
+      "to": "adr-0021"
+    },
+    {
+      "from": "adr-0027",
+      "kind": "related",
+      "source": "adr-header",
+      "to": "adr-0025"
+    },
+    {
+      "from": "adr-0027",
+      "kind": "related",
+      "source": "adr-header",
+      "to": "adr-0028"
     },
     {
       "from": "adr-0028",

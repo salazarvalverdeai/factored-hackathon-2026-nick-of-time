@@ -45,7 +45,7 @@ themes:
   - name: Data and evaluation
     adrs: ["0004", "0007", "0015", "0018", "0021", "0022", "0025", "0028"]
   - name: Agent, rules and safety
-    adrs: ["0005", "0006", "0008", "0009", "0013", "0016", "0024"]
+    adrs: ["0005", "0006", "0008", "0009", "0013", "0016", "0024", "0027"]
   - name: Platform and identity
     adrs: ["0010", "0011", "0017", "0026"]
   - name: Time and regulation
@@ -116,7 +116,7 @@ evidence:
     kind: metric
     label: "eval/bench/gate_evidence.yaml"
     path: eval/bench/gate_evidence.yaml
-    supports: [adr-0009, adr-0015, spec-15]
+    supports: [adr-0009, adr-0015, adr-0027, spec-15]
   - id: E-audit
     kind: test
     label: "tests/test_spec18_audit_a3_a7.py"

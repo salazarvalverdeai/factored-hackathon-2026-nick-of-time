@@ -4,7 +4,7 @@
 
 One picture of the project's reasoning: the problem the data showed, the decisions that answered it, the specs and components that implement them, and the evidence behind each. Every ADR and spec is a node; every edge comes from a header (`Status`, `Amended by`, `Related`, `ADRs`, `Depends on`) or from the small mapping in [`graph_extra.yaml`](graph_extra.yaml). The same graph, with every edge, is in [`graph.json`](graph.json).
 
-**Size:** 4 problem nodes, 26 decision nodes (27 ADRs, ADRs 0001 and 0002 drawn as one), 18 specs, 15 evidence nodes: 63 nodes and 81 edges drawn.
+**Size:** 4 problem nodes, 27 decision nodes (28 ADRs, ADRs 0001 and 0002 drawn as one), 18 specs, 15 evidence nodes: 64 nodes and 82 edges drawn.
 
 ```mermaid
 flowchart LR
@@ -38,6 +38,7 @@ flowchart LR
       adr_0013["0013 The customer receives proof: verified..."]
       adr_0016["0016 Guardrails: injection detector with rules +..."]
       adr_0024["0024 A call request in the high zone defers the..."]
+      adr_0027["0027 Model selection per LLM task (understand,..."]
     end
     subgraph TPlatform_and_identity["Platform and identity"]
       adr_0010["0010 Postgres for case state and audit"]
@@ -117,6 +118,7 @@ flowchart LR
   adr_0024 --> E_decide
   adr_0025 --> E_protocol
   adr_0026 --> E_demo
+  adr_0027 --> E_bench
   adr_0028 --> E_protocol
   adr_0006 --> spec_02
   adr_0008 --> spec_01
@@ -175,7 +177,7 @@ flowchart LR
   classDef spec fill:#F1F5F9,stroke:#94A3B8,color:#1F2937
   classDef evidence fill:#CCFBF1,stroke:#0F766E,color:#1F2937
   class P1,P2,P3,P4 problem
-  class adr_0003,adr_0004,adr_0005,adr_0006,adr_0007,adr_0008,adr_0009,adr_0010,adr_0011,adr_0012,adr_0013,adr_0014,adr_0015,adr_0016,adr_0017,adr_0018,adr_0019,adr_0020,adr_0021,adr_0022,adr_0023,adr_0024,adr_0025,adr_0026,adr_0028,collapsed_process decision
+  class adr_0003,adr_0004,adr_0005,adr_0006,adr_0007,adr_0008,adr_0009,adr_0010,adr_0011,adr_0012,adr_0013,adr_0014,adr_0015,adr_0016,adr_0017,adr_0018,adr_0019,adr_0020,adr_0021,adr_0022,adr_0023,adr_0024,adr_0025,adr_0026,adr_0027,adr_0028,collapsed_process decision
   class spec_01,spec_02,spec_03,spec_04,spec_05,spec_06,spec_07,spec_08,spec_09,spec_10,spec_11,spec_12,spec_13,spec_14,spec_15,spec_16,spec_17,spec_18 spec
   class E_audit,E_bench,E_decide,E_demo,E_deploy,E_fcr_panel,E_fraud,E_gold,E_identity,E_mcp,E_notify,E_policies,E_protocol,E_respond,E_store evidence
 ```
@@ -235,6 +237,7 @@ The dataset is synthetic; these figures describe the problem, not our system (se
 | [0024 A call request in the high zone defers the card block to the analyst](../adr/0024-high-zone-call-request-defers-block.md) · Accepted | The business rule in CLAUDE.md (merged in #83) now reads: "High zone blocks and verifies, unless the customer asked for a person in that turn: the case opens, the call is registered and the analyst decides the block after the ... | One firm business rule is "High zone blocks and verifies" (CLAUDE.md). approval.per_action.block_card.high is manual_check: the agent blocks, verifies and leaves the case in verification (contracts/policies.yaml). - A customer ... | [02](../../specs/02-policy-engine.md), [03](../../specs/03-mcp-tools.md), [04](../../specs/04-agent-graph.md), [11](../../specs/11-intent-classifier.md) | [`test_spec02_decide.py`](../../tests/test_spec02_decide.py) |
 | [0025 The classifier set is written by three model families, one per split, none of them Claude](../adr/0025-classifier-set-authored-by-distinct-model-families.md) · Accepted (amended by 0028) | Each split has a different generator model family, and none of them is Claude: \| Split \| Generator (Bedrock model id) \| Family \| \|---\|---\|---\| \| Train \| Llama 3.3 70B Instruct (us.meta.llama3-3-70b-instruct-v1:0) \| Meta Llama \| \| ... | Spec 11 AC-06 splits the classifier sentences by author (60/15/25), so that the test split measures how well a classifier generalizes to writers it never saw. | [09](../../specs/09-demo-eval-data.md), [11](../../specs/11-intent-classifier.md), [15](../../specs/15-model-benchmark.md) | [`PROTOCOL.md`](../../eval/PROTOCOL.md) |
 | [0026 Public demo sessions: a scenario picks the customer server-side and each session runs under its own run_id](../adr/0026-demo-sessions-isolated-by-run-id.md) · Accepted | A demo session is opened with a scenario, not a customer: POST /api/sessions {display_name?, language, country?, scenario?}. | The public /chat lets any visitor try the agent on the six spec 09 demo customers (eval/demo/customers.json). | [01](../../specs/01-integration-contract.md), [05](../../specs/05-backend-api.md), [07](../../specs/07-customer-chat.md), [09](../../specs/09-demo-eval-data.md) | [PR 188](https://github.com/salazarvalverdeai/factored-hackathon-2026-nick-of-time/pull/188) |
+| [0027 Model selection per LLM task (understand, word, judge)](../adr/0027-model-selection.md) · Proposed |  | The agent uses an LLM for only two tasks: understand, below τ, and word. | [04](../../specs/04-agent-graph.md), [11](../../specs/11-intent-classifier.md), [15](../../specs/15-model-benchmark.md) | [`gate_evidence.yaml`](../../eval/bench/gate_evidence.yaml) |
 | [0028 The classifier test split is decided by fixed rules when no independent person can review it](../adr/0028-test-split-decided-by-fixed-rules-without-independent-reviewer.md) · Accepted | When no person other than the classifier's developer can review the test split before the seal, the test split is decided by fixed rules, eval.classifier.review.rule_decision, signed rules-v1: 1. | ADR 0025 asks a person who is not the classifier's developer to review every line of the test split. | [09](../../specs/09-demo-eval-data.md), [11](../../specs/11-intent-classifier.md) | [`PROTOCOL.md`](../../eval/PROTOCOL.md) |
 
 ## Specs and components
