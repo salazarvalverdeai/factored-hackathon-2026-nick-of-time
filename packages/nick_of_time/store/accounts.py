@@ -8,6 +8,10 @@
 - `customer_channels` (AO): the latest row of each channel (the one inserted last) wins. A Telegram `/start` writes
   `linked` with `telegram_linked` on the case (spec 13 AC-02); a typed e-mail writes `linked`, its confirmation link
   `confirmed` with `email_confirmed`. The store returns raw addresses; tools mask them (spec 03 AC-11).
+- `idempotency` (spec 03 AC-15, §6.5): `once` runs a W or N tool's write at most once per key and returns the stored
+  result afterwards; the row's key is `[run_id:]<scope>:<key>` with `<scope>` = `c=<customer_id>` or `-` (the api's
+  analyst actions) [assumption: §6.5 names only the run prefix; the scope keeps one customer from replaying another's
+  result], and a key reused for another action is refused. A refused write is not remembered.
 The accessors take plain arguments and refuse bad ones with StoreError before any write, never with a pydantic error.
 """
 from __future__ import annotations
@@ -88,6 +92,12 @@ class NewDenial(_Row):
         if re.fullmatch(DENIAL_ACTOR, value) is None:
             raise ValueError("not a denial actor (agent, customer or analyst:<sub>)")
         return value
+
+
+class Once(_Row):
+    """What `once` returns: the write's JSON result, and whether it is the stored one from an earlier call."""
+    result: dict[str, Any]
+    replayed: bool
 
 
 class PolicyDenial(NewDenial):
@@ -171,3 +181,34 @@ def check_key(value: Any) -> Any:
         raise StoreError(f"not a key: {value!r}")
     check_text(value)
     return value
+
+
+def idempotency_key(key: Any, action: Any, customer_id: Any, run_id: Any) -> str:
+    """The stored `idempotency.key` of a tool call (see the module docstring), else StoreError."""
+    from nick_of_time.store import StoreError
+    for name, value in (("key", key), ("action", action)):
+        if not isinstance(value, str) or not value.strip():
+            raise StoreError(f"an idempotent call needs its {name}")
+    check_key(key), check_key(action), check_key(customer_id), check_key(run_id)
+    if customer_id is not None and (not customer_id or ":" in customer_id):
+        raise StoreError("not a customer id")
+    if run_id is not None and not run_id:
+        raise StoreError("not a run id")
+    scope = "-" if customer_id is None else f"c={customer_id}"
+    return (f"{run_id}:" if run_id is not None else "") + f"{scope}:{key}"
+
+
+def check_replay(stored_action: str, stored_run: Optional[str], action: str, run_id: Optional[str]) -> None:
+    """A key that names another action (or, for a split that collides, another run) is a bug in the caller."""
+    from nick_of_time.store import StoreError
+    if (stored_action, stored_run) != (action, run_id):
+        raise StoreError("this idempotency key was used for another action")
+
+
+def json_object(value: Any) -> dict[str, Any]:
+    """A tool's result as `jsonb` keeps it: a JSON object, else StoreError."""
+    from nick_of_time.store import StoreError, _json
+    copy = _json(value)
+    if not isinstance(copy, dict):
+        raise StoreError("an idempotent result is a JSON object")
+    return copy

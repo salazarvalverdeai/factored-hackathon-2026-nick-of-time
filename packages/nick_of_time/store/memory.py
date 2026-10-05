@@ -17,9 +17,9 @@ from nick_of_time.store import (CUSTOMER_VISIBLE, RESERVED_EVENTS, UNDELIVERED, 
                                 _utc_now, check_action_id, check_business_date, check_text, check_transition,
                                 insert_with_fresh_case_id)
 from nick_of_time.store.accounts import (CHANNEL_CASE_EVENT, CHANNEL_ID, DENIAL_ID, ChannelEvent, CustomerChannel,
-                                         LinkedChannel, NewDenial, NewSession, PolicyDenial, SessionRecord,
-                                         check_channel_event, check_denial_session, check_key, new_row_id, parse,
-                                         window_start)
+                                         LinkedChannel, NewDenial, NewSession, Once, PolicyDenial,
+                                         SessionRecord, check_channel_event, check_denial_session, check_key,
+                                         check_replay, idempotency_key, json_object, new_row_id, parse, window_start)
 
 
 class MemoryStore:
@@ -34,6 +34,7 @@ class MemoryStore:
         self._sessions: dict[str, SessionRecord] = {}
         self._denials: list[PolicyDenial] = []
         self._channels: list[CustomerChannel] = []
+        self._once: dict[str, tuple[str, Optional[str], dict[str, Any]]] = {}   # stored key -> (action, run, result)
 
     # ---------- cases ----------
     def create_case(self, case: NewCase, *, actor: str, action_id: str) -> CaseRecord:
@@ -308,3 +309,13 @@ class MemoryStore:
         check_key(customer_id)
         latest = {c.channel: c for c in self._channels if c.customer_id == customer_id}     # the row inserted last
         return [latest[name] for name in sorted(latest)]
+
+    def once(self, key: str, *, action: str, customer_id: Optional[str], run_id: Optional[str],
+             write: Callable[[], dict[str, Any]]) -> Once:
+        stored = idempotency_key(key, action, customer_id, run_id)
+        if stored in self._once:
+            check_replay(*self._once[stored][:2], action, run_id)
+            return Once(result=_json(self._once[stored][2]), replayed=True)
+        result = json_object(write())                             # a refused write raises and stores nothing
+        self._once[stored] = (action, run_id, result)
+        return Once(result=_json(result), replayed=False)

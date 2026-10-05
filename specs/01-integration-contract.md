@@ -287,7 +287,7 @@ actor CHECKs so no server locale changes it; their `(?p)` keeps a newline out of
 | `notification_deliveries` **AO** | `delivery_id` PK · `notification_id` FK · `status` (`queued\|sent\|delivered\|bounced\|failed`) · `provider_event` jsonb null · `created_at` · `row_no` bigint identity | delivery status = latest row |
 | `customer_channels` **AO** | `channel_id` PK · `customer_id` · `channel` · `address` (chat id or e-mail) · `event` (`linked\|confirmed\|revoked`) · `created_at` · `row_no` bigint identity | latest row per channel wins |
 | `link_tokens` | `token` PK · `case_id` · `channel` · `expires_at` · `used_at` null | one-time |
-| `idempotency` | `key` PK · `action` · `result` jsonb · `run_id` text null · `created_at` | the key is prefixed with `run_id` when present |
+| `idempotency` | `key` PK · `action` · `result` jsonb · `run_id` text null · `created_at` | the key is prefixed with `run_id` when present, then the scope `c=<customer_id>` (`-` for the api) `[assumption]` |
 | `policy_denials` **AO** | `denial_id` PK · `trace_id` · `session_id` text null · `actor` (`agent\|customer\|analyst:<sub>`) · `policy_id` · `guardrail_id` · `detail` jsonb · `run_id` text null · `created_at` | `actor` is a closed list (no `system`; sub not blank); `session_id` null for an api or analyst denial; a rule-only denial cites `G-POL-01` (writers map a missing guardrail id to it) `[assumption]` (D-023) |
 | `llm_calls` **AO** | `call_id` PK · `trace_id` · `provider` · `model` · `tokens_in` · `tokens_out` · `latency_ms` · `cost_usd` numeric · `run_id` text null · `created_at` | `run_id` from the session, so a run's tokens and cost sum alone `[assumption]` (D-023) |
 | `settings_events` **AO** | `event_id` PK · `key` · `value` jsonb · `actor` · `created_at` · `row_no` bigint identity | `supervised_mode` = latest row |
@@ -524,8 +524,13 @@ Implementation goes in one `feat/01-*` branch per task (for example `feat/01-pac
       (`created_at`, then `denial_id`); and `customer_channels` insert, with its case event, and the latest row per
       channel (the highest `row_no`), where only an e-mail is `confirmed`, on its `linked` address, and a channel takes
       a summary only while its latest row is a Telegram `linked` or an e-mail `confirmed` `[assumption]`. Bad input to these
-      accessors is a `StoreError`, NUL and lone surrogates included. The `idempotency` accessor comes in a separate
-      small PR of the same task
+      accessors is a `StoreError`, NUL and lone surrogates included. The `idempotency` accessor, in a separate small PR
+      of the same task (`feat/01-store-idempotency`), is `once(key, action, customer_id, run_id, write)`: the first call
+      runs `write()` and stores its JSON result, every later one returns it with `replayed` and writes nothing (spec 03
+      AC-03, AC-15), under the key's advisory lock on Postgres so concurrent callers write once; the stored key is
+      `[run_id:]c=<customer_id>:<key>` (`-` for the api's analyst actions, which check `AnalystActionIn.idempotency_key`
+      with it), so one customer never replays another's result `[assumption]`; a key reused for another action and a
+      result that is not a JSON object are a `StoreError`, and a refused write is not remembered
 - [x] T10 — `store/schema.sql`: the §6.5 tables as Postgres DDL with the append-only trigger and the unique
       action-id index, adopted verbatim by `apps/api/migrations` as its first migration (D-002); its actor CHECKs
       give no result that depends on the server locale (the stock `postgres:16` image included) · covers AC-01 ·
