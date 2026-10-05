@@ -11,8 +11,8 @@ import { Input } from "@/components/ui/input";
 import { ApiError, api } from "@/lib/api";
 import { formatDeadline } from "@/lib/format";
 import { MESSAGES, fill } from "@/lib/mock/messages";
-import type { AgentReply, DemoCustomer, Receipt, TraceStep } from "@/lib/types";
-import { useMockState, useMounted } from "@/lib/use-query";
+import type { AgentReply, DemoCustomer, Receipt, Suggestion, TraceStep, TurnAction } from "@/lib/types";
+import { useMounted, useSession } from "@/lib/use-query";
 
 interface Message {
   id: number;
@@ -41,7 +41,7 @@ function useDemoCustomers(): DemoCustomer[] | null {
 
 export default function ChatPage() {
   const mounted = useMounted();
-  const { customerSession } = useMockState();
+  const { customerSession } = useSession();
   const [now, setNow] = useState(() => Date.now());
   const [forcedExpired, setForcedExpired] = useState(false);
 
@@ -179,7 +179,7 @@ function Verify({ expired, onVerified }: { expired: boolean; onVerified: () => v
 // --- the conversation: messages, receipt widget and the trace panel ------------------------------------------------
 
 function Conversation({ onExpired }: { onExpired: () => void }) {
-  const { customerSession } = useMockState();
+  const { customerSession } = useSession();
   const customer = useDemoCustomers()?.find((c) => c.customer_id === customerSession?.customerId);
   const lang = customer?.language ?? "es";
   const [messages, setMessages] = useState<Message[]>([]);
@@ -187,17 +187,20 @@ function Conversation({ onExpired }: { onExpired: () => void }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState<string | undefined>(undefined);
+  const [step, setStep] = useState<string | null>(null);
 
   const lastReply = [...messages].reverse().find((m) => m.reply)?.reply;
 
-  async function send(text: string) {
+  /** A typed message, or a chip press: an action chip sends its action and skips the classifier (spec 01 §6.4). */
+  async function send(text: string, action?: TurnAction) {
     if (!text.trim() || busy) return;
     setMessages((m) => [...m, { id: m.length, role: "customer", text }]);
     setInput("");
     setBusy(true);
     setError(null);
+    setStep(null);
     try {
-      const reply = await api.chat(text, { pendingRequest: pending });
+      const reply = await api.chat(text, { pendingRequest: pending, action, onProgress: (p) => setStep(p.label) });
       setPending(reply.awaitingConfirmation ? text : undefined);
       setMessages((m) => [...m, { id: m.length, role: "agent", text: reply.text, reply }]);
     } catch (e) {
@@ -205,6 +208,7 @@ function Conversation({ onExpired }: { onExpired: () => void }) {
       else setError(e instanceof ApiError ? e.message : "unexpected error");
     } finally {
       setBusy(false);
+      setStep(null);
     }
   }
 
@@ -217,9 +221,11 @@ function Conversation({ onExpired }: { onExpired: () => void }) {
             {customerSession ? new Date(customerSession.expiresAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "—"}
           </span>
           <span className="flex gap-2">
-            <Button size="xs" variant="outline" onClick={() => api.expireCustomerSession()}>
-              Expire session (demo)
-            </Button>
+            {api.mode === "mock" ? (
+              <Button size="xs" variant="outline" onClick={() => api.expireCustomerSession()}>
+                Expire session (demo)
+              </Button>
+            ) : null}
             <Button size="xs" variant="outline" onClick={() => api.logoutCustomer()}>
               Sign out
             </Button>
@@ -260,16 +266,22 @@ function Conversation({ onExpired }: { onExpired: () => void }) {
               </div>
             </div>
           ))}
-          {busy ? <LoadingState label={lang === "es" ? "El agente está trabajando…" : "O agente está trabalhando…"} /> : null}
+          {busy ? <LoadingState label={step ?? (lang === "es" ? "El agente está trabajando…" : "O agente está trabalhando…")} /> : null}
           {error ? <ErrorState title="The agent did not answer" message={error} onRetry={() => setError(null)} /> : null}
         </div>
 
         <div className="flex flex-wrap gap-2">
-          {(lastReply?.suggestions ?? EXAMPLES[lang].map((ex) => ({ label: ex, text: ex }))).map((chip) => (
-            <Button key={chip.label} size="xs" variant="outline" disabled={busy} onClick={() => send(chip.text)} className="h-auto whitespace-normal py-1 text-left">
-              {chip.label}
-            </Button>
-          ))}
+          {(lastReply?.suggestions ?? EXAMPLES[lang].map((ex): Suggestion => ({ label: ex, text: ex }))).map((chip) =>
+            chip.href ? (
+              <Link key={chip.label} href={chip.href} className="inline-flex h-auto items-center whitespace-normal rounded-lg border px-2 py-1 text-left text-xs hover:bg-muted">
+                {chip.label}
+              </Link>
+            ) : (
+              <Button key={chip.label} size="xs" variant="outline" disabled={busy} onClick={() => send(chip.text, chip.action)} className="h-auto whitespace-normal py-1 text-left">
+                {chip.label}
+              </Button>
+            ),
+          )}
         </div>
 
         <form
@@ -315,6 +327,23 @@ function ReceiptCard({ receipt }: { receipt: Receipt }) {
           {receipt.deadline_text}
           <span className="block text-xs text-muted-foreground">{formatDeadline(receipt.deadline)}</span>
         </p>
+        {receipt.facts?.length ? (
+          <ul className="list-disc space-y-1 pl-5">
+            {receipt.facts.map((f) => (
+              <li key={f}>{f}</li>
+            ))}
+          </ul>
+        ) : null}
+        {receipt.actions?.length ? (
+          <ul className="space-y-1 text-xs text-muted-foreground">
+            {receipt.actions.map((a) => (
+              <li key={`${a.label}-${a.verification_id ?? a.state}`}>
+                {a.label}: {a.state.replaceAll("_", " ")}
+                {a.verification_id ? ` (${a.verification_id})` : ""}
+              </li>
+            ))}
+          </ul>
+        ) : null}
         <p>{receipt.what_ai_did}</p>
         <p>{receipt.what_a_person_does}</p>
         <Link href={receipt.case_url} className="inline-block underline">
@@ -329,6 +358,7 @@ const KIND_LABEL: Record<TraceStep["kind"], string> = {
   ok: "done",
   accepted: "accepted",
   verified: "verified ✓",
+  not_confirmed: "not confirmed",
   guardrail: "guardrail",
   deny: "DENY",
 };
@@ -337,6 +367,7 @@ const KIND_CLASS: Record<TraceStep["kind"], string> = {
   ok: "bg-muted text-muted-foreground",
   accepted: "bg-amber-500/15 text-amber-700 dark:text-amber-400",
   verified: "bg-brand-teal/15 text-teal-700 dark:text-teal-300",
+  not_confirmed: "bg-red-500/15 text-red-700 dark:text-red-400",
   guardrail: "bg-red-500/15 text-red-700 dark:text-red-400",
   deny: "bg-red-500/15 text-red-700 dark:text-red-400",
 };
