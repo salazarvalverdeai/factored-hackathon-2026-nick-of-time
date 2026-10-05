@@ -63,7 +63,13 @@ def test_ac_11_live_profiles_cover_every_zone_and_stay_inside_the_policies():
         assert zones[zone].score_min <= profile["score"]["min"] <= profile["score"]["max"] <= zones[zone].score_max
         assert 0 < profile["hours_before_now"]["min"] < profile["hours_before_now"]["max"]
         assert profile["null_score"] == ("allowed" if zone == "human" else "never")
-    assert PROFILES["profiles"]["high"]["hours_before_now"]["max"] < 48          # MX debit: within 48 h of the notice
+    # ADR 0023: an MX claim within 90 calendar days of the charge, debit or credit, is credited by business day 2; every
+    # generated row must fall inside that window, so a live MX demo always shows the credit date.
+    mx = [ENGINE.policies.regulatory_clock["MX"][product][0] for product in ("debit", "credit")]
+    assert all(entry.credit and entry.when_charged_within.days for entry in mx)
+    window_hours = 24 * min(entry.when_charged_within.days for entry in mx)
+    for zone, profile in PROFILES["profiles"].items():
+        assert profile["hours_before_now"]["max"] < window_hours, zone
     assert set(PROFILES["amount"]) == {"MX", "CO", "AR"}
     for country, amount in PROFILES["amount"].items():
         assert 0 < amount["min"] < amount["max"]
