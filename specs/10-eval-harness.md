@@ -49,8 +49,9 @@ lead's definitions of 2026-10-04 (issue comment). Evidence: [T] test · [C] comm
 - **AC-09** — If a run fails, times out or returns no `FinalState`, then it shall be recorded as a failed run and stay
   in every denominator; no run is dropped. · [T]
 - **AC-10** — The harness shall report `coherence_rate` from `FinalState.status_replies`. · [T]
-- **AC-11** — When a run set ends, the harness shall write `apps/web/public/data/evaluation_summary.json` with the
-  shape of §7.2. · [T]
+- **AC-11** — When a run set ends, the harness shall write `evaluation_summary.json` with the shape of §7.2: always
+  in the run folder, and in `apps/web/public/data/` for a held-out run or when `--web` is given, so a dev or stub
+  run never replaces the numbers the page shows. · [T]
 - **AC-12** — The test suite shall run the harness offline against the api stub and the `fake` LLM provider; CI never
   calls a real model. · [T]
 
@@ -94,7 +95,9 @@ lifecycle).
 Proportions carry a 95% Wilson interval; every cell shows n, and a cell with fewer than 5 cases is flagged.
 
 **Blocks against the label (AC-04).** Precision = blocked transactions that are fraud ÷ blocked transactions. Recall =
-fraud transactions that were blocked ÷ case transactions that are fraud. Both are reported with their counts; with
+fraud transactions that were blocked ÷ case transactions that are fraud. Both are counted per run, like every other
+rate: a block is a run that ends with the card `Blocked` on a labeled transaction. When the label file is not on the
+machine (`make labels-pull` needs the dataset AWS profile), `blocks_vs_label` is `null` and nothing is estimated. Both are reported with their counts; with
 7 high-zone held-out transactions (spec 09 §7.2) the intervals are wide and the report says so.
 
 ## 5. Non-functional requirements
@@ -145,13 +148,14 @@ before the seal.
   "arms": [{
     "arm": "S1", "run_meta": {"model_graph": "…", "prompt_hash": "…", "policies_version": 2},
     "overall": {"safe_automated_resolution": {"value": 0.0, "numerator": 0, "denominator": 0, "ci_low": 0.0, "ci_high": 0.0}},
-    "cells": [{"language": "es", "type": "normal", "segment": "Basic", "n_cases": 0, "metrics": {}}],
+    "cells": [{"language": "es", "type": "normal", "segment": "Basic", "n_cases": 0, "small": true, "metrics": {}}],
     "latency_ms": {"p50": 0, "p95": 0}, "cost_usd": {"per_case": 0.0, "per_resolution": 0.0},
-    "blocks_vs_label": {"blocked": 0, "blocked_fraud": 0, "fraud_cases": 0, "precision": null, "recall": null}
+    "blocks_vs_label": {"blocked": 0, "blocked_fraud": 0, "fraud_cases": 0, "fraud_blocked": 0, "precision": null, "recall": null}
   }]
 }
 ```
-`overall` holds every metric of §4.1 with the same five fields.
+`overall` holds every metric of §4.1 with the same five fields. `small` flags a cell with fewer than 5 cases.
+`blocks_vs_label` is `null` when the label file was not available.
 
 ## 8. Assumptions and open questions (gate 1 — to close in this PR)
 - **Q1 (@salazarvalverdeai) — safe automated resolution.** Default: the denominator is the runs whose expected decision
@@ -179,9 +183,9 @@ Implementation goes in `feat/10-…` branches once this spec is approved. T1–T
       example cases run offline in CI
 - [x] T2 — comparison and metrics of §4.1 with `nick_of_time.audit` · covers AC-02, AC-08, AC-10 · done when: unit tests
       on recorded `FinalState` fixtures give the expected numerators and denominators
-- [ ] T3 — `summary.csv`, `meta.json`, `report` command and `evaluation_summary.json` · covers AC-05, AC-11
-- [ ] T4 — held-out guard (seal and hash) · covers AC-07
-- [ ] T5 — `labels.py` and the blocks-against-label report · covers AC-04
+- [x] T3 — `summary.csv`, `meta.json`, `report` command and `evaluation_summary.json` · covers AC-05, AC-11
+- [x] T4 — held-out guard (seal and hash) · covers AC-07
+- [x] T5 — `labels.py` and the blocks-against-label report · covers AC-04 (tested on a fixture; not run on the real labels yet: they need the dataset AWS profile)
 - [ ] T6 — `make eval`; dev set on S0 and S1 against the real graph (after spec 04) · covers AC-03
 - [ ] T7 — held-out run on S0, S1 and S2 after M02; results committed under `eval/results/` · covers AC-03
 
