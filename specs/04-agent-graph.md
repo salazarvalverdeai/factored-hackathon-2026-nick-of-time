@@ -99,6 +99,11 @@ AC-01 to AC-08 come from issue #6 with the same numbers; the rest are added by t
 - **AC-32** — Pressing a text chip shall give the same result as typing its label; pressing an action chip shall send
   the structured `action` of spec 01 §6.4, which skips the classifier; a link chip opens an internal route set by the
   server, never by the model. · [T]
+- **AC-33** — *(proposed in task 04a from review finding F-012, pending the lead's approval)* When the customer's
+  message equals the label of a text chip offered in the previous reply (case, accents and end punctuation ignored),
+  the agent shall route it by that chip's pending question — the intent the chip stands for, or the dispute being
+  clarified — instead of the classifier's reading, so that typing a label and pressing its chip give the same result.
+  · [T]
 
 **Cases, money and modes (improvements #13 and #16)**
 - **AC-23** — If the customer disputes a transaction that already has an active case, the agent shall not open another
@@ -121,11 +126,24 @@ display_currency, channels}, `case_id_in`, `intent`, `intent_confidence`, `slots
 `score`, `decision` (spec 02), `plan` [steps], `clarification_turns`, `customer_confirmed` (about the selected
 transaction; reset to null whenever `selected_transaction` changes), `actions` [{tool, action_id, state,
 verification_id, read_at}], `case`, `receipt`, `handoff`, `reply`, `progress` [labels], `suggestions` [chips],
-`guardrails_triggered`, `denials`, `usage`, `trace`.
+`guardrails_triggered`, `denials`, `usage`, `trace`. Internal fields kept on the thread (task 04a): `today` (the
+session's date from `config.today(mode)`), `route` (the `screen()` result), `branch`, `body` and `row` (the reply lines
+and the §4.5 row of the turn), `greet_pending`, and `language_last` (the thread's language when a request sends
+`language: null`). Per-turn fields are cleared when a turn starts; the turn's `messages` and `action` are cleared when
+it ends. `injection_flagged` comes from the spec 11 classifier; `cross_customer` is set by `understand` in the graph
+(task 04a) from a small ES/PT pattern set in `apps/agent`: a data word (saldo, cuenta/conta, tarjeta/cartão,
+transacciones, movimientos, extracto/extrato, datos/dados; never cargo or compra) "of" a third party (otro cliente,
+cliente + number, mi esposa / minha esposa…), so spec 02 rule 2 fires `POL-CROSS-CUSTOMER` (G-SES-02). The flag is
+skipped when the text states own possession or a dispute ("en mi tarjeta", "no reconozco", "não fiz", "me
+cobraron"…): precision over recall. Known misses, left to spec 11: "Quiero ver los cargos de Juan Pérez", "consulta
+el cliente 12345", "dame la información de otro usuario", "movimientos de la cuenta 4455667788", "cuánto tiene mi
+esposa en su cuenta", "transacciones del titular Pedro"; the tools still answer only for the session's customer.
+An attempt the tool never answered carries a graph-minted `action_id` with state `not_confirmed`; the receipt and
+the handoff list only action ids returned by tools.
 
 ### 4.2 Nodes and edges
 ```
-greet ─► understand ─► identity ─► route ─┬─► retrieve ─► decide ─┬─► plan ─► act ─► verify ─┬─► respond
+identity ─► greet ─► understand ─► route ─┬─► retrieve ─► decide ─┬─► plan ─► act ─► verify ─┬─► respond
                                           │                       │                         └─► connect ─► respond   (request_call = opened_case: the call on the case just opened, D-020)
                                           │                       ├─► clarify ─────────────► respond   (ask / confirm)
                                           │                       ├─► connect ─────────────► respond   (no case to open: rule 3a call, or rule 5b general call)
@@ -136,9 +154,9 @@ greet ─► understand ─► identity ─► route ─┬─► retrieve ─�
 ```
 | Node | Does | Tools / rules |
 |---|---|---|
-| `greet` | First turn only: name, capabilities, human reachable, starter chips | `get_customer_profile` · `messages.yaml greet.*` |
-| `understand` | Language; injection detector; intent + slots with the arm's classifier; relative dates against the mode's "today" | spec 11 · LLM only in S1/S2 below τ |
-| `identity` | Reads `session_state` and `mode` from the run config (injected by the api); never trusts ids in the text | — |
+| `identity` | Reads `session_id`, `session_state`, `mode` and `arm` from the run config (injected by the api); never trusts ids in the text. Runs first, so `greet` knows the session and `understand` knows the mode's "today" (task 04a). A missing `session_state` counts as unverified (fail closed) | — |
+| `greet` | First turn of a verified session only: name, capabilities, human reachable, starter chips | `get_customer_profile` · `messages.yaml greet.*` |
+| `understand` | Language; injection detector; intent + slots with the arm's classifier; relative dates against the mode's "today"; an action chip skips the classifier (AC-32); a typed label of an offered text chip is read as that chip (AC-33) | spec 11 · LLM only in S1/S2 below τ |
 | `route` | Runs spec 02 rules 1–4 with `engine.screen()` on the understood input: `reauthenticate`/`deny` → refuse; `connect_person` → connect (never refused); `answer_status` → status; nothing (a dispute, a call request that reports a charge, or a status question that reports a charge from a customer with no active case) → retrieve, then `decide` applies rules 5–9 (D-020). For a status question that reports a charge, `route` first reads the customer's cases and passes `active_case` (false when none is active), so the engine, not the graph, decides whether the dispute path goes on | `engine.screen()` · `list_my_cases` |
 | `retrieve` | Finds the transaction; gets the score; converts amounts for display | `search_transaction` · `get_fraud_score` · `convert_amount` |
 | `decide` | The decision with rule ids. With `request_call = "opened_case"` (rule 3a with a charge, D-020) the turn runs plan → act → verify like a dispute (the high zone still blocks), then `connect`; `connect_person` with no case to open, and the rule 5b handoff, go straight to `connect` | spec 02 `engine.decide()` |
@@ -180,7 +198,9 @@ and opens nothing [D-039 default, pending the lead].
 | `handoff` or `escalate_unconfirmed_action` | link "Ver mi caso" · text "Agregar información" · action "Que me llame una persona" |
 | `answer_status` — active case | link "Ver mi caso" · text "Agregar información" · action "Que me llame una persona" |
 | `answer_status` — resolved, within the re-evaluation window | action "Pedir reevaluación" · link "Ver mi caso" · action "Que me llame una persona" |
-| `connect_person` | link "Ver mi caso" (if a case exists) · text "Reportar otro cargo" |
+| `connect_person` — with a case | link "Ver mi caso" · text "Reportar otro cargo" |
+| `connect_person` — no case | text "Reportar otro cargo" · text "¿Cómo va mi caso?" · text "Me cobraron dos veces" (F-007, so every reply ends with 2–3 chips) |
+| `connect_person` — `request_call` failed (`connect.request_failed`, action `not_confirmed`) | action "Hablar con una persona" (retries the call) · text "¿Cómo va mi caso?" · text "No reconozco un cargo" |
 | `deny` / out of scope | text "No reconozco un cargo" · text "¿Cómo va mi caso?" · action "Hablar con una persona" |
 | `reauthenticate` | link "Verificar de nuevo" · action "Hablar con una persona" (general contact path, AC-28) |
 
@@ -223,8 +243,13 @@ Case investigation, chargebacks, provisional credit (always a person), voice, mu
 messages.
 
 ## 10. Plan, tasks and verification
-- [ ] T1 — State and graph skeleton on the spec 01 echo graph; `langgraph dev` locally · AC-07, AC-27
-- [ ] T2 — `greet`, `understand` (rules arm + injection rules), `route` · AC-03, AC-09, AC-10, AC-15
+- [ ] T1 — State and graph skeleton on the spec 01 echo graph; `langgraph dev` locally · AC-07, AC-27. Task 04a: state,
+      skeleton and AC-27 done in `apps/agent/agent/intake.py`, served as `dispute_intake_next` next to the echo
+      `dispute_intake` until the dispute path lands (T3–T5); `retrieve` and `status` are placeholders that call no
+      tool and claim nothing. Open: a `langgraph dev` run and AC-07 on Platform (T8)
+- [x] T2 — `greet`, `understand` (rules arm + injection rules), `route` · AC-03, AC-09, AC-10, AC-15 (task 04a, with
+      `refuse`, a general-call `connect` (AC-28 part; T6 puts the call on the active case) and AC-33 (proposed);
+      tests `tests/test_spec04_graph.py`)
 - [ ] T3 — `retrieve`, `decide`, `plan`, `clarify`, `refuse` · AC-02, AC-11, AC-12, AC-13, AC-16, AC-23, AC-25
 - [ ] T4 — `act`, `verify` with retries, the four-state vocabulary and the unconfirmed path · AC-01, AC-04, AC-18
 - [ ] T5 — `respond`: receipt, handoff, grounding check, suggestion chips · AC-05, AC-20, AC-21, AC-22, AC-26,
