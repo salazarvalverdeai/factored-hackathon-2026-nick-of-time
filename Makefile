@@ -101,3 +101,16 @@ eval-local: $(PY)
 # The api stub with the evaluation hooks on and the fake LLM, on EVAL_API's default port, for `make eval` offline.
 eval-stub: $(PY)
 	cd apps/api && PYTHONPATH=../../packages:../.. EVAL_MODE=true LLM_PROVIDER=fake ../../$(PY) -m uvicorn app.main:create_app --factory --port 8000
+
+# Spec 15 B1 (python -m eval.bench). `make bench` is the one post-seal run on the frozen test split: it refuses while
+# eval/PROTOCOL.md is not SEALED and writes eval/results/bench_*.csv, benchmark.json and the SVG. `make bench-dev` runs
+# the validation split as a development run into eval/.runs/bench/ (git-ignored); BENCH_PROVIDER=fake calls no model.
+BENCH_PROVIDER ?= bedrock
+BENCH_ARGS ?=
+
+.PHONY: bench bench-dev
+bench: $(PY)
+	PYTHONPATH=.:packages $(PY) -m eval.bench --split test
+
+bench-dev: $(PY)
+	PYTHONPATH=.:packages $(PY) -m eval.bench --split validation --provider $(BENCH_PROVIDER) $(BENCH_ARGS)
