@@ -120,7 +120,10 @@ Implementation goes in `feat/12-…` branches once this spec is approved.
 - [x] T5 — `data_quality.json` (`python -m data.pipeline report --json`) and `/data` · covers AC-03 ([T]
       `tests/test_spec12_data_quality.py`; [U] comes with T7)
 - [ ] T6 — operational KPIs on `/analytics` · covers AC-02 · needs spec 14
-- [ ] T7 — screenshots on the public URL, both themes and 390 px · covers AC-01, AC-03, AC-09
+- [ ] T7 — screenshots on the public URL, both themes and 390 px · covers AC-01, AC-03, AC-09 (2026-10-05:
+      `docs/assets/screenshots/spec12/` by `scripts/web/insight_screenshots.py` — the three pages at 1280 and 390 px in
+      both themes with no horizontal overflow (AC-09), `/data` (AC-03) and a chart tooltip opened with the Tab key
+      (AC-07); `/evaluation` still shows "Results pending", so AC-01 needs one more run after the held-out results)
 
 **Closing checklist:** every AC has its evidence · status → Implemented · every figure on the three pages carries its
 label · lessons added to `CLAUDE.md`.
