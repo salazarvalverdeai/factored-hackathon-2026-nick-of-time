@@ -124,6 +124,7 @@ def test_d023_a_denial_is_refused_before_writing_when_its_actor_session_or_detai
     store = new_store()
     session = new_session(store, run_id=RUN)
     bad_rows = [dict(actor="system"), dict(actor="analyst:"), dict(actor="analyst: "), dict(actor="bot"),
+                dict(actor="analyst:\x1c"), dict(actor="analyst:x\n"), dict(actor=7),
                 dict(trace_id=""), dict(policy_id="DEFAULT-DENY"), dict(guardrail_id="G-POL"), dict(extra=1),
                 dict(trace_id="t" + NUL), dict(policy_id="POL-X" + SURROGATE), dict(detail={"text": NUL}),
                 dict(session_id="S-" + "x" * 16, run_id=RUN), dict(session_id=session.session_id),

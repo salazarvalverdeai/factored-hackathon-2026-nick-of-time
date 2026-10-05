@@ -13,6 +13,7 @@ The accessors take plain arguments and refuse bad ones with StoreError before an
 from __future__ import annotations
 
 import datetime as dt
+import re
 import secrets
 from typing import Any, Literal, Optional, TypeVar, get_args
 
@@ -68,7 +69,7 @@ class NewDenial(_Row):
     """A DENY as its writer reports it; `session_id` is None for an api or analyst denial (D-023)."""
     trace_id: str = Field(min_length=1)
     session_id: Optional[str] = Field(None, pattern=ids.PATTERN["session"])
-    actor: str = Field(pattern=DENIAL_ACTOR)
+    actor: str
     policy_id: str = Field(pattern=POLICY_ID)
     guardrail_id: str = Field(RULE_ONLY_GUARDRAIL, pattern=GUARDRAIL_ID)
     detail: dict[str, Any] = Field(default_factory=dict)    # JSON only, as in jsonb
@@ -78,6 +79,15 @@ class NewDenial(_Row):
     @classmethod
     def _a_rule_only_denial_cites_g_pol_01(cls, value: Optional[str]) -> str:
         return RULE_ONLY_GUARDRAIL if value is None else value
+
+    @field_validator("actor")
+    @classmethod
+    def _a_closed_actor_list(cls, value: str) -> str:
+        # Python's re, as the store's ACTOR: its \S is str.isspace()'s, which the schema CHECK spells out; pydantic's
+        # `pattern` engine has another \S (it lets \x1c through) and would differ from Postgres.
+        if re.fullmatch(DENIAL_ACTOR, value) is None:
+            raise ValueError("not a denial actor (agent, customer or analyst:<sub>)")
+        return value
 
 
 class PolicyDenial(NewDenial):
