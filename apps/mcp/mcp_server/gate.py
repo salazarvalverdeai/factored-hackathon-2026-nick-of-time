@@ -36,6 +36,7 @@ LIMITS: tuple[tuple[str, Optional[frozenset[str]], int, float], ...] = (
 DEFAULT_DENY = "POL-DEFAULT-DENY"
 FIELD_NAME = re.compile(r"[a-z_][a-z0-9_]{0,31}")   # a refused key outside it is recorded as <unexpected>
 EXPIRED = ToolError(code="SESSION_EXPIRED", message="The session expired or does not exist.")
+NOTIFY_KEY_PREFIX = "notify:"   # store.once keys of the automatic notices (spec 13 AC-01); refused from a tool call
 UNAVAILABLE = ToolError(code="UNAVAILABLE", message="This tool is not available right now.")
 log = logging.getLogger("nickoftime.mcp")
 
@@ -203,6 +204,9 @@ class Gate:
             fields = sorted({".".join(_name(part, model_in) for part in e["loc"]) for e in error.errors()})[:5]
             return self._deny(Deny(DEFAULT_DENY, "G-TOOL-01", f"Unexpected or invalid arguments: {', '.join(fields)}.",
                                    {"fields": fields}), session, trace_id, tool)
+        if str(getattr(args, "idempotency_key", "")).startswith(NOTIFY_KEY_PREFIX):   # reserved (spec 13 AC-01)
+            return self._deny(Deny(DEFAULT_DENY, "G-TOOL-01", "Unexpected or invalid arguments: idempotency_key.",
+                                   {"fields": ["idempotency_key"]}), session, trace_id, tool)
         handler = self._handlers.get(tool)
         if handler is None:                                  # [assumption] tasks 03b–03d register the handlers
             return UNAVAILABLE
