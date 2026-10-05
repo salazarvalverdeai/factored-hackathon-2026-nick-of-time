@@ -333,10 +333,14 @@ def test_ac_01_gold_card_labels_map_to_the_product(label, product):
                                  dict(intent_confidence=-0.01), dict(candidates=-1), dict(clarification_turns=-1),
                                  dict(supervised_mode=0), dict(supervised_mode="off"), dict(dispute_detected="true"),
                                  dict(injection_flagged=0), dict(cross_customer=1), dict(customer_confirmed="no"),
-                                 dict(active_case=0)])
+                                 dict(active_case=0), dict(intent_confidence=True), dict(intent_confidence="0.9"),
+                                 dict(candidates=True), dict(candidates=1.0), dict(clarification_turns=True),
+                                 dict(clarification_turns="2"), dict(score=True), dict(score="72"), dict(amount=True),
+                                 dict(amount="12.5")])
 def test_ac_01_the_zone_comes_only_from_get_fraud_score_never_from_the_text(bad):
     """FR-03 and constitution #3: no score without its tool source, no zone or customer_id, well-formed codes,
-    bounded counts and confidence, and strict bools (R10: 0, 1, "off" or "true" are errors, as in check())."""
+    bounded counts and confidence, strict bools (R10: 0, 1, "off" or "true" are errors, as in check()) and strict
+    numbers (True or "12.5" are errors; an int is still a valid float)."""
     with pytest.raises(ValidationError):
         turn(**bad)
 

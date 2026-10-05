@@ -8,7 +8,7 @@ from decimal import Decimal
 from pathlib import Path
 from typing import Literal, Optional, Union, get_args
 
-from pydantic import BaseModel, ConfigDict, Field, StrictBool, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictFloat, StrictInt, field_validator, model_validator
 
 from nick_of_time.contracts import Decision, Intent, ProductType, QueueStatus, Zone
 from nick_of_time.policy.model import MODES, POLICIES_PATH, ApprovalMode, Policies, load_policies
@@ -24,9 +24,18 @@ EMITTED = {*ZONE_RULE.values(), "POL-SESSION", "POL-INJECTION", "POL-CROSS-CUSTO
            "POL-SCORE-SOURCE", "POL-TICKET-ALWAYS", "POL-AMOUNT-GATE", "POL-AMOUNT-UNKNOWN", "POL-SUPERVISED",
            "POL-DEFAULT-DENY"}
 REASONS = {"zone_human", "zone_medium", "supervised_mode", "amount_over_case_gate", "clarification_exhausted"}
-# D-029 (default, pending the lead): a call request that reports a high-zone charge still blocks, like a confirmed
-# dispute (None). To flip it to "open the case and call, no block", set here the handoff reason that case then carries
-# in review (it must be a handoff trigger, or the engine refuses to start) and update the 3a-charge-high rows.
+# D-029 (default, pending the lead; do not flip without the lead): a call request that reports a high-zone charge still
+# blocks, like a confirmed dispute (None). Setting here the handoff reason that case carries in review flips it to "open
+# the case and call, no block" in the engine (one line; a reason that is not a handoff trigger stops the engine at
+# start). A real flip also needs:
+#   - a new handoff trigger: none of the current ones describes "the customer asked for a person" on a high-zone case,
+#     so handoff.schema.json, policies.yaml handoff.triggers and HandoffReason change together (a contracts/ PR);
+#   - new POL-HUMAN-REQUEST and POL-ZONE-HIGH texts, or a new POL- id, because both say the high zone blocks;
+#   - a decision on who enforces it: check("block_card", "high", ...) still allows the block on those inputs, so either
+#     the graph alone withholds it or check() learns about the call; the AC-05 agreement test was relaxed to
+#     "allowed ⊆ checked" for this;
+#   - the 4 tests that pin the default: rows 3a-charge-high and 3a-charge-at-tau, the "never removes protection"
+#     property at score 72 below the gate, and the first assertion of the D-029 flip test.
 D029_CALL_WITHHOLDS_BLOCK_REASON: Optional[HandoffReason] = None
 
 
@@ -41,16 +50,16 @@ class DecisionInput(_Frozen):
     are input errors, as in check()."""
     session_state: str                                    # only "verified" passes rule 1
     intent: Intent
-    intent_confidence: float = Field(ge=0, le=1)
+    intent_confidence: StrictFloat = Field(ge=0, le=1)     # an int is accepted; True or "0.9" are input errors
     dispute_detected: StrictBool                          # the message also reports a charge (rules 3a, 3b, 4; D-020)
     injection_flagged: StrictBool
     cross_customer: StrictBool
     supervised_mode: StrictBool
-    candidates: int = Field(0, ge=0)
-    clarification_turns: int = Field(0, ge=0)             # clarification questions already sent to the customer
-    score: Optional[float] = Field(None, ge=0, le=100)
+    candidates: StrictInt = Field(0, ge=0)
+    clarification_turns: StrictInt = Field(0, ge=0)       # clarification questions already sent to the customer
+    score: Optional[StrictFloat] = Field(None, ge=0, le=100)
     score_source: Optional[str] = Field(None, pattern=r"^[a-z_]+$")
-    amount: Optional[float] = None                        # missing, negative or not finite → tier human_required
+    amount: Optional[StrictFloat] = None                  # missing, negative or not finite → tier human_required
     currency: Optional[str] = Field(None, pattern=r"^[A-Z]{3}$")
     country: Optional[str] = Field(None, pattern=r"^[A-Z]{2}$")
     product_type: Optional[str] = None                    # debit | credit, or the gold label; anything else is not a card
