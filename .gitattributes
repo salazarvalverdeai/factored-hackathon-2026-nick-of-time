@@ -1,2 +1,5 @@
 # The fixture mimics the bucket CSVs (BOM + CRLF): it is versioned byte for byte, without line-ending conversion
 data/fixtures/**/*.csv -text
+# The held-out case file is hashed (eval/heldout.sha256, ADR 0007): keep the case files and the hash byte for byte
+eval/cases/** -text
+eval/heldout.sha256 -text
