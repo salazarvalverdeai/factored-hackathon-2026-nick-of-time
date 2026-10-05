@@ -49,6 +49,7 @@ class SessionRow(BaseModel):
     expires_at: AwareDatetime
     language: str
     mode: Literal["replay", "live"]
+    display_currency: Optional[str] = None
     tool_faults: tuple[str, ...] = ()
     run_id: Optional[str] = None
 
@@ -206,6 +207,10 @@ class Gate:
         if isinstance(result, ToolError) and result.code == "DENY":     # G-POL-01 until T4 maps the rule's guardrail
             return self._deny(Deny(result.policy_id or DEFAULT_DENY, "G-POL-01", result.message, {}), session, trace_id,
                               tool)
+        if isinstance(result, ToolError) and result.code == "NOT_FOUND" and result.policy_id:
+            # a refusal answered as not found (a cross-customer probe): logged as a denial, its policy id never shown
+            self._deny(Deny(result.policy_id, "G-POL-01", result.message, {}), session, trace_id, tool)
+            return result.model_copy(update={"policy_id": None})
         if not isinstance(result, (model_out, ToolError)):
             raise TypeError(f"{tool} returned {type(result).__name__}, not {model_out.__name__}")
         return result
