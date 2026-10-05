@@ -168,7 +168,7 @@ def test_ac_23_an_active_case_on_the_charge_opens_no_second_case():
     assert turn.decision is None and record(turn)["decision"]["decision"] == "block_and_open_case"   # D-050 default
     call = Chat(mcp_transport=server(list_my_cases=fake.FIXTURES["list_my_cases"])).say(
         "Quiero hablar con una persona, no reconozco un cargo de 1250 USD", language="es")
-    assert "Registré tu solicitud en el caso K-104233" in call.reply and call.actions[0].state == "requested"
+    assert "Registré tu solicitud en el caso K-104233" in call.reply and call.actions[0].state == "verified"   # T6
     assert call.decision == "connect_person"
 
 

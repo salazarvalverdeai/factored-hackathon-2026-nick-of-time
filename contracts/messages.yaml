@@ -16,13 +16,14 @@
 #   *_no_merchant variants; a null deadline uses the deadline_unknown lines).
 # - Tasks T2-T7 of spec 04 extend this file (clarify, refuse, progress labels AC-17, duplicate case AC-23,
 #   re-evaluation AC-24, reversed charge); each extension is a contract change approved by the lead. Task 04b
-#   (T3) added clarify.pick_one, clarify.exhausted, clarify.read_failed and duplicate.case_exists.
+#   (T3) added clarify.pick_one, clarify.exhausted, clarify.read_failed and duplicate.case_exists; task 04e (T6)
+#   added status.no_cases, status.no_cards and status.case_done.
 # - Chips: `kind` is static here; the action payload ({type}, spec 01 §6.4) is set by the server code.
 # - Never a placeholder or text for the fraud score, policy ids, rule ids, zones or the transcript
 #   (notifications.never_send in policies.yaml).
 # - Never promise an outcome or a provisional credit: a person reviews and decides (CLAUDE.md rule 6).
 # - Dates are absolute (YYYY-MM-DD) and come from tools; the template never computes them.
-version: "0.3.0"
+version: "0.4.0"
 
 greet:
   # AC-15: first name from get_customer_profile, at most 3 capabilities, a person reviews what needs it.
@@ -171,6 +172,19 @@ status:
   read_failed:
     es: "No pude verificarlo ahora, así que prefiero no darte un estado que no confirmé. Intenta de nuevo en un momento."
     pt: "Não consegui verificar agora, então prefiro não informar uma situação que não confirmei. Tente novamente em instantes."
+  # Spec 04 task 04e (pending the lead): answer_status replies beyond the readings above.
+  no_cases:
+    # list_my_cases read no case for the session's customer.
+    es: "No tienes casos registrados (consultado el {read_at}). Si quieres reportar un cargo, cuéntame cuál es."
+    pt: "Você não tem casos registrados (consultado em {read_at}). Se quiser informar uma cobrança, me conte qual é."
+  no_cards:
+    # list_my_cards read no card for the session's customer.
+    es: "No encontré tarjetas a tu nombre."
+    pt: "Não encontrei cartões em seu nome."
+  case_done:
+    # AC-06 next step for a resolved or closed case (a person closes every case, CLAUDE.md rule 6). Promises nothing.
+    es: "Una persona ya revisó este caso. Si tienes dudas, puedes pedir que te llamen."
+    pt: "Uma pessoa já revisou este caso. Se tiver dúvidas, você pode pedir que liguem para você."
   # Four action states of AC-18; `verified` only after the post-condition read.
   action_in_progress:
     es: "{action_label}: en curso."
