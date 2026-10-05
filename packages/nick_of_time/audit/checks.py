@@ -9,8 +9,7 @@ from typing import Any, Iterable, Literal, Optional
 import yaml
 from pydantic import AwareDatetime, BaseModel, ConfigDict, model_validator
 
-from nick_of_time.contracts import (CONTRACTS_DIR, VERIFIED_WITH, ActionRecord, CustomerReceipt, QueueStatus,
-                                    StatusReply)
+from nick_of_time.contracts import CONTRACTS_DIR, ActionRecord, CustomerReceipt, QueueStatus, StatusReply
 from nick_of_time.ids import GOLD_PATTERN, PATTERN
 from nick_of_time.store import WRITE_EVENTS, WRITE_TOOL, Store
 
@@ -40,32 +39,42 @@ class ActionRead(BaseModel):
     """One `action_verified` case event (D-025): the verifying read minted `verification_id` at `read_at`.
 
     `requested_at` is the `created_at` of the write event (one of `WRITE_EVENTS`, six types) with the same `action_id`.
-    `tool` is that write's tool (`WRITE_TOOL`); the read that minted the V- id is `VERIFIED_WITH[tool]`.
+    `tools` are the tools that may have made that write (`WRITE_TOOL`; a `case_opened` of a case with a
+    `related_case_id` also comes from `request_reevaluation`, spec 03 AC-19). That the read was the write's
+    `VERIFIED_WITH` read is a store invariant (`record_verification`), not re-checked here: `action_verified` carries
+    no read name yet.
     """
     model_config = ConfigDict(frozen=True)
     action_id: str
     verification_id: str
     read_at: AwareDatetime
     requested_at: AwareDatetime
-    tool: Optional[str] = None
+    tools: frozenset[str] = frozenset()
 
 
-def reads_from_store(store: Store, action_ids: Iterable[str], *, run_id: Optional[str]) -> list[ActionRead]:
+def reads_from_store(store: Store, action_ids: Iterable[str], *, customer_id: str,
+                    run_id: Optional[str]) -> list[ActionRead]:
     """One `ActionRead` per `action_verified` event of each action a turn showed (D-025), in `read_at` order.
 
-    `requested_at` is the `created_at` of the action's write event (`WRITE_EVENTS`), found with
-    `store.action_write` (no customer: the auditor reads as the system); the events come from
-    `store.verifications`. An action with no write in the run, or whose write tool has no read in `VERIFIED_WITH`,
-    yields none, so a claim that cites it is a finding.
+    `action_ids` is the union of the action ids of the TurnResult `actions[]`, `receipt.actions` and `handoff.actions`.
+    `customer_id` is the session's customer (constitution #3): an action of another customer's case yields no reads.
+    `requested_at` is the `created_at` of the action's write event (`WRITE_EVENTS`), found with `store.action_write`;
+    the events come from `store.verifications`. An action with no write of that customer in `run_id` yields none,
+    so a claim that cites it is a finding.
     """
+    # TODO(01g): the store adds `read` to the `action_verified` payload; then check it against `VERIFIED_WITH` here.
     reads: list[ActionRead] = []
     for action_id in dict.fromkeys(action_ids):
-        write = store.action_write(action_id, run_id=run_id, customer_id=None)
-        tool = WRITE_TOOL.get(write.type) if write and write.type in WRITE_EVENTS else None
-        if write is None or tool not in VERIFIED_WITH:
+        write = store.action_write(action_id, run_id=run_id, customer_id=customer_id)
+        if write is None or write.type not in WRITE_EVENTS:
             continue
+        tools = {WRITE_TOOL[write.type]}
+        case = store.get_case(write.case_id, run_id=run_id, customer_id=customer_id)
+        if write.type == "case_opened" and case is not None and case.related_case_id:
+            tools.add("request_reevaluation")
         reads += [ActionRead(action_id=action_id, verification_id=e.payload["verification_id"],
-                             read_at=e.payload["read_at"], requested_at=write.created_at, tool=tool)
+                             read_at=e.payload["read_at"], requested_at=write.created_at,
+                             tools=frozenset(tools))
                   for e in store.verifications(write.case_id, action_id, run_id=run_id)]
     return reads
 
@@ -76,7 +85,7 @@ def check_actions(shown: Iterable[ActionRecord], reads: Iterable[ActionRead], *,
 
     A turn may show any V- id of the action: the claim passes with any read that has its `action_id` and V- id, was
     made at or after the request, and whose `read_at` equals the claimed read time (the handoff carries none). A V- id
-    found anywhere else is not evidence. When the read knows the write's tool, a record or handoff claiming another
+    found anywhere else is not evidence. When the read knows the write's tools, a record or handoff claiming another
     tool is a finding.
     """
     claims: list[tuple[str, str, Optional[str], Optional[dt.datetime], Optional[str]]] = [
@@ -91,8 +100,8 @@ def check_actions(shown: Iterable[ActionRecord], reads: Iterable[ActionRead], *,
         r = by_read.get((action_id, verification_id))
         if r is None:
             problems[key] = f"no action_verified read with {verification_id}"
-        elif r.tool and tool and tool != r.tool:
-            problems[key] = f"claims {tool}, the write was {r.tool}"
+        elif r.tools and tool is not None and tool not in r.tools:
+            problems[key] = f"claims {tool}, the write was {'/'.join(sorted(r.tools))}"
         elif r.read_at < r.requested_at:
             problems[key] = "post-condition read before the request"
         elif claimed_at is not None and claimed_at != r.read_at:
@@ -198,7 +207,8 @@ def check_coherence(status_replies: Iterable[StatusReply]) -> Finding:
 _CARD = re.compile(r"(?<!\d)(?:\d[ -]?){13,19}(?!\d)")
 _CVV = re.compile(r"(?i)\b(?:cvv2?|cvc|cvn|c[oó]digo de seguran[cç]a|c[oó]digo de seguridad)\D{0,12}\d{3,4}\b")
 _MONEY = re.compile(rf"(?:\b[A-Z]{{3}}|\$)\s*(?:{_NUMBER})|(?:{_NUMBER})\s*\b[A-Z]{{3}}\b")
-_SCORE_WORD = re.compile(r"(?i)score|puntaje|puntuaci[oó]n|pontua[cç][aã]o|riesgo|risco|fraud|probabilidad|probabilidade|[íi]ndice")
+_SCORE_WORD = re.compile(
+    r"(?i)score|puntaje|puntuaci[oó]n|pontua[cç][aã]o|riesgo|risco|fraud|probabilidad|[íi]ndice")
 _NEAR = 40                          # characters between a score word and the number it qualifies
 _MIN_UTTERANCE = 20
 

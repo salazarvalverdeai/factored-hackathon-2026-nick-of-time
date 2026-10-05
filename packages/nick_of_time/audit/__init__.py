@@ -9,4 +9,5 @@ from nick_of_time.audit.checks import (ActionRead, Finding, LifecycleEvent, chec
 from nick_of_time.audit.judge import AnalystDecision, SecondOpinion, opinion, record_decision
 
 __all__ = ["ActionRead", "AnalystDecision", "Finding", "LifecycleEvent", "SecondOpinion", "check_actions",
-           "check_coherence", "check_grounding", "check_lifecycle", "check_privacy", "opinion", "reads_from_store", "record_decision"]
+           "check_coherence", "check_grounding", "check_lifecycle", "check_privacy", "opinion", "reads_from_store",
+           "record_decision"]

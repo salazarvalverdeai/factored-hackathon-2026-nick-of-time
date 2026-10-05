@@ -93,7 +93,9 @@ Notes on A3–A7 (task 18a):
   needs an `action_verified` event with the same `action_id` and `verification_id`, a `read_at` at or after the write's
   request, and a claimed time equal to that `read_at` (the handoff carries none). A turn may show **any** V- id of
   the action (every read stays in the trail). A V- id from anywhere else is not evidence, and a record or handoff
-  that names a tool other than the write's is a finding. The read that mints it is `VERIFIED_WITH[write tool]`.
+  that names a tool other than the write's (`case_opened` also from `request_reevaluation` when the case has a
+  `related_case_id`, spec 03 AC-19) is a finding. That the read was the write's `VERIFIED_WITH` read is a store
+  invariant, not re-checked by A3 (task 01g adds `read` to the `action_verified` payload).
 - **A4** covers numbers, dates and ids; statuses belong to A5. Ids follow the `PATTERN` shapes of `nick_of_time.ids`
   (K-, S-, A-, V-, E-, RC-, N-) and the gold ones (TRX-, PRD-, CLI-). The receipt's own `RC-` id and the session's
   `CLI-` id (`known_ids`) are known ids. Amounts are locale-aware: a last separator followed by
@@ -104,7 +106,8 @@ Notes on A3–A7 (task 18a):
   `intent_confidence` (classifier), `guardrails_triggered` (guardrail ids) and `verified_at` (checked by A3).
 - **A6** applies the transcript rule to notification surfaces only (utterances of 20+ characters, word-bounded,
   case-blind). The score counts only within 40 characters of a score word (score, puntaje, puntuación, pontuação,
-  riesgo, risco, fraude, probabilidad, probabilidade, índice) and never as an amount. A card number must pass Luhn and is searched with ids and dates blanked out.
+  riesgo, risco, `fraud` (stem), probabilidad (also probabilidade), índice) and never as an amount. A card number
+  must pass Luhn and is searched with ids and dates blanked out.
 - **A7** also requires a person (`analyst:<sub>`, with a non-empty sub) for `resolved`, not only for `closed`. Active
   cases come from each case's last status; duplicates are keyed by customer and transaction.
 
@@ -173,8 +176,9 @@ decision: AnalystDecision = judge.record_decision(case_id, analyst, action, prop
   - A3: the claims are the TurnResult `actions` (`ActionRecord`), `receipt.actions` and `handoff.actions`. The evidence
     is one `ActionRead` per `action_verified` event (D-025), with `action_id`, `verification_id` and `read_at` from its
     payload (`store.verifications(case_id, action_id, run_id=...)`); `requested_at` is the `created_at` of the write
-    event (any of the six `WRITE_EVENTS`, from `store.action_write`) with the same `action_id`; `reads_from_store` does
-    both.
+    event (any of the six `WRITE_EVENTS`, from `store.action_write`) with the same `action_id`;
+    `reads_from_store(store, action_ids, customer_id=, run_id=)` does both: `action_ids` is the union of the
+    record, receipt and handoff ids, and `customer_id` is the session's, so another customer's action is no evidence.
   - A4: `tool_results` are the run's tool outputs from the trace; `reply`, `receipt` and `handoff` as emitted;
     `policy_facts` are the `policies.yaml` values a reply may cite (such as the `regulatory_clock` business days);
     `known_ids` is the session's `CLI-` id.

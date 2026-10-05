@@ -213,14 +213,18 @@
    "verification_id": "V-0C6A93F1B57D",
    "read_at": "2026-06-01T15:04:09Z",
    "requested_at": "2026-06-01T15:04:08Z",
-   "tool": "open_case"
+   "tools": [
+    "open_case"
+   ]
   },
   {
    "action_id": "A-3E9F20B7C164",
    "verification_id": "V-8B2D41C7E0A9",
    "read_at": "2026-06-01T15:04:11Z",
    "requested_at": "2026-06-01T15:04:10Z",
-   "tool": "block_card"
+   "tools": [
+    "block_card"
+   ]
   }
  ],
  "status_replies": [
