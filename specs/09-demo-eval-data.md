@@ -261,7 +261,8 @@ Implementation goes in `feat/09-…` branches once this spec is approved.
 - [ ] T5 — `eval/classifier/*.jsonl` from the generators of ADR 0025, reviewed line by line · covers AC-04, AC-10 ·
       done when: `tests/test_spec11_protocol.py` runs its split checks instead of skipping them, and passes (drafts,
       generator and review tools done, `tests/test_spec09_classifier_set.py`; review and promotion pending)
-- [ ] T6 — second labeling of 20 cases + agreement in `eval/README.md` · covers AC-06
+- [x] T6 — second labeling of 20 cases + agreement in `eval/README.md` · covers AC-06 (the 20 dev cases; intent 19/20,
+      κ 0.925; decision, handoff and case open 20/20)
 - [x] T7 — `tests/test_spec09_eval_data.py` citing AC-03, AC-05, AC-07, AC-08, AC-09 (done, offline, no gold needed); AC-10 comes with T5
 - [ ] M02 — review and seal `eval/PROTOCOL.md`, tag `protocol-v1` (manual, after T4 and T5)
 
