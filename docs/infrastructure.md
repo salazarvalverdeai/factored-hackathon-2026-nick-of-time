@@ -73,6 +73,18 @@ Organization on the Plus tier, workspace `NickOfTime`, tracing project `nick-of-
 repository (`langgraph.json`). Deployment secrets: AWS credentials of `svc-nickoftime-langgraph`, the MCP URL and its
 API key.
 
+## Uptime monitor
+`.github/workflows/uptime.yml` runs every 15 minutes (and on `workflow_dispatch`). It checks, with timeouts and 2 retries:
+`https://nickoftime.salazarvalverdeai.com/api/health` (200, `status: ok`),
+`https://mcp.nickoftime.salazarvalverdeai.com/health` (200, `status: ok`, `store: postgres`, loaded modules non-empty if
+reported) and `https://nickoftime.salazarvalverdeai.com/chat` (200). On a healthy-to-failing transition it sends one
+Telegram message (failing check, HTTP code, run URL), then one recovery message later; it stays quiet during a continued
+outage. The run itself goes red on any failure.
+
+Repository secrets the lead must create (Settings > Secrets and variables > Actions): `TELEGRAM_BOT_TOKEN`,
+`TELEGRAM_ALERT_CHAT_ID`. If either is missing the run fails with a clear error and leaks nothing. To test: Actions >
+Uptime > Run workflow (a manual run on a failing check always alerts). Reviewer: @gianzk (owner of `.github/`).
+
 ## Where credentials live
 | Secret | Location |
 |---|---|
@@ -82,6 +94,7 @@ API key.
 | Cognito ids (not secret) | SSM `/nickoftime/prod/COGNITO_USER_POOL_ID`, `COGNITO_CLIENT_ID`, `COGNITO_DOMAIN` |
 | Cognito temporary passwords (changed at first login) | SSM `/nickoftime/prod/cognito/initial-password/<user>` |
 | Cognito judge password (only in the submission e-mail) | SSM `/nickoftime/prod/cognito/judge-password` |
+| Uptime alerts | GitHub secrets `TELEGRAM_BOT_TOKEN`, `TELEGRAM_ALERT_CHAT_ID` |
 | LangSmith API key | Local `.env` (never committed) and Platform |
 | AWS access for deploys | None stored: GitHub Actions assumes `nickoftime-gha-deploy` through OIDC |
 | Dataset credentials | Local AWS profile `factored-dataset` (read-only, provided by the organizers) |
