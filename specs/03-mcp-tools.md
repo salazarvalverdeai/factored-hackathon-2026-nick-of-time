@@ -212,11 +212,20 @@ Implementation goes in one `feat/03-*` branch per task (T1: `feat/03-mcp-server`
       gold v1 · AC-04, AC-13, AC-16
 - [ ] T6 — follow-up tools (`add_case_info`, `request_call`, `request_reevaluation`) · AC-17, AC-18, AC-19
 - [ ] T7 — `send_case_summary`, `list_my_notifications` · AC-21, AC-22
-- [ ] T8 — entry point (`MCP_API_KEY` from SSM, one uvicorn worker) over the in-memory store (the Postgres backend
-      and its `sessions` and `policy_denials` accessors are task 01g's; the gate's `SessionRow` and `DenialRow` move to
-      those accessors once 01g part 2, PR #87, merges), Dockerfile and compose service `mcp`; tests
-      `tests/test_spec03_*.py` against a gold fixture. The `tools/list` descriptions (today `<name> (spec 03 §6)`) are
-      set here from what spec 04 binds for the agent (owner: spec 04 / T8)
+- [ ] T8 — entry point, Dockerfile and compose service `mcp` · AC-02, AC-06, AC-12 · `apps/mcp/mcp_server/__main__.py`,
+      `apps/mcp/Dockerfile`, `tests/test_spec03_entrypoint.py`. Done (task 03d2): `python -m mcp_server` reads
+      `MCP_API_KEY` (deploy writes it from SSM `/nickoftime/prod/MCP_API_KEY`; under 32 characters the server refuses
+      to start, and the key is never logged), `DATABASE_URL` → `PostgresStore` (the in-memory store only with
+      `MCP_DEV_MEMORY_STORE=1`), `GOLD_PATH` (gold v1 mounted read-only at `/gold/v1`, spec 06 FR-09) and
+      `GOLD_VERSION` (else `v<version>` from the gold manifest); one uvicorn worker, because the rate limiter counts in
+      one process. The gate reads `sessions` and writes `policy_denials` through the store's accessors (task 01g). The
+      read handlers (T2, T3) are wired here; the modules of T4–T7 (`writes`, `case_reads`, `followups`, `notify`) are
+      imported when present and either fill `server.HANDLERS` on import or define `<name>_handlers(...)` factories
+      whose parameters are named `gold`, `policies`, `store`, `channels` or `guardrails` `[assumption]`; an absent
+      module is skipped and a broken one is logged and skipped, so its tools answer `UNAVAILABLE`. `/health` adds the
+      gold and policies versions, the store backend and the handler count, never a secret. The image runs the real
+      server; `infra/compose.dev.yml` keeps `mcp_server.fake` for local work. Open: the `tools/list` descriptions
+      (today `<name> (spec 03 §6)`), set from what spec 04 binds for the agent (owner: spec 04 / T8)
 
 **Closing checklist:** every AC has a passing test or check that cites it · status → Implemented · lessons to `CLAUDE.md`.
 

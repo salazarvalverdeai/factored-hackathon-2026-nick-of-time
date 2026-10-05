@@ -1,17 +1,17 @@
 """Real MCP server (spec 03 T1): the 16 customer tools behind the `X-API-Key` middleware and the gate.
 
 Each tool publishes its `contracts/tools.py` schemas and runs through `gate.Gate` (session, fault, rate limit, schema,
-audit). The tool handlers land with tasks 03b–03d in `HANDLERS`; until then a tool answers `UNAVAILABLE`. `/health` is
-the only route without the key, and it returns no data. [assumption] T8 adds the entry point (MCP_API_KEY from SSM,
-one uvicorn worker) over the in-memory store; the Postgres backend and its `sessions` and `policy_denials` accessors are
-task 01g's. The fake stays the compose service until then.
+audit). The tool handlers land with tasks 03b–03d; a tool without one answers `UNAVAILABLE`. `/health` is the only
+route without the key, and it returns no data: the tool count and, from the entry point (`__main__.py`, T8), the gold
+and policies versions, the store backend and the handler count, never a secret.
 """
 from __future__ import annotations
 
 import hmac
 import re
 import uuid
-from typing import Any
+from collections.abc import Mapping
+from typing import Any, Optional
 
 from fastmcp import FastMCP
 from fastmcp.server.dependencies import get_http_headers
@@ -27,7 +27,7 @@ from starlette.websockets import WebSocketClose
 from contracts.tools import CUSTOMER_TOOLS, ToolError
 from mcp_server.gate import Gate, Handler
 
-HANDLERS: dict[str, Handler] = {}       # tool name → handler, filled by tasks 03b–03d
+HANDLERS: dict[str, Handler] = {}       # tool name → handler a tool module registers on import (T8)
 OPEN_PATHS = frozenset({"/health"})
 TRACE_ID = re.compile(r"[\w.:-]{1,128}", re.ASCII)   # [assumption] a header outside it is replaced, not logged
 MIN_KEY_LENGTH = 32
@@ -47,7 +47,7 @@ class CustomerTool(Tool):
         return ToolResult(structured_content=result.model_dump(mode="json"))
 
 
-def build_server(gate: Gate) -> FastMCP:
+def build_server(gate: Gate, info: Optional[Mapping[str, Any]] = None) -> FastMCP:
     server = FastMCP("nick-of-time-mcp")
     for name, (model_in, model_out) in CUSTOMER_TOOLS.items():
         tool = CustomerTool(name=name, description=f"{name} (spec 03 §6)", parameters=model_in.model_json_schema(),
@@ -57,7 +57,7 @@ def build_server(gate: Gate) -> FastMCP:
 
     @server.custom_route("/health", methods=["GET"])
     async def health(_: Request) -> JSONResponse:
-        return JSONResponse({"status": "ok", "tools": len(CUSTOMER_TOOLS)})
+        return JSONResponse({"status": "ok", "tools": len(CUSTOMER_TOOLS), **(info or {})})
 
     return server
 
