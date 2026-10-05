@@ -4,9 +4,12 @@ MemoryStore, and PostgresStore in a fresh schema when TEST_DATABASE_URL is set (
 from __future__ import annotations
 
 import datetime as dt
+import itertools
 import os
 import secrets
+import threading
 from collections.abc import Callable, Iterator
+from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
 from pathlib import Path
 from typing import get_args
@@ -112,6 +115,15 @@ def at(store: Store, status: str, **changes) -> str:
 def ticking_store() -> Store:
     ticks = iter(dt.datetime(2026, 6, 1, 15, minute, tzinfo=dt.UTC) for minute in range(60))
     return new_store(now=lambda: next(ticks))
+
+
+FIXED = dt.datetime(2026, 6, 1, 15, tzinfo=dt.UTC)
+
+
+def clock_store(clock: str) -> Store:
+    """A store whose clock repeats one instant ("fixed") or steps a minute back on every call ("backward")."""
+    ticks, step = itertools.count(), {"fixed": 0, "backward": -1}[clock]
+    return new_store(now=lambda: FIXED + dt.timedelta(minutes=step * next(ticks)))
 
 
 def types(store: Store, case_id: str) -> list[str]:
@@ -613,6 +625,81 @@ def write_override(store: Store, row: ProductOverride) -> None:
                     "%(run_id)s, %(created_at)s)", row.model_dump())
 
 
+@pytest.mark.parametrize("clock", ["fixed", "backward"])
+def test_d025_the_latest_override_is_the_last_one_written_whatever_the_clock(clock):
+    """§6.5 "latest" is the row inserted last (Postgres `row_no`), not the latest `created_at`: with a repeated or
+    backward clock the newer block is the card's status, and a block overridden to Active verifies nothing."""
+    store = clock_store(clock)
+    case = open_case(store, run_id=RUN)
+    first, second = ids.new_id("action"), ids.new_id("action")
+    for block in (first, second):
+        store.block_product(case.case_id, case.product_id, action_id=block, actor="agent", trace_id="t")
+    assert store.product_status(case.product_id, run_id=RUN).action_id == second
+    with pytest.raises(NotVerified, match="no longer the card's current status"):
+        verify(store, case.case_id, first, read="get_product_status", run_id=RUN)
+    verify(store, case.case_id, second, read="get_product_status", run_id=RUN)
+    write_override(store, ProductOverride(product_id=case.product_id, status="Active", case_id=case.case_id,
+                                          action_id=ids.new_id("action"), actor="analyst:sub-1", run_id=RUN,
+                                          created_at=FIXED - dt.timedelta(hours=clock == "backward")))
+    written = len(store.events(case.case_id))
+    assert store.product_status(case.product_id, run_id=RUN).status == "Active"
+    with pytest.raises(NotVerified, match="no longer the card's current status"):
+        verify(store, case.case_id, second, read="get_product_status", run_id=RUN)
+    assert len(store.events(case.case_id)) == written
+
+
+@pytest.mark.parametrize("clock", ["fixed", "backward"])
+def test_d035_the_latest_delivery_is_the_last_one_written_whatever_the_clock(clock):
+    """D-035 with a repeated or backward clock: a summary whose last delivery failed is not verified and is listed
+    as failed; the next delivery verifies it again (§6.5 "latest" = inserted last)."""
+    store = clock_store(clock)
+    case_id = open_case(store).case_id
+    summary = ids.new_id("action")
+    sent = store.add_notification(case_id, event="receipt", channel="email", masked_address="j***@example.com",
+                                  text="Resumen", trigger="on_request", actor="customer", trace_id="t",
+                                  action_id=summary)
+    store.add_delivery(sent.notification_id, "failed")
+    written = len(store.events(case_id))
+    with pytest.raises(NotVerified, match=f"summary {summary} failed"):
+        verify(store, case_id, summary, read="list_my_notifications")
+    assert len(store.events(case_id)) == written
+    assert [n.delivery_status for n in store.list_notifications("CLI-000001", run_id=None)] == ["failed"]
+    store.add_delivery(sent.notification_id, "delivered")
+    verify(store, case_id, summary, read="list_my_notifications")
+    assert [n.delivery_status for n in store.list_notifications("CLI-000001", run_id=None)] == ["delivered"]
+
+
+def test_ac_01_list_order_breaks_a_created_at_tie_by_id_on_both_backends():
+    """§6.5: with one instant for every row, active cases still come first, then each list is by id descending."""
+    store = clock_store("fixed")
+    active = [open_case(store, transaction_id="TRX-" + c * 20).case_id for c in "HJMQ"]
+    closed = at(store, "closed", transaction_id="TRX-" + "N" * 20)
+    assert [c.case_id for c in store.list_cases("CLI-000001", run_id=None)] == sorted(active, reverse=True) + [closed]
+    sent = [store.add_notification(active[0], event="case_opened", channel="log", masked_address=None, text=text,
+                                   trigger="auto", actor="system", trace_id="t").notification_id for text in "abcdef"]
+    assert [n.notification_id for n in store.list_notifications("CLI-000001", run_id=None)] == sorted(sent,
+                                                                                                       reverse=True)
+
+
+def test_ac_01_both_backends_refuse_a_bad_action_id_nul_and_lone_surrogates_alike():
+    """§6.5: any `payload.action_id` is an A- id, and no payload or notification text holds NUL or a lone surrogate;
+    both backends raise StoreError (Postgres cannot store them) and write nothing."""
+    store = new_store()
+    case_id = open_case(store).case_id
+    written, nul, surrogate = len(store.events(case_id)), chr(0), chr(0xD800)
+    for type, payload in [("handoff_emitted", {"action_id": "bogus"}), ("receipt_issued", {"action_id": None}),
+                          ("handoff_emitted", {"text": "a" + nul}), ("handoff_emitted", {"text": surrogate}),
+                          ("handoff_emitted", {"key" + nul: 1}),
+                          ("customer_info_added", {"action_id": ids.new_id("action"), "text": "Nunca" + nul})]:
+        with pytest.raises(StoreError, match="not an action id|not storable text"):
+            store.append_event(case_id, type, actor="customer", trace_id="t", payload=payload)
+    for text in ("Abrimos" + nul, surrogate):
+        with pytest.raises(StoreError, match="not storable text"):
+            store.add_notification(case_id, event="case_opened", channel="log", masked_address=None, text=text,
+                                   trigger="auto", actor="system", trace_id="t")
+    assert len(store.events(case_id)) == written and store.list_notifications("CLI-000001", run_id=None) == []
+
+
 def test_d035_a_summary_send_is_verified_only_while_its_latest_delivery_is_not_lost():
     """[assumption] D-035: the post-condition of send_case_summary is its latest delivery; after `bounced` or
     `failed` the read stays plain (NotVerified, nothing written), and a later delivery verifies it again."""
@@ -695,7 +782,7 @@ def test_d025_an_action_id_is_written_once():
                   lambda: store.add_notification(case.case_id, event="receipt", channel="log", masked_address=None,
                                                  text="Resumen", trigger="on_request", actor="customer",
                                                  trace_id="t", action_id=info)):
-        with pytest.raises(StoreError, match="already written"):
+        with pytest.raises(StoreError, match="already written; a write takes a fresh action id"):
             reuse()
     assert len(store.events(case.case_id)) == written and len(store.list_cases("CLI-000001", run_id=None)) == 1
     assert store.product_status(case.product_id, run_id=None).action_id == block
@@ -782,3 +869,92 @@ def test_d025_action_verified_names_the_read_that_minted_its_id():
     assert [r.payload["read"] for r in reads] == ["get_case", "get_product_status"]
     stored = [e.payload["read"] for e in store.events(case.case_id) if e.type == "action_verified"]
     assert stored == [VERIFIED_WITH[WRITE_TOOL[w]] for w in ("case_opened", "card_blocked")]
+
+
+# ---------- [postgres] only: the per-case advisory lock and the one transaction behind each write (T9) ----------
+def postgres_only(backend: str) -> None:
+    if backend != "postgres":
+        pytest.skip("T9: the advisory lock and the transaction exist only in PostgresStore")
+
+
+def at_once(calls: list[Callable[[], object]]) -> list[object]:
+    """Each call on its own thread and connection, all released together; a StoreError is returned, not raised."""
+    start = threading.Barrier(len(calls))
+
+    def run(call: Callable[[], object]) -> object:
+        start.wait()
+        try:
+            return call()
+        except StoreError as error:
+            return error
+    with ThreadPoolExecutor(len(calls)) as pool:
+        return list(pool.map(run, calls))
+
+
+def test_t9_concurrent_writers_on_one_case_use_an_action_id_once_with_gap_free_seq(backend):
+    """[postgres] 8 connections append to one case at once, 4 with one shared action id and 4 with fresh ones: the
+    shared id is written once, every fresh one is written, and seq has no gap (without the lock they collide)."""
+    postgres_only(backend)
+    stores = [new_store() for _ in range(8)]
+    case_id = open_case(stores[0]).case_id
+    for _ in range(3):
+        actions = [ids.new_id("action")] * 4 + [ids.new_id("action") for _ in range(4)]
+        results = at_once([lambda s=s, a=a: s.append_event(case_id, "call_requested", actor="customer", trace_id="t",
+                                                           payload={"action_id": a})
+                           for s, a in zip(stores, actions)])
+        assert sum(not isinstance(r, StoreError) for r in results[:4]) == 1
+        assert [r for r in results[4:] if isinstance(r, StoreError)] == []
+    events = stores[0].events(case_id)
+    assert [e.seq for e in events] == list(range(1, 17)) and types(stores[0], case_id).count("call_requested") == 15
+
+
+def test_t9_concurrent_first_reads_of_one_block_write_block_verified_once(backend):
+    """[postgres] 8 connections make the first read of one block at once: 8 action_verified, exactly one
+    block_verified, gap-free seq (the post-condition read and the inserts are one locked transaction)."""
+    postgres_only(backend)
+    stores = [new_store() for _ in range(8)]
+    case = open_case(stores[0], run_id=RUN)
+    for _ in range(3):
+        block = ids.new_id("action")
+        stores[0].block_product(case.case_id, case.product_id, action_id=block, actor="agent", trace_id="t")
+        results = at_once([lambda s=s: verify(s, case.case_id, block, read="get_product_status", run_id=RUN)
+                           for s in stores])
+        assert [r for r in results if isinstance(r, StoreError)] == []
+    names = types(stores[0], case.case_id)
+    assert names.count("action_verified") == 24 and names.count("block_verified") == 3
+    assert [e.seq for e in stores[0].events(case.case_id)] == list(range(1, len(names) + 1))
+
+
+def test_t9_the_unique_index_backstop_rolls_back_the_whole_write(backend, monkeypatch):
+    """[postgres] With the action-id pre-check stubbed out, a reused id reaches the unique index mid-write; the one
+    transaction rolls the write back: no override, no case row, no notification or delivery."""
+    postgres_only(backend)
+    store = new_store()
+    case = open_case(store)
+    block = ids.new_id("action")
+    store.block_product(case.case_id, case.product_id, action_id=block, actor="agent", trace_id="t")
+    monkeypatch.setattr(store, "_check_new_action", lambda action_id: None)
+    tables = ("cases", "case_events", "product_overrides", "notifications", "notification_deliveries")
+
+    def rows() -> list[int]:
+        return [store._rows(f"select count(*) as n from {table}")[0]["n"] for table in tables]
+    before = rows()
+    for reuse in (lambda: store.block_product(case.case_id, case.product_id, action_id=case.action_id, actor="agent",
+                                              trace_id="t"),
+                  lambda: store.create_case(new_case(transaction_id="TRX-" + "P" * 20), actor="agent",
+                                            action_id=block),
+                  lambda: store.add_notification(case.case_id, event="receipt", channel="log", masked_address=None,
+                                                 text="Resumen", trigger="on_request", actor="customer",
+                                                 trace_id="t", action_id=block)):
+        with pytest.raises(StoreError, match=r"already written \(case_events_action_id_once\)"):
+            reuse()
+    assert rows() == before and store.product_status(case.product_id, run_id=None).action_id == block
+
+
+def test_t9_a_server_data_error_becomes_a_store_error(backend):
+    """[postgres] The backstop behind check_text: a psycopg DataError inside a store transaction is a StoreError."""
+    postgres_only(backend)
+    store = new_store()
+    with pytest.raises(StoreError, match="refused by the server"):
+        with store._tx():
+            store._rows("select %s::text", ("a" + chr(0),))

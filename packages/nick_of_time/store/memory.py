@@ -6,7 +6,6 @@ go through JSON, as psycopg's `Jsonb` would send them.
 from __future__ import annotations
 
 import datetime as dt
-import json
 from collections.abc import Callable
 from typing import Any, Literal, Optional, get_args
 
@@ -14,25 +13,9 @@ from nick_of_time import ids
 from nick_of_time.contracts import AnalystActionIn, AnalystActionOut, QueueStatus
 from nick_of_time.store import (CUSTOMER_VISIBLE, RESERVED_EVENTS, UNDELIVERED, VERIFIED_WITH, WRITE_EVENTS, WRITE_TOOL,
                                 CaseEvent, CaseRecord, Channel, DeliveryStatus, EventType, NewCase, Notification,
-                                NotVerified, ProductOverride, StoreError, VerifyingRead, check_actor,
-                                check_business_date, check_trace_id, check_transition, insert_with_fresh_case_id)
-
-
-def _utc_now() -> dt.datetime:
-    return dt.datetime.now(dt.UTC)
-
-
-def _json(value: Any) -> Any:
-    """What a jsonb column gives back: a JSON copy; a date, a set or NaN is refused, as psycopg's Jsonb would."""
-    try:
-        return json.loads(json.dumps(value, allow_nan=False))
-    except (TypeError, ValueError) as error:
-        raise StoreError(f"not JSON: {error}") from None
-
-
-def _check_writer(actor: str, trace_id: str) -> str:
-    check_trace_id(trace_id)
-    return check_actor(actor)
+                                NotVerified, ProductOverride, StoreError, VerifyingRead, _check_writer, _json,
+                                _utc_now, check_action_id, check_business_date, check_text, check_transition,
+                                insert_with_fresh_case_id)
 
 
 class MemoryStore:
@@ -48,6 +31,7 @@ class MemoryStore:
     # ---------- cases ----------
     def create_case(self, case: NewCase, *, actor: str, action_id: str) -> CaseRecord:
         _check_writer(actor, case.trace_id)
+        check_text(*case.model_dump().values())
         related = case.related_case_id
         if related is not None and (self.get_case(related, run_id=case.run_id, customer_id=case.customer_id) is None
                                     or self.queue_status(related) != "closed"):
@@ -76,7 +60,7 @@ class MemoryStore:
 
     def list_cases(self, customer_id: str, *, run_id: Optional[str]) -> list[CaseRecord]:
         mine = [c for c in self._cases.values() if c.customer_id == customer_id and c.run_id == run_id]
-        mine.sort(key=lambda c: (self.queue_status(c.case_id) == "closed", -c.created_at.timestamp()))
+        mine.sort(key=lambda c: (self.queue_status(c.case_id) != "closed", c.created_at, c.case_id), reverse=True)
         return [self._read(c) for c in mine]
 
     # ---------- events ----------
@@ -86,6 +70,8 @@ class MemoryStore:
         if type in RESERVED_EVENTS:
             raise StoreError(f"{type} is written only by the store's own methods")
         payload = payload or {}
+        if "action_id" in payload:                          # any action id is an A- id (the case_events CHECK)
+            check_action_id(payload["action_id"])
         if type in WRITE_EVENTS:                            # a customer write
             self._check_open(case_id)
             self._check_new_action(payload.get("action_id"))
@@ -140,7 +126,7 @@ class MemoryStore:
         rows = [o for o in self._overrides.values() if o.product_id == product_id and o.run_id == run_id]
         if not rows:
             return None
-        latest = rows[-1]                                   # insertion order = created_at order
+        latest = rows[-1]                                   # latest = inserted last (Postgres: row_no)
         return latest.model_copy(update={"verification_id": self._verified(latest.case_id, latest.action_id)})
 
     def action_write(self, action_id: str, *, run_id: Optional[str],
@@ -189,6 +175,7 @@ class MemoryStore:
                          text: str, trigger: Literal["auto", "on_request"], actor: str, trace_id: str,
                          provider_message_id: Optional[str] = None, action_id: Optional[str] = None) -> Notification:
         _check_writer(actor, trace_id)
+        check_text(event, masked_address, text, provider_message_id)
         case = self._case(case_id)
         if trigger == "on_request":                         # send_case_summary is a customer write
             self._check_new_action(action_id)
@@ -213,9 +200,10 @@ class MemoryStore:
         self._deliveries[notification_id].append((status, _json(provider_event)))
 
     def list_notifications(self, customer_id: str, *, run_id: Optional[str]) -> list[Notification]:
-        return [n.model_copy(update={"delivery_status": self._deliveries[n.notification_id][-1][0]})
-                for n in reversed(self._notifications)
+        mine = [n for n in self._notifications
                 if n.customer_id == customer_id and self._cases[n.case_id].run_id == run_id]
+        mine.sort(key=lambda n: (n.created_at, n.notification_id), reverse=True)     # ties: the id, as in Postgres
+        return [n.model_copy(update={"delivery_status": self._deliveries[n.notification_id][-1][0]}) for n in mine]
 
     # ---------- internals ----------
     def _case(self, case_id: str) -> CaseRecord:
@@ -232,9 +220,7 @@ class MemoryStore:
             raise StoreError(f"case {case_id} is closed: a customer write opens a related case instead")
 
     def _check_new_action(self, action_id: Any) -> None:
-        if not isinstance(action_id, str) or not ids.is_valid("action", action_id):
-            raise StoreError(f"not an action id: {action_id!r}")
-        if action_id in self._writes:
+        if check_action_id(action_id) in self._writes:
             raise StoreError(f"action {action_id} was already written; a write takes a fresh action id")
 
     def _write(self, case_id: str, action_id: str) -> CaseEvent:

@@ -4,8 +4,9 @@ Each write runs in one transaction that first takes a transaction-scoped advisor
 (status, action ids, a block's latest override, a summary's latest delivery) and what it inserts are one unit, even
 across the api and MCP processes; a refused call rolls back and writes nothing. The lock needs no UPDATE grant, so
 the app role keeps INSERT and SELECT only on the append-only tables (T10). One connection per store, used under a
-lock and reopened when dropped; the latest override or delivery is the one with the latest `created_at`, taken from
-the store's clock [assumption]. The connection string comes from `DATABASE_URL`, never from the repo.
+lock and reopened when dropped. The latest override or delivery is the row inserted last (the highest `row_no`, as
+`MemoryStore`'s insertion order), never the latest `created_at`, which a fixed or skewed clock can repeat (§6.5). The
+connection string comes from `DATABASE_URL`, never from the repo.
 """
 from __future__ import annotations
 
@@ -25,9 +26,9 @@ from nick_of_time import ids
 from nick_of_time.contracts import AnalystActionIn, AnalystActionOut, QueueStatus
 from nick_of_time.store import (CUSTOMER_VISIBLE, RESERVED_EVENTS, UNDELIVERED, VERIFIED_WITH, WRITE_EVENTS, WRITE_TOOL,
                                 CaseEvent, CaseRecord, Channel, DeliveryStatus, EventType, NewCase, Notification,
-                                NotVerified, ProductOverride, StoreError, VerifyingRead, check_business_date,
-                                check_transition, insert_with_fresh_case_id)
-from nick_of_time.store.memory import _check_writer, _json, _utc_now
+                                NotVerified, ProductOverride, StoreError, VerifyingRead, _check_writer, _json,
+                                _utc_now, check_action_id, check_business_date, check_text, check_transition,
+                                insert_with_fresh_case_id)
 
 WRITES = sorted(WRITE_EVENTS)
 EVENT = "event_id, case_id, seq, type, actor, payload, customer_visible, trace_id, created_at"
@@ -74,6 +75,7 @@ class PostgresStore:
     # ---------- cases ----------
     def create_case(self, case: NewCase, *, actor: str, action_id: str) -> CaseRecord:
         _check_writer(actor, case.trace_id)
+        check_text(*case.model_dump().values())
         related = case.related_case_id
         with self._tx(related):
             if related is not None and (self.get_case(related, run_id=case.run_id, customer_id=case.customer_id)
@@ -95,7 +97,8 @@ class PostgresStore:
         return _record(rows[0]) if rows else None
 
     def list_cases(self, customer_id: str, *, run_id: Optional[str]) -> list[CaseRecord]:
-        rows = self._rows(CASES + "order by coalesce(s.status, 'new') = 'closed', c.created_at desc",
+        rows = self._rows(CASES + "order by coalesce(s.status, 'new') = 'closed', c.created_at desc, "
+                          "c.case_id collate \"C\" desc",
                           {"run_id": run_id, "customer_id": customer_id})
         return [_record(r) for r in rows]
 
@@ -106,6 +109,8 @@ class PostgresStore:
         if type in RESERVED_EVENTS:
             raise StoreError(f"{type} is written only by the store's own methods")
         payload = payload or {}
+        if "action_id" in payload:                          # any action id is an A- id (the case_events CHECK)
+            check_action_id(payload["action_id"])
         with self._tx(case_id):
             if type in WRITE_EVENTS:                        # a customer write
                 self._check_open(case_id)
@@ -170,7 +175,7 @@ class PostgresStore:
             "(select payload ->> 'verification_id' from case_events where case_id = o.case_id "
             " and type = 'action_verified' and payload ->> 'action_id' = o.override_id order by seq desc limit 1) "
             "as verification_id from product_overrides o where o.product_id = %s and o.run_id is not distinct from %s "
-            "order by o.created_at desc limit 1", (product_id, run_id))
+            "order by o.row_no desc limit 1", (product_id, run_id))
         return ProductOverride(**rows[0]) if rows else None
 
     def action_write(self, action_id: str, *, run_id: Optional[str],
@@ -201,7 +206,7 @@ class PostgresStore:
                 first_block_read = not self._reads(case_id, action_id)
             if write.type == "notification_sent":           # post-condition (D-035): the summary was not lost
                 delivery = self._rows("select status from notification_deliveries where notification_id = %s "
-                                      "order by created_at desc limit 1", (write.payload["notification_id"],))
+                                      "order by row_no desc limit 1", (write.payload["notification_id"],))
                 if delivery[0]["status"] in UNDELIVERED:
                     raise NotVerified(f"summary {action_id} {delivery[0]['status']}; nothing is verified")
             payload = {"action_id": action_id, "verification_id": ids.new_id("verification"),
@@ -222,6 +227,7 @@ class PostgresStore:
                          text: str, trigger: Literal["auto", "on_request"], actor: str, trace_id: str,
                          provider_message_id: Optional[str] = None, action_id: Optional[str] = None) -> Notification:
         _check_writer(actor, trace_id)
+        check_text(event, masked_address, text, provider_message_id)
         with self._tx(case_id):
             case = self._case(case_id)
             if trigger == "on_request":                     # send_case_summary is a customer write
@@ -254,15 +260,16 @@ class PostgresStore:
         rows = self._rows(
             "select n.*, d.status as delivery_status from notifications n join cases c on c.case_id = n.case_id "
             "join lateral (select status from notification_deliveries where notification_id = n.notification_id "
-            "              order by created_at desc limit 1) d on true "
-            "where n.customer_id = %s and c.run_id is not distinct from %s order by n.created_at desc",
+            "              order by row_no desc limit 1) d on true "
+            "where n.customer_id = %s and c.run_id is not distinct from %s "
+            "order by n.created_at desc, n.notification_id collate \"C\" desc",
             (customer_id, run_id))
         return [Notification(**r) for r in rows]
 
     # ---------- internals ----------
     @contextmanager
     def _tx(self, case_id: Optional[str] = None) -> Iterator[None]:
-        """One transaction, under the case's advisory lock when given; a schema refusal becomes a StoreError."""
+        """One transaction, under the case's advisory lock when given; a schema or data refusal becomes a StoreError."""
         with self._lock:
             try:
                 with self._open().transaction():
@@ -273,6 +280,8 @@ class PostgresStore:
                 raise StoreError(f"already written ({error.diag.constraint_name})") from None
             except psycopg.IntegrityError as error:
                 raise StoreError(f"refused by the schema: {error.diag.message_primary}") from None
+            except psycopg.DataError as error:              # e.g. NUL in text; the store checks it first
+                raise StoreError(f"refused by the server: {error}") from None
 
     def _rows(self, query: str, params: Any = None) -> list[dict[str, Any]]:
         with self._lock:
@@ -290,8 +299,7 @@ class PostgresStore:
             raise StoreError(f"case {case_id} is closed: a customer write opens a related case instead")
 
     def _check_new_action(self, action_id: Any) -> None:
-        if not isinstance(action_id, str) or not ids.is_valid("action", action_id):
-            raise StoreError(f"not an action id: {action_id!r}")
+        check_action_id(action_id)
         if self._rows("select 1 from case_events where type = any(%s) and payload ->> 'action_id' = %s",
                       (WRITES, action_id)):
             raise StoreError(f"action {action_id} was already written; a write takes a fresh action id")

@@ -2,6 +2,7 @@
 -- migration (D-002); tests/test_spec01_store_schema.py keeps it in step with the spec table.
 -- Conventions [assumption]: a column the spec leaves untyped is text (timestamps timestamptz, counters integer); a
 -- column is not null unless the spec marks it null. Rows are never updated or deleted in the append-only (AO) tables.
+-- A "sub not blank" holds a character outside Python's str.isspace() set, spelled out so no server locale changes it.
 
 create table sessions (
   session_id text primary key,
@@ -79,7 +80,8 @@ create table case_events (                                           -- AO
     'status_changed', 'handoff_emitted', 'assigned', 'analyst_action', 'customer_info_added', 'call_requested',
     'reevaluation_requested', 'related_case_opened', 'notification_sent', 'receipt_issued', 'telegram_linked',
     'email_confirmed')),
-  actor text not null check (actor in ('agent', 'customer', 'system') or actor ~ '^analyst:.*\S.*$'),
+  actor text not null check (actor in ('agent', 'customer', 'system')
+    or actor ~ '^analyst:.*[^\t\n\v\f\r\u001c-\u001f \u0085\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000].*$'),
   payload jsonb not null default '{}',
   customer_visible boolean not null,
   trace_id text not null,
@@ -103,14 +105,16 @@ create table case_events (                                           -- AO
   check (customer_visible = (type not in ('action_verified', 'handoff_emitted', 'analyst_action')))
 );
 
-create table product_overrides (                                     -- AO; status = latest row of the same run_id
+create table product_overrides (                                     -- AO; status = latest row_no of the same run_id
   override_id text primary key,                                      -- the action_id of the write (D-025)
   product_id text not null,
   status text not null check (status in ('Active', 'Blocked', 'Closed', 'Suspended')),
   case_id text not null,
-  actor text not null check (actor in ('agent', 'customer', 'system') or actor ~ '^analyst:.*\S.*$'),
+  actor text not null check (actor in ('agent', 'customer', 'system')
+    or actor ~ '^analyst:.*[^\t\n\v\f\r\u001c-\u001f \u0085\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000].*$'),
   run_id text null,
-  created_at timestamptz not null default now()
+  created_at timestamptz not null default now(),
+  row_no bigint not null generated always as identity                -- insertion order: "latest" (T9)
 );
 
 create table notifications (                                         -- AO
@@ -126,12 +130,13 @@ create table notifications (                                         -- AO
   created_at timestamptz not null default now()
 );
 
-create table notification_deliveries (                               -- AO; delivery status = latest row
+create table notification_deliveries (                               -- AO; delivery status = latest row_no
   delivery_id text primary key,
   notification_id text not null references notifications (notification_id),
   status text not null check (status in ('queued', 'sent', 'delivered', 'bounced', 'failed')),
   provider_event jsonb null,
-  created_at timestamptz not null default now()
+  created_at timestamptz not null default now(),
+  row_no bigint not null generated always as identity                -- insertion order: "latest" (T9)
 );
 
 create table customer_channels (                                     -- AO; latest row per channel wins
@@ -163,7 +168,8 @@ create table policy_denials (                                        -- AO
   denial_id text primary key,
   trace_id text not null,
   session_id text null,                                              -- null for api and analyst denials (D-023)
-  actor text not null check (actor in ('agent', 'customer') or actor ~ '^analyst:.*\S.*$'),
+  actor text not null check (actor in ('agent', 'customer')
+    or actor ~ '^analyst:.*[^\t\n\v\f\r\u001c-\u001f \u0085\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000].*$'),
   policy_id text not null,
   guardrail_id text not null,                                        -- a rule-only denial cites G-POL-01
   detail jsonb not null,
