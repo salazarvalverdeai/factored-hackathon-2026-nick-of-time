@@ -560,3 +560,17 @@ def test_ac_09_the_console_orders_by_sla_then_zone_and_uses_its_own_listing(env)
 
 def test_demo_reset_is_not_served_until_demo_transactions_exist(env):
     assert env.client.post("/api/console/demo/reset", headers=bearer()).status_code in (404, 405)
+
+
+def test_ac_05_demo_sessions_get_the_default_arm_from_the_environment(env, monkeypatch):
+    """AC-05: a demo session carries DEFAULT_ARM (S1 in prod, lead 2026-10-05) into the run's configurable; unset → none."""
+    monkeypatch.setenv("DEFAULT_ARM", "S1")
+    env.login()
+    thread = env.client.post("/api/agent/threads").json()["thread_id"]
+    env.client.post(f"/api/agent/threads/{thread}/runs/stream", json={"input": {"x": 1}})
+    assert env.platform.calls[-1][0]["arm"] == "S1"
+    monkeypatch.delenv("DEFAULT_ARM")
+    env.login()
+    thread = env.client.post("/api/agent/threads").json()["thread_id"]
+    env.client.post(f"/api/agent/threads/{thread}/runs/stream", json={"input": {"x": 1}})
+    assert env.platform.calls[-1][0]["arm"] is None
