@@ -57,6 +57,11 @@ hosts, no AWS keys in workflows, rollback and backup present, health payload sha
 - FR-06 — `infra/caddy/Caddyfile` (mounted as a directory, so a `git checkout` that replaces the file is picked up):
   `nickoftime.salazarvalverdeai.com` serves `/api/*` → api and everything else → web (same
   origin, no CORS); `mcp.nickoftime.salazarvalverdeai.com` → mcp (AC-05).
+- FR-09 — Gold and runtime config: `deploy.sh` syncs `s3://nickoftime-gold-061039767206/gold/v1/` to the host (never
+  `gold_eval` or labels) before touching any container, sets `GOLD_VERSION` from its `manifest.json`, and `compose`
+  mounts it read-only at `/gold/v1` (`GOLD_PATH`) in `api` and `mcp`. The env file also carries the spec 01 §6.9 names
+  that spec 05 needs: `LANGGRAPH_API_URL`, `LANGSMITH_API_KEY`, `LINK_SIGNING_KEY`, `COGNITO_*`, `RESEND_WEBHOOK_SECRET`,
+  `DEFAULT_SESSION_MODE`, `DEMO_TODAY` and `LANGGRAPH_ASSISTANT` (default `dispute_intake`).
 - FR-07 — `infra/backup.sh` runs `pg_dump`, compresses it and copies it to `s3://nickoftime-gold-061039767206/backups/postgres/`;
   `deploy.sh` installs a daily cron entry for it (AC-04).
 - FR-08 — Until specs 03 and 05 land their own `Dockerfile`s, the workflow builds `mcp` and `api` from the placeholders in
@@ -90,7 +95,7 @@ Only the health route; the rest of `/api` belongs to spec 05.
   value nobody types). `deploy.sh` only reads it.
 - **Build context (lead, 2026-10-05):** `api` and `mcp` build from the repository root with `file: apps/<svc>/Dockerfile`,
   because they copy `packages/nick_of_time` and `contracts/`; `web` builds from `apps/web`.
-- Open (task 03d, with spec 03): how gold reaches the containers. Spec 01 lists `GOLD_PATH` / `GOLD_S3_URI`, but compose
+- **Decided (lead, 2026-10-05), see FR-09:** how gold reaches the containers. Spec 01 lists `GOLD_PATH` / `GOLD_S3_URI`, but compose
   has no gold volume yet and `GOLD_VERSION` is not set. Proposed: `deploy.sh` runs `aws s3 sync gold/v1/` into a
   read-only volume mounted in `mcp` and sets `GOLD_VERSION` from the manifest. The stub images do not read gold.
 - **Decided (lead, 2026-10-05):** the build contexts are `apps/api/Dockerfile`, `apps/mcp/Dockerfile` (both on main)

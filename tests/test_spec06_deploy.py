@@ -166,3 +166,31 @@ def test_ac_06_health_ignores_the_query_string_and_other_routes_are_404(placehol
     assert placeholder_api.route("GET", "/api/health?probe=1", {})[0] == 200
     assert placeholder_api.route("GET", "/api/cases", {})[0] == 404
     assert placeholder_api.route("POST", "/api/health", {})[0] == 404
+
+
+# --- FR-09: gold reaches api and mcp read-only; the env file carries the spec 01 §6.9 names spec 05 needs ----------
+
+def test_ac_04_gold_is_mounted_read_only_in_api_and_mcp(compose):
+    """AC-04 / FR-09: api and mcp read gold v1 from a read-only bind mount, with GOLD_PATH pointing at it."""
+    for svc in ("api", "mcp"):
+        service = compose["services"][svc]
+        assert any(str(v).endswith(":/gold/v1:ro") for v in service.get("volumes", [])), svc
+        assert service["environment"]["GOLD_PATH"] == "/gold/v1", svc
+
+
+def test_ac_04_deploy_syncs_gold_only_never_labels():
+    """AC-04 / FR-09 (constitution #7): deploy.sh syncs gold/v1 before any container is touched and refuses labels."""
+    script = (INFRA / "deploy.sh").read_text()
+    assert "aws s3 sync" in script and "gold/v1/" in script
+    assert "*gold_eval*|*labels*" in script
+    start = script.index("start_version() {")
+    assert script.index("sync_gold || return 1", start) < script.index("write_env", start)
+
+
+def test_ac_06_env_file_carries_the_names_the_backend_reads():
+    """AC-06 / FR-09: the env file has the spec 01 §6.9 names of spec 05, values from SSM, never printed."""
+    script = (INFRA / "deploy.sh").read_text()
+    for name in ("LANGGRAPH_API_URL", "LANGSMITH_API_KEY", "LINK_SIGNING_KEY", "COGNITO_USER_POOL_ID",
+                 "COGNITO_CLIENT_ID", "COGNITO_DOMAIN", "RESEND_WEBHOOK_SECRET", "DEFAULT_SESSION_MODE", "DEMO_TODAY",
+                 "LANGGRAPH_ASSISTANT", "GOLD_VERSION"):
+        assert name in script, name
