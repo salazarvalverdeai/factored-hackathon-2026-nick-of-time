@@ -46,6 +46,16 @@ def gold(tmp_path_factory):
     return root
 
 
+def test_t8_the_fixture_has_every_column_gold_reads(gold):
+    """Drift guard: the fixture must carry each source column `Gold` selects (the 4 failures after PR #120)."""
+    from mcp_server import gold as gold_module
+    wanted = {c.strip() for c in gold_module._LOAD.split(",")}
+    wanted = {c.split(" AS ")[0].replace("CAST(", "").strip() for c in wanted}
+    wanted = {c.split(" ")[0] for c in wanted}
+    have = set(pl.read_parquet(gold / "transactions_enriched.parquet").columns)
+    assert wanted <= have, sorted(wanted - have)
+
+
 def _env(gold, **extra):
     return {"MCP_API_KEY": KEY, "GOLD_PATH": str(gold), "MCP_DEV_MEMORY_STORE": "1", **extra}
 
