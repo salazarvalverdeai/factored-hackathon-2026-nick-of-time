@@ -17,7 +17,8 @@ import {
 } from "@/lib/evaluation";
 
 // Arm colors in fixed order, checked with the palette validator on the light and dark card surfaces (violet and teal
-// as on /analytics, plus a deep violet on light and a pale violet on dark; amber stays for urgency). A fourth arm and beyond use the neutral context color and keep their label.
+// as on /analytics, plus a deep violet on light and a pale violet on dark; amber stays for urgency).
+// A fourth arm and beyond use the neutral context color and keep their label.
 const PALETTE =
   "[--arm-1:#7c3aed] dark:[--arm-1:#8b5cf6] [--arm-2:#0d9488] [--arm-3:#4c1d95] dark:[--arm-3:#c4b5fd] " +
   "[--arm-rest:color-mix(in_oklab,var(--muted-foreground)_70%,transparent)]";
