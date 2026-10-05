@@ -5,6 +5,7 @@ related case (AC-15), cross-customer probes (D-052). No network, no LLM; data/go
 from __future__ import annotations
 
 import datetime as dt
+import functools
 import hashlib
 import sys
 from pathlib import Path
@@ -79,6 +80,11 @@ def session(sid: str, customer: str, run_id=RUN, **extra) -> gate.SessionRow:
                            expires_at=NOW + dt.timedelta(minutes=15), run_id=run_id, **extra)
 
 
+@functools.lru_cache(maxsize=8)
+def shared_gold(gold_dir: Path) -> Gold:
+    return Gold(gold_dir)
+
+
 class Run:
     """The gate with the write handlers (and any extra ones) over one store; `denials` keeps every DENY row."""
 
@@ -86,7 +92,8 @@ class Run:
         self.store, self.denials, policies = store or new_store(), [], policies or load_policies()
         self.sessions = {S_ANA: session(S_ANA, ANA), S_BRUNO: session(S_BRUNO, BRUNO),
                          S_OTHER_RUN: session(S_OTHER_RUN, ANA, run_id="EV-0002:S1:1")}
-        self.gold, self.cards = Gold(gold_dir), GoldCards(gold_dir)
+        self.gold = shared_gold(gold_dir)                    # one DuckDB per gold folder, not one per test
+        self.cards = cards.cards_of(self.gold)
         handlers = {**writes.writes_handlers(self.gold, policies, self.store, cards=self.cards,
                                                 now=lambda: NOW),
                     **(extra(self) if extra else {})}
