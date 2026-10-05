@@ -34,6 +34,9 @@ def check_decision(inputs: Union[DecisionInput, Mapping[str, Any]], recorded: Un
     engine = engine or PolicyEngine.load()
     try:
         observed = PolicyDecision.model_validate(recorded).model_dump(mode="json")
+    except ValidationError as e:
+        return _finding("A1", "critical", {"record": f"rejected: {e.error_count()} error(s)"}, expected)
+    try:
         got = engine.decide(DecisionInput.model_validate(inputs)).model_dump(mode="json")
     except ValidationError as e:
         return _finding("A1", "critical", {"inputs": f"rejected: {e.error_count()} error(s)"}, expected)
@@ -54,7 +57,8 @@ def check_deadline(case: Union[NewCase, Mapping[str, Any]], transaction: Union[T
     try:
         c = NewCase.model_validate({k: v for k, v in dict(case if isinstance(case, Mapping) else case.model_dump())
                                     .items() if k in NewCase.model_fields})
-        tx = Transaction.model_validate(transaction) if isinstance(transaction, Mapping) else transaction
+        tx = (Transaction.model_validate({k: v for k, v in transaction.items() if k in Transaction.model_fields})
+              if isinstance(transaction, Mapping) else transaction)   # a gold row's extra columns are not a finding
     except ValidationError as e:
         return _finding("A2", "critical", {"recorded": f"rejected: {e.error_count()} error(s)"}, expected)
     try:

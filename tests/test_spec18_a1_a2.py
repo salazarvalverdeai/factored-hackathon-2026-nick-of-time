@@ -75,6 +75,20 @@ def test_ac01_a2_fails_on_an_invented_date_for_an_unknown_country():
     assert f.status == "finding" and "ruling_deadline" in f.observed
 
 
+def test_ac01_a2_fails_on_an_invented_source_with_null_dates_for_an_unknown_country():
+    f = a2("ZZ", deadline_source="Invented")
+    assert f.status == "finding" and list(f.observed) == ["deadline_source"]
+
+
+def test_ac01_a2_ignores_extra_columns_of_a_gold_transaction_row():
+    row = copy.deepcopy(DL["AR"])
+    assert check_deadline(row["case"], {**row["transaction"], "fraud_score": 80.0}).status == "passed"
+
+
+def test_ac01_a1_reports_a_malformed_recorded_decision_under_record():
+    assert list(check_decision(DEC["inputs"], {"decision": "nonsense"}).observed) == ["record"]
+
+
 def test_ac01_a2_mx_charge_outside_the_window_changes_the_expected_deadline():
     row = copy.deepcopy(DL["MX"])
     row["transaction"]["transaction_date"] = "2026-01-01"

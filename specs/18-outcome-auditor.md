@@ -176,7 +176,8 @@ decision: AnalystDecision = judge.record_decision(case_id, analyst, action, prop
     and `policies_version`.
   - A2: the `cases` row (`NewCase` columns) and the case's transaction. `charged_at` = the transaction's
     `transaction_date`; `abroad` is False and `noticed_at` is not passed `[assumption]` (no field holds them, so an
-    hours-window entry cannot be re-derived and is a finding). Only stored fields are compared: both dates,
+    hours-window entry cannot be re-derived and is a finding; ADR 0023 (PR #69, Accepted) uses days, not hours, so this
+    holds today, and if an hours window ever returns the missing input is the charge time). Only stored fields are compared: both dates,
     `deadline_source`, `deadline_source_url` and `deadline_verified_on`; POL-CLOCK-UNKNOWN means all five are null.
   - A1 and A2 audit against the `policies.yaml` in force at audit time: cases do not store `policies_version` and
     there is one unversioned file, so a later policy change shows up as a finding on older cases.
