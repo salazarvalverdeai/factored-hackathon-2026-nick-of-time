@@ -198,13 +198,17 @@ def test_ac_06_env_file_carries_the_names_the_backend_reads():
 
 def test_ac_07_deploy_waits_for_healthchecks_and_mcp_has_one(compose):
     """AC-07 / FR-10: `up --wait` makes an unhealthy api or mcp fail (and roll back) the deploy; mcp checks its port."""
-    assert "--wait" in (INFRA / "deploy.sh").read_text().split("apply_schema_once || return 1", 1)[1].split("\n", 2)[1]
+    assert "--wait" in (INFRA / "deploy.sh").read_text().split("apply_schema || return 1", 1)[1].split("\n", 2)[1]
     assert "8001" in " ".join(compose["services"]["mcp"]["healthcheck"]["test"])
 
 
-def test_ac_04_schema_is_applied_once_after_the_migration_hook():
-    """AC-04 / FR-10: schema.sql runs in one transaction only on an empty database, after spec 05's migration hook."""
+def test_ac_04_schema_is_applied_every_deploy_after_the_migration_hook_and_is_idempotent():
+    """AC-04 / FR-10: schema.sql runs in one transaction on every deploy, after spec 05's hook, and only adds what is missing."""
     script = (INFRA / "deploy.sh").read_text()
     start = script.index("start_version() {")
-    assert script.index("/app/migrate.sh", start) < script.index("apply_schema_once || return 1", start)
-    assert "to_regclass('public.cases')" in script and "-v ON_ERROR_STOP=1 -1" in script
+    assert script.index("/app/migrate.sh", start) < script.index("apply_schema || return 1", start)
+    assert "-v ON_ERROR_STOP=1 -1" in script
+    sql = (ROOT / "packages/nick_of_time/store/schema.sql").read_text()
+    assert not re.search(r"^create table (?!if not exists)", sql, re.M)
+    assert not re.search(r"^create (unique )?index (?!if not exists)", sql, re.M)
+    assert "create or replace function" in sql and "if not exists (select 1 from pg_trigger" in sql
