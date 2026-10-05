@@ -119,16 +119,17 @@ complaints created in the 90 days before and in an earlier daily file (gold has 
 category × country learned on train labels only. A candidate counts as signal only if its train and validation 95%
 bootstrap CIs (stratified, 2,000 replicates) exclude 0.5 on the same side and its validation ROC-AUC is at least 0.02
 from 0.5 `[assumption]`. Result on gold v1 `[data]`, stated as a bound: **none passes**. Every non-degenerate train CI
-includes 0.5 and lies within [0.469, 0.525] (29 of 31; `card_n_1h` and `declines_24h` have zero-width CIs because no
-train fraud has a non-zero value), and so does every non-degenerate CI on late train (2025-09 → 2026-01, past the cold
-start, 531 frauds), within [0.462, 0.534]. Validation ROC-AUC spans 0.465–0.547; its largest deviation from 0.5, 0.047
-(time since the card's previous transaction: 0.547 [0.505, 0.590], train 0.494), is below 0.062, the 95th percentile of
-the largest deviation over the 31 candidates under permuted validation labels, so the family-wise test does not reject.
-With 182 validation frauds a full-coverage candidate's CI is about ±0.04, so the rule cannot detect |AUC − 0.5| below
-about 0.04: a weaker single-feature signal is not ruled out. The bank score, as a positive control, gives 0.728 [0.673,
-0.780]. Reversals before the transaction are not candidates: gold keeps each row's final status with no reversal time,
-so a reversal is not known at transaction time (D-009). The features above stay as they are; §4.4 rule 5 covers the
-outcome.
+includes 0.5 and lies within [0.469, 0.525] (29 of 31; `card_n_1h` and `declines_24h` have near-zero-width CIs because
+no train fraud has a non-zero value), and so does every non-degenerate CI on late train (2025-09 → 2026-01, past the
+cold start, 531 frauds), within [0.462, 0.534]. Validation ROC-AUC spans 0.465–0.547; its largest deviation from 0.5,
+0.047 (time since the card's previous transaction: 0.547 [0.505, 0.590], train 0.494), is below 0.062, the 95th
+percentile of the largest deviation over the 31 candidates under permuted validation labels, so the family-wise test
+does not reject. With 182 validation frauds a continuous full-coverage candidate's CI is about ±0.04, so the rule cannot
+detect |AUC − 0.5| below about 0.04: a true deviation of 0.04 passes about half the time and 80% power needs about 0.06,
+so the train range (half-width 0.019 at 896 frauds) is the tighter bound; a weaker single-feature signal is not ruled
+out. The bank score, as a positive control, gives 0.728 [0.673, 0.780]. Reversals before the transaction are not
+candidates: gold keeps each row's final status with no reversal time, so a reversal is not known at transaction time
+(D-009). The features above stay as they are; §4.4 rule 5 covers the outcome.
 
 ### 4.3 Arms — a lean scikit-learn screen
 The dataset is large enough for all of these (about 1.39 million Approved/Pending transactions, 896 frauds to train).

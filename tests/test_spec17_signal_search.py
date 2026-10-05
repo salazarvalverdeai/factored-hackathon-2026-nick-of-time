@@ -125,6 +125,7 @@ def test_ac_05_search_reads_labels_only_through_the_guard_and_writes_outside_the
     assert rows["amount_over_max"]["signal"]  # positive control: synthetic frauds are large foreign purchases
     src = Path(ss.__file__).read_text()
     assert src.count("read_parquet") == 1 and "gold_eval" not in src  # one reader, for the gold views
+    assert "response_code" not in src  # decline codes go with a final status, not known at transaction time (D-009)
     assert src.replace("transaction_labels.parquet", "").count("transaction_labels") == 0 and "fs.read_labels(" in src
     with pytest.raises(ValueError):  # the protocol seal: no results inside the repo
         monkeypatch.setattr(sys, "argv", ["x", "--gold", str(gold), "--eval", str(tmp_path), "--out",
