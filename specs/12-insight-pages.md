@@ -47,6 +47,13 @@ comment). AC-04 onward are added by this spec. Evidence: [T] test · [C] command
   it differs from the `data` of the committed `pitch_numbers.json`. · [T]
 - **AC-09** — The pages shall render in the dark and the light theme and at 390 px without the page scrolling
   sideways. · [U]
+- **AC-10** — `/evaluation` shall show an "as-is vs with Nick of Time" panel: the bank's FCR, follow-up share and
+  contact duration `[data]` from `pitch_numbers.json`, the safe automated resolution `[simulated]` of the arm running
+  the model chosen in `benchmark.json` (else S1, noted "lean-rule result pending"), and the complaint contacts
+  resolved at first contact `[projected]` as a range from the 95% CI of that rate (rate measured only on the
+  automatic block-and-case runs, n shown; applied to all complaints as an upper-bound illustration; no money
+  figure). While `evaluation_summary.json` does not exist or its run is not the sealed held-out (AC-05), the WITH US
+  column shall read "results pending" with no number and no projection. · [T] `apps/web/lib/panel.test.ts`
 
 ## 7. Data model touched
 Reads only static files under `apps/web/public/data/`; creates `data_quality.json` and the page files under
@@ -59,6 +66,7 @@ Reads only static files under `apps/web/public/data/`; creates `data_quality.jso
 | `/evaluation` | `benchmark.json` | spec 15 | spec 15 §7.1 |
 | `/evaluation` | `classifier.json` | spec 11 | spec 11 §7.1 |
 | `/evaluation` | `fraud_benchmark.json` | spec 17 | spec 17 §7.1 |
+| `/evaluation` | `pitch_numbers.json` (panel, AC-10) | `queries/pitch/export_web.py` | that script |
 | `/analytics` | `pitch_numbers.json` | `queries/pitch/export_web.py` (PR #72) | that script |
 | `/analytics` | `ops_kpis.json` | spec 14 (P1) | fixed by spec 14 |
 | `/data` | `data_quality.json` | this spec, `data/pipeline` report | §7.2 |
@@ -119,6 +127,8 @@ Implementation goes in `feat/12-…` branches once this spec is approved.
       (sample files under `app/evaluation/__fixtures__/`; the sections show the empty state until the real files exist)
 - [x] T5 — `data_quality.json` (`python -m data.pipeline report --json`) and `/data` · covers AC-03 ([T]
       `tests/test_spec12_data_quality.py`; [U] comes with T7)
+- [x] T8 — as-is vs with Nick of Time panel on `/evaluation` · covers AC-10 · [T] `apps/web/lib/panel.test.ts`
+      (sealed sample under `app/evaluation/__fixtures__/`)
 - [ ] T6 — operational KPIs on `/analytics` · covers AC-02 · needs spec 14
 - [ ] T7 — screenshots on the public URL, both themes and 390 px · covers AC-01, AC-03, AC-09 (2026-10-05:
       `docs/assets/screenshots/spec12/` by `scripts/web/insight_screenshots.py` — the three pages at 1280 and 390 px in

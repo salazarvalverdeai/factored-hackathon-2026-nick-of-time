@@ -5,7 +5,8 @@ only from `call.session` (constitution #3); another customer's card or case answ
 and the gate logs the probe (D-052). A card's status is the run's latest overlay row, else gold's (AC-04).
 Accepted ≠ verified (D-025): `get_product_status` and `get_case`, called with a write's `action_id`, mint its V- id
 through `store.record_verification` only when that write is the customer's, belongs to this card or case, is verified
-by this read (`VERIFIED_WITH`) and its post-condition holds; otherwise, and always for the two listings, the answer is
+by this read (`VERIFIED_WITH`) and its post-condition holds (once that answer is built, a verified `case_opened` or
+`card_blocked` also writes its in-app notification, once, spec 13 AC-01); otherwise, and always for the two listings, the answer is
 a plain reading with `read_at` only. Stored deadlines are returned as stored, never recomputed.
 """
 from __future__ import annotations
@@ -20,6 +21,7 @@ from contracts import tools as t
 from mcp_server.cards import GoldCard, GoldCards, cards_of
 from mcp_server.gate import UNAVAILABLE, Call, Handler
 from mcp_server.gold import Gold, find, synthetic_from
+from mcp_server.notify import notify_verified
 from mcp_server.writes import NO_CARD, NO_CASE, probe
 from nick_of_time.contracts import CONTRACTS_DIR
 from nick_of_time.policy import Policies, clock
@@ -91,7 +93,10 @@ def case_reads_handlers(gold: Gold, policies: Policies, store: Store, *, cards: 
         if card is None:
             return probe(NO_CARD) if cards.owner(args.product_id) else NO_CARD
         verified = verify(call, args.action_id, "get_product_status", product_id=card.product_id)
-        return t.GetProductStatusOut(**{**card_out(card, call, now()), **(verified or {})})
+        out = t.GetProductStatusOut(**{**card_out(card, call, now()), **(verified or {})})
+        if verified:                                        # spec 13 AC-01: after the answer is final
+            notify_verified(store, policies, cards, call, args.action_id)
+        return out
 
     def list_my_cards(call: Call, args: t.ListMyCardsIn):
         read_at = now()
@@ -117,7 +122,7 @@ def case_reads_handlers(gold: Gold, policies: Policies, store: Store, *, cards: 
             cards.card(session.customer_id, case.product_id)
         visible = [t.CaseEventItem(event_id=e.event_id, type=e.type, label=TIMELINE_LABEL[e.type][lang(call)],
                                    created_at=e.created_at) for e in events if e.customer_visible]
-        return t.GetCaseOut(
+        out = t.GetCaseOut(
             case_id=case.case_id, queue_status=status, status_label=STATUS_LABEL[status][lang(call)],
             transaction=t.CaseCharge(transaction_id=trx.transaction_id, amount=trx.amount, currency=trx.currency,
                                      transaction_date=trx.transaction_date, merchant=trx.merchant,
@@ -128,6 +133,9 @@ def case_reads_handlers(gold: Gold, policies: Policies, store: Store, *, cards: 
             deadline_source=case.deadline_source, deadline_source_url=case.deadline_source_url,
             deadline_source_label=clock.source_label(case.deadline_source, lang(call), policies),   # DLANG
             deadline_verified_on=case.deadline_verified_on, **(verified or {"read_at": now()}))
+        if verified:                                        # spec 13 AC-01: after the answer is final
+            notify_verified(store, policies, cards, call, args.action_id)
+        return out
 
     def list_my_cases(call: Call, args: t.ListMyCasesIn):
         session, mine = call.session, []

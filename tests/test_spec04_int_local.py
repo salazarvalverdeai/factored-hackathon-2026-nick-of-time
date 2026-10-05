@@ -165,7 +165,8 @@ def test_ac_01_ev_0001_end_to_end_on_the_real_mcp_server(serve, tmp_path):
     # the store: the case's append-only events, its queue status, the block, and every write under the turn's trace id
     events = mcp.store.events(turn.case_id)
     assert [e.type for e in events] == ["case_opened", "card_blocked", "status_changed", "action_verified",
-                                        "action_verified", "block_verified"]
+                                        "notification_sent", "action_verified", "block_verified",
+                                        "notification_sent"]                # spec 13 AC-01: told once verified
     assert {e.trace_id for e in events} == {turn.trace_id}              # X-Trace-Id = the graph's run id (spec 03 §6)
     assert mcp.store.queue_status(turn.case_id) == "verification"
     assert mcp.tool("get_product_status", sid, product_id=fixture["product_id"]).status == "Blocked"
@@ -191,7 +192,8 @@ def test_ac_11_medium_zone_asks_first_then_opens_and_hands_off(serve, tmp_path):
     verified_actions(turn, mcp)
     same_deadline(turn, mcp, sid, case["initial_state"]["fixtures"][0]["transaction_id"])
     assert turn.handoff["case_id"] == turn.case_id and turn.handoff["zone"] == "medium"
-    assert [e.type for e in mcp.store.events(turn.case_id)] == ["case_opened", "status_changed", "action_verified"]
+    assert [e.type for e in mcp.store.events(turn.case_id)] == ["case_opened", "status_changed", "action_verified",
+                                                                "notification_sent"]
 
 
 def test_ac_12_human_zone_opens_the_case_and_hands_it_off_without_a_block(serve, tmp_path):
@@ -227,6 +229,21 @@ def test_ac_28_d029_a_person_request_on_a_high_zone_charge_opens_the_case_and_re
     assert mcp.store.queue_status(turn.case_id) == "review"
     assert mcp.tool("get_product_status", sid, product_id=fixture["product_id"]).status == "Active"
     assert turn.case_id in turn.reply.splitlines()[-1]                  # "Registré tu solicitud en el caso K-…"
+
+
+def test_ac_28_d029_ev_0107_a_person_request_naming_a_dated_charge_opens_the_case_and_registers_the_call(
+        serve, tmp_path):
+    """AC-28 / D-029 on dev EV-0107 (AR credit, human zone): "Me cobraron 29.133,48 pesos de Cable TV el 21 de mayo y yo
+    no tengo ese servicio" is a reported charge (B0 dispute words), named by its amount and date (D-067), so the case
+    opens in review with the call on it and nothing is blocked. Before, no dispute word was read: a general call only."""
+    case = CASES["EV-0107"]
+    mcp = serve(L.fixture_gold(tmp_path / "gold", case))
+    sid, chat = session(mcp, case)
+    turn = checked(chat.say(case["messages"][0]["text"], language=case["language"]))
+    expected_outcome(turn, mcp, sid, case)
+    assert [(a.tool, a.state) for a in turn.actions] == [("open_case", "verified"), ("request_call", "verified")]
+    verified_actions(turn, mcp)
+    assert "call_requested" in [e.type for e in mcp.store.events(turn.case_id)]
 
 
 def test_ac_28_d_067_a_person_request_with_an_unnamed_charge_then_its_confirm_holds_the_block_on_the_case(
@@ -279,7 +296,7 @@ def test_ac_01_a_run_with_no_run_id_keeps_one_trace_id_across_its_tool_calls(ser
     mcp = serve(L.fixture_gold(tmp_path / "gold", case))
     sid, chat = session(mcp, case)
     turn = checked(chat.say(case["messages"][0]["text"], language="es", run_id=False))
-    assert turn.decision == "block_and_open_case" and len(mcp.store.events(turn.case_id)) == 6
+    assert turn.decision == "block_and_open_case" and len(mcp.store.events(turn.case_id)) == 8
     assert {e.trace_id for e in mcp.store.events(turn.case_id)} == {turn.trace_id}
 
 
@@ -309,7 +326,7 @@ def test_ac_03_ev_0115_pt_injection_is_denied_and_opens_nothing(serve, tmp_path)
 
 
 # ---------- opt-in: the full gold (GOLD_PATH) ----------
-REAL = ["EV-0101", "EV-0102", "EV-0103", "EV-0104", "EV-0106"]
+REAL = ["EV-0101", "EV-0102", "EV-0103", "EV-0104", "EV-0106", "EV-0107"]
 
 
 @pytest.mark.skipif(bool(NO_GOLD), reason=str(NO_GOLD))

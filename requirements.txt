@@ -26,5 +26,5 @@ langchain-aws>=1.0,<2
 anthropic>=1.0,<2
 # learned components (specs 11, 15, 17)
 numpy>=2.0,<3
-scikit-learn>=1.5,<2
+scikit-learn>=1.6,<2   # sklearn.frozen.FrozenEstimator (B1 calibration) exists from 1.6
 # local only, not installed by CI: pip install "langgraph-cli[inmem]>=0.4"  (langgraph dev, ADR 0008)

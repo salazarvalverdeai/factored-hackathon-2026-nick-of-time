@@ -9,7 +9,12 @@ import type {
   CustomerCaseView,
   CustomerSession,
   DemoCustomer,
+  DemoStart,
   NotificationEntry,
+  PersonaCharacter,
+  PersonaDraft,
+  RecentTransaction,
+  Scenario,
   ProgressLabel,
   SessionSnapshot,
   TurnAction,
@@ -36,6 +41,16 @@ export interface ApiClient {
   listDemoCustomers: () => Promise<DemoCustomer[]>;
   /** Opens a session for the picked demo customer and returns the one-time code to show on screen [simulated]. */
   requestOtp: (customerId: string) => Promise<string>;
+  /** Live only (D-068): opens a demo session by scenario; the api chooses the customer. Returns the code to show on screen. */
+  startDemoSession: (start: DemoStart) => Promise<string>;
+  /** Live only: the scenario cards for a language (and country). */
+  listScenarios: (filter: { language: "es" | "pt"; country?: string }) => Promise<Scenario[]>;
+  /** Live only: the verified session's latest card charges, the run's test charges first. */
+  listRecentTransactions: (limit?: number) => Promise<RecentTransaction[]>;
+  /** Live only, demo type C: one test charge [simulated] on the session's own run. */
+  registerTestCharge: (amount: number, merchant: string) => Promise<RecentTransaction>;
+  /** Live only, demo type D: a suggested first message for the composer. */
+  suggestPersona: (character: PersonaCharacter, transactionId?: string) => Promise<PersonaDraft>;
   verifyOtp: (otp: string) => Promise<CustomerSession>;
   logoutCustomer: () => Promise<void>;
   /** Demo button: ends the session now. Live mode has no such route, so the page does not offer it. */

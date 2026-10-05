@@ -210,7 +210,8 @@ engine's behavior does not change).
 
 ## 9. Out of scope
 Analyst tools (they live in the backend API, spec 05); automatic notifications on each status change and the delivery
-webhooks (api, spec 13); the agent logic (spec 04).
+webhooks (api, spec 13), except the `case_opened` / `card_blocked` notices the verifying reads write (spec 13 §8, EV1);
+the agent logic (spec 04).
 
 ## 10. Plan, tasks and verification
 Implementation goes in one `feat/03-*` branch per task (T1: `feat/03-mcp-server`).

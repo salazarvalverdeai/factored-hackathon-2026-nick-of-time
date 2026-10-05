@@ -172,7 +172,9 @@ is written once by the evaluation script (T6) from the frozen test split, never 
   `sha256` and `split_manifest_sha256` are hex strings from the seal block. `test_split` counts sentences, injection
   rows apart (AC-06, D-022). `tau` is a score in 0–1 chosen on validation (AC-07) `[simulated]`; only its precision
   target of 0.95 is `[assumption]`. `chosen_arm` is one of B0–B3 by the rule of §4.1. `test_review` is `human` or `rules-v1` (ADR 0028); `/evaluation`
-  shows the label "test split decided by fixed rules, without independent human review" when it is `rules-v1`.
+  shows the label "test split decided by fixed rules, without independent human review" when it is `rules-v1`; the
+  export carries that sentence as `test_review_label`. `b1_model` records the exported B1 file's `path`, `sha256` and
+  the `sklearn_version` that wrote it, so a reader can check it loads the same model.
 - `arms[]` (AC-02, AC-03): `arm` B0–B3; `p50_ms` and `p95_ms` in milliseconds per message; `cost_per_1000_usd` in USD
   per 1,000 messages; `meets_floors` bool; `mcnemar_p_vs_best` p-value of the paired test; `human_request_answered_out_of_scope`
   integer count of person requests the arm answered `out_of_scope` (AC-10, must be 0); `same_family_as_generator` bool,
@@ -241,6 +243,19 @@ is written once by the evaluation script (T6) from the frozen test split, never 
   - "el/la" (ES) and "pra/pro" (PT) before the person word count only after a request form of pasar, passar or comunicar
     (pronoun attached or right before it) or a verb that starts the message, and not before "de" ("el gerente de la
     tienda"). A message that is only a person word is a request; "alguien" or "alguém" alone is not.
+  - (EV-0107, spec 10 T6 dev run) A charge word anywhere in the message (a charge noun, cobr-, debit-, carga-, pago)
+    plus "no contraté / não contratei / no solicité / não assinei", "no tengo / não tenho / no uso" before servicio,
+    suscripción, assinatura, plan or membresía, or one of those nouns followed by "que no tengo / que eu não tenho", is
+    a `wrongful_charge` reading, so it sets `dispute_detected`. "No tengo ese servicio" alone, or "no tengo dinero",
+    reads nothing.
+  - (EV-0120) A clear topic outside disputes (raise the limit or cupo, a loan or financing, the balance, opening an
+    account, interest rates, points or miles) reads `out_of_scope` at 0.9, so spec 02 rule 4 abstains (G-IN-04).
+    It stays at 0.5 (rule 5 asks, as D-032) when an amount is read or the message reports money: a charge noun,
+    cobr-, debit-, pag-, descont-, retir-, saque, sumi-, desaparec-, sacaron/sacou, "sin permiso / sem autorização"
+    or a negated consent (no acepté, não aceitei, no autoricé, no reconozco, no hice, não fiz, no pedí…).
+  - Person words are whole words with their plural and feminine forms (asesora, atendentes, supervisores), so
+    "préstamo personal" and "empréstimo pessoal" ask for no person; a plural article (los, las, os, as, unos, unas,
+    uns, umas) may come before them ("Pásame con los asesores", "Passa para os atendentes").
   - A PT ordinal before a noun ("na segunda semana", "na quinta loja", "na segunda metade do mês") is no weekday. A
     "-feira" day ("na sexta-feira loja Renner") and "na sexta semana passada" still are.
 - **Currency `[assumption]`:** a bare "$" or "pesos" leaves `currency` null; the country comes from the session.
@@ -268,10 +283,20 @@ Fine-tuning; embeddings + LR (P2); Jev (benchmarked in spec 15); the agent's use
   ("pesos 13 abril" no longer reads 13); an English person request ("can I talk to a person", "I want to speak to a
   human") is `human_request`. [assumption] "1.250" reads as 1250 (3 digits after the separator are thousands) and
   "1,25" as 1.25; B0 has no session country, so the MX ambiguity stays with `search_transaction` · AC-08, AC-09, AC-10
-- [ ] T3 — B1 training with calibration; τ on validation · AC-02, AC-07
-- [ ] T4 — B2 structured-output prompt (Haiku 4.5) · AC-02
+- [x] T3 — B1 training with calibration; τ on validation · AC-02, AC-07 (task 11b: `nlu.learned.train_b1`, sigmoid
+  calibration on validation, the protocol's one calibration split; `load_nlu("B1", path)` loads the export · AC-05)
+- [x] T4 — B2 structured-output prompt (Haiku 4.5) · AC-02 (task 11b: `nlu.learned.B2NLU`, the S1 `understand` prompt
+  and schema, forced tool use; a reply with no valid tool input is a wrong prediction, D-022, counted in
+  `missing_tool_calls`; a provider error with no reply is also wrong, counted in `provider_errors` [assumption]; one
+  preflight call on validation must get a reply before anything is written)
 - [ ] T5 — injection detector, both arms · AC-04 (rules arm done in 11a, `nlu.injection`; LR arm and AC-04 numbers pending spec 09)
-- [ ] T6 — evaluation script, report, export, ADR "model selection" (with spec 15) · AC-03, AC-05
+- [ ] T6 — evaluation script, report, export, ADR "model selection" (with spec 15) · AC-03, AC-05 (task 11b:
+  `eval/classifier/evaluate.py`; `make classifier` is the validation development run, written to `eval/.runs/` only;
+  `make classifier-test` is the one test run and refuses while `eval/PROTOCOL.md` is UNSEALED, when the `protocol-v1`
+  tag is not in HEAD's history with the same `PROTOCOL.md`, when the split files differ from the sealed manifest, or
+  when the arms are not exactly B0, B1, B2; it runs once through the shared guard of spec 10
+  (`eval/harness/seal_guard.py`: `check_seal`, then `claim_run("classifier-test")`) before B1 is saved and
+  `test.jsonl` is read, and exports `test_review` with its ADR 0028 label; ADR after the test run)
 
 ## 11. Sources
 External sources checked on 2026-10-04.

@@ -11,8 +11,10 @@ import { Input } from "@/components/ui/input";
 import { ApiError, api } from "@/lib/api";
 import { formatDeadline } from "@/lib/format";
 import { MESSAGES, fill } from "@/lib/mock/messages";
-import type { AgentReply, DemoCustomer, Receipt, Suggestion, TraceStep, TurnAction } from "@/lib/types";
+import type { AgentReply, DemoCustomer, PersonaDraft, Receipt, Suggestion, TraceStep, TurnAction } from "@/lib/types";
 import { useMounted, useSession } from "@/lib/use-query";
+import { DemoStart } from "./demo-start";
+import { DemoTools } from "./demo-tools";
 
 interface Message {
   id: number;
@@ -106,6 +108,15 @@ function Verify({ expired, onVerified }: { expired: boolean; onVerified: () => v
       {expired ? (
         <ErrorState title="Your session expired" message="Sessions last 15 minutes. Verify again to continue; your cases are kept." />
       ) : null}
+      {api.mode === "live" ? (
+        <DemoStart
+          onStarted={(code) => {
+            setOtp(code);
+            setCode("");
+            setError(null);
+          }}
+        />
+      ) : (
       <Card>
         <CardHeader>
           <CardTitle>1 · Who are you? [simulated]</CardTitle>
@@ -142,6 +153,7 @@ function Verify({ expired, onVerified }: { expired: boolean; onVerified: () => v
           </Button>
         </CardContent>
       </Card>
+      )}
 
       {otp ? (
         <Card>
@@ -181,13 +193,17 @@ function Verify({ expired, onVerified }: { expired: boolean; onVerified: () => v
 function Conversation({ onExpired }: { onExpired: () => void }) {
   const { customerSession } = useSession();
   const customer = useDemoCustomers()?.find((c) => c.customer_id === customerSession?.customerId);
-  const lang = customer?.language ?? "es";
+  // A live demo session has no picked customer: the name is what the visitor typed, else the agent greets by gold's name.
+  const lang = customer?.language ?? customerSession?.language ?? "es";
+  const speaker = customer?.display_name ?? customerSession?.displayName ?? "you";
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState<string | undefined>(undefined);
   const [step, setStep] = useState<string | null>(null);
+  const [chosenTx, setChosenTx] = useState<string | null>(null);
+  const [draftSource, setDraftSource] = useState<PersonaDraft["source"] | null>(null);
 
   const lastReply = [...messages].reverse().find((m) => m.reply)?.reply;
 
@@ -196,6 +212,7 @@ function Conversation({ onExpired }: { onExpired: () => void }) {
     if (!text.trim() || busy) return;
     setMessages((m) => [...m, { id: m.length, role: "customer", text }]);
     setInput("");
+    setDraftSource(null);
     setBusy(true);
     setError(null);
     setStep(null);
@@ -217,7 +234,7 @@ function Conversation({ onExpired }: { onExpired: () => void }) {
       <section aria-label="Conversation" className="min-w-0 space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
           <span>
-            Talking as <b>{customer?.display_name}</b> · session until{" "}
+            Talking as <b>{speaker}</b> · session until{" "}
             {customerSession ? new Date(customerSession.expiresAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "—"}
           </span>
           <span className="flex gap-2">
@@ -236,7 +253,7 @@ function Conversation({ onExpired }: { onExpired: () => void }) {
           {messages.length === 0 ? (
             <div className="space-y-1 text-sm text-muted-foreground">
               {/* spec 04 AC-15: greet with the capabilities; texts from contracts/messages.yaml */}
-              <p>{fill(MESSAGES.greet.hello, lang, { first_name: customer?.display_name.split(" ")[0] ?? "" })}</p>
+              <p>{fill(MESSAGES.greet.hello, lang, { first_name: speaker.split(" ")[0] })}</p>
               <p>{MESSAGES.greet.capability_1[lang]}</p>
               <p>{MESSAGES.greet.capability_2[lang]}</p>
               <p>{MESSAGES.greet.capability_3[lang]}</p>
@@ -284,6 +301,11 @@ function Conversation({ onExpired }: { onExpired: () => void }) {
           )}
         </div>
 
+        {draftSource ? (
+          <p className="text-xs text-muted-foreground">
+            Suggested message ({draftSource === "llm" ? "written by a model" : "from a template"}): edit it, then send it yourself.
+          </p>
+        ) : null}
         <form
           className="flex gap-2"
           onSubmit={(e) => {
@@ -293,7 +315,10 @@ function Conversation({ onExpired }: { onExpired: () => void }) {
         >
           <Input
             value={input}
-            onChange={(e) => setInput(e.target.value)}
+            onChange={(e) => {
+              setInput(e.target.value);
+              setDraftSource(null);
+            }}
             placeholder={lang === "es" ? "Escribe tu mensaje…" : "Escreva sua mensagem…"}
             aria-label="Message"
           />
@@ -303,7 +328,23 @@ function Conversation({ onExpired }: { onExpired: () => void }) {
         </form>
       </section>
 
-      <TracePanel trace={lastReply?.trace ?? []} guardrails={lastReply?.guardrails ?? []} />
+      <div className="min-w-0 space-y-4">
+        {api.mode === "live" ? (
+          <DemoTools
+            lang={lang}
+            mode={customerSession?.mode}
+            disabled={busy}
+            chosen={chosenTx}
+            onChoose={setChosenTx}
+            onSend={(text) => send(text)}
+            onDraft={(draft) => {
+              setInput(draft.message);
+              setDraftSource(draft.source);
+            }}
+          />
+        ) : null}
+        <TracePanel trace={lastReply?.trace ?? []} guardrails={lastReply?.guardrails ?? []} />
+      </div>
     </div>
   );
 }

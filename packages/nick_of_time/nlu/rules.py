@@ -20,8 +20,11 @@ from .text import fold
 
 ARM, VERSION = "B0", "b0-v1"
 
-_STAFF = r"(?:persona|humano|agente|asesor|ejecutivo|operador|atendente|pessoa|representante|gerente|supervisor)"
-_PERSON = r"(?:alguem|alguien|" + _STAFF + ")"
+# whole words with their plural and feminine forms, so "préstamo personal" or "empréstimo pessoal" asks for no person
+_STAFF = (r"(?:personas?|humanos?|agentes?|asesor(?:a|es|as)?|ejecutiv[oa]s?|operador(?:a|es|as)?|atendentes?|pessoas?"
+          r"|representantes?|gerentes?|supervisor(?:a|es|as)?)\b")
+_PERSON = r"(?:alguem|alguien|" + _STAFF + r")\b"
+_PLURAL = r"los |las |os |as |unos |unas |uns |umas "     # "pásame con los asesores", "passa para os atendentes"
 # a request form of pasar/passar/comunicar: with the pronoun attached ("pásame") or right before it ("me pasa",
 # "que me pase", "me passa"), or an imperative that opens the message; past forms ("me pasé", "me comuniqué",
 # "passei") and third persons ("mi hijo pasa con el gerente") stay out
@@ -41,12 +44,12 @@ _INTENT_RULES: list[tuple[str, list[str]]] = [
     ("human_request", [
         # "comuni-" needs a person after it: "me comunico con ustedes por un cargo" is an opener, not a request
         r"\b(?!passei\b)(?:hablar|conversar|comuni\w*|pas\w*|falar|passar) (?:\w+ ){0,2}(?:con|com|para|a) "
-        r"(?:un |una |um |uma |o |a )?" + _PERSON,
+        r"(?:un |una |um |uma |o |a |" + _PLURAL + ")?" + _PERSON,
         # ES "el/la" and PT "pra/pro" only after a request form, and not "el gerente de la tienda"
-        _ASK + r" (?:\w+ ){0,2}(?:con|com|para|pra|pro|a) (?:un |una |um |uma |o |a |el |la )?" + _PERSON
+        _ASK + r" (?:\w+ ){0,2}(?:con|com|para|pra|pro|a) (?:un |una |um |uma |o |a |el |la |" + _PLURAL + ")?" + _PERSON
         + r"(?! (?:de|del|da|do)\b)",
-        r"^(?:hablar|conversar|falar) (?:con|com|pra|pro) (?:el |la |o |a )?" + _PERSON + r"(?! (?:de|del|da|do)\b)",
-        r"\b(?:quiero|necesito|quero|preciso|prefiero|prefiro) (?:(?!si |se )\w+ ){0,3}(?:un |una |um |uma |o |a )?" + _PERSON,
+        r"^(?:hablar|conversar|falar) (?:con|com|pra|pro) (?:el |la |o |a |" + _PLURAL + ")?" + _PERSON + r"(?! (?:de|del|da|do)\b)",
+        r"\b(?:quiero|necesito|quero|preciso|prefiero|prefiro) (?:(?!si |se )\w+ ){0,3}(?:un |una |um |uma |o |a |" + _PLURAL + ")?" + _PERSON,
         # a message that is only the person word ("Supervisor", "Un asesor", "Humano por favor", "Atendente, por favor")
         r"^(?:un |una |um |uma |o |a |el |la )?" + _STAFF + r"(?: humano| real)?(?:,? por favor)?[.!? ]*$",
         r"\b(?:atienda|atiende|atenda|atendid[oa] por) (?:\w+ )?" + _PERSON,
@@ -122,6 +125,25 @@ _ASKED = re.compile(r"[^.,;:!?]*\?")                    # "¿no es necesario hab
 _REPORTED_ES = re.compile(r"\b(?:report|reclam|registr|denunci)é\b")
 _REPORTED = re.compile(r"\b(?:(?:ya|lo|la) (?:reporte|reclame|registre|denuncie)|reportei|reclamei|registrei|denunciei"
                        r"|(?:habia|tinha) (?:reportado|reclamado|registrado|denunciado))\b")
+# [assumption] EV-0120: a clear topic outside disputes (credit limit, loans, balance, a new account, interest, points)
+# reads out_of_scope above τ, so rule 4 abstains (G-IN-04); never when money is reported or an amount is read (D-032)
+_OUT_OF_SCOPE = re.compile(
+    r"\b(?:aumentar|subir|ampliar|elevar|incrementar|aumento|ampliacion|ampliacao)\b(?: \w+){0,4} (?:limite|cupo)\b"
+    r"|\b(?:prestamos?|emprestimos?|financiamiento|financiamento|hipoteca"
+    r"|credito (?:personal|pessoal|hipotecario|imobiliario|consignado))\b"
+    r"|\b(?:cual|cuanto|qual|quanto|consultar|ver)\b(?: \w+){0,3} saldo\b|\babrir (?:una |uma )?(?:cuenta|conta)\b"
+    r"|\b(?:tasa|taxa)s? de (?:interes|juros)\b|\b(?:mis|meus) (?:puntos|pontos|millas|milhas)\b")
+# a charge, a payment or withdrawal verb, or a refused consent: the message reports money that left the account
+_REPORTS = re.compile(r"\b" + _CHARGES + r"\b|\b(?:cobr|debit|pag|descont|retir|saque|sumi|desaparec)\w*"
+                      r"|\bsac(?:aron|ou|aram)\b|\b(?:sin|sem) (?:permiso|autorizacion|autorizacao|consentimiento)\b"
+                      r"|\b(?:no|nao) (?:acepte|aceitei|autorice|autorizei|reconozco|reconheco|hice|fiz|pedi|contrate"
+                      r"|contratei|solicite|solicitei)\b")
+# EV-0107: a charge word anywhere and a service the customer does not have or never contracted is a wrongful charge
+_SERVICE = r"(?:servicio|servico|suscripcion|assinatura|plan|plano|membresia)"
+_NO_SERVICE = re.compile(r"\b(?:no|nao) (?:contrate|contratei|solicite|solicitei|assinei|suscribi)\b"
+                         r"|\b(?:no|nao) (?:tengo|tenho|uso) (?:\w+ ){0,2}" + _SERVICE + r"\b"
+                         r"|\b" + _SERVICE + r" (?:\w+ ){0,2}que (?:yo |eu )?(?:no|nao) (?:tengo|tenho|uso)\b")
+_CHARGE_WORD = re.compile(r"\b" + _CHARGES + r"\b|\b(?:cobr|debit|carga)\w*|\bpagos?\b")
 _ANOTHER = re.compile(r"\b(?:otro|otra|outro|outra) (?:cargo|cobro|compra|cobranca|debito|movimiento|transacao)\b")
 # words of one language only (shared words such as "que", "me", "no", "compra" or "caso" carry no signal)
 _PT_WORDS = {"nao", "voce", "voces", "meu", "minha", "meus", "minhas", "um", "uma", "o", "os", "do", "da", "dos", "das",
@@ -266,6 +288,8 @@ def classify_intent(text: str) -> tuple[str, float, bool]:
             if any(not (intent == "human_request" and _refused(t, m)) for p in patterns for m in p.finditer(t))}
     if any(not _NEGATED.search(t[:m.start()]) for m in _CALL.finditer(t)):
         hits.add("human_request")
+    if _NO_SERVICE.search(t) and _CHARGE_WORD.search(t):
+        hits.add("wrongful_charge")                           # EV-0107
     dispute = bool(hits & {"wrongful_charge", "unrecognized_charge"})
     reported = _REPORTED_ES.search(unicodedata.normalize("NFC", text.lower())) or _REPORTED.search(t)
     if "status_inquiry" in hits and dispute and (not reported or _ANOTHER.search(t)):
@@ -279,6 +303,8 @@ def classify_intent(text: str) -> tuple[str, float, bool]:
     for intent, _ in _COMPILED:
         if intent in hits:
             return intent, 0.9, dispute
+    if _OUT_OF_SCOPE.search(t) and not _REPORTS.search(t) and _amount(text)[0] is None:
+        return "out_of_scope", 0.9, False                     # a clear topic outside disputes, no money reported (EV-0120)
     return "out_of_scope", 0.5, False                         # no rule fired: the arm does not know
 
 
