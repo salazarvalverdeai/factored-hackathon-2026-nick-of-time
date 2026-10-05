@@ -1,0 +1,37 @@
+# Profiles of the synthetic recent transactions of live mode (spec 09 AC-11, ADR 0020). Input of the generator of spec 05.
+# Everything generated from this file is synthetic [simulated]: it lives only in demo_transactions with synthetic = true
+# and never enters gold, the lakehouse, the evaluation or a pitch number.
+version: 1
+label: synthetic
+seed: 20261005                     # the generator draws from this seed, so a demo reset gives the same rows per day
+
+# A generated row uses a card the demo customer really owns (gold products) and that product's currency.
+profiles:                          # one per zone of contracts/policies.yaml
+  high:   {score: {min: 70, max: 95}, null_score: never, hours_before_now: {min: 2, max: 36}}    # inside the MX debit 48 h
+  medium: {score: {min: 32, max: 48}, null_score: never, hours_before_now: {min: 6, max: 60}}
+  human:  {score: {min: 3, max: 25}, null_score: allowed, hours_before_now: {min: 6, max: 96}}   # no score is zone human too
+
+amount:                            # p25 to p75 of approved card transactions in gold v1, rounded [data]; all in the low tier
+  MX: {currency: USD, min: 150, max: 425}
+  CO: {currency: COP, min: 600000, max: 1700000}
+  AR: {currency: ARS, min: 50000, max: 150000}
+
+merchants:                         # names that exist in gold v1, so a generated row looks like the customer's history
+  - Super Ahorro
+  - Tienda Don José
+  - Restaurante El Buen Sabor
+  - Mercado Central
+  - Internet Plus
+  - Cine Premium
+  - Taxi Seguro
+  - Boutique Moda
+  - Farmacia Salud
+transaction: {status: Approved, channels: [POS, Web, App]}
+
+customers:                         # the six demo customers of customers.json and what the generator gives each
+  CLI-Y0L7FZFOF0AZ: {zones: [high], product_type: debit}                 # normal: MX debit, credit by business day 2
+  CLI-D5US5Q686CIL: {zones: [medium], product_type: credit}              # normal: confirms first
+  CLI-S3L7P0DXIYV7: {zones: [human, medium, human]}                      # ambiguous: three charges in the same days
+  CLI-YSL35Q5OYTAJ: {zones: [human, human], product_type: debit}         # ambiguous, Portuguese
+  CLI-52TJRRO5YA9F: {zones: [human], null_score: always, product_type: credit}   # requires a human: no score
+  CLI-J5VPX6OQPPV2: {zones: [human], null_score: never, product_type: debit}     # requires a human: low score, Portuguese

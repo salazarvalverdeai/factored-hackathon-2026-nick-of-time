@@ -90,6 +90,8 @@ fixed seed, so the same gold gives the same file. The rows per cell and the empt
   `customer_id`, `display_name`, `country`, `segment`, `scenario`, `language`. At least one PT customer and one MX debit
   customer (provisional credit by business day 2). `display_name` is invented and labeled so; no personal data from
   `gold.customers` is copied.
+- `reference.json` (internal, never served): the mandatory case of each demo customer and the row of
+  `demo_index.csv` behind it. `scenario` in `customers.json` stays neutral: it shows no score and no zone.
 - `live_profiles.yaml`: for `high`, `medium` and `human`, the fields the live-mode generator needs (score range, amount
   range per country, merchant, hours before "now"). Synthetic, stored apart, never in gold, eval or pitch numbers.
 - `sample_cases.jsonl`: MX high zone → credit approved → closed · CO human zone → information requested → resolved ·
@@ -117,6 +119,21 @@ Coverage proposed to the lead (Q2). It is bounded by §7.2: with the proposed wi
 Held-out language: 50 ES / 30 PT. Every country and every segment appears at least once per language. `cap` has no
 case here (budget caps are tested in spec 04).
 
+**Layout.** The team writes one line per case in `eval/cases/plan/<set>.jsonl`: `id`, `type`, `language`, `anchor`
+(the row of `demo_index.csv` the case is about), `messages`, `intent` (the label of those messages; absent when the
+case is refused before any intent matters), `notes`, `labeler` and, where the type needs them, `fixtures` (`none` or
+`cluster`), `session`, `tool_faults` and `case`. `eval/derive_expected.py` turns each line into a case: the fixtures
+are the anchor's row, or with `cluster` the customer's approved card transactions within 7 days either side of it
+(read from gold), and `expected` comes from the policy engine (§7.5). Ids: `EV-0101` to `EV-0120` for dev and
+`EV-0201` to `EV-0280` for the held-out (`EV-0001` to `EV-0005` are the examples of spec 01).
+
+**Types that needed a definition.** `normal` in the medium zone has two shapes: one message ends in `confirm` with
+nothing opened; two messages (the second confirms) end with the case opened and handed off. `human` holds scored
+transactions below 30 and requests for a person, with or without a reported charge. `missing_data` is a transaction
+with no fraud score and no merchant name: the case is opened and handed off, and the reply must not invent either.
+`late_arrival` is a charge the customer reports before it is in their transactions: the case has no fixture, so there
+is no candidate and the system asks; the amount in the message is the customer's own and is not in gold.
+
 ### 7.5 How `expected` is derived (AC-09)
 `eval/derive_expected.py` calls the policy engine with the gold record and writes `decision`, `zone`, `intent`,
 `final_state`, `queue_status`, `receipt`, `deadline_country`, `guardrail_ids` and `notifications`. The rows it must
@@ -126,7 +143,8 @@ reproduce (spec 02 §4.1 and §4.2):
 |---|---|---|---|---|---|---|
 | score ≥ 50, amount ≤ `high` tier | `block_and_open_case` | `Blocked` | true | `verification` | false | true |
 | score ≥ 50, amount > `high` tier | `handoff` | `Active` | true | `review` | true | true |
-| score 30–49, customer confirms in a second message | `confirm` | `Active` | true | `review` | true | true |
+| score 30–49, one message | `confirm` | `Active` | false | — | false | false |
+| score 30–49, customer confirms in a second message | `handoff` | `Active` | true | `review` | true | true |
 | score < 30 or null | `handoff` | `Active` | true | `review` | true | true |
 | more than one candidate | `ask` | `Active` | false | — | false | false |
 | status question on an existing case | `answer_status` | unchanged | unchanged | unchanged | false | false |
@@ -134,9 +152,17 @@ reproduce (spec 02 §4.1 and §4.2):
 | injection, another customer's data, out of scope | `deny` | `Active` | false | — | false | false |
 | session expired or none | `reauthenticate` | `Active` | false | — | false | false |
 | `block_card` fails twice | `escalate_unconfirmed_action` | `Active` | true | `review` | true | true |
+| `open_case` fails twice | `escalate_unconfirmed_action` | `Active` | false | — | true | false |
 
-If the engine is not merged when the cases are written, the script uses this table and is re-run against the engine
-before the seal; any difference is fixed in the cases, not in the engine.
+The script runs `PolicyEngine.decide()` once per scripted message and keeps the last decision, so a case states the
+outcome of its last turn. `tests/test_spec09_eval_data.py` checks every row above against the engine and every
+committed case against the script. The cases are re-derived before the seal; any difference is fixed in the cases,
+not in the engine. `[assumption]` Three things are not decided by the engine and follow this table: a failed
+`block_card` or `open_case` gives `escalate_unconfirmed_action` (`reliability.on_failure`), and with no confirmed
+case nothing is blocked and no receipt is issued; a request for a person counts as a
+handoff even when no case is opened; `has_deadline` is true when the case is opened and the country has an entry in
+`regulatory_clock`. `guardrail_ids` and `notifications` list only what the engine and the opened actions imply
+(`case_opened`, `card_blocked`); the harness checks that they are present, not that they are the only ones.
 
 ### 7.6 Classifier set — `eval/classifier/train.jsonl`, `validation.jsonl`, `test.jsonl`
 The layout `eval/PROTOCOL.md` hashes (Seal, b): top-level files whose names start with `train`, `validation` and
@@ -160,7 +186,11 @@ All the sentences of one author are in one split, paraphrases included (AC-10). 
 
 ### 7.7 Seal
 - `eval/heldout.sha256`: the bare sha256 of `eval/cases/heldout.jsonl`, one 64-hex token and nothing else
-  (`shasum -a 256 eval/cases/heldout.jsonl | cut -d' ' -f1 > eval/heldout.sha256`).
+  (`shasum -a 256 eval/cases/heldout.jsonl | cut -d' ' -f1 > eval/heldout.sha256`, or
+  `python -m eval.derive_expected seal` where `shasum` is missing). `.gitattributes` keeps `eval/cases/` and the hash
+  file byte for byte, so a checkout with line-ending conversion gives the same hash.
+- The hash in the repo is the hash of the current file. It becomes **binding at M02**, when it is copied into the
+  seal block of `eval/PROTOCOL.md`; until then a review may still change a case, and the hash is written again.
 - The classifier manifest hash is computed with the command of `eval/PROTOCOL.md` (Seal, b) and recorded there at M02.
 - After the seal, `heldout.jsonl` and the three split files never change (ADR 0021); new data is a new sealed set.
 
@@ -194,14 +224,14 @@ generator and the sample-case seeder (spec 05; this spec gives their inputs) · 
 Implementation goes in `feat/09-…` branches once this spec is approved.
 - [x] T1 — `queries/eval/demo_index.sql` + `eval/demo_index.csv` (`python -m eval.demo_index`) · covers AC-01, AC-07, AC-08 · done when: the cells of
       §7.2 are filled or the empty ones are listed in `eval/README.md`
-- [ ] T2 — `eval/demo/customers.json`, `live_profiles.yaml`, `sample_cases.jsonl` · covers AC-02, AC-11
-- [ ] T3 — `eval/derive_expected.py` + `eval/cases/dev.jsonl` · covers AC-03, AC-09 · done when: 20 cases validate
-- [ ] T4 — `eval/cases/heldout.jsonl` + `eval/heldout.sha256` · covers AC-03, AC-05, AC-07 · done when: 80 cases
+- [x] T2 — `eval/demo/customers.json`, `reference.json`, `live_profiles.yaml`, `sample_cases.jsonl` · covers AC-02, AC-11
+- [x] T3 — `eval/derive_expected.py` + `eval/cases/plan/dev.jsonl` + `eval/cases/dev.jsonl` · covers AC-03, AC-09 · done when: 20 cases validate
+- [x] T4 — `eval/cases/plan/heldout.jsonl` + `eval/cases/heldout.jsonl` + `eval/heldout.sha256` · covers AC-03, AC-05, AC-07 · done when: 80 cases
       validate with the counts of §7.4
 - [ ] T5 — `eval/classifier/*.jsonl` from the authors' seeds · covers AC-04, AC-10 · done when:
       `tests/test_spec11_protocol.py` runs its split checks instead of skipping them, and passes
 - [ ] T6 — second labeling of 20 cases + agreement in `eval/README.md` · covers AC-06
-- [ ] T7 — `tests/test_spec09_eval_data.py` citing AC-03, AC-07, AC-08, AC-09, AC-10 (offline, no gold needed)
+- [ ] T7 — `tests/test_spec09_eval_data.py` citing AC-03, AC-05, AC-07, AC-08, AC-09 (done, offline, no gold needed); AC-10 comes with T5
 - [ ] M02 — review and seal `eval/PROTOCOL.md`, tag `protocol-v1` (manual, after T4 and T5)
 
 **Closing checklist:** every AC has a passing test or check that cites it · status → Implemented · lessons added to
