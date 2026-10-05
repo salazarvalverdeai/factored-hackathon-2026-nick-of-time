@@ -62,6 +62,10 @@ hosts, no AWS keys in workflows, rollback and backup present, health payload sha
   mounts it read-only at `/gold/v1` (`GOLD_PATH`) in `api` and `mcp`. The env file also carries the spec 01 §6.9 names
   that spec 05 needs: `LANGGRAPH_API_URL`, `LANGSMITH_API_KEY`, `LINK_SIGNING_KEY`, `COGNITO_*`, `RESEND_WEBHOOK_SECRET`,
   `DEFAULT_SESSION_MODE`, `DEMO_TODAY` and `LANGGRAPH_ASSISTANT` (default `dispute_intake`).
+- FR-10 — Database and liveness: after the migration hook, `deploy.sh` applies `packages/nick_of_time/store/schema.sql`
+  in one transaction only when `cases` does not exist (a stopgap until spec 05 ships Alembic; with Alembic present it
+  is a no-op). `compose up --wait` fails the deploy, and so rolls it back, if the `api` or `mcp` healthcheck never
+  passes; the `mcp` check is its port, so a crash loop is caught.
 - FR-07 — `infra/backup.sh` runs `pg_dump`, compresses it and copies it to `s3://nickoftime-gold-061039767206/backups/postgres/`;
   `deploy.sh` installs a daily cron entry for it (AC-04).
 - FR-08 — Until specs 03 and 05 land their own `Dockerfile`s, the workflow builds `mcp` and `api` from the placeholders in

@@ -194,3 +194,17 @@ def test_ac_06_env_file_carries_the_names_the_backend_reads():
                  "COGNITO_CLIENT_ID", "COGNITO_DOMAIN", "RESEND_WEBHOOK_SECRET", "DEFAULT_SESSION_MODE", "DEMO_TODAY",
                  "LANGGRAPH_ASSISTANT", "GOLD_VERSION"):
         assert name in script, name
+
+
+def test_ac_07_deploy_waits_for_healthchecks_and_mcp_has_one(compose):
+    """AC-07 / FR-10: `up --wait` makes an unhealthy api or mcp fail (and roll back) the deploy; mcp checks its port."""
+    assert "--wait" in (INFRA / "deploy.sh").read_text().split("apply_schema_once || return 1", 1)[1].split("\n", 2)[1]
+    assert "8001" in " ".join(compose["services"]["mcp"]["healthcheck"]["test"])
+
+
+def test_ac_04_schema_is_applied_once_after_the_migration_hook():
+    """AC-04 / FR-10: schema.sql runs in one transaction only on an empty database, after spec 05's migration hook."""
+    script = (INFRA / "deploy.sh").read_text()
+    start = script.index("start_version() {")
+    assert script.index("/app/migrate.sh", start) < script.index("apply_schema_once || return 1", start)
+    assert "to_regclass('public.cases')" in script and "-v ON_ERROR_STOP=1 -1" in script

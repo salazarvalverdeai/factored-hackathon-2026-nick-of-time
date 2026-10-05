@@ -59,6 +59,12 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+    healthcheck:   # the port answers only while the server runs: a crash loop (bad MCP_API_KEY) fails the deploy
+      test: ["CMD", "python", "-c", "import socket; socket.create_connection(('127.0.0.1', 8001), 3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 20s
 
   postgres:
     image: postgres:17-alpine
