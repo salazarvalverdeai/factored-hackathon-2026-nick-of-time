@@ -18,13 +18,14 @@
 #   re-evaluation AC-24, reversed charge); each extension is a contract change approved by the lead. Task 04b
 #   (T3) added clarify.pick_one, clarify.exhausted, clarify.read_failed and duplicate.case_exists; task 04e (T6)
 #   added status.no_cases, status.no_cards and status.case_done; task 04c (T4) added act.case_opened,
-#   act.case_not_confirmed, act.not_confirmed, act.decided_on_case and act.sign_in.
+#   act.case_not_confirmed, act.not_confirmed, act.decided_on_case and act.sign_in; task 04d (T5) added
+#   act.block_held (D-043).
 # - Chips: `kind` is static here; the action payload ({type}, spec 01 §6.4) is set by the server code.
 # - Never a placeholder or text for the fraud score, policy ids, rule ids, zones or the transcript
 #   (notifications.never_send in policies.yaml).
 # - Never promise an outcome or a provisional credit: a person reviews and decides (CLAUDE.md rule 6).
 # - Dates are absolute (YYYY-MM-DD) and come from tools; the template never computes them.
-version: "0.5.0"
+version: "0.6.0"
 
 greet:
   # AC-15: first name from get_customer_profile, at most 3 capabilities, a person reviews what needs it.
@@ -382,6 +383,12 @@ act:
     # not escalate (D-050): the person on that case decides it. case_id is get_case's.
     es: "{action_label}: SIN CONFIRMAR. La persona a cargo del caso {case_id} decide el bloqueo."
     pt: "{action_label}: SEM CONFIRMAÇÃO. A pessoa responsável pelo caso {case_id} decide o bloqueio."
+  block_held:
+    # Spec 04 task 04d (D-043, pending the lead): block_card answered DENY with POL-HUMAN-REQUEST because a call
+    # request holds the case, so the block was not done; a person decides it after the call. Not a failure, no
+    # escalation. action_label is status.action_label.block_card.
+    es: "{action_label}: SIN CONFIRMAR. Una persona decide el bloqueo después de la llamada que pediste."
+    pt: "{action_label}: SEM CONFIRMAÇÃO. Uma pessoa decide o bloqueio depois da ligação que você pediu."
   sign_in:
     # open_case answered SESSION_EXPIRED after an attempt with no answer, so the case may exist: the sign-in line of
     # refuse.reauthenticate without "nothing was changed", which is not verified.

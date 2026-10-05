@@ -1,4 +1,4 @@
-"""Graph `dispute_intake` (spec 04 §4.1–§4.2), tasks 04a (T1, T2), 04b (T3), 04c (T4) and 04e (T6).
+"""Graph `dispute_intake` (spec 04 §4.1–§4.2), tasks 04a (T1, T2), 04b (T3), 04c (T4), 04d (T5) and 04e (T6).
 
 identity → greet → understand → route. `route` runs spec 02 rules 1–4 (`engine.screen()`): reauthenticate/deny →
 refuse, connect_person → connect, answer_status → status, a dispute → retrieve → decide. `decide` runs
@@ -7,7 +7,8 @@ refuse, connect_person → connect, answer_status → status, a dispute → retr
 there, otherwise act runs the writes decide() allowed and verify reads each post-condition (T4). understand uses the
 B0 rules arm in every arm (the S1/S2 LLM path lands in T7, so no arm calls an LLM yet). `status` re-reads cards or
 cases in every turn that asks (AC-19) and `connect` registers the call where the decision says, on the active case or
-a general one (AC-28; task 04e). Tools are reached only through MCP
+a general one (AC-28; task 04e). `respond` builds the receipt and the handoff card from tool results, and the
+grounding gate drops any fact no tool returned (G-OUT-01, task 04d). Tools are reached only through MCP
 with the session of the run config (constitution #3); "today" comes from `config.today(mode)` (AC-27, ADR 0020).
 Served as `dispute_intake_next` (langgraph.json) until it replaces the echo graph [assumption].
 """
@@ -18,7 +19,7 @@ import os
 import re
 import uuid
 from datetime import timezone
-from typing import Any, Optional, TypedDict
+from typing import Annotated, Any, Optional, TypedDict
 
 from fastmcp import Client
 from fastmcp.client.transports import StreamableHttpTransport
@@ -31,6 +32,7 @@ from nick_of_time import receipt as msg
 from nick_of_time.config import resolve, today
 from nick_of_time.contracts import TurnResult
 from nick_of_time.ids import new_id
+from nick_of_time.receipt import build
 from nick_of_time.nlu import load_nlu
 from nick_of_time.nlu.text import fold
 from nick_of_time.policy import DecisionInput, PolicyDecision, PolicyEngine
@@ -73,6 +75,11 @@ OutputState = TypedDict("OutputState", {name: field.annotation for name, field i
                         total=False)
 
 
+def keep(old: Optional[list], new: Optional[list]) -> list:
+    """Reducer of `seen`: a node adds the tool results it read; None (RESET) clears them when a turn starts."""
+    return [] if new is None else [*(old or []), *new]
+
+
 class Internal(TypedDict, total=False):     # spec 04 §4.1 fields outside TurnResult; kept on the thread
     session_id: str
     session_state: str
@@ -105,6 +112,8 @@ class Internal(TypedDict, total=False):     # spec 04 §4.1 fields outside TurnR
     path: list[str]                         # nodes run after route, for the trace
     writes: dict[str, Any]                  # act's accepted write results by tool, and `errors` codes (task 04c)
     unconfirmed: list[str]                  # tools whose action ended not_confirmed this turn, for the trace
+    readings: dict[str, Any]                # verify's post-condition reads by write tool (task 04d)
+    seen: Annotated[list, keep]             # the other tool results of the turn the reply states, for grounding
 
 State = TypedDict("State", {**InputState.__annotations__, **OutputState.__annotations__, **Internal.__annotations__},
                   total=False)
@@ -112,7 +121,7 @@ State = TypedDict("State", {**InputState.__annotations__, **OutputState.__annota
 RESET = {"decision": None, "zone": None, "case_id": None, "actions": [], "denials": [], "guardrails_triggered": [],
          "body": [], "row": None, "route": None, "active_case": None, "greet_pending": False, "plan": [], "options": [],
          "answer": None, "decision_record": None, "path": [], "read_failed": None, "writes": {},
-         "unconfirmed": []}
+         "unconfirmed": [], "readings": {}, "seen": None}
 
 
 async def call(config: RunnableConfig, tool: str, **args: Any) -> BaseModel:
@@ -262,16 +271,19 @@ async def connect(state: State, config: RunnableConfig) -> dict[str, Any]:
                 "actions": [*done, {"tool": "request_call", "action_id": new_id("action"), "state": "not_confirmed"}],
                 "path": path + ["connect"]}
     record = {"tool": "request_call", "action_id": out.action_id, "state": "requested"}
+    seen = [out.model_dump(mode="json")]
     if out.case_id:                         # [assumption] one read, no retries: unread, it stays "requested"
         read = await call(config, "get_case", case_id=out.case_id, action_id=out.action_id)
         if not isinstance(read, ToolError) and read.verification_id and read.action_id == out.action_id:
             record |= {"state": "verified", "verification_id": read.verification_id,
                        "read_at": read.read_at.isoformat()}
+            seen.append(read.model_dump(mode="json"))
     when, suffix = out.expected_contact_by, "_case" if out.case_id else ""
     body = (msg.text(f"connect.requested{suffix}", language, case_id=out.case_id, expected_contact_by=when.isoformat())
             if when else msg.text(f"connect.requested{suffix}_no_window", language, case_id=out.case_id))
     return {"body": [*before, body], "row": "connect_person_case" if out.case_id else "connect_person",
-            "actions": [*done, record], "path": path + ["connect"], **({"case_id": out.case_id} if out.case_id else {})}
+            "actions": [*done, record], "path": path + ["connect"], **({"case_id": out.case_id} if out.case_id else {}),
+            "seen": seen, "writes": {**(state.get("writes") or {}), "request_call": seen[0]}}
 
 
 async def call_case(state: State, config: RunnableConfig) -> Optional[str]:
@@ -406,9 +418,8 @@ async def act(state: State, config: RunnableConfig) -> dict[str, Any]:
     graph-minted id and "not_confirmed" (§4.1). block_card follows an open_case error only when it was UNAVAILABLE
     (the case may exist; the server re-checks it, spec 03 AC-10). Nothing is told to the customer here."""
     trx, policy, writes, actions = state["selected_transaction"], state["route"], {"errors": {}, "unanswered": []}, []
-    # [assumption] a call request that reports a charge (intent human_request) opens an unrecognized_charge case
-    dispute = state["intent"] if state.get("intent") in DISPUTES else "unrecognized_charge"
-    planned = {"open_case": {"transaction_id": trx["transaction_id"], "dispute_type": dispute, "zone": policy["zone"]},
+    planned = {"open_case": {"transaction_id": trx["transaction_id"], "dispute_type": dispute_type(state),
+                             "zone": policy["zone"]},
                "block_card": {"product_id": trx["product_id"],
                               "reason": "high_zone_dispute" if policy["zone"] == "high" else "confirmed_dispute"}}
     for tool in [t for t in planned if t in policy["allowed_actions"]]:
@@ -424,10 +435,18 @@ async def act(state: State, config: RunnableConfig) -> dict[str, Any]:
         if isinstance(out, ToolError):
             actions.append({"tool": tool, "action_id": new_id("action"), "state": "not_confirmed"})
             writes["errors"][tool] = out.code
+            # D-043: an open call request holds the block (POL-HUMAN-REQUEST): a person decides it after the call
+            writes["held"] = writes.get("held") or (tool == "block_card" and out.code == "DENY"
+                                                    and out.policy_id == "POL-HUMAN-REQUEST")
             continue
         writes[tool] = out.model_dump(mode="json")
         actions.append({"tool": tool, "action_id": out.action_id, "state": "requested"})
     return {"writes": writes, "actions": actions, "path": state["path"] + ["act"]}
+
+
+def dispute_type(state: State) -> str:
+    """The case's dispute type. [assumption] A call request that reports a charge opens an unrecognized_charge case."""
+    return state["intent"] if state.get("intent") in DISPUTES else "unrecognized_charge"
 
 
 async def verify(state: State, config: RunnableConfig) -> dict[str, Any]:
@@ -437,6 +456,7 @@ async def verify(state: State, config: RunnableConfig) -> dict[str, Any]:
     escalate_unconfirmed_action and never says the action was done (AC-04, AC-18). The case id is given out only once
     get_case verified it, so connect puts a call on it only then (§4.2)."""
     trx, language, writes, done, readings = state["selected_transaction"], state["language"], state["writes"], [], {}
+    expired = "SESSION_EXPIRED" in writes["errors"].values()   # any write or read, as open_case's (task 04d)
     for action in state["actions"]:
         tool, reading, target = action["tool"], None, {}
         if action["state"] == "requested":
@@ -446,30 +466,34 @@ async def verify(state: State, config: RunnableConfig) -> dict[str, Any]:
                 if holds(tool, action["action_id"], target, reading) or (
                         isinstance(reading, ToolError) and reading.code != "UNAVAILABLE"):
                     break
+            expired |= isinstance(reading, ToolError) and reading.code == "SESSION_EXPIRED"
         if reading is not None and holds(tool, action["action_id"], target, reading):
             readings[tool] = reading.model_dump(mode="json")
             done.append({**action, "state": "verified", "verification_id": reading.verification_id,
                          "read_at": readings[tool]["read_at"]})
         else:
             done.append({**action, "state": "not_confirmed"})
-    case, calls = readings.get("open_case"), state["route"]["request_call"]
-    unconfirmed = [a["tool"] for a in done if a["state"] == "not_confirmed"]
-    expired = writes["errors"].get("open_case") == "SESSION_EXPIRED"
-    lines = verified_lines(case, readings.get("block_card"), writes.get("open_case"), language)
+    case, calls, held = readings.get("open_case"), state["route"]["request_call"], writes.get("held")
+    # D-043: a block the open call request holds is not done, but it is no tool failure and does not escalate
+    unconfirmed = [a["tool"] for a in done if a["state"] == "not_confirmed" and not (held and a["tool"] == "block_card")]
+    lines = verified_lines(case, readings.get("block_card"), writes.get("open_case"), language, dispute_type(state))
     duplicate = bool(case and (writes.get("open_case") or {}).get("duplicate_of"))
     lines += [unconfirmed_line(tool, case, calls or expired, duplicate, language) for tool in unconfirmed]
-    if expired:     # sign in again (spec 02 rule 1); "nothing changed" only when no attempt went unanswered
-        maybe = "open_case" in writes["unanswered"]
+    lines += [msg.text("act.block_held", language,
+                       action_label=msg.text("status.action_label.block_card", language))] if held else []
+    reads = {"readings": readings, "seen": list(readings.values()), "path": state["path"] + ["verify"]}
+    if expired:     # sign in again (spec 02 rule 1); "nothing changed" only when nothing may have been written
+        maybe = writes["unanswered"] or any(a["state"] != "not_confirmed" for a in done)
         lines.append(msg.text("act.sign_in" if maybe else "refuse.reauthenticate", language))
         return {"actions": done, "unconfirmed": unconfirmed, "body": [*state["body"], *lines], "row": "reauthenticate",
-                "decision": "reauthenticate", "path": state["path"] + ["verify"]}
+                "decision": "reauthenticate", **reads}
     row = ("case_active" if duplicate else ("escalate_unconfirmed" if case else "case_unconfirmed") if unconfirmed
-           else "receipt" if state["route"]["decision"] == "block_and_open_case" else "handoff")
+           else "receipt" if state["route"]["decision"] == "block_and_open_case" and not held else "handoff")
     # a duplicate_of case reports as the duplicate node does (D-050); any other unconfirmed action escalates
     decision = ({"decision": "connect_person" if calls else None} if duplicate else
                 {"decision": "escalate_unconfirmed_action"} if unconfirmed else {})
     return {"actions": done, "unconfirmed": unconfirmed, "body": [*state["body"], *lines], "row": row,
-            "case_id": case["case_id"] if case else None, "path": state["path"] + ["verify"], **decision}
+            "case_id": case["case_id"] if case else None, **reads, **decision}
 
 
 def unconfirmed_line(tool: str, case: Optional[dict[str, Any]], quiet: bool, duplicate: bool, language: str) -> str:
@@ -497,9 +521,10 @@ def holds(tool: str, action_id: str, target: dict[str, str], reading: BaseModel)
 
 
 def verified_lines(case: Optional[dict[str, Any]], card: Optional[dict[str, Any]], opened: Optional[dict[str, Any]],
-                   language: str) -> list[str]:
+                   language: str, dispute: str = "unrecognized_charge") -> list[str]:
     """What verify confirmed, from the verifying reads only (ADR 0016): the case with its V- id and stored deadlines,
-    and the card blocked with its V- id. Nothing for an action that is not verified."""
+    and the card blocked with its V- id. Nothing for an action that is not verified. D-030 (ADR 0023 item 5): the
+    credit date only for an unrecognized charge; a wrongful charge shows the ruling date."""
     lines = []
     if case:
         lines.append(msg.text("duplicate.case_exists", language, case_id=case["case_id"])
@@ -507,7 +532,8 @@ def verified_lines(case: Optional[dict[str, Any]], card: Optional[dict[str, Any]
                      msg.text("act.case_opened", language, case_id=case["case_id"],
                               verification_id=case["verification_id"], verified_at=case["read_at"]))
         facts = {**case, "source_url": case["deadline_source_url"], "verified_on": case["deadline_verified_on"]}
-        lines += [msg.text(f"receipt.{key}", language, **facts) for key in ("ruling_deadline", "credit_deadline")
+        keys = ("ruling_deadline", "credit_deadline") if dispute == "unrecognized_charge" else ("ruling_deadline",)
+        lines += [msg.text(f"receipt.{key}", language, **facts) for key in keys
                   if case.get(key)] or [msg.text("receipt.deadline_unknown", language)]
     if card:
         lines.append(msg.text("receipt.card_blocked", language, last4=card["last4"],
@@ -558,8 +584,13 @@ async def status(state: State, config: RunnableConfig) -> dict[str, Any]:
     and answers with tool facts only and the time of the reading (AC-06). A failed read says so and states no status."""
     texts = [fold(m.get("content", "")) for m in state.get("messages") or [] if m.get("role", "user") == "user"]
     said = texts[-1] if texts else ""
-    cards = CARD_WORDS.search(said) and not CASE_WORDS.search(said)
-    return {**await (card_status if cards else case_status)(state, config), "path": state["path"] + ["status"]}
+    # a question that names both reads both, cards first (task 04d); the last read sets the row and the case
+    reads = [card_status] * bool(CARD_WORDS.search(said)) + [case_status] * (
+        bool(CASE_WORDS.search(said)) or not CARD_WORDS.search(said))
+    parts = [await read(state, config) for read in reads]
+    merged = {key: value for part in parts for key, value in part.items()}
+    return {**merged, "body": [line for part in parts for line in part["body"]],
+            "seen": [fact for part in parts for fact in part.get("seen", [])], "path": state["path"] + ["status"]}
 
 
 async def card_status(state: State, config: RunnableConfig) -> dict[str, Any]:
@@ -570,7 +601,8 @@ async def card_status(state: State, config: RunnableConfig) -> dict[str, Any]:
     lines = [msg.text("status.card_read", language, last4=card.last4, read_at=stamp(card.read_at),
                       card_label=msg.text(f"status.card_label.{card.status.lower()}", language))
              for card in cards.cards[:3]]
-    return {"body": lines or [msg.text("status.no_cards", language)], "row": "card_status"}
+    return {"body": lines or [msg.text("status.no_cards", language)], "row": "card_status",
+            "seen": [cards.model_dump(mode="json")]}
 
 
 async def case_status(state: State, config: RunnableConfig) -> dict[str, Any]:
@@ -579,8 +611,10 @@ async def case_status(state: State, config: RunnableConfig) -> dict[str, Any]:
     language, cases = state["language"], await call(config, "list_my_cases")
     if isinstance(cases, ToolError):
         return status_unread("list_my_cases", language)
+    seen = [cases.model_dump(mode="json")]
     if not cases.cases:
-        return {"body": [msg.text("status.no_cases", language, read_at=stamp(cases.read_at))], "row": "status_none"}
+        return {"body": [msg.text("status.no_cases", language, read_at=stamp(cases.read_at))], "row": "status_none",
+                "seen": seen}
     ids = [c.case_id for c in cases.cases]
     target = state["case_id_in"] if state.get("case_id_in") in ids else next(
         (c.case_id for c in cases.cases if c.queue_status not in CLOSED), ids[0])
@@ -595,7 +629,7 @@ async def case_status(state: State, config: RunnableConfig) -> dict[str, Any]:
     lines.append(msg.text("receipt.what_a_person_does" if active else "status.case_done", language))
     # F-010 [assumption]: a status question with dispute words (D-020) also offers to report another charge
     row = "case_active" if active and not state.get("dispute_detected") else "case_done"
-    return {"body": lines, "row": row, "case_id": case.case_id}
+    return {"body": lines, "row": row, "case_id": case.case_id, "seen": [*seen, facts]}
 
 
 def status_label(queue_status: str, language: str) -> Optional[str]:
@@ -624,23 +658,61 @@ def respond(state: State) -> dict[str, Any]:
     row = state.get("row") or ("greet" if lines else "ask_details")
     body = state.get("body") or ([] if lines else [msg.text("clarify.ask_what", language)])
     nodes = ["identity", "greet", "understand", "route", *(state.get("path") or []), "respond"]
-    record = state.get("decision_record") or {}
+    record, facts = state.get("decision_record") or {}, tool_facts(state)
+    # §4.3 grounding (AC-05): a line stating an id, date or number no tool returned is dropped and logged (G-OUT-01)
+    kept = [line for line in lines + body if not build.bad(line, facts)]
+    receipt, handoff, dropped = papers(state, facts)
+    dropped += len(lines) + len(body) - len(kept)
+    alerts = ["G-OUT-01"] * bool(dropped)
     turn = TurnResult(
-        reply="\n".join(lines + body), language=language, decision=state.get("decision"), intent=state.get("intent"),
+        # [assumption] nothing left to say: the line that states nothing it could not verify
+        reply="\n".join(kept) or msg.text("status.read_failed", language), language=language,
+        decision=state.get("decision"), intent=state.get("intent"), receipt=receipt, handoff=handoff,
         intent_confidence=state.get("intent_confidence"), case_id=state.get("case_id"), zone=state.get("zone"),
         plan=state.get("plan") or [], options=state.get("options") or [],
         actions=state.get("actions") or [], suggestions=msg.suggestions(row, language, state.get("case_id")),
-        guardrails_triggered=state.get("guardrails_triggered") or [], denials=state.get("denials") or [],
+        guardrails_triggered=[*(state.get("guardrails_triggered") or []), *alerts], denials=state.get("denials") or [],
         mode=state["mode"], trace_id=state["trace_id"],
-        trace=[step(n, record, state.get("read_failed"), state.get("unconfirmed")) for n in nodes])
+        trace=[step(n, record, state.get("read_failed"), state.get("unconfirmed"), dropped) for n in nodes])
     return {**turn.model_dump(mode="json"), "messages": [], "action": None, "greet_pending": False,
             "language_last": language}
 
 
+def tool_facts(state: State) -> list[Any]:
+    """Every tool result of the turn the customer may see (the score never: notifications.never_send)."""
+    writes = {k: v for k, v in (state.get("writes") or {}).items() if k not in ("errors", "unanswered", "held")}
+    found = [state.get(key) for key in ("profile", "candidates", "selected_transaction", "display", "existing_case")]
+    return [fact for fact in [*found, writes, *(state.get("seen") or [])] if fact]
+
+
+def papers(state: State, facts: list[Any]) -> tuple[Optional[dict[str, Any]], Optional[dict[str, Any]], int]:
+    """The receipt (a case get_case verified this turn) and the handoff card (a case open_case returned this turn),
+    each through the grounding gate; and how many facts the gate dropped."""
+    writes, readings, route = state.get("writes") or {}, state.get("readings") or {}, state.get("route") or {}
+    if not writes.get("open_case") or not state.get("selected_transaction"):
+        return None, None, 0
+    paper = {"trx": state["selected_transaction"], "opened": writes["open_case"], "case": readings.get("open_case"),
+             "card": readings.get("block_card"), "display": state.get("display"), "actions": state.get("actions") or [],
+             "returned": {w["action_id"] for w in writes.values() if isinstance(w, dict) and "action_id" in w},
+             "held": bool(writes.get("held")), "dispute": dispute_type(state), "route": route,
+             "decision": state.get("decision"), "score": state.get("score"), "language": state["language"],
+             "mode": state["mode"], "trace_id": state["trace_id"], "intent_confidence": state.get("intent_confidence"),
+             "guardrails": state.get("guardrails_triggered") or []}
+    draft = None if writes["open_case"].get("duplicate_of") else build.receipt(paper)
+    receipt, dropped = build.gate(draft, facts, required=("case_id",)) if draft else (None, 0)
+    card, policy = build.handoff(paper), [*route.get("rule_ids", []), *route.get("guardrail_ids", []), build.NO_CLOCK]
+    handoff, more = build.gate(card, [*facts, state.get("score") or {}], policy, nullable=False, required=(
+        "case_id", "language", "zone", "request", "deadline", "trace_id")) if card else (None, 0)
+    return receipt, handoff, dropped + more
+
+
 def step(node: str, record: dict[str, Any], read_failed: Optional[str],
-         unconfirmed: Optional[list[str]] = None) -> dict[str, Any]:
+         unconfirmed: Optional[list[str]] = None, dropped: int = 0) -> dict[str, Any]:
     """A trace step: the decision record on the node that decided (D-046); a failed read as not_confirmed on the node
-    that tried it (retrieve or status), and the actions verify could not confirm on verify."""
+    that tried it (retrieve or status), the actions verify could not confirm on verify, and on respond how many facts
+    the grounding gate dropped (G-OUT-01)."""
+    if node == "respond" and dropped:
+        return {"node": node, "status": "error", "ms": 0, "detail": f"G-OUT-01: {dropped} ungrounded fact(s) dropped"}
     if node in ("retrieve", "status") and read_failed:
         return {"node": node, "status": "error", "ms": 0, "detail": f"{read_failed}: not_confirmed"}
     if node == "verify" and unconfirmed:

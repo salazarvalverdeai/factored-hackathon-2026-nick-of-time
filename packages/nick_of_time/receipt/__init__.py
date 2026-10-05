@@ -1,7 +1,8 @@
 """Customer-facing text of the agent (spec 04 §4.2 `respond`, §4.5 chips) from `contracts/messages.yaml`.
 
 Templates only, filled with tool facts (ADR 0016). Chips come from the rule table below, never from the LLM (AC-29);
-the action payload and the route of a chip are set here, by server code (AC-32). The receipt itself lands in T5.
+the action payload and the route of a chip are set here, by server code (AC-32). The receipt and the handoff card
+are built in `nick_of_time.receipt.build` (T5).
 """
 from __future__ import annotations
 
@@ -98,8 +99,18 @@ def chip(chip_id: str, language: str, case_id: Optional[str] = None) -> Suggesti
                       action=ACTION[chip_id] if leaf["kind"] == "action" else None, href=href)
 
 
+NEEDS_CASE = {"view_case", "send_summary", "add_info", "request_reevaluation"}   # chips about a case the turn read
+PERSON = {"talk_to_person", "request_call"}
+
+
 def suggestions(row: str, language: str, case_id: Optional[str] = None) -> list[Suggestion]:
-    return [chip(chip_id, language, case_id) for chip_id in ROWS[row]]
+    """The §4.5 row, checked against the state (AC-30): a chip about a case only when the turn has one. Then a person
+    stays reachable (AC-20, except right after connect_person) and 2 or 3 chips remain (AC-29)."""
+    ids = [c for c in ROWS[row] if case_id or c not in NEEDS_CASE]
+    if not PERSON & set(ids) and not row.startswith("connect_person"):
+        ids.append("talk_to_person")
+    ids += [c for c in ("check_case", "report_unrecognized") if c not in ids][:max(0, 2 - len(ids))]
+    return [chip(chip_id, language, case_id) for chip_id in ids[:3]]
 
 
 def offered_text_chip(message: str, offered: list[dict[str, Any]]) -> Optional[str]:
