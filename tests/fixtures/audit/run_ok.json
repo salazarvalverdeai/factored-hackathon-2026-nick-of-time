@@ -1,7 +1,7 @@
 {
  "tool_results": [
   {
-   "tool": "get_transaction",
+   "tool": "search_transaction",
    "transaction_id": "TRX-FIXTURE0000000000001",
    "amount": 1250.0,
    "currency": "USD",
@@ -10,26 +10,39 @@
    "channel": "ecommerce"
   },
   {
-   "tool": "block_card",
-   "action_id": "A-3E9F20B7C164",
-   "verification_id": "V-8B2D41C7E0A9",
-   "product_last4": "4417",
-   "status": "blocked",
-   "read_at": "2026-06-01T15:04:09Z"
+   "tool": "compute_deadline",
+   "country": "MX",
+   "product": "debit",
+   "credit_deadline": "2026-06-03",
+   "ruling_deadline": null,
+   "deadline_source": "Banxico Circular 3/2012, as amended by Circular 14/2018",
+   "source_url": "https://www.gob.mx/condusef/prensa/cargos-no-reconocidos-en-tarjeta-de-debito-se-restituiran-en-dos-dias-habiles-bancarios?idiom=es",
+   "verified_on": "2026-10-04"
   },
   {
    "tool": "open_case",
    "action_id": "A-71C0D5E8A2F3",
-   "verification_id": "V-0C6A93F1B57D",
-   "case_id": "K-104233",
-   "queue_status": "verification",
-   "read_at": "2026-06-01T15:04:11Z"
+   "state": "requested",
+   "case_id": "K-104233"
   },
   {
-   "tool": "get_deadline",
-   "country": "MX",
-   "product": "debit",
-   "credit_deadline": "2026-06-03"
+   "tool": "get_case",
+   "case_id": "K-104233",
+   "queue_status": "verification",
+   "verification_id": "V-0C6A93F1B57D",
+   "read_at": "2026-06-01T15:04:09Z"
+  },
+  {
+   "tool": "block_card",
+   "action_id": "A-3E9F20B7C164",
+   "state": "requested"
+  },
+  {
+   "tool": "get_product_status",
+   "last4": "4417",
+   "status": "Blocked",
+   "verification_id": "V-8B2D41C7E0A9",
+   "read_at": "2026-06-01T15:04:11Z"
   }
  ],
  "reply": "Bloqueé tu tarjeta ····4417 y abrí el caso K-104233. Plazo: 2026-06-03.",
@@ -67,14 +80,14 @@
     "action_id": "A-3E9F20B7C164",
     "state": "verified",
     "verification_id": "V-8B2D41C7E0A9",
-    "verified_at": "2026-06-01T15:04:09Z"
+    "verified_at": "2026-06-01T15:04:11Z"
    },
    {
     "label": "Caso abierto",
     "action_id": "A-71C0D5E8A2F3",
     "state": "verified",
     "verification_id": "V-0C6A93F1B57D",
-    "verified_at": "2026-06-01T15:04:11Z"
+    "verified_at": "2026-06-01T15:04:09Z"
    }
   ],
   "deadline": {
@@ -125,7 +138,9 @@
    "country": "MX",
    "product": "debit",
    "credit_deadline": "2026-06-03",
-   "deadline_source": "Banxico"
+   "deadline_source": "Banxico",
+   "source_url": "https://www.gob.mx/condusef/prensa/cargos-no-reconocidos-en-tarjeta-de-debito-se-restituiran-en-dos-dias-habiles-bancarios?idiom=es",
+   "verified_on": "2026-10-04"
   },
   "trace_id": "trace-1",
   "intent_confidence": 0.92,
@@ -147,27 +162,27 @@
    "action_id": "A-3E9F20B7C164",
    "state": "verified",
    "verification_id": "V-8B2D41C7E0A9",
-   "read_at": "2026-06-01T15:04:09Z"
+   "read_at": "2026-06-01T15:04:11Z"
   },
   {
    "tool": "open_case",
    "action_id": "A-71C0D5E8A2F3",
    "state": "verified",
    "verification_id": "V-0C6A93F1B57D",
-   "read_at": "2026-06-01T15:04:11Z"
+   "read_at": "2026-06-01T15:04:09Z"
   }
  ],
- "db_actions": [
+ "verified_reads": [
   {
-   "action_id": "A-3E9F20B7C164",
-   "state": "verified",
-   "verification_id": "V-8B2D41C7E0A9",
+   "action_id": "A-71C0D5E8A2F3",
+   "verification_id": "V-0C6A93F1B57D",
+   "read_at": "2026-06-01T15:04:09Z",
    "requested_at": "2026-06-01T15:04:08Z"
   },
   {
-   "action_id": "A-71C0D5E8A2F3",
-   "state": "verified",
-   "verification_id": "V-0C6A93F1B57D",
+   "action_id": "A-3E9F20B7C164",
+   "verification_id": "V-8B2D41C7E0A9",
+   "read_at": "2026-06-01T15:04:11Z",
    "requested_at": "2026-06-01T15:04:10Z"
   }
  ],

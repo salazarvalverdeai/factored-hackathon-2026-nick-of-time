@@ -3,14 +3,13 @@ from __future__ import annotations
 
 import datetime as dt
 import re
-from decimal import Decimal, InvalidOperation
+from decimal import Decimal
 from typing import Any, Iterable, Literal, Optional
 
 import yaml
 from pydantic import AwareDatetime, BaseModel, ConfigDict, model_validator
 
-from nick_of_time.contracts import (CONTRACTS_DIR, ActionRecord, ActionState, CustomerReceipt, QueueStatus,
-                                    StatusReply)
+from nick_of_time.contracts import CONTRACTS_DIR, ActionRecord, CustomerReceipt, QueueStatus, StatusReply
 
 Severity = Literal["critical", "high", "medium", "low"]
 FindingStatus = Literal["passed", "finding", "not_applicable"]
@@ -35,52 +34,59 @@ def _finding(check_id: str, severity: Severity, problems: Any, expected: Any, ap
 
 # ---------- A3 actions ----------
 class ActionRead(BaseModel):
-    """The database's own read of an action at the end of the turn, and when the action was requested."""
+    """One `action_verified` case event (D-025): the verifying read minted `verification_id` at `read_at`.
+
+    `requested_at` is the `created_at` of the write event (`case_opened` or `card_blocked`) with the same `action_id`.
+    """
     model_config = ConfigDict(frozen=True)
     action_id: str
-    state: ActionState
-    verification_id: Optional[str] = None
+    verification_id: str
+    read_at: AwareDatetime
     requested_at: AwareDatetime
 
 
-def check_actions(shown: Iterable[ActionRecord], db: Iterable[ActionRead], *,
+def check_actions(shown: Iterable[ActionRecord], reads: Iterable[ActionRead], *,
                   receipt: Optional[CustomerReceipt] = None, handoff: Optional[dict[str, Any]] = None) -> Finding:
-    """A3: every action shown as `verified` (record, receipt or handoff) was read after its request; the db agrees.
+    """A3: every action shown as `verified` (record, receipt or handoff) is backed by an `action_verified` read.
 
-    Each claim is normalised to (key, action_id, verification_id, read time, timed). The handoff carries no read time,
-    so only the database comparison applies to it.
+    The read has the claim's `action_id` and V- id, was made at or after the request, and its `read_at` equals the
+    claimed read time (the handoff carries none). A V- id found anywhere else is not evidence.
     """
-    claims: list[tuple[str, str, Optional[str], Optional[dt.datetime], bool]] = [
-        (a.action_id, a.action_id, a.verification_id, a.read_at, True) for a in shown if a.state == "verified"]
-    claims += [(f"receipt:{a.action_id}", a.action_id, a.verification_id, a.verified_at, True)
+    claims: list[tuple[str, str, Optional[str], Optional[dt.datetime]]] = [
+        (a.action_id, a.action_id, a.verification_id, a.read_at) for a in shown if a.state == "verified"]
+    claims += [(f"receipt:{a.action_id}", a.action_id, a.verification_id, a.verified_at)
                for a in (receipt.actions if receipt else []) if a.state == "verified"]
-    claims += [(f"handoff:{a['action_id']}", a["action_id"], a.get("verification_id"), None, False)
+    claims += [(f"handoff:{a['action_id']}", a["action_id"], a.get("verification_id"), None)
                for a in (handoff or {}).get("actions", []) if a.get("verified")]
-    reads = {r.action_id: r for r in db}
+    by_read = {(r.action_id, r.verification_id): r for r in reads}
     problems: dict[str, str] = {}
-    for key, action_id, verification_id, read_at, timed in claims:
-        r = reads.get(action_id)
+    for key, action_id, verification_id, claimed_at in claims:
+        r = by_read.get((action_id, verification_id))
         if r is None:
-            problems[key] = "no database read"
-        elif r.state != "verified" or r.verification_id != verification_id:
-            problems[key] = f"database says {r.state} {r.verification_id}"
-        elif timed and (read_at is None or read_at < r.requested_at):
-            problems[key] = "post-condition not read after the request"
-    return _finding("A3", "critical", problems, "every verified action read after its request and confirmed by the db",
+            problems[key] = f"no action_verified read with {verification_id}"
+        elif r.read_at < r.requested_at:
+            problems[key] = "post-condition read before the request"
+        elif claimed_at is not None and claimed_at != r.read_at:
+            problems[key] = f"claims {claimed_at.isoformat()}, read at {r.read_at.isoformat()}"
+    return _finding("A3", "critical", problems, "every verified action backed by its action_verified read",
                     applicable=bool(claims))
 
 
 # ---------- A4 grounding ----------
 _ID = re.compile(r"\b[A-Z]{1,4}-[A-Z0-9]{6,20}\b")
+_DATETIME = re.compile(r"\b(\d{4}-\d{2}-\d{2})[T ]\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:?\d{2})?")
 _DATE = re.compile(r"\b\d{4}-\d{2}-\d{2}\b")
-_NUM = re.compile(r"\d[\d.,]*\d|\d")
+_GROUP = "[ \u00a0\u202f]"  # a space, NBSP or narrow NBSP followed by 3 digits groups thousands
+_NUMBER = rf"\d(?:[\d.,]|{_GROUP}(?=\d{{3}}(?!\d)))*\d|\d"
+_NUM = re.compile(_NUMBER)
 
 
 def _number(m: str) -> str:
     """Locale-aware amount: a last separator with 1-2 digits after it is the decimal mark, groups of 3 are thousands.
 
-    "R$ 1.250,00" = 1250, "$ 1.250.000" = 1250000, "1,5" = 1.5, "1,250.00" = 1250, "0.125" = 0.125.
+    "R$ 1.250,00" = 1250, "$ 1.250.000" = 1250000, "COP 3 500 000" = 3500000, "1,5" = 1.5, "0.125" = 0.125.
     """
+    m = re.sub(_GROUP, "", m)
     seps = [i for i, c in enumerate(m) if c in ".,"]
     if seps:
         head, tail = m[:seps[-1]], m[seps[-1] + 1:]
@@ -91,19 +97,21 @@ def _number(m: str) -> str:
     return format(Decimal(m).normalize(), "f")
 
 
-def _numbers(text: str) -> list[str]:
-    out = []
-    for m in _NUM.findall(_DATE.sub(" ", _ID.sub(" ", text))):
-        try:
-            out.append(_number(m))
-        except InvalidOperation:
-            out.append(m)
-    return out
+def _blank(rx: re.Pattern[str], text: str) -> str:
+    return rx.sub(lambda m: " " * len(m.group()), text)
+
+
+def _split(text: str) -> tuple[set[str], str]:
+    """The ids and dates a text states (a timestamp states its date), and the text with them blanked out."""
+    found = set(_ID.findall(text)) | set(_DATETIME.findall(text))
+    rest = _blank(_DATETIME, _blank(_ID, text))
+    return found | set(_DATE.findall(rest)), _blank(_DATE, rest)
 
 
 def _tokens(text: str) -> set[str]:
     """The ids, dates and numbers (normalised) a text states."""
-    return set(_ID.findall(text)) | set(_DATE.findall(text)) | set(_numbers(text))
+    found, rest = _split(text)
+    return found | {_number(m) for m in _NUM.findall(rest)}
 
 
 def _scalars(node: Any, skip: frozenset[str] = frozenset()) -> Iterable[str]:
@@ -118,10 +126,9 @@ def _scalars(node: Any, skip: frozenset[str] = frozenset()) -> Iterable[str]:
         yield str(node)
 
 
-# generated by us, free policy text or classifier output, not read from a tool: never a grounded fact
-_UNGROUNDED_KEYS = frozenset({"intent_confidence", "guardrails_triggered", "ts", "receipt_id", "issued_at",
-                              "verified_at", "verified_on", "case_url", "source_url", "deadline_source", "trace_id",
-                              "language", "mode", "label", "zone"})
+# not tool facts (spec 18 §4.1 note): minted by the runtime, the notifier or the classifier; `verified_at` is A3's
+_UNGROUNDED_KEYS = frozenset({"receipt_id", "issued_at", "case_url", "trace_id", "ts", "intent_confidence",
+                              "guardrails_triggered", "verified_at"})
 
 
 def check_grounding(tool_results: Iterable[Any], *, reply: str = "", receipt: Optional[CustomerReceipt] = None,
@@ -157,7 +164,9 @@ def check_coherence(status_replies: Iterable[StatusReply]) -> Finding:
 # ---------- A6 privacy ----------
 _CARD = re.compile(r"(?<!\d)(?:\d[ -]?){13,19}(?!\d)")
 _CVV = re.compile(r"(?i)\b(?:cvv2?|cvc|cvn|c[oó]digo de seguran[cç]a|c[oó]digo de seguridad)\D{0,12}\d{3,4}\b")
-_MONEY = re.compile(r"(?:\b[A-Z]{3}|\$)\s*\d[\d.,]*|\d[\d.,]*\s*\b[A-Z]{3}\b")
+_MONEY = re.compile(rf"(?:\b[A-Z]{{3}}|\$)\s*(?:{_NUMBER})|(?:{_NUMBER})\s*\b[A-Z]{{3}}\b")
+_SCORE_WORD = re.compile(r"(?i)score|puntaje|puntuaci[oó]n|pontua[cç][aã]o|riesgo|risco")
+_NEAR = 40                          # characters between a score word and the number it qualifies
 _MIN_UTTERANCE = 20
 
 
@@ -167,12 +176,16 @@ def _luhn(digits: str) -> bool:
 
 
 def _has_card(text: str) -> bool:
-    return any(13 <= len(d := re.sub(r"\D", "", m.group())) <= 19 and _luhn(d) for m in _CARD.finditer(text))
+    """A run of 13-19 digits that passes Luhn, once ids, dates and timestamps are blanked out."""
+    return any(_luhn(re.sub(r"\D", "", m.group())) for m in _CARD.finditer(_split(text)[1]))
 
 
 def _states_score(text: str, score: float) -> bool:
-    """The score appears as a number (any locale format) that is not an amount, date or id."""
-    return format(Decimal(str(score)).normalize(), "f") in _numbers(_MONEY.sub(" ", text))
+    """The score appears as a number (any locale format, not an amount, date or id) near a score word."""
+    want = format(Decimal(str(score)).normalize(), "f")
+    words = [w.span() for w in _SCORE_WORD.finditer(text)]
+    return any(_number(m.group()) == want and any(s - _NEAR <= m.start() and m.end() <= e + _NEAR for s, e in words)
+               for m in _NUM.finditer(_blank(_MONEY, _split(text)[1])))
 
 
 def check_privacy(surfaces: dict[str, str], *, score: Optional[float] = None, policy_ids: Iterable[str] = (),
@@ -180,15 +193,17 @@ def check_privacy(surfaces: dict[str, str], *, score: Optional[float] = None, po
                   other_customer_data_exposed: bool = False) -> Finding:
     """A6: what the customer sees holds no other customer, internals or card data.
 
-    The transcript rule applies to notification surfaces only (spec 18 A6, `never_send`), as word-bounded matches of
-    utterances of at least 20 characters. A surface is a notification when its name starts with "notification".
+    The transcript rule applies to notification surfaces only (spec 18 A6, `never_send`), as word-bounded, case-blind
+    matches of utterances of at least 20 characters. A surface is a notification when its name starts with
+    "notification".
     """
-    utterances = {t for t in transcript if len(t) >= _MIN_UTTERANCE}
+    utterances = {t.casefold(): t for t in transcript if len(t) >= _MIN_UTTERANCE}
     problems: dict[str, list[str]] = {}
     for name, text in surfaces.items():
         hit = [f"policy_id:{s}" for s in sorted(set(policy_ids)) if s in text]
         if name.startswith("notification"):
-            hit += [f"transcript:{u}" for u in sorted(utterances) if re.search(rf"(?<!\w){re.escape(u)}(?!\w)", text)]
+            hit += [f"transcript:{utterances[u]}" for u in sorted(utterances)
+                    if re.search(rf"(?<!\w){re.escape(u)}(?!\w)", text.casefold())]
         hit += [f"other_customer:{s}" for s in sorted(set(other_customer_ids)) if s in text]
         if score is not None and _states_score(text, score):
             hit.append("score")
@@ -224,7 +239,7 @@ class LifecycleEvent(BaseModel):
 
 
 def _is_person(actor: str) -> bool:
-    return actor.startswith("analyst:")
+    return actor.startswith("analyst:") and bool(actor.removeprefix("analyst:").strip())
 
 
 def check_lifecycle(events: Iterable[LifecycleEvent], *, case_keys: Iterable[tuple[str, str, str]] = ()) -> Finding:
