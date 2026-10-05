@@ -167,6 +167,8 @@ Fine-tuning; embeddings + LR (P2); Jev (benchmarked in spec 15); the agent's use
 
 ## 10. Plan, tasks and verification
 - [ ] T1 — `eval/PROTOCOL.md` with the floors and rule of §4.1; review by Diego; seal · AC-01, AC-06
+      (partly done: protocol written, with the rules of specs 15 and 17; review and seal pending, manual step M02;
+      the AC-06 [C] split check is skipped until spec 09 delivers `eval/classifier/`)
 - [x] T2 — B0 rules + date parser (`nick_of_time.nlu`; `dispute_detected` in §6, intent order and D-020 in §8) · AC-08,
   AC-09
 - [ ] T3 — B1 training with calibration; τ on validation · AC-02, AC-07

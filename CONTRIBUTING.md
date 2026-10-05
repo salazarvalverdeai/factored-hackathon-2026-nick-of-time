@@ -58,7 +58,7 @@ reviewable in 15 minutes; if not, split it.
   the public URL · **[D]** a file or document in the repo.
 - Tests for spec NN live in `tests/test_specNN_<topic>.py` (or the app's own test folder) and cite the criterion in the
   test name or docstring (`test_ac_03_blocks_once_per_idempotency_key`). **A criterion without evidence is unfinished
-  work.**
+  work.** CI fails an Implemented spec when a non-P1 [T] criterion has no citing test.
 - No coverage percentage target. Every criterion has a test or a check, and every fixed bug brings its test.
 
 ## 4. Architecture Decision Records
@@ -128,9 +128,11 @@ reviewable in 15 minutes; if not, split it.
 - `/api/health` reports the app version, git SHA, gold version, `policies.yaml` version and the Platform revision.
 
 ## 8. Continuous integration
-Every PR runs: pytest (offline, fixtures only), the web app's lint and build, and a secret scan. CI never calls a
-real LLM (the `fake` provider) and never reads the real gold (a small fixture). Target: under 5 minutes. The
-end-to-end harness against the real LLM runs manually (`eval/`), and a smoke test runs after every deploy.
+Every PR runs: pytest (offline, fixtures only), the web app's lint and build, and a secret scan. It also runs `ruff` and the AC-coverage job (`scripts/ci/ac_coverage.py`). PRs that touch
+`apps/web/` also run the **Playwright** end-to-end and accessibility suite against the mock API (desktop and 390 px
+mobile); its screenshots count as [U] evidence. CI never calls a real LLM (the `fake` provider) and never reads the real
+gold (a small fixture). Target: under 5 minutes per job. The evaluation harness against the real LLM runs manually
+(`eval/`), and a Playwright smoke runs after every deploy. Details: [`docs/testing.md`](docs/testing.md).
 
 ## 9. Definitions
 - **Feature:** a unit of user-visible value with one owner and one spec (`specs/NN-slug.md`).

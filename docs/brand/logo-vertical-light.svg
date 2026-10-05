@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 860">
+  <g transform="translate(104 30) scale(1.0)">
+  <g fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M112 168 Q145 102 200 102" stroke="#7C3AED" stroke-width="32"/>
+    <path d="M200 102 Q255 102 290 168" stroke="#0F766E" stroke-width="32"/>
+    <path d="M92 182 Q96 304 200 388" stroke="#D97706" stroke-width="32"/>
+    <path d="M108 300 Q145 352 200 388" stroke="#7C3AED" stroke-width="32"/>
+    <path d="M200 388 Q305 304 304 182" stroke="#0F766E" stroke-width="32"/>
+    <path d="M96 182 L206 252 L304 182" stroke="#94A3B8" stroke-width="6" opacity="0.85"/>
+  </g>
+  <circle cx="200" cy="102" r="31" fill="#7C3AED"/>
+  <circle cx="92" cy="182" r="29" fill="#D97706"/>
+  <circle cx="304" cy="182" r="29" fill="#0F766E"/>
+  <path d="M200 182 L231 234 L200 286 L169 234 Z" fill="#7C3AED"/>
+  <path d="M200 193 L222 234 L200 275 L178 234 Z" fill="#080812" opacity="0.92"/>
+</g>
+  <text x="360" y="660" text-anchor="middle" font-family="Sora, Arial, sans-serif" font-size="86" font-weight="700" fill="#080812">Nick <tspan fill="#94A3B8">of</tspan> Time</text>
+  <text x="360" y="715" text-anchor="middle" font-family="Sora, Arial, sans-serif" font-size="21" font-weight="600" letter-spacing="4" fill="#94A3B8">VERIFIED ACTION. BEFORE THE DEADLINE.</text>
+</svg>
