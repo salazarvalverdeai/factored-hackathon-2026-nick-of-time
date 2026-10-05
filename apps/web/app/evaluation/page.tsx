@@ -1,9 +1,12 @@
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
+import Link from "next/link";
 import { EmptyState } from "@/components/states";
 import { PageShell } from "@/components/page-shell";
 import {
   RESULT_FILES,
+  detailUrl,
+  limitations,
   pending,
   type BenchmarkData,
   type ClassifierData,
@@ -14,11 +17,12 @@ import {
 import pitch from "@/public/data/pitch_numbers.json";
 import type { PitchContacts } from "@/lib/panel";
 import { AsIsPanel } from "./panel";
+import { Limitations } from "./explain";
 import { EvaluationResults } from "./results";
 import { BenchmarkSection, ClassifierSection, FraudSection } from "./sections";
 
-const PROTOCOL_URL = "https://github.com/salazarvalverdeai/factored-hackathon-2026-nick-of-time/blob/main/eval/PROTOCOL.md";
-const DATA_DIR = path.join(process.cwd(), "public", "data");
+// EVALUATION_DATA_DIR lets a local build read the test fixtures for a screenshot check; it is unset in production.
+const DATA_DIR = process.env.EVALUATION_DATA_DIR ?? path.join(process.cwd(), "public", "data");
 
 // The result files are read when the page is built. A file that does not exist yet gives the "results pending"
 // state of spec 12 AC-04; there are no placeholder result files (eval/PROTOCOL.md counts them as results).
@@ -36,13 +40,15 @@ export default function Page() {
   return (
     <PageShell title="Evaluation" description="Does the system work, and how do we know? Final state of scripted cases, never the reply text.">
       <p className="mb-4 rounded-lg border border-dashed px-4 py-3 text-sm text-muted-foreground">
-        Figures are labeled per section: <span className="font-mono">[data]</span> for the bank&apos;s figures and the fraud model,{" "}
-        <span className="font-mono">[simulated]</span> for the harness, benchmark and classifier (real customers and transactions of the synthetic dataset
-        with team-written messages, run through the system and compared with the outcome the policy engine expects) and{" "}
-        <span className="font-mono">[projected]</span> for the as-is panel&apos;s projection. The rules were written down before any result existed:{" "}
-        <a className="underline underline-offset-2" href={PROTOCOL_URL}>
+        Each section says what its figures are made from and carries its own label. The scripted cases run through the real system and are compared with the
+        outcome the policy engine expects. The rules were written down before any result existed:{" "}
+        <a className="underline underline-offset-2" href={detailUrl("protocol")}>
           evaluation protocol
         </a>
+        . How the system is built:{" "}
+        <Link className="underline underline-offset-2" href="/agent">
+          the agent
+        </Link>
         .
       </p>
       <div className="space-y-4">
@@ -52,6 +58,7 @@ export default function Page() {
         {benchmark.file ? <BenchmarkSection file={benchmark.file} /> : <Pending {...benchmark.missing!} />}
         {classifier.file ? <ClassifierSection file={classifier.file} /> : <Pending {...classifier.missing!} />}
         {fraud.file ? <FraudSection file={fraud.file} /> : <Pending {...fraud.missing!} />}
+        <Limitations items={limitations({ summary: summary.file, benchmark: benchmark.file, classifier: classifier.file, fraud: fraud.file })} />
       </div>
     </PageShell>
   );

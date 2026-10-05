@@ -2,7 +2,7 @@
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 import test from "node:test";
-import { GENERATOR_FLAG, METRICS, RESULT_FILES, costQualityPoints, developmentNotice, generatorFlag, interval, pending, protocolNotice, rateParts, rateText, scoreText } from "./evaluation.ts";
+import { GENERATOR_FLAG, METRICS, METRIC_MEANING, RULES_REVIEW_SENTENCE, DETAILS, detailUrl, headingSlug, limitations, RESULT_FILES, costQualityPoints, developmentNotice, generatorFlag, interval, pending, protocolNotice, rateParts, rateText, scoreText } from "./evaluation.ts";
 import type { BenchmarkData, ClassifierData, EvaluationData, FraudData, Insight, Rate } from "./evaluation.ts";
 
 const SAMPLE = JSON.parse(
@@ -118,7 +118,7 @@ test("spec 12 AC-05: a result file whose protocol is not SEALED shows the develo
 test("spec 12 AC-01: the sample files have the shapes of specs 15, 11 and 17 §7.1", () => {
   assert.deepEqual(Object.keys(BENCH.data).sort(), ["b1", "b2", "demo_today", "judge", "label", "mode", "model_map", "protocol", "run_date", "word"]);
   assert.equal(BENCH.data.label, "[simulated]");
-  assert.deepEqual(Object.keys(CLASSIFIER.data).sort(), ["arms", "chosen_arm", "injection", "label", "protocol", "tau", "test_split"]);
+  assert.deepEqual(Object.keys(CLASSIFIER.data).sort(), ["arms", "chosen_arm", "injection", "label", "protocol", "tau", "test_review", "test_split"]);
   assert.deepEqual(Object.keys(CLASSIFIER.data.arms[0].by_language.es).sort(), [
     "coverage_at_tau", "dispute_detected_recall", "dispute_recall", "ece", "human_request_recall", "macro_f1", "macro_f1_ci", "per_class_f1", "precision_at_tau", "slot_accuracy",
   ]);
@@ -155,4 +155,64 @@ test("spec 12 AC-01: an arm of the family that wrote the test split is flagged (
   assert.equal(generatorFlag({ same_family_as_generator: true }), GENERATOR_FLAG);
   for (const missing of [{}, { same_family_as_generator: null }, { same_family_as_generator: false }]) assert.equal(generatorFlag(missing), null);
   assert.ok(fixture<ClassifierData>("classifier.json").data.arms.every((a) => generatorFlag(a) === null));
+});
+
+const FILES = {
+  summary: SAMPLE,
+  benchmark: fixture<BenchmarkData>("benchmark.json"),
+  classifier: fixture<ClassifierData>("classifier.json"),
+  fraud: fixture<FraudData>("fraud_benchmark.json"),
+};
+
+test("spec 12 AC-11: every metric has a plain explanation and every chart links to the markdown that defines it", () => {
+  for (const m of METRICS) assert.ok(METRIC_MEANING[m.key]?.length > 20, m.key);
+  assert.match(METRIC_MEANING.safe_automated_resolution, /blocked and the case opened with no person/);
+  for (const key of Object.keys(DETAILS) as (keyof typeof DETAILS)[]) {
+    const d = DETAILS[key];
+    const url = detailUrl(key);
+    assert.ok(url.startsWith("https://github.com/salazarvalverdeai/factored-hackathon-2026-nick-of-time/blob/main/" + d.path), key);
+    const file = new URL(`../../../${d.path}`, import.meta.url);
+    assert.ok(existsSync(file), `${d.path} exists`);
+    if (d.heading) {
+      const headings = readFileSync(file, "utf-8").split("\n").filter((l) => l.startsWith("#")).map((l) => l.replace(/^#+\s*/, ""));
+      assert.ok(headings.includes(d.heading), `${d.path} has the heading "${d.heading}"`);
+      assert.ok(url.endsWith(`#${headingSlug(d.heading)}`));
+    }
+  }
+  assert.equal(headingSlug("4.1 Metric definitions"), "41-metric-definitions");
+});
+
+test("spec 12 AC-11: limitations are plain sentences, with no bracket labels, only for the files that exist", () => {
+  assert.deepEqual(limitations({ summary: null, benchmark: null, classifier: null, fraud: null }), []);
+  const all = limitations(FILES);
+  assert.match(all.join(" "), /Only 20 cases were scored/);
+  assert.ok(all.includes(RULES_REVIEW_SENTENCE));
+  assert.match(all.join(" "), /run once/);
+  assert.match(all.join(" "), /synthetic dataset/);
+  assert.match(all.join(" "), /written by language models/);
+  for (const text of all) assert.doesNotMatch(text, /\[(simulated|data|projected|assumption)\]/);
+  const onlyFraud = limitations({ ...FILES, summary: null, benchmark: null, classifier: null });
+  assert.equal(onlyFraud.length, 1);
+  assert.match(onlyFraud[0], /synthetic dataset/);
+  const reviewed = fixture<ClassifierData>("classifier.json");
+  reviewed.data.test_review = "human";
+  assert.ok(!limitations({ ...FILES, classifier: reviewed }).includes(RULES_REVIEW_SENTENCE));
+  const noClassifier = limitations({ ...FILES, classifier: null });
+  assert.ok(!noClassifier.includes(RULES_REVIEW_SENTENCE));
+});
+
+test("spec 12 AC-04, AC-05, AC-06, AC-07, AC-11: the new charts keep the empty state, the notice, the hover and focus detail and a table", () => {
+  const read = (f: string) => readFileSync(new URL(`../app/evaluation/${f}`, import.meta.url), "utf-8");
+  const page = read("page.tsx"), sections = read("sections.tsx"), results = read("results.tsx"), panel = read("panel.tsx");
+  assert.match(page, /<Pending \{\.\.\.classifier\.missing!\} \/>/); // AC-04 still reaches every section
+  assert.match(sections, /<Notice protocol=/); // AC-05
+  assert.match(sections, /tabIndex=\{0\}[^]*?\{\.\.\.bind\(r\.tip\)\}/); // AC-06, AC-07: the bar rows take focus and show the tooltip
+  assert.ok((sections.match(/<TableView/g) ?? []).length >= 2 && (sections.match(/<Table\b/g) ?? []).length >= 3); // AC-07 tables stay
+  assert.equal((sections.match(/<Section title=/g) ?? []).length, 3);
+  assert.equal((sections.match(/detail="(benchmark|classifier|fraud)"/g) ?? []).length, 3); // AC-11
+  assert.match(results, /detail="harness"/);
+  assert.match(page, /href="\/agent"/); // the architecture lives on /agent
+  const intro = page.slice(page.indexOf('<p className="mb-4'), page.indexOf('<div className="space-y-4">'));
+  const prose = panel.replace(/<th[^]*?<\/th>/g, "").replace(/Contacts avoided[^]*?<\/p>/, "");
+  for (const text of [intro, prose]) assert.doesNotMatch(text, /\[(simulated|data|projected)\]/); // AC-11: labels go on figures, not in prose
 });

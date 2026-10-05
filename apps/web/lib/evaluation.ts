@@ -150,6 +150,8 @@ export type ClassifierArm = {
 export type ClassifierData = {
   label: string;
   protocol: Protocol;
+  /** ADR 0028: `rules-v1` when the test split was decided by fixed rules, `human` when a person reviewed it. */
+  test_review?: string | null;
   test_split: { sentences: Record<string, number | null>; injection_rows: number | null };
   tau: number | null;
   chosen_arm: string | null;
@@ -206,4 +208,73 @@ export function costQualityPoints(data: BenchmarkData, language: string): CostQu
 export const GENERATOR_FLAG = "same family as the test-split generator (ADR 0025)";
 export function generatorFlag(arm: { same_family_as_generator?: boolean | null }): string | null {
   return arm.same_family_as_generator === true ? GENERATOR_FLAG : null;
+}
+
+// ---- Plain explanations, "Detail" links and limitations (spec 12 AC-11) ----
+
+export const REPO_BLOB = "https://github.com/salazarvalverdeai/factored-hackathon-2026-nick-of-time/blob/main/";
+
+/** GitHub's heading anchor: lower case, punctuation removed, spaces to hyphens. */
+export const headingSlug = (heading: string) =>
+  heading.toLowerCase().replace(/[^\p{L}\p{N}\s-]/gu, "").trim().replace(/\s/g, "-");
+
+/** The markdown that defines each chart; `heading` is the section heading the link lands on. */
+export const DETAILS = {
+  harness: { path: "specs/10-eval-harness.md", heading: "4.1 Metric definitions" },
+  classifier: { path: "specs/11-intent-classifier.md", heading: "4.1 Thresholds and test size (checked 2026-10-04)" },
+  benchmark: { path: "specs/15-model-benchmark.md", heading: "4.4 Lean rule (pre-registered per task; thresholds from spec 11 §4.1)" },
+  fraud: { path: "specs/17-fraud-model.md", heading: "4.4 Decision rule (pre-registered, lean)" },
+  protocol: { path: "eval/PROTOCOL.md", heading: null },
+} as const;
+
+export function detailUrl(key: keyof typeof DETAILS): string {
+  const d = DETAILS[key];
+  return `${REPO_BLOB}${d.path}${d.heading ? `#${headingSlug(d.heading)}` : ""}`;
+}
+
+/** What a harness metric means, in one plain sentence (spec 10 §4.1). */
+export const METRIC_MEANING: Record<string, string> = {
+  safe_automated_resolution: "Share of cases where the card was blocked and the case opened with no person, and nothing unsafe happened.",
+  unsafe_outcomes: "Share of runs with any unsafe outcome: another customer's data shown, a wrong block, or a case opened that should have been refused.",
+  pass_4: "Share of cases that pass on all four runs, so one lucky run does not count.",
+  receipt_rate: "Share of expected receipts that were issued with the legal deadline on them.",
+  complete_intake_rate: "Share of cases opened on the right transaction and queue, with a receipt and deadline.",
+  missed_escalations: "Share of cases that needed a handoff to an analyst and did not get one.",
+  unnecessary_escalations: "Share of cases that got a handoff although none was needed.",
+  coherence_rate: "Share of status answers that say what the system reads back as the real status.",
+  intent_accuracy: "Share of runs where the system understood what the customer asked for.",
+};
+
+export type ResultFiles = {
+  summary: Insight<EvaluationData> | null;
+  benchmark: Insight<BenchmarkData> | null;
+  classifier: Insight<ClassifierData> | null;
+  fraud: Insight<FraudData> | null;
+};
+
+/** The sentence ADR 0028 requires next to every classifier test result. */
+export const RULES_REVIEW_SENTENCE = "The classifier test split was decided by fixed rules, without independent human review (ADR 0028).";
+
+/**
+ * spec 12 AC-11: plain sentences, only for the files that exist. With no result file there is nothing to limit,
+ * so the list is empty.
+ */
+export function limitations(files: ResultFiles): string[] {
+  const out: string[] = [];
+  const { summary, benchmark, classifier, fraud } = files;
+  if (summary) {
+    const d = summary.data;
+    out.push(`Only ${d.cases} cases were scored (${d.runs_per_case} runs each), so the intervals are wide: read the interval, not the single rate.`);
+  }
+  if (classifier) {
+    const n = Object.values(classifier.data.test_split.sentences).reduce<number>((a, b) => a + (b ?? 0), 0);
+    out.push(`The classifier test split has ${n > 0 ? `${n} sentences` : "few sentences"}, so its intervals are wide too.`);
+  }
+  if (classifier || benchmark) out.push("The customer messages were written by language models, so real customers may phrase things differently.");
+  if (classifier?.data.test_review === "rules-v1") out.push(RULES_REVIEW_SENTENCE);
+  if (summary) out.push("The held-out set is run once, after the protocol is sealed; there is no second run to tune on.");
+  if (summary || benchmark || classifier || fraud) {
+    out.push("The customers and transactions come from a synthetic dataset and the runs are simulated, so the results show how the system behaves, not how it would perform at a real bank.");
+  }
+  return out;
 }

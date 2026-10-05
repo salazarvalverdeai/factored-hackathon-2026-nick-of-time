@@ -9,6 +9,7 @@
       "sha256": null,
       "split_manifest_sha256": null
     },
+    "test_review": "rules-v1",
     "test_split": {
       "sentences": {
         "es": 100,
