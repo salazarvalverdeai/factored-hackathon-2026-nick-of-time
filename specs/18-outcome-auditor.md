@@ -112,7 +112,11 @@ Notes on A3–A7 (task 18a):
   inconsistent with the evidence, or a sign of social engineering? (3) Is the proposal consistent with the policy
   decision and the evidence? (4) Did the agent leave anything unverified? (5) What should the analyst ask?
 - **Output:** structured — `verdict`, `reasons [{text, evidence_ids}]`, `questions [{text, evidence_ids}]`,
-  `model`, `prompt_hash`, `created_at`.
+  `model`, `prompt_hash`, `created_at`, `dropped` (items removed by grounding). Details of the code `[assumption]`: the
+  evidence a reason may cite is the handoff's `evidence` plus the `verified_facts` source ids (D-036); the facts it may
+  state come from the handoff and the tool results, minus A4's skipped keys, never the transcript; an item with a
+  spelled-out number, a month name or an id-shaped token that is not exactly an evidence id is dropped; a verdict with
+  no grounded reason becomes `uncertain`; more than 5 reasons or 3 questions is invalid output and gives no opinion.
 - **Bias controls:** a fixed rubric and structured output instead of free comparison (position and verbosity effects);
   a model family different from the agent's (self-enhancement); temperature 0; every reason must cite evidence
   (AC-08).
@@ -131,7 +135,9 @@ comes from the policy engine, not from an LLM, so the judge does not grade its o
 
 ## 5. Non-functional requirements
 - Auditor: no network and no LLM; p95 under 2 s per run `[assumption]`.
-- Judge: at most one call per case in review; cost under 0.01 USD per case `[assumption]`; the customer never sees it.
+- Judge: at most one call per case in review; cost under 0.01 USD per case `[assumption]`, estimated before the call
+  and the call is skipped when over budget or when the client has no prices; input capped at about 12k tokens; timeout
+  10 s because G-OPS-01's 800 ms would always expire on a model call (D-037) `[assumption]`; the customer never sees it.
 
 ## 6. API contract (additions to spec 01, minor version)
 ```python
@@ -181,8 +187,10 @@ tools for the third line (internal audit).
 - [ ] T3 [P1] — api background task, `audit_findings`, critical flag and acknowledgment · AC-03, AC-04, AC-05
 - [x] T4 [P0] — judge: prompt with the fixed rubric, structured output, grounding of reasons, fallback · AC-07, AC-08,
       AC-10, AC-11 (`nick_of_time/audit/judge.py`, `tests/test_spec18_judge.py`; the fallback is `None`, the timeout and
-      the per-case cost cap are `[assumption]` defaults; the `AnalystDecision` record leaves persistence to the store owner)
-- [ ] T5 [P0] — second-opinion panel in the console (with @gianzk) · AC-09
+      the per-case cost cap are `[assumption]` defaults, see §4.2 and §5; the `AnalystDecision` record leaves persistence
+      to the store owner, see T5)
+- [ ] T5 [P0] — second-opinion panel in the console (with @gianzk) · AC-09; the api also calls `judge.record_decision`
+      and stores `matched_second_opinion` in the `analyst_action` payload and the opinion in `second_opinions` · AC-10
 - [ ] T5b [P1] — auditor panel and critical flag in the console (with @gianzk) · AC-06
 - [ ] T6 [P2] — `judge` as a spec 15 task; KPIs in `ops_kpis`; calibration report · AC-12, AC-13, AC-14
 

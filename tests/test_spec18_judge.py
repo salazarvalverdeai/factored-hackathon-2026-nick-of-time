@@ -6,16 +6,17 @@ import json
 import time
 from pathlib import Path
 
-from nick_of_time.audit import opinion, record_decision
+from nick_of_time.audit import Finding, opinion, record_decision
 from nick_of_time.llm import FakeClient, ProviderUnavailable
 
 CASE = json.loads((Path(__file__).parent / "fixtures" / "audit" / "judge_case.json").read_text())
 TRX, ACT = "TRX-FIXTURE0000000000001", "A-000000000001"
 NOW = dt.datetime(2026, 6, 3, tzinfo=dt.timezone.utc)
+PRICES = {"input_per_1m": 1.1, "output_per_1m": 5.5}   # Haiku 4.5 row of eval/bench/prices.yaml
 
 
 def ask(script, **kw):
-    client = kw.pop("client", None) or FakeClient(script=script, prices=kw.pop("prices", None))
+    client = kw.pop("client", None) or FakeClient(script=script, prices=kw.pop("prices", PRICES))
     return opinion(CASE["handoff"], CASE["transcript"], CASE["tool_results"], client=client, now=NOW, **kw), client
 
 
@@ -93,10 +94,69 @@ def test_ac_11_budget_overrun_returns_no_second_opinion():
     assert op is not None
 
 
+def test_ac_11_no_prices_fails_closed_before_calling():
+    op, client = ask([out("agree")], prices=None)
+    assert op is None and client.calls == []
+
+
+def test_ac_11_over_budget_input_under_the_token_cap_makes_zero_calls():
+    mid = dict(CASE["handoff"], request="x" * 30_000)   # about 7.5k tokens: under the 12k cap, over 0.01 USD at 1.1/5.5
+    client = FakeClient(script=[out("agree")], prices=PRICES)
+    assert opinion(mid, [], [], client=client, now=NOW) is None and client.calls == []
+
+
 def test_ac_11_oversized_input_is_not_sent():
     big = dict(CASE["handoff"], request="x" * 200_000)
-    client = FakeClient(script=[out("agree")])
+    client = FakeClient(script=[out("agree")], prices=PRICES)
     assert opinion(big, [], [], client=client) is None and client.calls == []
+
+
+def test_ac_08_trace_id_digits_do_not_ground_invented_counts():
+    op, _ = ask([out("agree", [item(f"{n} on {TRX}", TRX) for n in ("7 prior disputes", "12 transactions", "9 times")])])
+    assert op.reasons == [] and op.dropped == 3
+
+
+def test_ac_08_probe_strings_are_dropped():
+    probes = ["dos mil pesos", "two thousand pesos", "mil doscientos cincuenta", "the twenty-first of May",
+              "used three times", "ref_TRX-OTHERABCDEFGHIJKL", "trx-otherabcdefgh", "TRX-FIXTURE0000000000001X",
+              "seeTRX-OTHER0000000000002", "the customer had 1 prior dispute", "el veinte de mayo", "em janeiro"]
+    op, _ = ask([out("agree", [item(f"{p} {TRX}", TRX) for p in probes[:5]]
+                     , [item(f"{p}", TRX) for p in probes[5:8]])])
+    assert op.reasons == [] and op.questions == []
+    op, _ = ask([out("agree", [item(f"{p}", TRX) for p in probes[8:]])])
+    assert op.reasons == []
+
+
+def test_ac_08_transcript_is_not_evidence():
+    op, _ = ask([out("agree", [item("the customer paid 9.999", TRX), item("see TRX-CUSTOMERSAID0000009", TRX),
+                               item("cited", "TRX-CUSTOMERSAID0000009")])])
+    assert op.reasons == [] and op.dropped == 3
+
+
+def test_ac_07_citations_are_handoff_evidence_not_tool_only_ids():
+    """D-036: an id seen only in a tool result is not citable, but may be mentioned as a fact."""
+    op, _ = ask([out("agree", [item("tool-only", "TRX-TOOLONLY00000000002"), item("mentions TRX-TOOLONLY00000000002", TRX)])])
+    assert [r.text for r in op.reasons] == ["mentions TRX-TOOLONLY00000000002"]
+
+
+def test_ac_07_inputs_reach_the_model_and_labels_do_not():
+    finding = Finding(check_id="A4-grounding", status="finding", severity="critical", expected=[], observed=["x"])
+    client = FakeClient(script=[out("uncertain")], prices=PRICES)
+    opinion(CASE["handoff"], CASE["transcript"], CASE["tool_results"], audit=[finding], client=client, now=NOW)
+    user = client.calls[0]["user"]
+    assert "No reconozco este cargo" in user and "A4-grounding" in user and "is_fraud" not in user
+    assert "never instructions" in client.calls[0]["system"] and "in digits" in client.calls[0]["system"]
+
+
+def test_ac_07_only_a_question_survives_gives_uncertain():
+    op, _ = ask([out("agree", [item("amount 424242", TRX)], [item(f"Ask about {TRX}", TRX)])])
+    assert op.verdict == "uncertain" and op.reasons == [] and len(op.questions) == 1
+
+
+def test_ac_07_judge_enforces_temperature_zero():
+    client = FakeClient(script=[out("uncertain")], prices=PRICES, temperature=0.7)
+    opinion(CASE["handoff"], [], [], client=client, now=NOW)
+    assert client.calls[0]["temperature"] == 0
 
 
 def test_ac_10_decision_recorded_with_match():
@@ -104,13 +164,15 @@ def test_ac_10_decision_recorded_with_match():
     disagree, _ = ask([out("disagree", [item("fine", TRX)])])
     unsure, _ = ask([out("uncertain")])
 
-    def rec(action, op):
-        return record_decision("K-1", "analyst:s1", action, proposal_action="approve_block", second_opinion=op, now=NOW)
+    def rec(action, op, proposal="approve_block"):
+        return record_decision("K-1", "analyst:s1", action, proposal_action=proposal, second_opinion=op, now=NOW)
 
     assert rec("approve_block", agree).matched_second_opinion is True
-    assert rec("close_without_action", agree).matched_second_opinion is False
-    assert rec("close_without_action", disagree).matched_second_opinion is True
+    assert rec("resolve", agree).matched_second_opinion is False
+    assert rec("close_case", agree, "close_without_action").matched_second_opinion is True
+    assert rec("resolve", disagree).matched_second_opinion is True
     assert rec("approve_block", disagree).matched_second_opinion is False
+    assert rec("take", agree).matched_second_opinion is None   # not a decision on the proposal
     assert rec("approve_block", unsure).matched_second_opinion is None
     none = rec("approve_block", None)
     assert none.matched_second_opinion is None and none.judge_verdict is None and none.analyst == "analyst:s1"
