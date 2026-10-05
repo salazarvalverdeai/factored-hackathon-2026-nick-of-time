@@ -28,22 +28,23 @@ GUARDRAILS = {g["id"]: g for g in POLICIES["guardrails"]}
 def test_ac_01_contract_version_is_1_4_0_in_the_package_and_the_spec():
     assert CONTRACT_VERSION == "1.4.0"
     assert "Contract version **1.4.0**" in SPEC_01 and "(contract 1.4.0," in SPEC_01
-    for decision in ("D-052", "D-029", "D-033", "`ListMyCardsOut.read_at`", "`person_requested`"):
+    for decision in ("D-052", "D-029", "D-033", "`ListMyCardsOut.read_at`", "`person_requested`", "01g2", "01g3"):
         assert decision in SPEC_01.split("## 1. Introduction")[0], decision     # the 1.4.0 entry names each item
 
 
 def test_d_052_another_customers_record_is_not_found_and_still_a_recorded_denial():
-    """D-052: NOT_FOUND to the customer (no existence oracle), a policy_denials row with POL-CROSS-CUSTOMER / G-SES-02."""
+    """D-052: NOT_FOUND to the customer (no existence oracle), a policy_denials row with POL-CROSS-CUSTOMER / G-SES-02,
+    written best-effort. This checks the contract text; the behavior is tested with the gate in spec 03 (PR #106,
+    test_ac_01_another_customers_transaction_is_not_found_and_logged_never_leaked and
+    test_ac_01_a_failing_denial_sink_still_gives_a_probe_the_unknown_ids_answer)."""
     # [assumption] the rule's text stays "-> deny" (the decision is still a denial): its line touches PR #80's
     # POL-HUMAN-REQUEST line, so the answer's form lives in scope.cross_customer_request and G-SES-02 instead
     assert POLICIES["rules"]["POL-CROSS-CUSTOMER"]["guardrail"] == "G-SES-02"
     assert POLICIES["scope"]["cross_customer_request"] == "deny_and_log"
     impl = GUARDRAILS["G-SES-02"]["impl"]
     assert "NOT_FOUND" in impl and "POL-CROSS-CUSTOMER" in impl and "DENY with policy_id" not in impl
-    # the answer a probe gets is the plain not-found error: no policy id reaches the customer
-    probe = tools.ToolError(code="NOT_FOUND", message="No such transaction among your cards.")
-    assert probe.policy_id is None
     assert "`NOT_FOUND` as an unknown id" in SPEC_01 and "`POL-CROSS-CUSTOMER` and G-SES-02 (D-052" in SPEC_01
+    assert "That write is best-effort" in SPEC_01
 
 
 def test_d_052_ev_0003_expects_a_refusal_recorded_with_pol_cross_customer():

@@ -22,8 +22,11 @@
 > answers `NOT_FOUND` as for an unknown id and the refusal is still a `policy_denials` row with `POL-CROSS-CUSTOMER`
 > and G-SES-02 (§6.3), and `search_transaction` answers `UNAVAILABLE` in `live` mode until `clock.today` lands;
 > (2) `reliability.idempotency_key` in `policies.yaml` is the key `store.once` stores, `[{run_id}:]c={customer_id}:{key}`
-> (§6.3, §6.5), no decision id; (3) `ListMyCardsOut.read_at`, the listing's own reading time, set even with no
-> cards, from the review of PR #104; (4) the `person_requested` handoff reason (D-029), which lands with PR #80; and
+> (§6.3, §6.5), from task 01g3 (PR #99), no decision id; (3) `ListMyCardsOut.read_at`, the listing's own reading
+> time, set even with no cards, from the review of PR #104; (4) the `person_requested` handoff reason (D-029), which
+> lands with PR #80; (5) the store's §6.5 additions of tasks 01g2 and 01g3 (PRs #87, #99): `idempotency` append-only
+> with `args_hash` (a key replayed with other arguments is refused), `row_no` and the latest-row rule (highest
+> `row_no`, never the latest `created_at`), `read` on `action_verified`, and the refusal of NUL and lone surrogates; and
 > D-033's `score_source` and `score_version` in `handoff.schema.json`, already on main).
 > Any change after approval is a PR that all three approve and that bumps the version (minor = additive, major =
 > breaking).
@@ -211,7 +214,8 @@ shape of `data` is fixed in the producing spec.
   a `DENY` is also written to `policy_denials` with its `policy_id`. A request for another customer's transaction,
   card or case answers the same `NOT_FOUND` as an unknown id, with `policy_id: null`, so it never reveals that the
   record exists; the refusal is still written to `policy_denials` with `POL-CROSS-CUSTOMER` and G-SES-02 (D-052,
-  `scope.cross_customer_request: deny_and_log`).
+  `scope.cross_customer_request: deny_and_log`). That write is best-effort: if it fails, the error is logged and the
+  answer stays the same `NOT_FOUND`, never `UNAVAILABLE`, which would reveal the record.
 - **Session:** each call loads `sessions` by `session_id`; expired or unverified → `SESSION_EXPIRED`. The
   `customer_id` never comes from the arguments.
 - **Fault injection:** if the session row has `tool_faults` (set only by the eval seed, §6.8), the listed tools answer
