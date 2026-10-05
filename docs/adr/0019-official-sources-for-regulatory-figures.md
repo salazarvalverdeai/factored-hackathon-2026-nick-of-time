@@ -1,7 +1,7 @@
 # 0019. Every regulatory or external figure cites an official public source and a verification date
 
 - **Status:** Accepted
-- **Amended by:** [ADR 0023](0023-mx-provisional-credit-90-days.md) (proposed): the MX 48 h example in Context is
+- **Amended by:** [ADR 0023](0023-mx-provisional-credit-90-days.md): the MX 48 h example in Context is
   itself a summary error; the official text gives 90 calendar days for unrecognized-charge claims
 - **Date:** 2026-10-04
 - **Deciders:** Freddy · **Owner:** @salazarvalverdeai

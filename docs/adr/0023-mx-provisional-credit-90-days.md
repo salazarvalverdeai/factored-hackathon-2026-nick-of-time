@@ -1,8 +1,8 @@
 # 0023. MX provisional credit covers unrecognized-charge claims within 90 calendar days; the 48 h window is for theft or loss only
 
-- **Status:** Proposed (decision D-028, pending the lead)
+- **Status:** Accepted (decision D-028, approved by the lead on 2026-10-04)
 - **Date:** 2026-10-04
-- **Deciders:** Freddy (pending) · **Owner:** @salazarvalverdeai
+- **Deciders:** Freddy (lead) · **Owner:** @salazarvalverdeai
 - **Related:** spec 02 (AC-03, §4.3, §8 Q3 and Q7) · ADRs 0019 and 0020 (both amended by this record), 0005 · the
   review of PR #67 (task 02b, 2026-10-04)
 
@@ -65,7 +65,7 @@
 4. **The 48 h window is not modeled.** Fr. I of art. 19 Bis 3 and numeral 3.4 a) apply only to a theft or loss notice.
    Any charge made in the 48 hours before a notice is also within 90 days, so fr. II already covers it once the
    customer claims it.
-5. **Dispute types (D-030, default applied pending the lead).** The clock computes the credit date for
+5. **Dispute types (D-030, decided by the lead, 2026-10-04).** The clock computes the credit date for
    `unrecognized_charge` and `wrongful_charge` alike, but the customer sees it only where the source supports it.
    - **Receipt:** the business-day-2 credit date is shown for an unrecognized charge (art. 19 Bis 1 inciso (ii);
      numeral 3.3 inciso (ii)) and for a duplicate charge, which art. 19 Bis 3 and numeral 3.4 name as a covered
@@ -132,10 +132,9 @@ High on the reading. The rule texts are explicit and were read three times on 20
 02b reviewer and by this record. Medium on the `[assumption]` items and the statement-date edge case: day 90
 included, local dates from art. 5, the 45 days of Circular 34/2010 and of LTOSF counted as calendar days, the LTOSF
 ruling always given, and the credit date driving the SLA for every `wrongful_charge`. Each of them is the reading
-that gives the earlier deadline. D-030 (what the receipt shows for a `wrongful_charge`) is a default pending the
-lead. Revisit if Banxico amends Circular 3/2012 or
-34/2010, if Banxico or CONDUSEF publishes an interpretation that differs, or if the organizers ask us to follow a
-different reading.
+that gives the earlier deadline. D-030 (what the receipt shows for a `wrongful_charge`) was decided by the lead on
+2026-10-04. Revisit if Banxico amends Circular 3/2012 or 34/2010, if Banxico or CONDUSEF publishes an interpretation
+that differs, or if the organizers ask us to follow a different reading.
 
 ## Sources
 All were checked on 2026-10-04. The quotes are verbatim.

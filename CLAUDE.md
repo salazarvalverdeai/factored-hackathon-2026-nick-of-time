@@ -41,7 +41,7 @@ code is not re-specified (brownfield adoption).
 - A ticket is always opened, in every zone. High zone blocks and verifies; medium confirms with the customer first.
 - Regulatory clock: a data table in `policies.yaml`, every entry with `source_url` and `verified_on` (ADR 0019). MX
   debit: provisional credit by business day 2, Banxico 3/2012, **for claims within 90 calendar days of the charge**
-  (ADR 0023, proposed; the 48 h window is for theft or loss only); MX credit the same (Circular 34/2010); ruling 45
+  (ADR 0023; the 48 h window is for theft or loss only); MX credit the same (Circular 34/2010); ruling 45
   days (180 abroad); older MX charges: LTOSF art. 23 ruling only; AR: BCRA 10 business days to resolve (no credit date
   promised); CO: SFC 15 business days; BR: CMN 4.860; PE: SBS 04036-2022; CL: Ley 20.009; any other country →
   `POL-CLOCK-UNKNOWN` (case opened, a person decides, no invented deadline). `amount_gate` only changes the approval
