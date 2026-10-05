@@ -42,9 +42,9 @@ BRANCH = {"reauthenticate": "refuse", "deny": "refuse", "connect_person": "conne
 _DATA = (r"(?:saldo|cuentas?|contas?|tarjetas?|cartao|cartoes|transacc\w*|transac\w*|movimientos?|movimentos?"
          r"|extracto|extrato|datos|dados)")
 # Precision over recall: own possession or a dispute in the text means the customer reports their own charge.
-OWN_OR_DISPUTE = re.compile(r"\b(?:en|no|na) (?:mi|meu|minha) (?:tarjeta|cuenta|cartao|conta|extracto|extrato)\b"
+OWN_OR_DISPUTE = re.compile(r"\b(?:en|no|na|de|da|do) (?:mi|meu|minha) (?:tarjeta|cuenta|cartao|conta|extracto|extrato)\b"
                             r"|\bno (?:lo |la )?reconozco|\bnao reconhec|\bno autorice|\bnao autorizei|\bno hice"
-                            r"|\bnao fiz|\bme cobraron")
+                            r"|\bnao fiz|\bcobr\w*\b|\badicional\b")
 _THIRD = (r"(?:otr[oa]|outr[oa]) (?:cliente|persona|pessoa|usuari[oa]|titular)|cliente (?:(?:n[o°º]\.?|numero|#) ?)?\d{3,}"
           r"|(?:mi|minha|meu) (?:esposa|esposo|marido|mujer|hij[oa]|filh[oa]|madre|padre|mama|papa|mae|pai|herman[oa]"
           r"|irma|irmao|novi[oa]|namorad[oa]|pareja|amig[oa]|jefe|chefe|vecin[oa]|vizinh[oa])")
