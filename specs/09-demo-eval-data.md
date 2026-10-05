@@ -266,7 +266,8 @@ Implementation goes in `feat/09-…` branches once this spec is approved.
       0028; promoted 2026-10-05, shares 59.3/15.7/25.0)
 - [ ] T6 — second labeling of 20 cases + agreement in `eval/README.md` · covers AC-06
 - [x] T7 — `tests/test_spec09_eval_data.py` citing AC-03, AC-05, AC-07, AC-08, AC-09 (done, offline, no gold needed); AC-10 comes with T5
-- [ ] M02 — review and seal `eval/PROTOCOL.md`, tag `protocol-v1` (manual, after T4 and T5)
+- [x] M02 — review and seal `eval/PROTOCOL.md`, tag `protocol-v1` (manual, after T4 and T5) (sealed 2026-10-05 by the
+      lead, who reviewed it because Diego could not continue; the tag goes on the merged sealing commit)
 
 **Closing checklist:** every AC has a passing test or check that cites it · status → Implemented · lessons added to
 `CLAUDE.md`.
