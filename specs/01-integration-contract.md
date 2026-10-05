@@ -15,7 +15,9 @@
 > `zone_medium` and `supervised_mode` handoff reasons; 1.3.0 is additive, from task 01c, §6.5: the `action_verified`
 > event type, `cases.opened_on` and the `on` business date of `status_changed` (D-023), an `action_id` on each customer
 > write with the `V-` id minted only by its verifying read and post-condition, `block_verified` from that read,
-> `verifications` and `action_write` (D-025, D-035), the analyst-action table (D-034) and the store's write rules).
+> `verifications` and `action_write` (D-025, D-035), the analyst-action table (D-034) and the store's write rules;
+> and `schema.sql` as the §6.5 DDL with its typing and null convention, `cases` insert-only (AO), `policy_denials`
+> `session_id` null, `actor` and `run_id`, `llm_calls.run_id` (D-023), the unique action-id index and the row checks).
 > Any change after approval is a PR that all three approve and that bumps the version (minor = additive, major =
 > breaking).
 
