@@ -1,0 +1,204 @@
+{
+  "spec": "09 §7.6 (AC-04, AC-10)",
+  "adr": "0025",
+  "label": "[simulated]",
+  "prompt_version": "cls-gen-v1",
+  "prompt_hash": "8f3a21d6fee20db15bcb2bc47415fe6d9eedcca19c18d1ae8f139997f03e1d8f",
+  "slot_dates_resolved_against": "2026-06-01",
+  "generators": {
+    "train": {
+      "model_id": "us.meta.llama3-3-70b-instruct-v1:0",
+      "family": "meta-llama"
+    },
+    "validation": {
+      "model_id": "google.gemma-3-27b-it",
+      "family": "google-gemma"
+    },
+    "test": {
+      "model_id": "deepseek.v3.2",
+      "family": "deepseek"
+    }
+  },
+  "splits": {
+    "train": {
+      "model_id": "us.meta.llama3-3-70b-instruct-v1:0",
+      "family": "meta-llama",
+      "region": "us-east-2",
+      "temperature": 0.9,
+      "seed": 20261005,
+      "prompt_version": "cls-gen-v1",
+      "prompt_hash": "8f3a21d6fee20db15bcb2bc47415fe6d9eedcca19c18d1ae8f139997f03e1d8f",
+      "plan_hash": "918e76558a2a845ad147c167733a3fad659086fbf6241e3002c0037b3ed0c90f",
+      "generated_on": "2026-10-05",
+      "targets": {
+        "draft_per_language_intent": 58,
+        "draft_injection": 58,
+        "final_per_language_intent": 48,
+        "final_injection": 48,
+        "margin": 0.2
+      },
+      "counts": {
+        "rows": 638,
+        "written": 165,
+        "paraphrase": 473,
+        "by_language_intent": {
+          "es/human_request": 58,
+          "es/out_of_scope": 58,
+          "es/status_inquiry": 58,
+          "es/unrecognized_charge": 58,
+          "es/wrongful_charge": 58,
+          "pt/human_request": 58,
+          "pt/out_of_scope": 58,
+          "pt/status_inquiry": 58,
+          "pt/unrecognized_charge": 58,
+          "pt/wrongful_charge": 58
+        },
+        "injection_by_language": {
+          "es": 31,
+          "pt": 27
+        },
+        "rows_with_checks": 30,
+        "checks": {
+          "amount_missing": 8,
+          "card_missing": 5,
+          "currency_missing": 7,
+          "date_missing": 5,
+          "dispute_missing": 2,
+          "duplicate": 9,
+          "merchant_missing": 3,
+          "same_as_seed": 5,
+          "unplanned_card_type": 3
+        }
+      },
+      "failures": [],
+      "usage": {
+        "calls": 199,
+        "tokens_in": 80492,
+        "tokens_out": 20104,
+        "cost_usd": 0.072429,
+        "errors": [],
+        "n_errors": 0,
+        "price_source": "eval/bench/prices.yaml"
+      },
+      "wall_time_s": 67.6
+    },
+    "validation": {
+      "model_id": "google.gemma-3-27b-it",
+      "family": "google-gemma",
+      "region": "us-east-2",
+      "temperature": 0.9,
+      "seed": 20261005,
+      "prompt_version": "cls-gen-v1",
+      "prompt_hash": "8f3a21d6fee20db15bcb2bc47415fe6d9eedcca19c18d1ae8f139997f03e1d8f",
+      "plan_hash": "1c9f4549553210f370ee5769ef91a719dbc8bcc29c9bcc30540b088897af147b",
+      "generated_on": "2026-10-05",
+      "targets": {
+        "draft_per_language_intent": 15,
+        "draft_injection": 15,
+        "final_per_language_intent": 12,
+        "final_injection": 12,
+        "margin": 0.2
+      },
+      "counts": {
+        "rows": 165,
+        "written": 44,
+        "paraphrase": 121,
+        "by_language_intent": {
+          "es/human_request": 15,
+          "es/out_of_scope": 15,
+          "es/status_inquiry": 15,
+          "es/unrecognized_charge": 15,
+          "es/wrongful_charge": 15,
+          "pt/human_request": 15,
+          "pt/out_of_scope": 15,
+          "pt/status_inquiry": 15,
+          "pt/unrecognized_charge": 15,
+          "pt/wrongful_charge": 15
+        },
+        "injection_by_language": {
+          "es": 7,
+          "pt": 8
+        },
+        "rows_with_checks": 11,
+        "checks": {
+          "card_missing": 3,
+          "date_missing": 1,
+          "dispute_missing": 2,
+          "quoted_slot": 5
+        }
+      },
+      "failures": [],
+      "usage": {
+        "calls": 56,
+        "tokens_in": 21028,
+        "tokens_out": 5889,
+        "cost_usd": 0.007074,
+        "errors": [],
+        "n_errors": 0,
+        "price_source": "eval/bench/prices.yaml"
+      },
+      "wall_time_s": 20.3
+    },
+    "test": {
+      "model_id": "deepseek.v3.2",
+      "family": "deepseek",
+      "region": "us-east-2",
+      "temperature": 0.9,
+      "seed": 20261005,
+      "prompt_version": "cls-gen-v1",
+      "prompt_hash": "8f3a21d6fee20db15bcb2bc47415fe6d9eedcca19c18d1ae8f139997f03e1d8f",
+      "plan_hash": "1bcc94bc89f2612cef40d1858d4cf2e9d247699455b981d0ea2482f52ac542a0",
+      "generated_on": "2026-10-05",
+      "targets": {
+        "draft_per_language_intent": 24,
+        "draft_injection": 24,
+        "final_per_language_intent": 20,
+        "final_injection": 20,
+        "margin": 0.2
+      },
+      "counts": {
+        "rows": 264,
+        "written": 66,
+        "paraphrase": 198,
+        "by_language_intent": {
+          "es/human_request": 24,
+          "es/out_of_scope": 24,
+          "es/status_inquiry": 24,
+          "es/unrecognized_charge": 24,
+          "es/wrongful_charge": 24,
+          "pt/human_request": 24,
+          "pt/out_of_scope": 24,
+          "pt/status_inquiry": 24,
+          "pt/unrecognized_charge": 24,
+          "pt/wrongful_charge": 24
+        },
+        "injection_by_language": {
+          "es": 12,
+          "pt": 12
+        },
+        "rows_with_checks": 15,
+        "checks": {
+          "amount_missing": 4,
+          "card_missing": 2,
+          "currency_missing": 2,
+          "date_missing": 3,
+          "dispute_missing": 1,
+          "merchant_missing": 1,
+          "unplanned_date": 3,
+          "unplanned_dispute": 1
+        }
+      },
+      "failures": [],
+      "usage": {
+        "calls": 88,
+        "tokens_in": 31368,
+        "tokens_out": 8095,
+        "cost_usd": 0.034424,
+        "errors": [],
+        "n_errors": 0,
+        "price_source": "eval/bench/prices.yaml"
+      },
+      "wall_time_s": 71.3
+    }
+  }
+}
