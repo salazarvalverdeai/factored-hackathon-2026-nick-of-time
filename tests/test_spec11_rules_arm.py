@@ -290,8 +290,68 @@ def test_confidence_stays_above_the_policy_floor_on_a_match_and_below_on_none():
     floor = yaml.safe_load((Path(__file__).parents[1] / "contracts/policies.yaml").read_text())["clarify"][
         "intent_confidence_min"]
     assert _parse("no reconozco este cargo").confidence >= floor
-    assert _parse("¿Cuál es mi saldo?").confidence < floor
-    assert _parse("¿Cuál es mi saldo?").dispute_detected is False
+    assert _parse("Hola, buenas tardes").confidence < floor
+    assert _parse("Hola, buenas tardes").dispute_detected is False
+
+
+@pytest.mark.parametrize("text", [
+    "Quero aumentar o limite do meu cartão de crédito. Como faço?", "¿Cuál es mi saldo?", "Quiero subir mi cupo",
+    "Necesito un préstamo personal", "Preciso de um empréstimo pessoal", "Quiero abrir una cuenta",
+    "Qual é a taxa de juros do cartão?", "¿Cuántos son mis puntos?"])
+def test_ac_09_ev_0120_a_clear_out_of_scope_topic_reads_above_tau(text):
+    """EV-0120 [assumption]: a topic outside disputes is a rules match (0.9), so rule 4 abstains with G-IN-04."""
+    r = _parse(text)
+    assert (r.intent, r.confidence, r.dispute_detected) == ("out_of_scope", 0.9, False)
+
+
+# money that left the account (payment or withdrawal verbs, a refused consent, an amount) is never refused (#169 review)
+PROBES = ["¿Cuál es mi saldo? Aparece algo de Netflix que yo no pagué", "¿Cuál es mi saldo? me sacaron 300 pesos sin permiso",
+          "Qual o meu saldo? Sumiu dinheiro da minha conta", "Me aplicaron una tasa de interés que no acepté",
+          "Qual é o meu saldo? Aparece algo da Netflix que eu não paguei",
+          "Qual o meu saldo? Tiraram 300 reais sem autorização", "¿Cuál es mi saldo? Desapareció dinero de mi cuenta",
+          "Me aplicaram uma taxa de juros que eu não aceitei", "Quiero subir mi límite, hay un descuento de 300 raro"]
+
+
+@pytest.mark.parametrize("text", ["Quiero subir mi límite porque me cobraron 500 pesos", "Hola, buenas tardes",
+                                  "Mi saldo tiene un cargo de 500 de Amazon", "No reconozco un cargo, ¿y cuál es mi saldo?",
+                                  *PROBES])
+def test_ac_09_ev_0120_a_charge_word_or_no_topic_keeps_out_of_scope_below_tau(text):
+    """D-032: a message that reports money is never refused for its topic; with no topic B0 still does not know."""
+    r = _parse(text)
+    assert r.intent != "out_of_scope" or r.confidence == 0.5
+
+
+@pytest.mark.parametrize("text", [
+    "Quiero hablar con una persona. Me cobraron 29.133,48 pesos de Cable TV el 21 de mayo y yo no tengo ese servicio.",
+    "Me cobraron una suscripción que no contraté", "Cobraram uma assinatura que eu não contratei",
+    "Me debitaron 300 reales y no tengo ese plan", "Hay un cargo de Cable TV y yo no tengo ese servicio",
+    "Aparece un pago de Cable TV y no tengo ese servicio", "Cobraram 200 reais de um serviço que eu não tenho",
+    "Tem uma cobrança de um serviço que eu não tenho"])
+def test_ac_09_ev_0107_a_charge_for_a_service_never_contracted_is_a_dispute(text):
+    """EV-0107: a charge for a service the customer does not have sets dispute_detected (D-020), so a call request with
+    it takes the D-029 path; a person request still wins the intent (AC-10)."""
+    r = _parse(text)
+    assert r.dispute_detected and r.intent in ("human_request" if "persona" in text else "wrongful_charge",)
+
+
+@pytest.mark.parametrize("text", ["No tengo ese servicio", "Me cobraron 500 pesos y no tengo dinero",
+                                  "No tengo servicio de internet"])
+def test_ac_09_ev_0107_no_service_without_a_charge_verb_is_no_dispute(text):
+    assert not _parse(text).dispute_detected
+
+
+@pytest.mark.parametrize("text", ["Necesito un préstamo personal", "Preciso de um empréstimo pessoal",
+                                  "Quiero ir personalmente a la sucursal"])
+def test_ac_10_personal_and_pessoal_are_no_person_request(text):
+    assert _parse(text).intent != "human_request"
+
+
+@pytest.mark.parametrize("text", ["Quiero hablar con una asesora", "Quero falar com atendentes", "Supervisora, por favor",
+                                  "Necesito una ejecutiva", "Quiero hablar con personas reales",
+                                  "Pásame con los asesores", "Quiero hablar con las ejecutivas",
+                                  "Passa para os atendentes", "Quero falar com as atendentes"])
+def test_ac_10_whole_person_words_with_plural_and_feminine_forms_still_ask_for_a_person(text):
+    assert _parse(text).intent == "human_request"
 
 
 # ---------- dates and amounts ----------

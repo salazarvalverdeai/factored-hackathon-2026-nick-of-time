@@ -32,11 +32,24 @@ AC-01 to AC-05 are copied from issue #9 with the same numbers. None is dropped o
   customer must not see (score, zone, policy ids). · [U] · [T] ("spec 07 AC-03: the trace lists each step …", "… what
   the customer chat shows never mentions the score or the zone")
 - AC-04 — The UI shall distinguish "accepted" from "verified ✓" and show loading, error, DENY and expired-session
-  states. · [U] · [T] ("spec 07 AC-04: accepted and verified are different …")
+  states. · [U] · [T] ("spec 07 AC-04: accepted and verified are different …") An accepted action is labeled
+  "requested", the word of spec 04 AC-18.
 - AC-05 — The chat shall be usable at 390 px width, with no horizontal scroll. · [U]
 - AC-06 — While the medium zone applies, the system shall state the plan and wait for the customer's confirmation
   before blocking (spec 04 AC-16); `customer_id` shall come only from the session. · [T] ("spec 07: the medium zone asks
   to confirm first …", "spec 07: customer_id comes only from the session")
+- AC-07 — The picker label, the web's greeting and the agent's greeting shall name the same person: gold's first name,
+  the one `get_customer_profile` returns (or the visitor's typed name in a demo session, §8). `GET /api/demo/customers`
+  shall carry that name in `display_name`, and the web shall show its own greeting only until the agent greets, so a
+  conversation shows exactly one greeting. · [T] `tests/test_spec07_names.py`, `lib/chat-view.test.ts` ("spec 07
+  AC-07: …")
+- AC-08 — After every live turn, the trace panel shall list the steps the web received: the progress labels streamed
+  during the run, the understood request, the rules' decision, the plan, each action with its state (in progress,
+  requested, verified, not confirmed) and its verification id, a verification summary, the case id and any denial.
+  Each guardrail that fired shall show a plain-language name beside its id (`contracts/policies.yaml guardrails`); a
+  policy id shall never be shown (AC-03). · [T] `lib/trace.test.ts`, `lib/live.test.ts` ("spec 07 AC-08: …")
+- AC-09 — Agent replies shall keep their line breaks (capability bullets, numbered plan) and shall render as text,
+  never as HTML. · [T] `lib/chat-view.test.ts` ("spec 07 AC-09: …")
 - AC-10 — (lead, D-072) Where the browser can record audio, the chat shall offer push-to-talk: the clip goes to
   `POST /api/voice/transcribe` (spec 05 AC-21) and the returned `text` lands in the composer as an editable draft that
   the customer sends like typed text (never sent on its own); with the read-aloud toggle on, each agent reply shall be
@@ -110,6 +123,8 @@ AC-01 to AC-05 are copied from issue #9 with the same numbers. None is dropped o
 - [ ] Task 4 — call the live agent proxy (`/api/agent/...`, spec 05 M05) · covers AC-01 to AC-04 · done when: same flow on the public URL
 - [ ] Task 5 — demo-mode start screen (D-068, the contract in §8) · covers AC-01 · done when: a visitor opens a demo
   session by scenario and picks a recent transaction on the public URL
+- [x] Task 6 — production walkthrough fixes (2026-10-05): one greeting with the gold name, line breaks kept, trace
+  filled on live turns with named guardrails · covers AC-07 to AC-09 · done when: the tests citing them pass
 - [ ] Task 7 — voice (D-072, the contract in §8): mic, push-to-talk, draft, read-aloud and mute · covers AC-10 · done
   when: a visitor speaks a claim in ES and in PT on the public URL and hears the reply
 

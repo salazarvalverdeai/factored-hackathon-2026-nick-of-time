@@ -326,7 +326,12 @@ def create_live_app(store: Store, *, catalog: Optional[Catalog] = None, verifier
 
     @app.get("/api/demo/customers", response_model=list[DemoCustomerOut])
     def demo_customers():
-        return catalog.customers()
+        """The picker names gold's first name, the one the agent greets with (spec 07 AC-07); built once per app."""
+        if not hasattr(app.state, "demo_customers"):
+            app.state.demo_customers = [
+                {**c, "display_name": demo.picker_label(c["display_name"], catalog.first_name(c["customer_id"]))}
+                for c in catalog.customers()]
+        return app.state.demo_customers
 
     def demo_scenarios() -> list[dict]:
         """Built once per app (gold is read-only at runtime, ADR 0004); a customer gold does not serve is not listed."""

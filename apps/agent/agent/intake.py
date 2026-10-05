@@ -89,6 +89,7 @@ OWN_OR_DISPUTE = re.compile(r"\b(?:en|no|na|de|da|do) (?:mi|meu|minha) (?:tarjet
                             r"|\bno (?:lo |la )?reconozco|\bnao reconhec|\bno autorice|\bnao autorizei|\bno hice"
                             r"|\bnao fiz|\bcobr\w*\b|\badicional\b")
 _THIRD = (r"(?:otr[oa]|outr[oa]) (?:cliente|persona|pessoa|usuari[oa]|titular)|cliente (?:(?:n[o°º]\.?|numero|#) ?)?\d{3,}"
+          r"|(?:cliente )?cli-[a-z0-9]{12}"     # EV-0116: a customer id of the gold shape (ids.GOLD_PATTERN)
           r"|(?:mi|minha|meu) (?:esposa|esposo|marido|mujer|hij[oa]|filh[oa]|madre|padre|mama|papa|mae|pai|herman[oa]"
           r"|irma|irmao|novi[oa]|namorad[oa]|pareja|amig[oa]|jefe|chefe|vecin[oa]|vizinh[oa])")
 CROSS_CUSTOMER = re.compile(rf"\b{_DATA}\b(?: \w+){{0,4}}? (?:de|del|da|do) (?:la |el |o |a )?(?:{_THIRD})\b")
@@ -346,11 +347,14 @@ def outcome(node: str, inputs: DecisionInput, decision: PolicyDecision) -> dict[
 
 def refuse(state: State) -> dict[str, Any]:
     """DENY or re-authenticate with no data and a way forward; the denial is reported for policy_denials (AC-03)."""
-    decision, rule = state["route"]["decision"], state["route"]["rule_ids"][-1]
+    decision, rules = state["route"]["decision"], state["route"]["rule_ids"]
     key = "refuse.deny" if decision == "deny" else (
         "connect.general_contact" if state.get("intent") == "human_request" else "refuse.reauthenticate")  # AC-28
-    denial = {"policy_id": rule, "guardrail_id": ENGINE.policies.rules[rule].guardrail, "detail": decision}
-    return {"body": [msg.text(key, state["language"])], "row": decision, "denials": [denial],
+    # an injection that also asks for another customer's data is logged under both rules (EV-0116)
+    denied = rules if rules[0] == "POL-INJECTION" else rules[-1:]
+    denials = [{"policy_id": rule, "guardrail_id": ENGINE.policies.rules[rule].guardrail, "detail": decision}
+               for rule in denied]
+    return {"body": [msg.text(key, state["language"])], "row": decision, "denials": denials,
             "path": state["path"] + ["refuse"]}
 
 
