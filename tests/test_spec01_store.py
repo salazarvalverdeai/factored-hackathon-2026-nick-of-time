@@ -9,10 +9,11 @@ from typing import get_args
 import pytest
 from pydantic import ValidationError
 
+from contracts import tools as contract_tools
 from nick_of_time import ids
 from nick_of_time.contracts import AnalystActionIn
 from nick_of_time.store import (CUSTOMER_VISIBLE, RESERVED_EVENTS, VERIFIED_WITH, WRITE_EVENTS, WRITE_TOOL, NewCase,
-                                ProductOverride, Store, StoreError, VerifyingRead)
+                                NotVerified, ProductOverride, Store, StoreError, VerifyingRead)
 from nick_of_time.store.memory import MemoryStore
 
 FACTS = dict(customer_id="CLI-000001", transaction_id="TRX-" + "A" * 20, product_id="PRD-" + "B" * 12, country="MX",
@@ -240,6 +241,53 @@ def test_ac_01_every_write_names_a_store_actor(actor):
     assert types(store, case.case_id) == ["case_opened"] and len(store.list_cases("CLI-000001", run_id=None)) == 1
 
 
+def nothing_written(store: MemoryStore, case) -> bool:
+    return (types(store, case.case_id) == ["case_opened"] and store.product_status(case.product_id, run_id=None) is None
+            and store.list_notifications(case.customer_id, run_id=None) == []
+            and len(store.list_cases(case.customer_id, run_id=None)) == 1)
+
+
+@pytest.mark.parametrize("trace_id", [None, "", 7])
+def test_ac_01_every_write_checks_its_trace_id_before_writing(trace_id):
+    """A bad trace id is refused before the first write: no override without its card_blocked, no notification
+    without its notification_sent, no analyst_action without its status change; the action id stays free."""
+    store = MemoryStore()
+    case = open_case(store)
+    block, summary = ids.new_id("action"), ids.new_id("action")
+    request = AnalystActionIn(case_id=case.case_id, actor_id="sub-1", action="take", idempotency_key="k")
+    writes = [lambda: store.append_event(case.case_id, "handoff_emitted", actor="agent", trace_id=trace_id),
+              lambda: store.change_status(case.case_id, "review", on=ON, actor="agent", trace_id=trace_id),
+              lambda: store.record_analyst_action(request, new_status="review", on=ON, trace_id=trace_id),
+              lambda: store.block_product(case.case_id, case.product_id, action_id=block, actor="agent",
+                                          trace_id=trace_id),
+              lambda: store.record_verification(case.case_id, case.action_id, read="get_case", run_id=None,
+                                                customer_id=None, actor="agent", trace_id=trace_id),
+              lambda: store.add_notification(case.case_id, event="receipt", channel="log", masked_address=None,
+                                             text="Resumen", trigger="on_request", actor="customer",
+                                             trace_id=trace_id, action_id=summary)]
+    if trace_id == "":                                     # NewCase itself refuses a trace id that is not a str
+        writes.append(lambda: store.create_case(new_case(transaction_id="TRX-" + "H" * 20, trace_id=""),
+                                                actor="agent", action_id=ids.new_id("action")))
+    for write in writes:
+        with pytest.raises(StoreError, match="not a trace id"):
+            write()
+    assert nothing_written(store, case)
+    store.block_product(case.case_id, case.product_id, action_id=block, actor="agent", trace_id="t")
+
+
+@pytest.mark.parametrize("on", ["2026-06-02", dt.datetime(2026, 6, 3, 2, 0, tzinfo=dt.UTC), None])
+def test_ac_01_a_status_change_needs_a_business_date_before_writing(on):
+    """D-023: `on` is a date; a datetime is refused, since its UTC day may not be the country's business day."""
+    store = MemoryStore()
+    case = open_case(store)
+    request = AnalystActionIn(case_id=case.case_id, actor_id="sub-1", action="take", idempotency_key="k")
+    for write in (lambda: store.record_analyst_action(request, new_status="review", on=on, trace_id="t"),
+                  lambda: store.change_status(case.case_id, "review", on=on, actor="agent", trace_id="t")):
+        with pytest.raises(StoreError, match="not a business date"):
+            write()
+    assert nothing_written(store, case) and store.queue_status(case.case_id) == "new"
+
+
 @pytest.mark.parametrize("start, attempt, error", [
     # the queue table alone refuses these
     ("resolved", lambda s, c: s.change_status(c, "new", on=ON, actor="agent", trace_id="t"), "resolved -> new"),
@@ -313,6 +361,23 @@ def test_ac_01_a_related_case_is_written_on_both_cases_and_active_cases_come_fir
     active = open_case(store, transaction_id="TRX-" + "D" * 20).case_id
     closed_newer = at(store, "closed", transaction_id="TRX-" + "F" * 20)
     assert [c.case_id for c in store.list_cases("CLI-000001", run_id=None)] == [active, related, closed_newer, old]
+
+
+@pytest.mark.parametrize("status", ["verification", "review", "resolved"])
+def test_ac_01_an_open_case_takes_customer_writes_past_new(status):
+    """The closed-case refusal stops at closed: an analyst's review takes information (request_customer_info), a
+    resolved case takes a re-evaluation (spec 03 AC-19), and every open case takes a block and a call request."""
+    store = MemoryStore()
+    case = store.get_case(at(store, status), run_id=None, customer_id=None)
+    for write in ("customer_info_added", "call_requested", "reevaluation_requested"):
+        event = store.append_event(case.case_id, write, actor="customer", trace_id="t",
+                                   payload={"action_id": ids.new_id("action")})
+        assert (event.type, store.events(case.case_id)[-1].event_id) == (write, event.event_id)
+    block = ids.new_id("action")
+    assert store.block_product(case.case_id, case.product_id, action_id=block, actor="agent", trace_id="t").type == \
+        "card_blocked"
+    assert store.product_status(case.product_id, run_id=None).action_id == block
+    assert store.queue_status(case.case_id) == status
 
 
 def test_ac_01_a_closed_case_takes_no_customer_write():
@@ -476,16 +541,45 @@ def test_d025_a_stale_block_read_verifies_nothing():
     for block in (first, second):
         store.block_product(case.case_id, case.product_id, action_id=block, actor="agent", trace_id="t")
     written = len(store.events(case.case_id))
-    with pytest.raises(StoreError, match="no longer the card's current status"):
+    with pytest.raises(NotVerified, match="no longer the card's current status"):
         verify(store, case.case_id, first, read="get_product_status", run_id=RUN)
     assert len(store.events(case.case_id)) == written
     unblock = ids.new_id("action")
     store._overrides[unblock] = ProductOverride(product_id=case.product_id, status="Active", case_id=case.case_id,
                                                 action_id=unblock, actor="analyst:sub-1", run_id=RUN,
                                                 created_at=dt.datetime.now(dt.UTC))
-    with pytest.raises(StoreError, match="no longer the card's current status"):
+    with pytest.raises(NotVerified, match="no longer the card's current status"):
         verify(store, case.case_id, second, read="get_product_status", run_id=RUN)
     assert len(store.events(case.case_id)) == written and "block_verified" not in types(store, case.case_id)
+
+
+def test_d035_a_summary_send_is_verified_only_while_its_latest_delivery_is_not_lost():
+    """[assumption] D-035: the post-condition of send_case_summary is its latest delivery; after `bounced` or
+    `failed` the read stays plain (NotVerified, nothing written), and a later delivery verifies it again."""
+    store = MemoryStore()
+    case_id = open_case(store).case_id
+    summary = ids.new_id("action")
+    sent = store.add_notification(case_id, event="receipt", channel="email", masked_address="j***@example.com",
+                                  text="Resumen", trigger="on_request", actor="customer", trace_id="t",
+                                  action_id=summary)
+    verified = [verify(store, case_id, summary, read="list_my_notifications")]           # queued
+    for lost in ("bounced", "failed"):
+        store.add_delivery(sent.notification_id, lost)
+        written = len(store.events(case_id))
+        with pytest.raises(NotVerified, match=f"summary {summary} {lost}"):
+            verify(store, case_id, summary, read="list_my_notifications")
+        assert len(store.events(case_id)) == written
+        store.add_delivery(sent.notification_id, "delivered")
+        verified.append(verify(store, case_id, summary, read="list_my_notifications"))
+    assert [e.payload for e in store.verifications(case_id, summary, run_id=None)] == [e.payload for e in verified]
+    with pytest.raises(StoreError, match="not a delivery status"):
+        store.add_delivery(sent.notification_id, "exploded")
+    assert [n.delivery_status for n in store.list_notifications("CLI-000001", run_id=None)] == ["delivered"]
+
+
+def test_d025_the_store_copy_of_verified_with_matches_the_contract():
+    """TODO(01c): the store imports VERIFIED_WITH from contracts.tools once #59 merges; until then they must agree."""
+    assert getattr(contract_tools, "VERIFIED_WITH", VERIFIED_WITH) == VERIFIED_WITH
 
 
 @pytest.mark.parametrize("write, payload", [("customer_info_added", {"text": "Nunca estuve en Monterrey"}),

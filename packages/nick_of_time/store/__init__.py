@@ -6,9 +6,10 @@ Postgres backend over the §6.5 tables is built by C1 in task 03a [assumption] (
 - the store generates every case id, retrying on a primary-key conflict (T9), so no eval run reuses one (§6.8);
 - a status change follows `case_queue.transitions` and the analyst-action table (D-034); only `resolve` resolves and
   only `close_case` closes (constitution #6); a closed case takes no analyst action and no customer write;
-- each customer write carries a fresh action id, used once; only the read that verifies that write mints a V- id
-  (D-025);
-- payloads are JSON, as in Postgres `jsonb`;
+- each customer write carries a fresh action id, used once; only the read that verifies that write mints a V- id,
+  and only while its post-condition holds (D-025, D-035);
+- every argument is checked before the first write (actor, trace id, business date, delivery status); payloads are
+  JSON, as in Postgres `jsonb`;
 - `get_case`, `list_cases`, `action_write`, `record_verification` and `list_notifications` take the caller's
   `run_id` and customer (None = system, analyst or auditor); `product_status` and `verifications` take the `run_id`.
   `customer_id` comes from the session row, never from text. The calls that take only a case id (`events`,
@@ -70,11 +71,18 @@ ANALYST_SOURCES: dict[str, frozenset[str]] = {"take": frozenset({"new", "verific
                                               "reopen_case": frozenset({"resolved"})}
 Channel = Literal["log", "telegram", "email"]
 DeliveryStatus = Literal["queued", "sent", "delivered", "bounced", "failed"]
+# [assumption] D-035, pending the lead: a summary send is verified only while its latest delivery is not one of these.
+UNDELIVERED: frozenset[str] = frozenset({"bounced", "failed"})
 MAX_CASE_ID_ATTEMPTS = 8      # 10^6 case ids; at 1% occupancy, 8 straight conflicts happen once in 10^16 inserts
 
 
 class StoreError(Exception):
     """A write the store refuses or a row it cannot find; nothing was written."""
+
+
+class NotVerified(StoreError):
+    """The write's post-condition does not hold now (a block that is no longer the card's status, a summary whose
+    latest delivery failed or bounced): nothing was written, and the read stays plain (`read_at`, no V- id)."""
 
 
 class _Row(BaseModel):
@@ -173,6 +181,21 @@ def check_actor(actor: str) -> str:
     return actor
 
 
+def check_trace_id(trace_id: str) -> str:
+    """Refuse a trace id that is not a non-empty string, before any write."""
+    if not isinstance(trace_id, str) or not trace_id:
+        raise StoreError(f"not a trace id: {trace_id!r}")
+    return trace_id
+
+
+def check_business_date(on: dt.date) -> dt.date:
+    """Refuse a business date that is not a `date`; a `datetime` is refused too, since its UTC day may not be the
+    country's business day (D-023)."""
+    if not isinstance(on, dt.date) or isinstance(on, dt.datetime):
+        raise StoreError(f"not a business date: {on!r}")
+    return on
+
+
 def check_transition(current: str, to: Optional[str], *, analyst_action: Optional[str] = None) -> None:
     """The status rules every backend checks before it writes anything; only `record_analyst_action` passes
     `analyst_action`. Without one (agent, customer, system), a change needs a status and never resolves or closes.
@@ -263,8 +286,10 @@ class Store(Protocol):
         """Called by the read of VERIFIED_WITH, asked about a write of the case, after it read the post-condition:
         mint a V- id and append `action_verified` `{action_id, verification_id, read_at}` (D-025). Every read adds
         one; earlier ones stay as the audit trail. A `card_blocked` action verifies only while its override is the
-        product's latest in the run and `Blocked`; its first read also writes `block_verified` `{action_id,
-        product_id}`, once. A plain read (no action id) does not call it; it returns `read_at` only."""
+        product's latest in the run and `Blocked`, and its first read also writes `block_verified` `{action_id,
+        product_id}`, once; a summary send (`notification_sent`) verifies only while its latest delivery is not in
+        UNDELIVERED (D-035). Otherwise it raises NotVerified and the read stays plain. A plain read (no action id)
+        does not call it; it returns `read_at` only."""
 
     def verifications(self, case_id: str, action_id: str, *, run_id: Optional[str]) -> list[CaseEvent]:
         """Every `action_verified` of the action in `seq` order, which is `read_at` ascending ([] when the case is not
@@ -279,7 +304,8 @@ class Store(Protocol):
 
     def add_delivery(self, notification_id: str, status: DeliveryStatus,
                      provider_event: Optional[dict[str, Any]] = None) -> None:
-        """Append a delivery row (`provider_event` is JSON); the notification's delivery status becomes `status`."""
+        """Append a delivery row (`status` in DeliveryStatus, `provider_event` JSON); the notification's delivery
+        status becomes `status`."""
 
     def list_notifications(self, customer_id: str, *, run_id: Optional[str]) -> list[Notification]:
         """The customer's notifications whose case is in `run_id`, newest first, with their delivery status."""

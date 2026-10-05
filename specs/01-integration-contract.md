@@ -292,7 +292,9 @@ read of that write in §6.3 "Verified with" (`get_case`, `get_product_status` or
 without a case id find the case with the store's `action_write`) mints it in `action_verified {action_id,
 verification_id, read_at}`, one per read; another read is refused. A `card_blocked` action is verified only while its
 override is the card's latest in the run and `Blocked`, and its first read also writes `block_verified {action_id,
-product_id}`, once. A plain read, with no `action_id`, returns `read_at` only. The case and product-status reads
+product_id}`, once. A summary send is verified only while its latest `notification_deliveries` row is not `failed` or
+`bounced` (D-035 `[assumption]`, pending the lead). When a post-condition does not hold, the store writes nothing
+(`NotVerified`) and the read stays plain. A plain read, with no `action_id`, returns `read_at` only. The case and product-status reads
 return the latest `V-` id, and the store's `verifications(case_id, action_id)` returns every `action_verified` of the
 action by `read_at`, so the auditor accepts any `V-` id a turn showed whose `read_at` is at or after the request. A
 call request with no case (D-026) lives in 03d's `call_requests`, stays `requested` and has no verifying read (D-025
