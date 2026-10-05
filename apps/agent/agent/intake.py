@@ -96,6 +96,7 @@ class Internal(TypedDict, total=False):     # spec 04 §4.1 fields outside TurnR
     clarification_turns: int                # clarification questions already sent (spec 02 rule 5b)
     decision_record: Optional[dict[str, Any]]   # D-046: {node, input, decision} for the auditor's A1 (spec 18)
     next_node: str                          # where decide sends the turn
+    read_failed: Optional[str]              # the read retrieve could not do this turn (its tool name), or None
     path: list[str]                         # nodes run after route, for the trace
 
 
@@ -104,7 +105,7 @@ State = TypedDict("State", {**InputState.__annotations__, **OutputState.__annota
 # Per-turn fields, cleared when a turn starts so nothing from the previous turn leaks into this one.
 RESET = {"decision": None, "zone": None, "case_id": None, "actions": [], "denials": [], "guardrails_triggered": [],
          "body": [], "row": None, "route": None, "active_case": None, "greet_pending": False, "plan": [], "options": [],
-         "answer": None, "decision_record": None, "path": []}
+         "answer": None, "decision_record": None, "path": [], "read_failed": None}
 
 
 async def call(config: RunnableConfig, tool: str, **args: Any) -> BaseModel:
@@ -262,7 +263,8 @@ async def connect(state: State, config: RunnableConfig) -> dict[str, Any]:
 async def retrieve(state: State, config: RunnableConfig) -> dict[str, Any]:
     """Finds the customer's transaction with search_transaction; for exactly one, reads its card, score, display
     amount and any active case on it. A confirm answer keeps what the customer was shown; an option card picks one of
-    the candidates shown, never an id the tool did not return."""
+    the candidates shown, never an id the tool did not return. A failed search or card read is not a missing charge:
+    the turn says the read failed and goes to respond, with no decision and no clarification turn counted."""
     answer, path = state.get("answer") or {}, state["path"] + ["retrieve"]
     if "confirm" in answer and state.get("selected_transaction"):
         return {"path": path, "customer_confirmed": answer["confirm"]}
@@ -275,7 +277,9 @@ async def retrieve(state: State, config: RunnableConfig) -> dict[str, Any]:
         query = {"amount": float(slots["amount"]) if slots.get("amount") else None, "currency": slots.get("currency"),
                  "approx_date": slots.get("date"), "merchant": slots.get("merchant")}
         found = await call(config, "search_transaction", **{k: v for k, v in query.items() if v is not None})
-        candidates = [] if isinstance(found, ToolError) else [c.model_dump(mode="json") for c in found.candidates]
+        if isinstance(found, ToolError):
+            return unread(path, "search_transaction", state["language"])
+        candidates = [c.model_dump(mode="json") for c in found.candidates]
     fresh = {"path": path, "candidates": candidates, "selected_transaction": None, "customer_confirmed": None,
              "score": None, "display": None, "existing_case": None}
     if len(candidates) != 1:
@@ -285,13 +289,19 @@ async def retrieve(state: State, config: RunnableConfig) -> dict[str, Any]:
         call(config, "get_product_status", product_id=trx["product_id"]),
         call(config, "get_fraud_score", transaction_id=trx["transaction_id"]),
         call(config, "convert_amount", amount=trx["amount"], currency=trx["currency"]), call(config, "list_my_cases"))
-    if isinstance(card, ToolError):         # [assumption] no card read: not identified, so ask, then a person (rule 5b)
-        return {**fresh, "candidates": []}
+    if isinstance(card, ToolError):         # [assumption] no card type, no decision: product_type is never guessed
+        return unread(path, "get_product_status", state["language"])
     return {**fresh, "selected_transaction": {**trx, "product_type": card.type, "last4": card.last4},
             # a failed score read is a null score: zone human (POL-SCORE-NULL)
             "score": None if isinstance(score, ToolError) else score.model_dump(mode="json"),
             "display": None if isinstance(fx, ToolError) or not fx.converted else fx.converted.model_dump(mode="json"),
             "existing_case": await active_case_on(config, cases, trx["transaction_id"])}
+
+
+def unread(path: list[str], tool: str, language: str) -> dict[str, Any]:
+    """The read could not be done (no data, nothing claimed): say so and offer a retry and a person. [assumption] No
+    tool_failure handoff: spec 02 has no input for it (follow-up for the lead)."""
+    return {"path": path, "read_failed": tool, "body": [msg.text("clarify.read_failed", language)], "row": "read_failed"}
 
 
 async def active_case_on(config: RunnableConfig, cases: BaseModel, transaction_id: str) -> Optional[dict[str, Any]]:
@@ -314,7 +324,7 @@ def decide(state: State) -> dict[str, Any]:
     decision = ENGINE.decide(inputs := decision_input(state))
     opens = "open_case" in decision.allowed_actions or decision.decision == "confirm"
     nxt = {"ask": "clarify", "deny": "refuse"}.get(decision.decision) or (
-        ("duplicate" if state.get("existing_case") else "plan") if opens else "connect")   # connect: a call, no case
+        ("duplicate" if state.get("existing_case") else "plan") if opens else call_or_respond(state, decision))
     exhausted = decision.handoff_reason == "clarification_exhausted"                      # rule 5b (AC-13)
     return {**outcome("decide", inputs, decision), "next_node": nxt, "path": state["path"] + ["decide"],
             "clarification_turns": (state.get("clarification_turns") or 0) if decision.decision == "ask" else 0,
@@ -349,7 +359,10 @@ def duplicate(state: State) -> dict[str, Any]:
     lines = [msg.text("duplicate.case_exists", language, case_id=case["case_id"])]
     lines += [msg.text(f"status.{key}", language, **case) for key in ("ruling_deadline", "credit_deadline")
               if case.get(key)] or [msg.text("status.deadline_unknown", language)]
-    return {"body": lines, "row": "case_active", "case_id": case["case_id"], "path": state["path"] + ["duplicate"]}
+    # [assumption] D-050: the turn reports decision null, since nothing the decision called for was run; a call request
+    # reports connect_person, as only the call is run. The engine's decision stays in the trace (D-046).
+    return {"body": lines, "row": "case_active", "case_id": case["case_id"], "path": state["path"] + ["duplicate"],
+            "decision": "connect_person" if state["route"]["request_call"] else None}
 
 
 def clarify(state: State) -> dict[str, Any]:
@@ -365,10 +378,11 @@ def clarify(state: State) -> dict[str, Any]:
             **({"selected_transaction": None, "customer_confirmed": None} if declined else {})}
 
 
-def call_or_respond(state: State) -> str:
-    """After plan or duplicate: a call request that reports a charge also registers the call (rule 3a, AC-28). T4
+def call_or_respond(state: State, decision: Optional[PolicyDecision] = None) -> str:
+    """connect only when the decision sets request_call (rule 3a, rule 5b, AC-28), else respond. After plan, T4
     inserts act → verify before it."""
-    return "connect" if (state.get("route") or {}).get("request_call") else "respond"
+    wanted = decision.request_call if decision else (state.get("route") or {}).get("request_call")
+    return "connect" if wanted else "respond"
 
 
 def status(state: State) -> dict[str, Any]:
@@ -395,10 +409,17 @@ def respond(state: State) -> dict[str, Any]:
         actions=state.get("actions") or [], suggestions=msg.suggestions(row, language, state.get("case_id")),
         guardrails_triggered=state.get("guardrails_triggered") or [], denials=state.get("denials") or [],
         mode=state["mode"], trace_id=state["trace_id"],
-        trace=[{"node": n, "status": "deny" if n == "refuse" else "ok", "ms": 0,      # D-046: the decision record
-                "detail": json.dumps(record, sort_keys=True) if n == record.get("node") else None} for n in nodes])
+        trace=[step(n, record, state.get("read_failed")) for n in nodes])
     return {**turn.model_dump(mode="json"), "messages": [], "action": None, "greet_pending": False,
             "language_last": language}
+
+
+def step(node: str, record: dict[str, Any], read_failed: Optional[str]) -> dict[str, Any]:
+    """A trace step: the decision record on the node that decided (D-046); a failed read as not_confirmed on retrieve."""
+    if node == "retrieve" and read_failed:
+        return {"node": node, "status": "error", "ms": 0, "detail": f"{read_failed}: not_confirmed"}
+    return {"node": node, "status": "deny" if node == "refuse" else "ok", "ms": 0,
+            "detail": json.dumps(record, sort_keys=True) if node == record.get("node") else None}
 
 
 builder = StateGraph(State, input_schema=InputState, output_schema=OutputState)
@@ -411,9 +432,10 @@ builder.add_edge("greet", "understand")
 builder.add_edge("understand", "route")
 builder.add_conditional_edges("route", lambda state: state["branch"],
                               ["refuse", "connect", "retrieve", "status", "respond"])
-builder.add_edge("retrieve", "decide")
+builder.add_conditional_edges("retrieve", lambda state: "respond" if state.get("read_failed") else "decide",
+                              ["decide", "respond"])
 builder.add_conditional_edges("decide", lambda state: state["next_node"],
-                              ["clarify", "refuse", "plan", "duplicate", "connect"])
+                              ["clarify", "refuse", "plan", "duplicate", "connect", "respond"])
 builder.add_conditional_edges("plan", call_or_respond, ["connect", "respond"])
 builder.add_conditional_edges("duplicate", call_or_respond, ["connect", "respond"])
 for _node in ("refuse", "connect", "clarify", "status"):

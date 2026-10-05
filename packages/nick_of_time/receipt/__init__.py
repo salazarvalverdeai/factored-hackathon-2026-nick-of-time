@@ -42,6 +42,7 @@ ROWS: dict[str, tuple[str, ...]] = {
     "ask_options": ("none_of_these", "show_recent", "talk_to_person"),            # candidates shown as cards
     "confirm": ("confirm_yes", "confirm_no", "talk_to_person"),
     "case_active": ("view_case", "add_info", "request_call"),                     # AC-23: the existing case
+    "read_failed": ("show_recent", "talk_to_person", "check_case"),   # the first chip searches again
     "planned": ("check_case", "report_another", "talk_to_person"),   # [assumption] a plan with no act yet, until T4
     "deny": ("report_unrecognized", "check_case", "talk_to_person"),
     "reauthenticate": ("reauthenticate", "talk_to_person"),

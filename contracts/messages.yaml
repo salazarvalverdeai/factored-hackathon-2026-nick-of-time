@@ -16,7 +16,7 @@
 #   *_no_merchant variants; a null deadline uses the deadline_unknown lines).
 # - Tasks T2-T7 of spec 04 extend this file (clarify, refuse, progress labels AC-17, duplicate case AC-23,
 #   re-evaluation AC-24, reversed charge); each extension is a contract change approved by the lead. Task 04b
-#   (T3) added clarify.pick_one, clarify.exhausted and duplicate.case_exists.
+#   (T3) added clarify.pick_one, clarify.exhausted, clarify.read_failed and duplicate.case_exists.
 # - Chips: `kind` is static here; the action payload ({type}, spec 01 §6.4) is set by the server code.
 # - Never a placeholder or text for the fraud score, policy ids, rule ids, zones or the transcript
 #   (notifications.never_send in policies.yaml).
@@ -332,13 +332,18 @@ clarify:
   pick_one:
     # Spec 04 task 04b (pending the lead): 1 to max_candidate_transactions candidates, shown as option cards with
     # their amount, date and merchant from search_transaction. Nothing is done until the customer picks one.
-    es: "Encontré estos cargos en tu cuenta. ¿Cuál quieres reportar?"
-    pt: "Encontrei estas cobranças na sua conta. Qual você quer informar?"
+    es: "Elige abajo el cargo que quieres reportar."
+    pt: "Escolha abaixo a cobrança que você quer informar."
   exhausted:
     # Spec 04 task 04b (pending the lead): AC-13, rule 5b. No single charge after the clarification turns; a general
     # call request follows in the same reply (connect.requested*). No case is opened without a charge.
-    es: "No pude identificar un solo cargo con estos datos. Una persona te ayudará a encontrarlo."
-    pt: "Não consegui identificar uma única cobrança com esses dados. Uma pessoa vai ajudar você a encontrá-la."
+    es: "No pude identificar un solo cargo con estos datos."
+    pt: "Não consegui identificar uma única cobrança com esses dados."
+  read_failed:
+    # Spec 04 task 04b (pending the lead): search_transaction or the card read failed, so nothing is known about the
+    # charge. Says so, states nothing and blames no one; the chips retry the search or reach a person.
+    es: "No pude consultar tus cargos ahora, así que no hice ningún cambio. Intenta de nuevo en un momento."
+    pt: "Não consegui consultar suas cobranças agora, então não fiz nenhuma alteração. Tente novamente em instantes."
 
 duplicate:
   # Spec 04 task 04b (pending the lead): AC-23. The charge already has an active case (get_case); no second case is

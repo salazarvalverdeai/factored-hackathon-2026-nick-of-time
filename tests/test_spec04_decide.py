@@ -66,7 +66,7 @@ def test_ac_02_more_than_one_candidate_asks_with_options_and_does_not_act():
     turn = chat.say("No reconozco un cargo en TIENDA X", language="es")
     assert turn.decision == "ask" and not turn.actions and not turn.plan and turn.case_id is None
     assert [o.label for o in turn.options] == ["USD 101.00 · 2026-05-31 · TIENDA X", "USD 102.00 · 2026-05-31 · TIENDA X"]
-    assert turn.reply.splitlines()[-1].startswith("Encontré estos cargos")
+    assert turn.reply.splitlines()[-1] == "Elige abajo el cargo que quieres reportar."
     assert labels(turn) == ["Ninguno de estos", "Muéstrame mis últimos cargos", "Hablar con una persona"]
     assert not set(calls) & WRITES and "get_fraud_score" not in calls
 
@@ -138,9 +138,9 @@ def test_ac_13_after_two_clarifications_it_hands_off_and_registers_a_general_cal
     assert first.decision == second.decision == "ask" and chat.state()["clarification_turns"] == 2
     third = chat.say("No reconozco un cargo de 1250 USD")
     assert third.decision == "handoff" and record(third)["decision"]["handoff_reason"] == "clarification_exhausted"
-    assert third.reply.splitlines()[0].startswith("No pude identificar un solo cargo") and third.case_id is None
+    assert third.reply.splitlines()[0] == "No pude identificar un solo cargo con estos datos." and third.case_id is None
     assert [(a.tool, a.state) for a in third.actions] == [("request_call", "requested")]
-    assert chat.state()["clarification_turns"] == 0
+    assert chat.state().get("clarification_turns", 0) == 0
 
 
 @pytest.mark.parametrize("text", ["No reconozco un cargo de 1250 USD en TIENDA X",
@@ -165,9 +165,36 @@ def test_ac_23_an_active_case_on_the_charge_opens_no_second_case():
     assert turn.case_id == "K-104233" and not turn.plan and not set(calls) & WRITES
     assert "caso K-104233" in turn.reply and "2026-06-03" in turn.reply and "Banxico" in turn.reply
     assert turn.suggestions[0].href == "/case/K-104233"
+    assert turn.decision is None and record(turn)["decision"]["decision"] == "block_and_open_case"   # D-050 default
     call = Chat(mcp_transport=server(list_my_cases=fake.FIXTURES["list_my_cases"])).say(
         "Quiero hablar con una persona, no reconozco un cargo de 1250 USD", language="es")
     assert "Registré tu solicitud en el caso K-104233" in call.reply and call.actions[0].state == "requested"
+    assert call.decision == "connect_person"
+
+
+@pytest.mark.parametrize("down", ["search_transaction", "get_product_status"])
+def test_ac_13_a_failed_read_says_so_and_never_counts_as_a_clarification_turn(down):
+    """A tool outage is not a customer who cannot say which charge: no clarify.exhausted, however many times."""
+    chat = Chat(mcp_transport=server(**{down: ToolError(code="UNAVAILABLE", message="down")}))
+    for text in ("No reconozco un cargo de 1250 USD", "No reconozco un cargo de 1250 USD", "Muéstrame mis últimos cargos"):
+        turn = chat.say(text, language="es")
+        assert turn.decision is None and not turn.actions and chat.state().get("clarification_turns", 0) == 0
+        assert turn.reply.splitlines()[-1].startswith("No pude consultar tus cargos ahora")
+        assert "No pude identificar" not in turn.reply and labels(turn)[:2] == ["Muéstrame mis últimos cargos",
+                                                                                "Hablar con una persona"]
+        retrieve = next(s for s in turn.trace if s.node == "retrieve")
+        assert (retrieve.status, retrieve.detail) == ("error", f"{down}: not_confirmed")
+        assert "decide" not in [s.node for s in turn.trace]
+
+
+def test_ac_13_a_decision_without_request_call_never_registers_a_call(monkeypatch):
+    """decide goes to connect only when the decision sets request_call; otherwise straight to respond."""
+    quiet = intake.ENGINE._result("handoff", ["POL-CLARIFY-EXHAUSTED"], handoff_reason="clarification_exhausted")
+    monkeypatch.setattr(intake.ENGINE, "decide", lambda inputs: quiet)
+    calls = []
+    turn = Chat(mcp_transport=server(calls, search_transaction={"candidates": []})).say("No reconozco un cargo")
+    assert turn.decision == "handoff" and "request_call" not in calls and not turn.actions
+    assert [s.node for s in turn.trace][-2:] == ["decide", "respond"]
 
 
 def test_ac_25_amounts_are_exact_with_the_display_currency_from_convert_amount():
