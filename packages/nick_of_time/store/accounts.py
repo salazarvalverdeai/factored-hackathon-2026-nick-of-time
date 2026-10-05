@@ -18,6 +18,7 @@ The accessors take plain arguments and refuse bad ones with StoreError before an
 from __future__ import annotations
 
 import datetime as dt
+from decimal import Decimal
 import hashlib
 import json
 import re
@@ -29,8 +30,8 @@ from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, ValidationErro
 from nick_of_time import ids
 from nick_of_time.contracts import Language, Mode
 
-# [assumption] §6.7 fixes no shape for these two ids; they take ids.py's 12 upper-case hex characters.
-DENIAL_ID, CHANNEL_ID = r"^PD-[0-9A-F]{12}$", r"^CH-[0-9A-F]{12}$"
+# [assumption] §6.7 fixes no shape for these three ids; they take ids.py's 12 upper-case hex characters.
+DENIAL_ID, CHANNEL_ID, LLM_CALL_ID = r"^PD-[0-9A-F]{12}$", r"^CH-[0-9A-F]{12}$", r"^LC-[0-9A-F]{12}$"
 DENIAL_ACTOR = r"^(agent|customer|analyst:.*\S.*)$"                  # §6.5: a closed list, no `system`
 POLICY_ID, GUARDRAIL_ID = r"^POL-[A-Z0-9-]+$", r"^G-[A-Z]+-[0-9]{2}$"   # the policies.yaml shapes
 RULE_ONLY_GUARDRAIL = "G-POL-01"
@@ -42,7 +43,7 @@ CHANNEL_CASE_EVENT: dict[tuple[str, str], str] = {("telegram", "linked"): "teleg
 
 
 def new_row_id(pattern: str) -> str:
-    """A fresh id for DENIAL_ID or CHANNEL_ID: the prefix and 48 random bits."""
+    """A fresh id for DENIAL_ID, CHANNEL_ID or LLM_CALL_ID: the prefix and 48 random bits."""
     return pattern[1:pattern.index("[")] + secrets.token_hex(6).upper()
 
 
@@ -95,6 +96,24 @@ class NewDenial(_Row):
         if re.fullmatch(DENIAL_ACTOR, value) is None:
             raise ValueError("not a denial actor (agent, customer or analyst:<sub>)")
         return value
+
+
+class NewLLMCall(_Row):
+    """One billed LLM call as the api writes it from a run's usage (spec 04 AC-14, spec 18 AC-10); `run_id` is the
+    session's, so a run's tokens and cost sum alone (D-023). Counts are non-negative and `cost_usd` a finite decimal."""
+    trace_id: str = Field(min_length=1)
+    provider: str = Field(min_length=1)
+    model: str = Field(min_length=1)
+    tokens_in: int = Field(ge=0, strict=True, le=2**31 - 1)               # Postgres integer
+    tokens_out: int = Field(ge=0, strict=True, le=2**31 - 1)
+    latency_ms: int = Field(ge=0, strict=True, le=2**31 - 1)
+    cost_usd: Decimal = Field(ge=0, allow_inf_nan=False)
+    run_id: Optional[str] = None
+
+
+class LLMCall(NewLLMCall):
+    call_id: str = Field(pattern=LLM_CALL_ID)
+    created_at: AwareDatetime
 
 
 class Once(_Row):
