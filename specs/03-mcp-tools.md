@@ -46,8 +46,9 @@ AC-01 to AC-06 come from issue #5 with the same numbers; AC-07 onward are added 
 - **AC-08** — `search_transaction` shall return only card transactions with status `Approved` or `Pending`, dated within
   `window_days` of `approx_date` and never after `clock.today(mode)`, ranked by match quality, at most 4 (so the policy
   can see "more than 3"). · [T]
-- **AC-14** — While the session is in `live` mode, `search_transaction` shall also search the customer's
-  `demo_transactions` and flag those results `synthetic: true`; in `replay` it shall never read them. · [T]
+- **AC-14 [P1]** — While the session is in `live` mode, `search_transaction` shall also search the customer's
+  `demo_transactions` and flag those results `synthetic: true`; in `replay` it shall never read them (P1, D-001 in
+  spec 01 §10 T4). · [T]
 
 **Acting**
 - **AC-09** — If `open_case` receives a `zone` different from the zone computed from `get_fraud_score` for that
@@ -86,9 +87,9 @@ graph's run id). Kind: R read · W write · N notification.
 
 | Tool | Kind | Behavior |
 |---|---|---|
-| `get_customer_profile` | R | First name, language, country, `display_currency` (session preference, else the country's from `policies.yaml`), confirmed channels with masked addresses. |
-| `search_transaction` | R | Loads the session's customer; filters gold `transactions_enriched` to that customer's cards (`Tarjeta Débito`, `Tarjeta Crédito`), status `Approved`/`Pending`, `approx_date ± window_days` (default 7; if no date, the last 30 days) and `≤ clock.today(mode)`; in `live` also the customer's `demo_transactions` (AC-14). Optional filters: **amount** (±2%, compared in the transaction currency and in the customer's local currency through the policy rates MXN 18.0, ARS 350, COP 4,000), **merchant** (case- and accent-insensitive token match; null merchants still match on amount and date). Ranks by amount match, then date distance, then merchant similarity; returns ≤ 4 `Transaction` with `synthetic`, without `fraud_score` or `split` (D-026). |
-| `get_fraud_score` | R | Provider `dataset` (ADR 0006): `transactions.fraud_score` for a transaction of the session's customer, `source: "dataset"`, `version: "gold-v1"`; for a synthetic transaction, its generated score with `source: "synthetic"`. Another customer's transaction → `DENY POL-CROSS-CUSTOMER`. |
+| `get_customer_profile` | R | First name, language, country, `display_currency` (session preference, else the country's from `policies.yaml`: `amount_gate.by_country.<CC>.currency` until spec 02 FR-09 adds `display_currency` `[assumption]`), confirmed channels with masked addresses (`a···@domain`, Telegram `···` + last 4 `[assumption]`) from the store's `customer_channels` accessor (task 01g, PR #87; none listed until T8 wires it). A customer missing from gold or a country outside the policy answers `UNAVAILABLE`. |
+| `search_transaction` | R | Loads the session's customer; filters gold `transactions_enriched` to that customer's cards (`Tarjeta Débito`, `Tarjeta Crédito`), status `Approved`/`Pending`, `approx_date ± window_days` (default 7; if no date, the last 30 days) and `≤ clock.today(mode)`; in `live` also the customer's `demo_transactions` (AC-14). Optional filters: **amount** (±2%, compared in the transaction currency and in the customer's local currency through the policy rates MXN 18.0, ARS 350, COP 4,000), **merchant** (case- and accent-insensitive token match; null merchants still match on amount and date). Ranks by amount match, then date distance, then merchant similarity; returns ≤ 4 `Transaction` with `synthetic`, without `fraud_score` or `split` (D-026). Ties break on `transaction_id`; a null `amount_usd` is the amount for USD and amount ÷ the policy rate (2 decimals) for ARS/COP `[assumption]`; `amount_usd` is internal (matching only) and never rendered to the customer. Until `clock.today(mode, country)` (spec 02 T7, PR #67) and AC-14 land, replay uses `DEMO_TODAY` 2026-06-01 and a `live` session answers `UNAVAILABLE` `[assumption]`. |
+| `get_fraud_score` | R | Provider `dataset` (ADR 0006): `transactions.fraud_score` for a transaction of the session's customer, `source: "dataset"`, `version: "gold-v1"`; for a synthetic transaction, its generated score with `source: "synthetic"`. Another customer's transaction answers the same `NOT_FOUND` as an unknown id (no existence oracle; D-052, confirmed by the lead 2026-10-05; contract wording in PR #107); the probe is still written to `policy_denials` with `POL-CROSS-CUSTOMER` (`scope.cross_customer_request: deny_and_log`), its rule's guardrail (G-SES-02) and best-effort (a failed write still answers `NOT_FOUND`), its policy id never shown. |
 | `compute_deadline` | R | Country from the customer (`México`→MX, `Argentina`→AR, `Colombia`→CO), product from the card type, opened on `clock.today(mode, country)`, `abroad` when `transaction_country` ≠ customer country; delegates to `clock.deadline()` (spec 02); returns `source_url` and `verified_on`. |
 | `open_case` | W | Duplicate check first (AC-15); recomputes the zone from the score (mismatch → AC-09); idempotent on `idempotency_key` (prefixed with `run_id`); writes `cases` (with `mode`, `related_case_id` when given) and `case_events(case_opened)`; returns `case_id`, deadlines and `duplicate_of`. |
 | `block_card` | W | Requires an open case for that product in the session and run; asks `engine.check("block_card", zone, supervised_mode=…, call_requested=…, amount=…, currency=…, country=…)` (spec 02 §6; `call_requested` is true while the case has an open call (§8, D-042), so the block is denied, D-029); on allow, writes `product_overrides(Blocked)` and `case_events(card_blocked)`, returns `state: "requested"` (not yet verified). |
@@ -99,7 +100,7 @@ graph's run id). Kind: R read · W write · N notification.
 | `add_case_info` | W | AC-17; writes `case_events(customer_info_added)`. |
 | `request_call` | W | AC-18; `{preferred_time?}`; writes `case_events(call_requested)`; returns `{event_id, expected_contact_by}` (D-008): a `YYYY-MM-DD` date or `null`, computed by the tool from `contact.callback_within_business_days` with `clock.add_business_days` (spec 02), stored in the event and never recomputed; the tool never invents a date. `RequestCallResult.expected_contact_by` (`Optional[date]`) lands in `contracts/tools.py` v1.1 (task 01b). |
 | `request_reevaluation` | W | AC-19; asks `engine.reevaluation_allowed()` (spec 02); writes `case_events(reevaluation_requested)` + `status_changed(review)`, or a new case + `case_events(related_case_opened)` on the closed case. `already_in_progress` writes nothing and returns the `action_id` and `event_id` of the write that holds the case active (the original `open_case` `A-`, or an earlier `request_reevaluation`); the agent reports it as "already in review", never as a new verified action (spec 04, task 04c). |
-| `convert_amount` | R | AC-20; never changes a deadline or a zone. |
+| `convert_amount` | R | AC-20; never changes a deadline or a zone. `to_currency` null → the profile's display currency. A result without a `rate_source`, or in a currency other than the one asked, counts as no verified rate. Until spec 02 T7 ships `fx.convert()`, no rate is verified, so it answers `converted: null`; the `amount_gate` rates are never used (spec 02 §4.2). |
 | `send_case_summary` | N | AC-21; renders `messages.yaml receipt.*` with the case's verified facts, writes `notifications(trigger=on_request)` + `case_events(notification_sent)`, hands delivery to the api's sender (Telegram or Resend); returns `notification_id` and `state: "requested"`. |
 | `list_my_notifications` | R | AC-22. |
 
@@ -126,7 +127,9 @@ which answers `DENY` to an unexpected argument such as `customer_id`. A rate-lim
 a failing handler or a failing audit answers `UNAVAILABLE`. Tool outputs are typed data, delimited when passed to the
 LLM (G-IN-01). Every call is audited as one JSON line on stdout (D-040) with `trace_id` (`X-Trace-Id`, else a minted
 `mcp-` id), actor `agent` and hashes of the input and the session id, never either one; every `DENY` is a
-`policy_denials` row (AC-12); a handler's `DENY` cites G-POL-01 until T4 maps its rule's guardrail.
+`policy_denials` row (AC-12); a handler's `DENY` cites G-POL-01 until T4 maps its rule's guardrail. A handler's
+`NOT_FOUND` that carries a policy id (a cross-customer probe) is written as a denial too, best-effort and with the
+rule's own guardrail, and answered without it (D-052, confirmed 2026-10-05).
 The analysts' actions never appear in this server.
 
 **Verification, call requests and score sources** `[assumption]` (defaults pending the lead):
@@ -197,9 +200,12 @@ webhooks (api, spec 13); the agent logic (spec 04).
 Implementation goes in one `feat/03-*` branch per task (T1: `feat/03-mcp-server`).
 - [x] T1 — FastMCP app, API key middleware, session and fault checks, rate limits, audit · AC-02, AC-05, AC-06 ·
       `apps/mcp/mcp_server/{server,gate}.py`, `tests/test_spec03_server.py`
-- [ ] T2 — Gold loader (DuckDB in-memory, card transactions by customer), `demo_transactions` in `live`, and
-      `search_transaction` ranking · AC-01, 07, 08, 11, 14
-- [ ] T3 — `get_customer_profile`, `get_fraud_score`, `compute_deadline`, `convert_amount` · AC-11, AC-20
+- [x] T2 — Gold loader (DuckDB in-memory, card transactions by customer), `demo_transactions` in `live`, and
+      `search_transaction` ranking · AC-01, 07, 08, 11, 14 · `apps/mcp/mcp_server/{gold,reads}.py`,
+      `tests/test_spec03_reads.py`. AC-14 (`demo_transactions` in `live`) is P1 and stays open
+- [ ] T3 — `get_customer_profile`, `get_fraud_score`, `compute_deadline`, `convert_amount` · AC-11, AC-20. Done
+      (task 03b part 1, PR #106): profile, score and convert in `reads.py`, tests in `tests/test_spec03_reads.py`.
+      Open: `compute_deadline`, which lands after PR #67 (`clock.deadline()`) merges
 - [ ] T4 — `open_case` (duplicates, related case), `block_card` with idempotency, engine re-check and denials · AC-03,
       04, 09, 10, 12, 15
 - [ ] T5 — read tools (`get_product_status`, `list_my_cards`, `get_case`, `list_my_cases`) + latency benchmark on
