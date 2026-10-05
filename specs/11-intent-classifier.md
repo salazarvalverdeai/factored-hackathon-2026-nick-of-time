@@ -266,10 +266,13 @@ Fine-tuning; embeddings + LR (P2); Jev (benchmarked in spec 15); the agent's use
   ("pesos 13 abril" no longer reads 13); an English person request ("can I talk to a person", "I want to speak to a
   human") is `human_request`. [assumption] "1.250" reads as 1250 (3 digits after the separator are thousands) and
   "1,25" as 1.25; B0 has no session country, so the MX ambiguity stays with `search_transaction` · AC-08, AC-09, AC-10
-- [ ] T3 — B1 training with calibration; τ on validation · AC-02, AC-07
+- [x] T3 — B1 training with calibration; τ on validation · AC-02, AC-07 (task 11b: `nlu.learned.train_b1`, sigmoid
+  calibration on validation, the protocol's one calibration split; `load_nlu("B1", path)` loads the export · AC-05)
 - [ ] T4 — B2 structured-output prompt (Haiku 4.5) · AC-02
 - [ ] T5 — injection detector, both arms · AC-04 (rules arm done in 11a, `nlu.injection`; LR arm and AC-04 numbers pending spec 09)
-- [ ] T6 — evaluation script, report, export, ADR "model selection" (with spec 15) · AC-03, AC-05
+- [ ] T6 — evaluation script, report, export, ADR "model selection" (with spec 15) · AC-03, AC-05 (task 11b:
+  `eval/classifier/evaluate.py`; `make classifier` is the validation development run, written to `eval/.runs/` only;
+  `make classifier-test` is the one test run and refuses while `eval/PROTOCOL.md` is UNSEALED; ADR after the test run)
 
 ## 11. Sources
 External sources checked on 2026-10-04.

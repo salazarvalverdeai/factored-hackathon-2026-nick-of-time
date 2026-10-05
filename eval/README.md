@@ -25,6 +25,7 @@ harness of spec 10 when it scores.
 | `local/` | the real stack for `make eval` on one machine (`make eval-local`): api with the eval hooks, MCP server, graph | 10 T6 |
 | `classifier/generate.py`, `classifier/draft/` | classifier sentence drafts from three model families and their run record | 09 §7.6 |
 | `classifier/review.py` | review sheets of the drafts and promotion to `classifier/{train,validation,test}.jsonl` | 09 §7.6 |
+| `classifier/evaluate.py` | scores B0 and B1, picks τ on validation, exports `classifier.json` after the seal | 11 T3, T4, T6 |
 
 ## Demo index
 `python -m eval.demo_index` rewrites `demo_index.csv` from `data/gold/` (it needs `make setup`). The same gold gives
@@ -225,3 +226,15 @@ a split file: the manifest hashes top-level files only.
 
 Not done yet: the second labeling of 20 cases (AC-06), and the review and promotion of the classifier set (AC-04,
 AC-10).
+
+## Classifier evaluation (spec 11 T3, T4, T6)
+B1 (TF-IDF + logistic regression) is fit on train and calibrated on validation; τ is the lowest B1 threshold that keeps
+precision ≥ 0.95 on validation (AC-07). Every arm is reported at τ.
+
+- `make classifier`: **development run on validation**. Writes `.runs/classifier/<time>/classifier.json` and the B1
+  file there (ignored by git), labeled "development run on validation"; never a result path of `PROTOCOL.md`. Before
+  the split files are promoted it reads the human-reviewed train and validation drafts; it never reads test.
+- `make classifier-test`: **the one test-split run, after the seal (M02)**. Refused while `PROTOCOL.md` is UNSEALED,
+  or when the promoted split files do not hash to the sealed manifest. It writes
+  `models/intent-b1-v1.joblib`, `results/classifier.csv` and `apps/web/public/data/classifier.json` (spec 11 §7.1), and
+  labels a test split decided by `rules-v1` "test split without independent human review" (ADR 0025 amendment).
