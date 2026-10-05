@@ -113,6 +113,8 @@ def web_summary(records: list[dict[str, Any]], run_meta: dict[str, Any],
         arms.append({
             "arm": arm, "run_meta": run_meta["arms"].get(arm, {}),
             "overall": {name: stats[name] for name in metrics.RATES},
+            # AC-13 (D-071): the recovery variants, apart from the §4.1 metrics; null when the set has none
+            "second_turn_recovery": {name: stats[name] for name in metrics.RECOVERY if name in stats} or None,
             "cells": [{"language": language, "type": type_, "segment": segment,
                        "n_cases": len({record["case_id"] for record in runs}),
                        "small": len({record["case_id"] for record in runs}) < SMALL_CELL,
@@ -121,14 +123,17 @@ def web_summary(records: list[dict[str, Any]], run_meta: dict[str, Any],
             "latency_ms": {"p50": stats["latency_p50_ms"]["value"], "p95": stats["latency_p95_ms"]["value"]},
             "cost_usd": {"per_case": stats["cost_per_case_usd"]["value"],
                          "per_resolution": stats["cost_per_resolution_usd"]["value"]},
-            "blocks_vs_label": None if fraud_labels is None else label_module.blocks_vs_label(mine, fraud_labels)})
-    cases = {record["case_id"] for record in records}
+            "blocks_vs_label": None if fraud_labels is None else label_module.blocks_vs_label(metrics.base(mine),
+                                                                                             fraud_labels)})
+    cases = {record["case_id"] for record in metrics.base(records)}
+    variants = {record["case_id"] for record in records} - cases
     per_case = max((sum(1 for record in mine if record["case_id"] == case_id) for mine in _arms(records).values()
                     for case_id in cases), default=0)
     return {"generated_at": run_meta["ended_at"], "git_sha": run_meta["harness_git_sha"],
             "source": "eval/harness [simulated] — final state of scripted cases, see eval/PROTOCOL.md",
             "data": {"label": "[simulated]", "set": next(iter({record["set"] for record in records}), None),
-                     "cases": len(cases), "runs_per_case": per_case, "cases_sha256": run_meta["cases_sha256"],
+                     "cases": len(cases), "variant_cases": len(variants), "runs_per_case": per_case,
+                     "cases_sha256": run_meta["cases_sha256"],
                      "protocol": run_meta["protocol"], "arms": arms}}
 
 

@@ -9,6 +9,11 @@ Usage, from the repo root: PYTHONPATH=packages python -m eval.derive_expected de
 never changes (ADR 0021).
 A plan line with `"fixtures": "cluster"` (ambiguous cases) reads the customer's neighbouring card transactions from
 data/gold/, so it needs `make setup`; every other line needs only the index.
+D-071 (lead, 2026-10-05): a dev plan line may be a recovery variant of another case (`variant_of`, `second_turn`
+typed|chip): the original's messages plus the customer's answer to the ask; a message given as {"text", "chip"} is a
+chip press the harness makes from the last reply (spec 10 AC-14). Its `expected` is derived like any other case.
+D-070 (lead, 2026-10-05): every opened case is handed to a person, a verified high-zone block included. The held-out
+was derived and sealed before it, so `heldout` keeps the sealed rule (`sealed=True`) and its file never changes.
 """
 from __future__ import annotations
 
@@ -26,8 +31,9 @@ from nick_of_time.policy import DecisionInput, PolicyEngine
 ROOT = Path(__file__).resolve().parents[1]
 CASES = ROOT / "eval/cases"
 DISPUTES = ("unrecognized_charge", "wrongful_charge")
-CASE_KEYS = ("id", "language", "type", "origin", "set", "country", "segment", "initial_state", "messages", "expected",
-             "notes", "labeler")
+CASE_KEYS = ("id", "language", "type", "origin", "set", "country", "segment", "variant_of", "second_turn", "initial_state",
+             "messages", "expected", "notes", "labeler")
+SEALED_SETS = ("heldout",)      # derived and sealed before D-070 (protocol-v1); never re-derived with a later rule
 NEIGHBOURS = """
     SELECT transaction_id, product_id,
            CASE product_type WHEN 'Tarjeta Débito' THEN 'debit' ELSE 'credit' END AS product_type,
@@ -39,12 +45,14 @@ NEIGHBOURS = """
     ORDER BY transaction_date, transaction_id"""
 
 
-def expected_for(case: dict[str, Any], intent: Optional[str], engine: Optional[PolicyEngine] = None) -> dict[str, Any]:
+def expected_for(case: dict[str, Any], intent: Optional[str], engine: Optional[PolicyEngine] = None, *,
+                 sealed: bool = False) -> dict[str, Any]:
     """The `expected` block of one case: the engine decides each scripted turn and the last decision is the outcome.
 
     The facts come from the case itself: its fixtures are the transactions the messages match, so one fixture is an
     identified charge and several are an ambiguous one. `intent` is the team's label of the messages (None when the
-    case is refused before any intent matters).
+    case is refused before any intent matters). D-070: an opened case is a handoff (a person closes every case);
+    `sealed` keeps the rule the held-out was sealed with, where a verified high-zone block was not one.
     """
     engine = engine or PolicyEngine.load()
     state, fixtures = case["initial_state"], case["initial_state"].get("fixtures", [])
@@ -69,7 +77,7 @@ def expected_for(case: dict[str, Any], intent: Optional[str], engine: Optional[P
 
     opened, blocked = "open_case" in decision.allowed_actions, "block_card" in decision.allowed_actions
     outcome, queue = decision.decision, decision.queue_status_after
-    handoff = decision.handoff_reason is not None or decision.request_call is not None
+    handoff = decision.handoff_reason is not None or decision.request_call is not None or (opened and not sealed)
     faults = state.get("tool_faults", [])
     if opened and "open_case" in faults:
         # reliability.on_failure: no case is confirmed, so nothing is reported as opened or blocked; a person gets it
@@ -143,10 +151,20 @@ def build_case(plan: dict[str, Any], set_name: str, index: dict[str, dict], gold
                          "opened_on": plan["case"]["opened_on"]}
     case = {"id": plan["id"], "language": plan["language"], "type": plan["type"], "origin": "team-generated",
             "set": set_name, "country": anchor["country"], "segment": anchor["segment"], "initial_state": state,
-            "messages": [{"role": "customer", "text": text} for text in plan["messages"]]}
-    case["expected"] = expected_for(case, plan.get("intent"), engine)
+            "messages": [message(item) for item in plan["messages"]]}
+    for key in ("variant_of", "second_turn"):      # D-071: a recovery variant of another case of the set
+        if plan.get(key):
+            case[key] = plan[key]
+    case["expected"] = expected_for(case, plan.get("intent"), engine, sealed=set_name in SEALED_SETS)
     case["notes"], case["labeler"] = plan["notes"], plan["labeler"]
-    return {key: case[key] for key in CASE_KEYS}
+    return {key: case[key] for key in CASE_KEYS if key in case}
+
+
+def message(item: Any) -> dict[str, Any]:
+    """A plan message: a typed text, or {"text": label, "chip": id} for a chip the customer presses (D-071)."""
+    if isinstance(item, str):
+        return {"role": "customer", "text": item}
+    return {"role": "customer", "text": item["text"], "chip": item["chip"]}
 
 
 def read_jsonl(path: Path) -> list[dict[str, Any]]:

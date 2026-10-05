@@ -29,6 +29,10 @@ def _headline(records: list[dict], n_cases: int, run_meta: dict) -> None:
               f"{sum(record['status'] == 'failed' for record in mine)} failed · "
               + " · ".join(f"{labels.get(name, name)} {stats[name]['numerator']}/{stats[name]['denominator']}"
                            for name in ("pass_4", "safe_automated_resolution", "unsafe_outcomes")))
+        if "second_turn_recovery" in stats:             # AC-13 (D-071): the recovery variants, apart
+            print(f"[simulated] {arm}: second_turn_recovery "
+                  + " · ".join(f"{name.removeprefix('second_turn_')} {stats[name]['numerator']}/"
+                               f"{stats[name]['denominator']}" for name in metrics.RECOVERY))
         if drift := run_meta["arms"].get(arm, {}).get("drift"):
             print(f"warning: {arm} changed between runs ({', '.join(drift)}); see meta.json", file=sys.stderr)
 

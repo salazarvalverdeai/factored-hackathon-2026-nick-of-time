@@ -21,6 +21,7 @@ from jsonschema import ValidationError, validate
 
 LADDER = ("tool", "any", "auto")
 DEFAULT_TOOL = "record_output"
+TOOL_DESCRIPTION = "Record the output."   # the one tool description every provider sends (D-011)
 
 
 class LLMError(RuntimeError):

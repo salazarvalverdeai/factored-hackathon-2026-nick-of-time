@@ -65,7 +65,10 @@ NO_REASON_NEEDED = {"take", "approve_credit", "approve_block"}        # AnalystA
 TEMPLATE_EVENT = {"take": "in_review", "reopen_case": "in_review", "resolve": "resolved"}   # status change -> template
 ZONE_ORDER = {"high": 0, "medium": 1, "human": 2}
 TELEGRAM_TTL, EMAIL_TTL = dt.timedelta(minutes=15), dt.timedelta(hours=24)
-DAILY_LLM_CAP_USD = 5.0     # [assumption] G-OPS-01 per day across every session; env DAILY_LLM_CAP_USD overrides it
+# AC-22 (D-066): handoff reasons of an escalated turn, besides `escalate_unconfirmed_action`; the zone reasons are not
+# here because `open_case` already writes their `review` (spec 03 §6, D-063)
+ESCALATED_REASONS = frozenset({"tool_failure", "person_requested"})
+DAILY_LLM_CAP_USD = 5.0    # [assumption] G-OPS-01 per day across every session; env DAILY_LLM_CAP_USD overrides it
 
 log = logging.getLogger("nick_of_time.api")
 
@@ -438,13 +441,69 @@ def create_live_app(store: Store, *, catalog: Optional[Catalog] = None, verifier
         except StoreError as error:
             log.error("llm_calls write failed trace_id=%s error=%s", turn.trace_id, error)
 
+    def record_handoff(turn: TurnResult, s: dict) -> None:
+        """Spec 05 AC-21 (D-066, the writer is this api): a turn from Platform whose handoff card is for its own
+        `case_id` appends one `handoff_emitted` `{handoff, handoff_reason?}` to that case, once per trace. The card is
+        stored exactly as the graph returned it (constitution #5); the case must be the session's own customer's, in
+        the session's run (#3, ADR 0026). AC-22: an escalated turn (an unconfirmed or failed action, a person request)
+        whose case is still `new` also moves it to `review`; any other status is left alone. Best effort: a failed
+        write is logged and never fails the turn."""
+        card = turn.handoff
+        if not card or not turn.case_id or card.get("case_id") != turn.case_id:
+            return
+        try:
+            record = store.get_case(turn.case_id, run_id=s["run_id"], customer_id=s["customer_id"])
+            if record is None:                           # not the session's case: nothing is written for it
+                log.error("handoff for a case outside the session trace_id=%s", turn.trace_id)
+                return
+            reason = card.get("handoff_reason")
+            if not any(e.type == "handoff_emitted" and e.trace_id == turn.trace_id for e in store.events(record.case_id)):
+                store.append_event(record.case_id, "handoff_emitted", actor="agent", trace_id=turn.trace_id,
+                                   payload={"handoff": card, **({"handoff_reason": reason} if reason else {})})
+            escalated = turn.decision == "escalate_unconfirmed_action" or reason in ESCALATED_REASONS
+            if escalated and store.queue_status(record.case_id) == "new":
+                store.change_status(record.case_id, "review", on=today(record.mode, record.country), actor="agent",
+                                    trace_id=turn.trace_id)
+        except StoreError as error:
+            log.error("handoff write failed trace_id=%s error=%s", turn.trace_id, error)
+
+    def record_receipt(turn: TurnResult, raw: dict, s: dict) -> None:
+        """Spec 05 AC-23: a turn from Platform whose receipt (built by the graph only once `get_case` verified the case,
+        spec 04 §4.3) is for its own `case_id` appends one customer-visible `receipt_issued` `{receipt}` to the
+        session's own case in the session's run, once per trace. The receipt is the graph's own dict, unchanged
+        (constitution #5); the event notifies nobody (spec 13 notifies on status changes and verified actions). Best
+        effort, as AC-21."""
+        receipt = raw.get("receipt")
+        if (turn.receipt is None or not isinstance(receipt, dict) or not turn.case_id
+                or turn.receipt.case_id != turn.case_id):
+            return
+        try:
+            record = store.get_case(turn.case_id, run_id=s["run_id"], customer_id=s["customer_id"])
+            if record is None:                           # not the session's case: nothing is written for it
+                log.error("receipt for a case outside the session trace_id=%s", turn.trace_id)
+                return
+            if not any(e.type == "receipt_issued" and e.trace_id == turn.trace_id for e in store.events(record.case_id)):
+                store.append_event(record.case_id, "receipt_issued", actor="agent", trace_id=turn.trace_id,
+                                   payload={"receipt": receipt})
+        except StoreError as error:
+            log.error("receipt write failed trace_id=%s error=%s", turn.trace_id, error)
+
+    def log_turn(raw: dict, s: dict) -> TurnResult:
+        """The api's bookkeeping of a turn from Platform (never from the client): its usage, its handoff card and its
+        receipt. Returns the validated turn."""
+        turn = turn_of(raw)
+        log_usage(turn, s)
+        record_handoff(turn, s)
+        record_receipt(turn, raw, s)
+        return turn
+
     def reconcile(thread_id: str, s: dict) -> None:
-        """A stream that ended without a logged turn (client gone, Platform failure): log the usage of the thread's
-        latest state if its trace is not written yet (the same dedupe), best effort."""
+        """A stream that ended without a logged turn (client gone, Platform failure): log the usage, the handoff and the
+        receipt of the thread's latest state if its trace is not written yet (the same dedupe), best effort."""
         try:
             raw = need_platform().state(thread_id)
             if raw is not None:
-                log_usage(turn_of(raw), s)
+                log_turn(raw, s)
         except Exception as error:  # noqa: BLE001 — bookkeeping only, never the turn's failure
             log.error("usage reconcile failed thread=%s error=%s", thread_id, type(error).__name__)
 
@@ -499,8 +558,7 @@ def create_live_app(store: Store, *, catalog: Optional[Catalog] = None, verifier
                     if event == "progress" and (item := progress_event(data)):
                         yield item
                     elif event == "turn":       # only the customer projection leaves the api (D-013)
-                        turn = turn_of(data)
-                        log_usage(turn, s)
+                        turn = log_turn(data, s)
                         turned = True
                         yield _sse("turn", turn.for_customer().model_dump(mode="json"))
             except (PlatformError, ValueError) as error:
@@ -817,7 +875,7 @@ def create_live_app(store: Store, *, catalog: Optional[Catalog] = None, verifier
         if record is None:
             raise ApiError(404, "NOT_FOUND", "Case not found")
         events = store.events(case_id)
-        # [assumption] the graph writes its handoff card as the `handoff` of its `handoff_emitted` event; {} until then
+        # AC-21: the api writes the graph's handoff card as the `handoff` of a `handoff_emitted` event; {} until then
         return {"case": view(record), "handoff": last_payload(events, "handoff_emitted", "handoff") or {},
                 "events": [{"event_id": e.event_id, "type": e.type, "actor": e.actor, "created_at": e.created_at}
                            for e in events]}

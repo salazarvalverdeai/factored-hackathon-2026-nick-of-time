@@ -174,6 +174,10 @@
           "text": {
             "type": "string",
             "description": "customer-facing: stays in Spanish/Portuguese"
+          },
+          "chip": {
+            "type": "string",
+            "description": "D-071 (spec 10 AC-14): the id of a chip of the last reply that the customer presses; the harness sends it as the web does (an action chip's action, a text chip's label); `text` is its label, for the record"
           }
         }
       }
@@ -296,6 +300,18 @@
         "heldout"
       ],
       "description": "dev uses customers from partition 7; heldout only 8-9 and is sealed on Thursday"
+    },
+    "variant_of": {
+      "type": "string",
+      "pattern": "^EV-[0-9]{4}$",
+      "description": "D-071 (spec 09 §7.4): a dev recovery variant of that case: its messages plus the customer's answer to the ask; scored apart (spec 10 second_turn_recovery), never in the §4.1 metrics"
+    },
+    "second_turn": {
+      "enum": [
+        "typed",
+        "chip"
+      ],
+      "description": "D-071: how the variant's last message answers the ask: typed text or a chip press"
     }
   }
 }

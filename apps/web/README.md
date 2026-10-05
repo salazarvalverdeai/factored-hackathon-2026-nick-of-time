@@ -12,12 +12,12 @@ npm run lint && npm test && npm run build     # what CI runs
 ## Page map
 | Route | Spec | State |
 |---|---|---|
-| `/` | 16 | home with links |
+| `/` | 16 | home: lockup, the problem in numbers (labeled, linked), how it works, "Evaluate in 3 minutes"; hero visual and OG image slots for the lead |
 | `/chat` | 07 | working on mock data: demo customer + OTP, ES/PT chat, verified receipt, trace |
 | `/case/[id]` | 13 | working on mock data: timeline, countdown, call request, notifications, Telegram/e-mail |
-| `/login`, `/console` | 08 | working on mock data: analyst login, inbox, handoff card, approve, audit, supervised mode |
+| `/login`, `/console` | 08 | working on mock data: analyst login, KPI strip, inbox with SLA lights, Closed tab, handoff card, approve, audit, supervised mode |
 | `/evaluation`, `/analytics`, `/data` | 12 | shells, content owned by Diego |
-| `/agent` | 04 | shell |
+| `/agent` | 04 | architecture, graph nodes, policy ids, tools, guardrails and model inventory, generated from the repo (`npm run sync:agent`) |
 
 ## Add a page (5 steps)
 1. `cp -r app/_template app/my-page` (the template is a private folder: it is linted and built but not routed).
@@ -35,6 +35,7 @@ npm run lint && npm test && npm run build     # what CI runs
 | Case status | `StatusBadge` (`new · verification · review · resolved · closed`) | `components/badges.tsx` |
 | Case history | `Timeline` (a case's status is its last event) | `components/timeline.tsx` |
 | Chart | `BarChartCard` (Recharts); `source` is **required** and carries the figure label | `components/chart.tsx` |
+| Animated figure (sparingly) | `NumberTicker` (Magic UI): renders the final value without JavaScript, animates once below the fold, never with reduced motion | `components/ui/number-ticker.tsx` |
 | States | `LoadingState`, `EmptyState`, `ErrorState`, `DenyState` | `components/states.tsx` |
 
 ## Fetching data
@@ -91,5 +92,5 @@ await api.analystAction(id, "take");                    // throws ApiError { cod
 - Color is never the only signal: badges always carry their text.
 
 ## Tests
-`npm test` checks that `messages.ts` matches the contract, then runs Node's built-in runner on `lib/**/*.test.ts`. Each test cites the acceptance criterion
+`npm test` checks that `messages.ts` matches the contract and that `agent-reference.ts` matches its sources (`npm run sync:agent` regenerates it), then runs Node's built-in runner on `lib/**/*.test.ts`. Each test cites the acceptance criterion
 it covers, for example `spec 13 AC-03`. A page built from the template must pass `npm run lint` and `npm run build`.

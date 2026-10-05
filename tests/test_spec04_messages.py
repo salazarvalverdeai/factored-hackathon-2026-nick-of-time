@@ -41,6 +41,8 @@ SPEC_CHIPS = {  # spec 04 §4.5 table: id -> (kind, ES label, PT label)
     "request_call": ("action", "Que me llame una persona", "Quero que me liguem"),
     "add_info": ("text", "Agregar información", "Adicionar informações"),
     "request_reevaluation": ("action", "Pedir reevaluación", "Pedir reavaliação"),
+    "intent_unrecognized": ("text", "No reconozco este cargo", "Não reconheço esta cobrança"),          # D-071
+    "intent_wrongful": ("text", "Lo reconozco, pero el cobro está mal", "Reconheço, mas a cobrança está errada"),
     "report_another": ("text", "Reportar otro cargo", "Informar outra cobrança"),
     "reauthenticate": ("link", "Verificar de nuevo", "Verificar novamente"),
 }
