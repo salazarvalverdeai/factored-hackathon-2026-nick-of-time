@@ -37,6 +37,17 @@ _PATTERNS = [re.compile(p) for p in (
     r"\b(?:aprueb|aprob|aprov|approve)\w* " + _SKIP + r"(?:credito provisional|credito provisorio|provisional credit) "
     + _SKIP + _NO_CHECK,
     r"\b(?:cierr|cerr|fech|clos)\w* (?:el|o|the) (?:caso|case) " + _NO_CHECK,
+    # task 11d: override the policies (imperative only, so "ignoraron la politica" in a complaint stays clean)
+    r"(?:^|[.:;!,] ?|\b(?:e|y|and|please|por favor|favor) )(?:ignora|ignore|desconsidera|desconsidere|esquece|esqueca"
+    r"|olvida|olvide|omite|omita|forget|disregard) " + _SKIP + r"(?:politicas|policies)\b",
+    # task 11d: "SISTEMA:" header, announced new rules, staff role-play, admin modes
+    r"(?:^|[.!\[] ?|\b(?:atencao|atencion|aviso|alerta|attention|warning) )(?:sistema|system|admin\w*) ?:",
+    r"\b(?:novas regras|nuevas reglas|new rules) ?:",
+    r"\b(?:eu sou|sou|soy|yo soy|i am|i'm) (?:o |a |el |la |an? |the )?(?:(?:gerente|manager) (?:do|del|of the) banco|bank manager"
+    r"|administrador\w*|admin|desenvolvedor\w*|desarrollador\w*|developer|auditor\w*|administrator)\b",
+    r"\b(?:modo|mode) (?:administrador|admin|manutencao|mantenimiento|debug|depuracao|root)\b|\badmin mode\b",
+    # task 11d: asking for the score or the internal rules (customers never see them)
+    r"(?:(?:pontuacao|puntuacion|score|pontos?) de fraude|fraud score|\b(?:regras|reglas|rules) internas?\b|internal rules)",
 )]
 
 
