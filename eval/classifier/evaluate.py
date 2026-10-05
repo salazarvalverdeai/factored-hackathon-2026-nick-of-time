@@ -48,7 +48,6 @@ RULE_REVIEW = "test split decided by fixed rules, without independent human revi
 TEST_ARMS = ("B0", "B1", "B2")                                            # PROTOCOL §1.2: every arm on the one test run
 BUILT_ARMS = ("B0", "B1")                                                 # B2 lands with spec 11 T4
 RUN_NAME = "classifier-test"                                              # seal_guard.claim_run: eval/results/<name>/
-OUTPUTS = ("models/intent-b1-v1.joblib", "eval/results/classifier.csv", "apps/web/public/data/classifier.json")
 SEAL_TAG = "protocol-v1"                                                  # eval/PROTOCOL.md "Seal": tag of the sealing commit
 
 
@@ -120,9 +119,7 @@ def claim_test_run(root: Path = ROOT) -> dict:
     """The shared once-only guard (eval/harness/seal_guard.py), called before B1 is saved and before test.jsonl is
     read: the seal holds at HEAD and in the working tree, the sealed inputs are committed and every top-level
     eval/classifier/*.jsonl hashes to the sealed manifest; then `claim_run` refuses a second run and writes
-    eval/results/classifier-test/classifier-test.start.json. An existing output of this run also refuses it."""
-    if done := [p for p in OUTPUTS if (root / p).exists()]:
-        raise EvalError(f"refused: the classifier test run already wrote {done}; it runs once (spec 11 §5)")
+    eval/results/classifier-test/classifier-test.start.json."""
     try:
         guard = seal_guard.check_seal(inputs={"classifier_splits": None}, root=root)
         seal_guard.claim_run(RUN_NAME, root / "eval" / "results" / RUN_NAME, guard, root=root)
