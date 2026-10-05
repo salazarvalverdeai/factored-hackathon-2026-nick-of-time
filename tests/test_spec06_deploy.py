@@ -212,3 +212,13 @@ def test_ac_04_schema_is_applied_every_deploy_after_the_migration_hook_and_is_id
     assert not re.search(r"^create table (?!if not exists)", sql, re.M)
     assert not re.search(r"^create (unique )?index (?!if not exists)", sql, re.M)
     assert "create or replace function" in sql and "if not exists (select 1 from pg_trigger" in sql
+
+
+def test_ac_02_deploy_runs_only_after_a_green_ci_on_main(deploy_workflow):
+    """AC-02: a red CI on main never deploys; the deployed SHA is the one CI tested (dispatch is the manual override)."""
+    on = deploy_workflow.get("on", deploy_workflow.get(True))
+    assert "push" not in on and on["workflow_run"]["workflows"] == ["CI"] and on["workflow_run"]["branches"] == ["main"]
+    gate = deploy_workflow["jobs"]["build"]["if"]
+    assert "workflow_run.conclusion == 'success'" in gate and "workflow_dispatch" in gate
+    text = (WORKFLOWS / "deploy.yml").read_text()
+    assert "github.event.workflow_run.head_sha" in text and "${{ github.sha }}" not in text
