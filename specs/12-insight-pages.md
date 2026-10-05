@@ -33,9 +33,10 @@ comment). AC-04 onward are added by this spec. Evidence: [T] test · [C] command
 - **AC-03 (P1)** — `/data` shall show the medallion, the quality report, the manifest versions and the late-arrival
   fixture result. · [U]
 - **AC-04** — While a result file of §7.1 does not exist, its section shall show "Results pending" with what is
-  missing, and no figure. · [T]
+  missing, and no figure. · [T] `apps/web/lib/evaluation.test.ts`
 - **AC-05** — If the protocol status in `evaluation_summary.json` is not `SEALED`, or its set is not `heldout`, then
   `/evaluation` shall show a visible "development run, not the final result" notice above the figures. · [T]
+  `apps/web/lib/evaluation.test.ts`
 - **AC-06** — Every rate on `/evaluation` shall be shown with its numerator, its denominator and its interval, in the
   chart tooltip and in the table view. · [U]
 - **AC-07** — Every chart shall give the same detail on hover and on keyboard focus, and offer a table view. · [U]
@@ -107,7 +108,7 @@ Implementation goes in `feat/12-…` branches once this spec is approved.
       done in PR #72
 - [ ] T2 — drift test for `pitch_numbers.json` (done, `tests/test_spec12_pitch_numbers.py`); note on the teal step
       (waits for Q3: `docs/brand/BRAND.md` is the lead's) · covers AC-08 · follow-ups of PR #72
-- [ ] T3 — `/evaluation` run header, headline figures, arm comparison and breakdown from `evaluation_summary.json`,
+- [x] T3 — `/evaluation` run header, headline figures, arm comparison and breakdown from `evaluation_summary.json`,
       with the empty state and the development notice · covers AC-01 (part), AC-04, AC-05, AC-06, AC-07
 - [ ] T4 — `/evaluation` benchmark, classifier and fraud sections · covers AC-01 · needs Q1
 - [ ] T5 — `data_quality.json` and `/data` · covers AC-03
