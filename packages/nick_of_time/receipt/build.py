@@ -1,6 +1,9 @@
 """Receipt and handoff card of a turn (spec 04 T5; AC-05, AC-11, AC-12, AC-21), built from tool results only, and the
 grounding gate of spec 04 §4.3 (ADR 0016, G-OUT-01): whatever does not string-match a tool result or the policy is
-dropped and counted. The gate runs the auditor's A4 rule (spec 18), so the runtime and the auditor agree on a fact."""
+dropped and counted. The gate runs the auditor's A4 rule (spec 18) on ids, dates and numbers, plus an exact time match
+A4 does not make yet (it counts a timestamp by its date; spec 18 follow-up). `papers()` is the one entry point: it
+builds and gates both documents, and each field's fate (drop the document, null it, leave it out) is read from the
+contract schema, never from a list kept by hand."""
 from __future__ import annotations
 
 import datetime as dt
@@ -13,7 +16,8 @@ from nick_of_time.audit.checks import check_grounding
 from nick_of_time.contracts import load_schema
 from nick_of_time.receipt import amount_text, text
 
-REASONS = load_schema("handoff.schema.json")["properties"]["handoff_reason"]["enum"]
+SCHEMAS = {"receipt": load_schema("customer_receipt.schema.json"), "handoff": load_schema("handoff.schema.json")}
+REASONS = SCHEMAS["handoff"]["properties"]["handoff_reason"]["enum"]
 STEP = re.compile(r"^\d+\. ")       # [assumption] a plan step's own number is the template's, not a fact
 NO_CLOCK = "POL-CLOCK-UNKNOWN"
 # a time as a tool returns it (ISO) or as the customer sees it ('YYYY-MM-DD HH:MM UTC', D-051)
@@ -54,24 +58,58 @@ def bad(value: Any, facts: list[Any], policy: Iterable[str] = ()) -> bool:
     return check_grounding(facts, handoff=doc, policy_facts=list(policy)).status == "finding" or untimed(doc, facts)
 
 
-def gate(doc: dict[str, Any], facts: list[Any], policy: Iterable[str] = (), *, required: Iterable[str] = (),
-         nullable: bool = True) -> tuple[Optional[dict[str, Any]], int]:
-    """The document minus every list item or field that is not grounded, and how many were dropped. An ungrounded
-    required field drops the whole document; an optional one becomes null (`nullable`) or is left out."""
-    out, dropped, policy = {}, 0, list(policy)
+def nullable(prop: dict[str, Any]) -> bool:
+    """True when the schema property accepts null (a "null" type or a None in its enum)."""
+    kind = prop.get("type")
+    return (kind == "null" or isinstance(kind, list) and "null" in kind) or None in prop.get("enum", ())
+
+
+def fates(schema: dict[str, Any]) -> dict[str, str]:
+    """What the gate does with each ungrounded field of a document of `schema`: "drop" the whole document (required and
+    not nullable), "null" it (nullable) or "omit" it (optional, not nullable). Read from the contract, so a required
+    field cannot be forgotten in a hand-kept list."""
+    required = set(schema.get("required", ()))
+    return {key: "null" if nullable(prop) else "drop" if key in required else "omit"
+            for key, prop in schema["properties"].items()}
+
+
+def gate(doc: dict[str, Any], facts: list[Any], policy: Iterable[str] = (), *,
+         schema: str) -> tuple[Optional[dict[str, Any]], int]:
+    """The document minus every list item or field that is not grounded, and how many were dropped. An ungrounded field
+    drops the whole document, becomes null or is left out, as `fates(SCHEMAS[schema])` says."""
+    out, dropped, policy, fate = {}, 0, list(policy), fates(SCHEMAS[schema])
     for key, value in doc.items():
         if isinstance(value, list):
             out[key] = [item for item in value if not bad(item, facts, policy)]
             dropped += len(value) - len(out[key])
         elif value is not None and bad({key: value}, facts, policy):
             dropped += 1
-            if key in required:
+            if fate[key] == "drop":
                 return None, dropped
-            if nullable:
+            if fate[key] == "null":
                 out[key] = None
         else:
             out[key] = value
     return out, dropped
+
+
+def returned(actions: list[dict[str, Any]], facts: list[Any]) -> set[str]:
+    """The action ids among `actions` that a tool result states; a graph-minted id is in none (spec 04 §4.1)."""
+    said = json.dumps(facts, default=str)
+    return {a["action_id"] for a in actions if f'"{a["action_id"]}"' in said}
+
+
+def papers(paper: dict[str, Any], facts: list[Any]) -> tuple[Optional[dict[str, Any]], Optional[dict[str, Any]], int]:
+    """The turn's receipt and handoff card, each built from `paper` and passed through the gate against the turn's tool
+    results `facts` (the handoff also against the score and the decision's rule and guardrail ids, since it never
+    reaches the customer); and how many facts the gate dropped. The only way respond gets either document."""
+    paper = {**paper, "returned": returned(paper["actions"], facts)}
+    route = paper["route"]
+    policy = [*route.get("rule_ids", []), *route.get("guardrail_ids", []), NO_CLOCK]
+    draft, card = receipt(paper), handoff(paper)
+    kept, dropped = gate(draft, facts, schema="receipt") if draft else (None, 0)
+    shown_card, more = gate(card, [*facts, paper["score"] or {}], policy, schema="handoff") if card else (None, 0)
+    return kept, shown_card, dropped + more
 
 
 def shown(f: dict[str, Any]) -> list[dict[str, Any]]:
@@ -81,9 +119,10 @@ def shown(f: dict[str, Any]) -> list[dict[str, Any]]:
 
 
 def receipt(f: dict[str, Any]) -> Optional[dict[str, Any]]:
-    """The customer receipt (spec 01 §6.7, AC-21) once get_case verified the case opened this turn, else None."""
+    """The customer receipt (spec 01 §6.7, AC-21) once get_case verified the case opened this turn, else None (also
+    for an existing case, duplicate_of, which already has its own)."""
     case, trx, opened, card, language = f["case"], f["trx"], f["opened"], f["card"], f["language"]
-    if not case:
+    if not case or opened.get("duplicate_of"):
         return None
     merchant = "transaction" if trx.get("merchant") else "transaction_no_merchant"
     facts = [{"fact": text(f"receipt.{merchant}", language, merchant=trx.get("merchant"),

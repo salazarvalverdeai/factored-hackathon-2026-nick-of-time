@@ -283,7 +283,7 @@ async def connect(state: State, config: RunnableConfig) -> dict[str, Any]:
             if when else msg.text(f"connect.requested{suffix}_no_window", language, case_id=out.case_id))
     return {"body": [*before, body], "row": "connect_person_case" if out.case_id else "connect_person",
             "actions": [*done, record], "path": path + ["connect"], **({"case_id": out.case_id} if out.case_id else {}),
-            "seen": seen, "writes": {**(state.get("writes") or {}), "request_call": seen[0]}}
+            "seen": seen}
 
 
 async def call_case(state: State, config: RunnableConfig) -> Optional[str]:
@@ -693,23 +693,17 @@ def tool_facts(state: State) -> list[Any]:
 
 def papers(state: State, facts: list[Any]) -> tuple[Optional[dict[str, Any]], Optional[dict[str, Any]], int]:
     """The receipt (a case get_case verified this turn) and the handoff card (a case open_case returned this turn),
-    each through the grounding gate; and how many facts the gate dropped."""
-    writes, readings, route = state.get("writes") or {}, state.get("readings") or {}, state.get("route") or {}
+    built and gated by `build.papers` against the same tool results as the reply; and how many facts were dropped."""
+    writes, readings = state.get("writes") or {}, state.get("readings") or {}
     if not writes.get("open_case") or not state.get("selected_transaction"):
         return None, None, 0
-    paper = {"trx": state["selected_transaction"], "opened": writes["open_case"], "case": readings.get("open_case"),
-             "card": readings.get("block_card"), "display": state.get("display"), "actions": state.get("actions") or [],
-             "returned": {w["action_id"] for w in writes.values() if isinstance(w, dict) and "action_id" in w},
-             "held": bool(writes.get("held")), "dispute": dispute_type(state), "route": route,
-             "decision": state.get("decision"), "score": state.get("score"), "language": state["language"],
-             "mode": state["mode"], "trace_id": state["trace_id"], "intent_confidence": state.get("intent_confidence"),
-             "guardrails": state.get("guardrails_triggered") or []}
-    draft = None if writes["open_case"].get("duplicate_of") else build.receipt(paper)
-    receipt, dropped = build.gate(draft, facts, required=("case_id",)) if draft else (None, 0)
-    card, policy = build.handoff(paper), [*route.get("rule_ids", []), *route.get("guardrail_ids", []), build.NO_CLOCK]
-    handoff, more = build.gate(card, [*facts, state.get("score") or {}], policy, nullable=False, required=(
-        "case_id", "language", "zone", "request", "deadline", "trace_id")) if card else (None, 0)
-    return receipt, handoff, dropped + more
+    return build.papers({
+        "trx": state["selected_transaction"], "opened": writes["open_case"], "case": readings.get("open_case"),
+        "card": readings.get("block_card"), "display": state.get("display"), "actions": state.get("actions") or [],
+        "held": bool(writes.get("held")), "dispute": dispute_type(state), "route": state.get("route") or {},
+        "decision": state.get("decision"), "score": state.get("score"), "language": state["language"],
+        "mode": state["mode"], "trace_id": state["trace_id"], "intent_confidence": state.get("intent_confidence"),
+        "guardrails": state.get("guardrails_triggered") or []}, facts)
 
 
 def step(node: str, record: dict[str, Any], read_failed: Optional[str],

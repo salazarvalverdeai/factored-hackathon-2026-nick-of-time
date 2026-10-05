@@ -59,8 +59,25 @@ def test_ac_12_human_zone_hands_off_a_card_that_validates_with_requires_human(so
 def test_ac_11_medium_zone_once_confirmed_hands_off_with_approve_block():
     chat = Chat(mcp_transport=server(get_fraud_score=score(35.0)))
     assert chat.say(EV_0001, language="es").handoff is None          # confirm: nothing opened yet
-    card = chat.say(action={"type": "confirm", "value": "yes"}).handoff
+    turn = chat.say(action={"type": "confirm", "value": "yes"})
+    card = turn.handoff
     assert (card["handoff_reason"], card["copilot_proposal"]["action"]) == ("zone_medium", "approve_block")
+    # M24: only POL-ZONE-MEDIUM carries an id token A4 can see, so the policy facts' wiring is checked here
+    assert "G-OUT-01" not in turn.guardrails_triggered
+    assert card["verified_facts"][-1] == {"fact": "decision handoff, zone medium", "source_id": "POL-ZONE-MEDIUM"}
+
+
+def test_ac_12_ac_28_a_dispute_with_a_call_lists_the_verified_call_on_the_receipt_and_the_card():
+    """N20/N21: connect's call and its get_case read reach respond's facts, so neither paper loses the call."""
+    turn = Chat(mcp_transport=server(get_fraud_score=score(12.0))).say(
+        "Quiero hablar con una persona, no reconozco un cargo de 1250 USD en TIENDA X", language="es")
+    card, call = turn.handoff, fake.FIXTURES["request_call"]
+    assert (turn.zone, turn.decision, turn.case_id) == ("human", "connect_person", "K-104233")
+    assert ("request_call", "verified") in [(a["tool"], a["result"]) for a in card["actions"]]
+    assert {call["action_id"], "V-5C2F8A1E7B04"} <= set(card["evidence"])
+    assert ("Solicitud de llamada", "verified", "V-5C2F8A1E7B04") in [
+        (a.label, a.state, a.verification_id) for a in turn.receipt.actions]
+    assert "G-OUT-01" not in turn.guardrails_triggered
 
 
 def test_ac_05_escalation_hands_off_tool_failure_and_never_lists_a_graph_minted_id():
@@ -88,39 +105,77 @@ def facts(merchant, amount, dates, blocked, dispute, zone, fx):
     display = {"amount": "21875.00", "currency": "MXN", "rate": "17.50", "rate_source": "Banxico FIX",
                "as_of": "2026-05-29"} if fx else None
     sc = {"transaction_id": TRX["transaction_id"], "score": {"high": 72.0, "medium": 35.0, "human": None}[zone],
-          "source": "dataset", "version": "gold-v1"}
-    results = [trx, case, {**OPENED, **dates}, *([CARD, {"action_id": CARD["action_id"]}] if blocked else []),
-               *([display] if fx else [])]
+          "source": "dataset", "version": "gold-v1"} if zone != "human" else None
+    results = [trx, case, {**OPENED, **dates}, *([CARD] if blocked else []), *([display] if fx else [])]
     paper = {"trx": trx, "opened": {**OPENED, **dates}, "case": case, "card": CARD if blocked else None,
              "display": display, "actions": actions, "returned": {OPENED["action_id"], CARD["action_id"]},
              "held": False, "dispute": dispute, "decision": "handoff", "score": sc, "language": "pt",
-             "route": {"decision": "handoff", "zone": zone, "rule_ids": ["POL-ZONE-HIGH", "POL-TICKET-ALWAYS"],
-                       "handoff_reason": "zone_human"},
+             "route": {"decision": "handoff", "zone": zone, "rule_ids": [f"POL-ZONE-{zone.upper()}", "POL-TICKET-ALWAYS"],
+                       "handoff_reason": f"zone_{zone}" if zone != "high" else None},
              "mode": "live", "trace_id": "run-1", "intent_confidence": 0.9, "guardrails": []}
     return results, sc, paper
 
 
 GRID = list(itertools.product(["TIENDA X", None], [1250.0, 99.99, 1234.5],
                               [{"credit_deadline": "2026-06-03"}, {"ruling_deadline": "2026-07-16"}, {}],
-                              [True, False], ["unrecognized_charge", "wrongful_charge"], ["high", "human"], [True, False]))
+                              [True, False], ["unrecognized_charge", "wrongful_charge"], ["high", "medium", "human"],
+                              [True, False]))
 
 
 @pytest.mark.parametrize("cell", GRID[::5])
 def test_ac_05_property_every_receipt_and_handoff_fact_matches_a_tool_result_and_a_foreign_one_is_dropped(cell):
+    """build.papers is what respond calls: built from tool results, nothing is dropped and A4 finds nothing (M24: the
+    medium cells carry POL-ZONE-MEDIUM, the one policy id with a token); a foreign fact is dropped."""
     results, sc, paper = facts(*cell)
-    receipt, handoff = build.receipt(paper), build.handoff(paper)
-    found = check_grounding([*results, sc], receipt=CustomerReceipt.model_validate(receipt), handoff=handoff,
+    receipt, handoff, dropped = build.papers(paper, results)
+    assert dropped == 0 and handoff["verified_facts"][-1]["source_id"] == paper["route"]["rule_ids"][0]
+    found = check_grounding([*results, sc or {}], receipt=CustomerReceipt.model_validate(receipt), handoff=handoff,
                             policy_facts=paper["route"]["rule_ids"] + [build.NO_CLOCK])
     assert found.status == "passed", found.observed                # the auditor's A4 finds nothing to report
     assert "A-00000000BEEF" not in json.dumps([receipt, handoff])   # a graph-minted id is never listed
-    assert build.gate(receipt, results, required=("case_id",))[1] == 0
     receipt["verified_facts"].append({"fact": "Reembolso de 999.99 USD.", "source_id": TRX["transaction_id"]})
     receipt["actions"].append({**receipt["actions"][0], "action_id": "A-00000000BEEF"})
     handoff["evidence"].append("K-999999")
-    kept, dropped = build.gate(receipt, results, required=("case_id",))
+    kept, dropped = build.gate(receipt, results, schema="receipt")
     assert dropped == 2 and "999.99" not in json.dumps(kept) and "BEEF" not in json.dumps(kept)
-    assert build.gate(handoff, [*results, sc], paper["route"]["rule_ids"], nullable=False)[1] == 1
-    assert build.gate({**receipt, "case_id": "K-999999"}, results, required=("case_id",))[0] is None
+    assert build.gate(handoff, [*results, sc or {}], paper["route"]["rule_ids"], schema="handoff")[1] == 1
+    assert build.gate({**receipt, "case_id": "K-999999"}, results, schema="receipt")[0] is None
+
+
+@pytest.mark.parametrize("cell", GRID[::17])
+def test_ac_05_n26_an_ungrounded_field_is_nulled_left_out_or_drops_the_paper_as_its_schema_says(cell):
+    """N26: an ungrounded optional field never ships. Nullable → None, optional → absent, required → no paper."""
+    results, sc, paper = facts(*cell)
+    receipt, handoff, _ = build.papers(paper, results)
+    foreign = {"country": "MX", "product": "debit", "credit_deadline": "2026-09-09", "deadline_source": "x",
+               "source_url": "https://example.org", "verified_on": "2026-10-04"}
+    for key, value in [("deadline", foreign), ("product_last4", "0000"), ("amount", {"original": {
+            "amount": "777.77", "currency": "USD"}, "display": None})]:
+        kept, dropped = build.gate({**receipt, key: value}, results, schema="receipt")
+        assert (kept[key], dropped) == (None, 1), key
+    known, policy = [*results, sc or {}], [*paper["route"]["rule_ids"], build.NO_CLOCK]
+    kept, dropped = build.gate({**handoff, "score_version": "gold-v9"}, known, policy, schema="handoff")
+    assert "score_version" not in kept and dropped == 1
+    assert build.gate({**handoff, "deadline": foreign}, known, policy, schema="handoff") == (None, 1)
+
+
+def test_ac_05_n24i_the_gate_reads_every_required_field_from_the_contract_schema():
+    """No hand-kept list: each schema field that is required and not nullable drops its paper when ungrounded."""
+    for name, drops in [("handoff", {"case_id", "language", "zone", "request", "deadline", "trace_id"}),
+                        ("receipt", {"receipt_id", "case_id", "language", "issued_at", "what_ai_did",
+                                     "what_a_person_does"})]:
+        fate = build.fates(build.SCHEMAS[name])
+        lists = {k for k, p in build.SCHEMAS[name]["properties"].items() if p.get("type") == "array"}
+        assert {k for k, v in fate.items() if v == "drop"} - lists == drops, name
+    assert build.fates(build.SCHEMAS["receipt"])["deadline"] == "null"
+
+
+def test_ac_05_an_ungrounded_handoff_deadline_drops_the_card_end_to_end(monkeypatch):
+    handoff = build.handoff
+    monkeypatch.setattr(build, "handoff", lambda f: {**handoff(f), "deadline": {
+        **handoff(f)["deadline"], "credit_deadline": "2026-09-09"}})
+    turn = Chat(mcp_transport=server()).say(EV_0001, language="es", dropped=1)
+    assert turn.handoff is None and turn.receipt.case_id == "K-104233"
 
 
 def test_ac_05_d_030_a_wrongful_charge_receipt_shows_no_credit_date():
@@ -133,7 +188,7 @@ def test_ac_05_a_reply_line_with_a_fact_no_tool_returned_is_dropped_and_logged(m
     real = msg.text
     monkeypatch.setattr(msg, "text", lambda key, language, **f: real(key, language, **f) + (
         " Reembolso: 999.99 USD." if key == "act.case_opened" else ""))
-    turn = Chat(mcp_transport=server()).say(EV_0001, language="es")
+    turn = Chat(mcp_transport=server()).say(EV_0001, language="es", dropped=1)
     assert "999.99" not in turn.reply and "Caso K-104233 abierto" not in turn.reply
     assert "G-OUT-01" in turn.guardrails_triggered
     assert turn.trace[-1].status == "error" and turn.trace[-1].detail.startswith("G-OUT-01: 1")
@@ -199,7 +254,7 @@ def test_ac_05_m25_m26_respond_gates_the_receipt_and_the_handoff_it_builds(monke
     monkeypatch.setattr(build, "receipt", lambda f: {**receipt(f), "verified_facts": [
         *receipt(f)["verified_facts"], {"fact": "Reembolso de 999.99 USD.", "source_id": TRX["transaction_id"]}]})
     monkeypatch.setattr(build, "handoff", lambda f: {**handoff(f), "evidence": [*handoff(f)["evidence"], "K-999999"]})
-    turn = Chat(mcp_transport=server()).say(EV_0001, language="es")
+    turn = Chat(mcp_transport=server()).say(EV_0001, language="es", dropped=2)
     assert "999.99" not in json.dumps(turn.receipt.model_dump(mode="json")) and len(turn.receipt.verified_facts) == 3
     assert "K-999999" not in turn.handoff["evidence"] and "G-OUT-01" in turn.guardrails_triggered
     assert turn.trace[-1].detail == "G-OUT-01: 2 ungrounded fact(s) dropped"
@@ -218,6 +273,24 @@ def test_ac_05_d_051_a_shown_time_must_match_a_tool_time_exactly():
     assert not build.bad("Caso K-104233 (consultado el 2026-06-01 15:04 UTC).", [CASE])
     assert build.bad("Caso K-104233 (consultado el 2026-06-01 15:05 UTC).", [CASE])
     assert not build.bad("verificado 2026-06-01T15:04:11Z", [CASE]) and build.bad("verificado 2026-06-01T15:04:12Z", [CASE])
+    assert build.bad("Caso K-104233 (consultado el 2026-06-01 15:00 UTC).", [CASE])     # N5c: not to the hour
+
+
+def test_ac_05_n23_a_reply_whose_every_line_was_dropped_says_it_could_not_verify(monkeypatch):
+    real = msg.text
+    monkeypatch.setattr(msg, "text", lambda key, language, **f: real(key, language, **f) + (
+        "" if key == "status.read_failed" else " Reembolso: 999.99 USD."))
+    turn = Chat().say("¿Cómo está mi caso?", language="es", dropped=8)
+    assert turn.reply == real("status.read_failed", "es")
+
+
+def test_ac_05_ac_19_n13_a_new_turn_grounds_on_its_own_tool_results_only():
+    """RESET clears `seen`: an earlier turn's reads are not grounding for this one."""
+    chat = Chat()
+    chat.say("¿Cómo está mi caso?", language="es")
+    assert chat.state()["seen"]
+    chat.say("hola", language="es")
+    assert chat.state()["seen"] == []
 
 
 def test_ac_21_issued_at_is_the_latest_read_by_time_not_by_text():

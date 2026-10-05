@@ -185,13 +185,16 @@ identity ─► greet ─► understand ─► route ─┬─► retrieve ─�
 | `respond` | Receipt from verified facts; the handoff card from tool results, and it may also carry an accepted-but-unverified case, flagged in `open_questions` ("case K-… not read back by get_case: confirm it exists before acting") `[assumption]` (D-056, pending the lead); reply from templates (S1/S2 may reword, then the grounding check runs); suggestion chips from §4.5. Task 04d: the receipt only once `get_case` verified the case opened this turn (`issued_at` is the turn's last post-condition `read_at`, `receipt_id` a hash of run and case, `case_url` null until the public host is configured `[assumption]`); the handoff card for any case `open_case` returned this turn, verified or not, never for a `duplicate_of` case `[assumption]`: reason `tool_failure` on `escalate_unconfirmed_action`, `identity_unverified` when the session expired mid-turn `[assumption]` (D-056), else the decision's `handoff_reason` when the schema lists it; proposal `approve_block` in the high or medium zone without a verified block, `request_customer_info` in the human zone `[assumption]`; score with `score_source`/`score_version` (D-033). Both list only action ids a tool returned (§4.1) | `nick_of_time.receipt` · `send_case_summary` · `request_call` · `request_reevaluation` · `add_case_info` · `messages.yaml suggest.*` |
 
 ### 4.3 Grounding check (ADR 0016)
-Every number, date, id and status in `reply`, `receipt` and `handoff` is matched exactly against tool results and the
+Every number, date, time and id in `reply`, `receipt` and `handoff` is matched exactly against tool results and the
 policy. Anything unmatched is removed, the template version is used instead, and `G-OUT-01` is added to the trace.
 Task 04d: the check is the auditor's A4 rule (`nick_of_time.audit.check_grounding`, spec 18), applied per reply line,
 per receipt and handoff list item and per field, against the turn's tool results (the score only for the handoff,
 since it never reaches the customer) and, for the handoff, the decision's rule and guardrail ids. A shown time must match a tool time exactly: to the second when it shows seconds, else to the minute, so a reading
 shown as `YYYY-MM-DD HH:MM UTC` (D-051) matches the tool's `read_at` and a wrong `HH:MM` is dropped; a plan step's own number is
-not a fact `[assumption]`. An unmatched required field drops the whole receipt or card. A dropped fact adds `G-OUT-01`
+not a fact `[assumption]`. `nick_of_time.receipt.build.papers` is the one entry point that builds and gates both
+documents; what an unmatched field does comes from its contract schema (`customer_receipt.schema.json`,
+`handoff.schema.json`): required and not nullable drops the whole receipt or card, nullable becomes null, any other
+is left out (task 04d review). An action is listed only when a tool result states its `action_id`. A dropped fact adds `G-OUT-01`
 to `guardrails_triggered` and marks the `respond` trace step `error` with the count; a reply with no line left says
 `status.read_failed` `[assumption]`. Statuses are checked by the four-state rule (AC-18) and A5, not here (AC-05).
 
@@ -297,7 +300,12 @@ messages.
       P1 (D-001) and open. Open follow-ups: `add_case_info` for the "Agregar información" chip (AC-06, T6); the
       empty-card reading time once contract 1.4.0 gives `list_my_cards` a top-level `read_at`; once PR #80 lands,
       the receipt row swaps "Enviarme el comprobante" for "¿Cómo va mi caso?" until AC-26, and the `verify` lines
-      show `verified_at` as `YYYY-MM-DD HH:MM UTC` (D-051), both of which change `tests/test_spec04_act.py`
+      show `verified_at` as `YYYY-MM-DD HH:MM UTC` (D-051), both of which change `tests/test_spec04_act.py`.
+      Status grounding (D-056, pending the lead): nothing fills `FinalState.status_replies` yet, so before T7 (S1/S2)
+      either the api emits `status_replies` from the `status` turns or the gate matches the status label against the
+      read's `queue_status`/`status`. Spec 18 follow-up: A4 still reduces a timestamp to its date; port the gate's
+      exact time match into A4. Every end-to-end spec 04 test asserts how many facts the gate dropped (0 unless it
+      injects one), so a node that does not hand `respond` a tool result it states fails the suite
 - [ ] T6 — `status` and `connect` nodes and the returning-customer path · AC-06, AC-19, AC-24, AC-28. Task 04e:
       AC-19 and AC-28 done (re-read per status question, failed reads reported, the call on the active case or a
       general one, read back with `get_case`), plus the D-020 / F-010 cases (status or a person with dispute words);

@@ -38,16 +38,27 @@ class Chat:
         self.config = {"configurable": {"session_id": fake.SESSION_ID, "session_state": session_state,
                                         "mcp_transport": fake.build_server(), "thread_id": "t", **settings}}
 
-    def say(self, text=None, language=None, action=None) -> TurnResult:
+    def say(self, text=None, language=None, action=None, dropped=0) -> TurnResult:
+        """One turn. Every turn of every spec 04 test also checks the grounding wiring (AC-05, task 04d): the gate drops
+        exactly `dropped` facts, 0 unless the test injects ungrounded ones. The builders and templates use tool facts
+        only, so a node that forgets to hand respond a tool result it states (or a policy id) fails here, loudly."""
         payload = {"messages": [{"role": "user", "content": text}] if text else [], "language": language,
                    "action": action}
         out = asyncio.run(self.graph.ainvoke(payload, self.config))
         turn = TurnResult.model_validate(out)            # 2–3 chips are enforced by the contract (AC-29)
         assert turn.trace_id and turn.usage == []
+        assert gate_drops(turn) == dropped, turn.trace[-1].detail
+        assert ("G-OUT-01" in turn.guardrails_triggered) == bool(dropped)
         return turn
 
     def state(self) -> dict:
         return self.graph.get_state(self.config).values
+
+
+def gate_drops(turn: TurnResult) -> int:
+    """How many facts respond's grounding gate dropped this turn, from its trace step (G-OUT-01)."""
+    detail = (turn.trace[-1].detail or "") if turn.trace and turn.trace[-1].node == "respond" else ""
+    return int(detail.split()[1]) if detail.startswith("G-OUT-01: ") else 0
 
 
 def labels(turn: TurnResult) -> list[str]:
