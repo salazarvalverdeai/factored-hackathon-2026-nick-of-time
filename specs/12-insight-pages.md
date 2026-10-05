@@ -69,7 +69,7 @@ pages are built against sample files kept in `apps/web/app/evaluation/__fixtures
 the empty state of AC-04 until the real files arrive.
 
 ### 7.2 `data_quality.json`
-`data`: `layers` (bronze, silver, gold: tables, rows, bytes), `gold_rules` (G1–G5 with value and result, from
+`data`: `label`, `layers` (bronze, silver, gold: tables, rows, bytes; silver has no size, it is not measured), `gold_rules` (G1–G5 with value and result, from
 `data/gold/manifest.json`), `checks` (name, rows affected, action taken, from `data/quality_report.md` §3),
 `manifest` (version, pipeline version, contract version, run date) and `late_arrival` (rows added, column added and
 checks re-run between `delivery_1` and `delivery_2` of the fixture). Built by a new `--json` output of `python -m data.pipeline report`.
@@ -111,7 +111,8 @@ Implementation goes in `feat/12-…` branches once this spec is approved.
 - [x] T3 — `/evaluation` run header, headline figures, arm comparison and breakdown from `evaluation_summary.json`,
       with the empty state and the development notice · covers AC-01 (part), AC-04, AC-05, AC-06, AC-07
 - [ ] T4 — `/evaluation` benchmark, classifier and fraud sections · covers AC-01 · needs Q1
-- [ ] T5 — `data_quality.json` and `/data` · covers AC-03
+- [x] T5 — `data_quality.json` (`python -m data.pipeline report --json`) and `/data` · covers AC-03 ([T]
+      `tests/test_spec12_data_quality.py`; [U] comes with T7)
 - [ ] T6 — operational KPIs on `/analytics` · covers AC-02 · needs spec 14
 - [ ] T7 — screenshots on the public URL, both themes and 390 px · covers AC-01, AC-03, AC-09
 
