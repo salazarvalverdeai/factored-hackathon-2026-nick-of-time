@@ -14,6 +14,7 @@ import datetime as dt
 import hashlib
 import hmac
 import json
+import logging
 import os
 import re
 import secrets
@@ -25,10 +26,12 @@ from zoneinfo import ZoneInfo
 from fastapi import Body, Cookie, Depends, FastAPI, Header, Query, Request, Response
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse, RedirectResponse, StreamingResponse
+from pydantic import ValidationError
 
 from app import demo
 from app.auth import AuthError, CognitoVerifier
 from app.catalog import Catalog, FixtureCatalog, catalog_from_env
+from app.guard import install as install_guard
 from app.main import (COOKIE, SESSION_TTL, AckOut, ApiError, CallIn, CallOut, ConsoleCaseOut, EmailIn,
                       EmailOut, EventOut, HealthOut, InfoIn, NotificationOut, PrefsIn, PrefsOut, ReevalIn, ReevalOut,
                       RecentTransactionOut, ScenarioOut, SessionIn, SessionOut, SettingsIn, SettingsOut,
@@ -39,7 +42,7 @@ from app.platform import HttpPlatform, Platform, PlatformError
 from nick_of_time import CONTRACT_VERSION, ids
 from nick_of_time.contracts import (AnalystActionIn, AnalystActionOut, CaseSummary, CaseView, CustomerCaseSummary,
                                     CustomerCaseView, CustomerReceipt, CustomerTurn, ProductView, ProgressItem,
-                                    TurnResult)
+                                    Suggestion, TurnAction, TurnResult)
 from nick_of_time.policy import queue
 from nick_of_time.policy.calendars import CalendarNotCovered, add_business_days
 from nick_of_time.policy.clock import deadline
@@ -60,6 +63,9 @@ NO_REASON_NEEDED = {"take", "approve_credit", "approve_block"}        # AnalystA
 TEMPLATE_EVENT = {"take": "in_review", "reopen_case": "in_review", "resolve": "resolved"}   # status change -> template
 ZONE_ORDER = {"high": 0, "medium": 1, "human": 2}
 TELEGRAM_TTL, EMAIL_TTL = dt.timedelta(minutes=15), dt.timedelta(hours=24)
+DAILY_LLM_CAP_USD = 5.0     # [assumption] G-OPS-01 per day across every session; env DAILY_LLM_CAP_USD overrides it
+
+log = logging.getLogger("nick_of_time.api")
 
 
 class Denied(Exception):
@@ -127,6 +133,8 @@ def create_live_app(store: Store, *, catalog: Optional[Catalog] = None, verifier
     app.state.store, app.state.runs, app.state.now = store, deque(maxlen=200), now
     app.state.charges = {}                          # session id -> its last synthetic charge (AC-19)
     notifier = notifier or HttpNotifier.from_env()
+    day_cap = float(os.getenv("DAILY_LLM_CAP_USD") or DAILY_LLM_CAP_USD)   # read once, at app creation
+    install_guard(app, lambda: app.state.now())                     # per-IP and global hourly limits (AC-18)
 
     @app.exception_handler(ApiError)
     async def _api_error(request: Request, e: ApiError):
@@ -393,9 +401,49 @@ def create_live_app(store: Store, *, catalog: Optional[Catalog] = None, verifier
         return bool(policies.approval.supervised_mode) if value is None else bool(value)
 
     def run_config(s: dict) -> dict:
-        """The §6.4 configurable, built here and nowhere else; the client's body never contributes to it."""
+        """The §6.4 configurable, built here and nowhere else; the client's body never contributes to it. The day's
+        LLM spend is the sum of every `llm_calls` row since 00:00 UTC (any run: real money either way), which this api
+        writes from each turn's usage; the graph compares it with the cap before calling (G-OPS-01, spec 04 §5)."""
+        midnight = app.state.now().astimezone(dt.timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
         return {"session_id": s["session_id"], "session_state": session_state(s), "mode": s["mode"], "arm": s["arm"],
-                "case_id": None, "supervised_mode": supervised()}
+                "case_id": None, "supervised_mode": supervised(),
+                "llm_day_spent_usd": float(store.llm_spend_since(midnight)), "llm_day_cap_usd": day_cap}
+
+    def run_input(payload: dict, s: dict) -> dict:
+        """The §6.4 input rebuilt from the body: only the customer's text and a valid chip press; the language is the
+        session's (spec 01 AC-06), so nothing else a client sends (arm, mode, run_id, customer_id) reaches the graph."""
+        raw = payload.get("input") if isinstance(payload.get("input"), dict) else {}
+        said = raw.get("messages") if isinstance(raw.get("messages"), list) else []
+        texts = [m["content"] for m in said if isinstance(m, dict) and isinstance(m.get("content"), str)
+                 and m.get("role", "user") in ("user", "human")]
+        try:
+            action = TurnAction.model_validate(raw["action"]).model_dump() if raw.get("action") else None
+        except ValidationError:
+            action = None
+        return {"messages": [{"role": "user", "content": t} for t in texts],
+                "language": s["language"] if s["language"] in ("es", "pt") else None, "action": action}
+
+    def log_usage(turn: TurnResult, s: dict) -> None:
+        """One `llm_calls` row per billed call of the turn (spec 04 AC-14, D-023), once per trace: a trace already
+        written is skipped. A failed write never fails the turn."""
+        try:
+            if turn.usage and not store.list_llm_calls(run_id=s["run_id"], trace_id=turn.trace_id):
+                for u in turn.usage:
+                    store.add_llm_call(trace_id=turn.trace_id, provider=u.provider, model=u.model,
+                                       tokens_in=u.tokens_in, tokens_out=u.tokens_out, latency_ms=u.latency_ms,
+                                       cost_usd=u.cost_usd, run_id=s["run_id"])
+        except StoreError as error:
+            log.error("llm_calls write failed trace_id=%s error=%s", turn.trace_id, error)
+
+    def reconcile(thread_id: str, s: dict) -> None:
+        """A stream that ended without a logged turn (client gone, Platform failure): log the usage of the thread's
+        latest state if its trace is not written yet (the same dedupe), best effort."""
+        try:
+            raw = need_platform().state(thread_id)
+            if raw is not None:
+                log_usage(turn_of(raw), s)
+        except Exception as error:  # noqa: BLE001 — bookkeeping only, never the turn's failure
+            log.error("usage reconcile failed thread=%s error=%s", thread_id, type(error).__name__)
 
     @app.post("/api/agent/threads", response_model=ThreadOut)
     def agent_thread(s: dict = Depends(known_session)):
@@ -407,22 +455,52 @@ def create_live_app(store: Store, *, catalog: Optional[Catalog] = None, verifier
     def _sse(event: str, data: dict) -> str:
         return f"event: {event}\ndata: {json.dumps(data, default=str)}\n\n"
 
+    def unavailable_turn(s: dict, trace_id: str) -> str:
+        """A normal `turn` for a Platform failure (customer text from messages.yaml, nothing internal)."""
+        lang, msgs = s.get("language") or "es", messages()
+        turn = CustomerTurn(
+            reply=msgs["system"]["agent_unavailable"][lang], language=lang, mode=s["mode"], trace_id=trace_id,
+            suggestions=[Suggestion(id="retry", label=msgs["system"]["retry_chip"][lang], kind="text"),
+                         Suggestion(id="talk_to_person", label=msgs["suggest"]["talk_to_person"][lang], kind="action",
+                                    action={"type": "request_call"})])
+        return _sse("turn", turn.model_dump(mode="json"))
+
     @app.post("/api/agent/threads/{thread_id}/runs/stream")
     def agent_stream(thread_id: str, request: Request, payload: dict = Body(default={}),
-                     s: dict = Depends(own_thread)):
-        config = run_config(s)
+                     s: dict = Depends(known_session)):
+        trace_id = _trace()
+        try:
+            owner = need_platform().thread_session(thread_id)
+        except (PlatformError, ApiError) as error:           # Platform down before the run: a turn, not a 503
+            log.error("platform unavailable (thread check) trace_id=%s error=%s", trace_id, error)
+            return StreamingResponse(iter([unavailable_turn(s, trace_id)]), media_type="text/event-stream")
+        if owner != s["session_id"]:                               # unknown or foreign: the same 404
+            raise ApiError(404, "NOT_FOUND", "Thread not found")
+        config, payload = run_config(s), {"input": run_input(payload, s)}
         request.app.state.runs.append(config)
         upstream = need_platform()
 
         def events():
+            turned = False
             try:
                 for event, data in upstream.stream(thread_id, config, payload):
                     if event == "progress":
                         yield _sse("progress", ProgressItem.model_validate(data).model_dump(mode="json"))
                     elif event == "turn":       # only the customer projection leaves the api (D-013)
-                        yield _sse("turn", turn_of(data).for_customer().model_dump(mode="json"))
-            except (PlatformError, ValueError):
-                yield _sse("error", {"code": "UNAVAILABLE", "message": "The agent is not available"})
+                        turn = turn_of(data)
+                        log_usage(turn, s)
+                        turned = True
+                        yield _sse("turn", turn.for_customer().model_dump(mode="json"))
+            except (PlatformError, ValueError) as error:
+                log.error("platform stream failed trace_id=%s error=%s", trace_id, error)
+                turned = None
+            finally:
+                if not turned:              # the run may have billed calls anyway: log them from the thread's state
+                    reconcile(thread_id, s)
+            if not turned:                  # failed, dropped mid-run or ended with no turn
+                if turned is not None:
+                    log.error("platform run ended without a turn trace_id=%s", trace_id)
+                yield unavailable_turn(s, trace_id)
 
         return StreamingResponse(events(), media_type="text/event-stream")
 

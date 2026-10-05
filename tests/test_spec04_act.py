@@ -61,7 +61,7 @@ def test_ac_01_ev_0001_ends_with_the_card_blocked_and_verified_and_the_case_open
     assert ("Tarjeta terminada en 4417: bloqueada y verificada (verificación V-8B2D41C7E0A9, 2026-06-01 15:04 UTC)."
             in reply)
     deadline = next(line for line in reply if "2026-06-03" in line)  # the MX deadline, from get_case, with its source
-    assert "Banxico Circular 3/2012" in deadline and "https://www.gob.mx/condusef/" in deadline
+    assert "Banxico, Circular 3/2012 (modificada" in deadline and "https://www.gob.mx/condusef/" in deadline
     # AC-26 (send by channel) is P1: no chip promises a send, so the row offers check_case instead (AC-29)
     assert [s.id for s in turn.suggestions] == ["view_case", "check_case", "request_call"]
     assert "comprobante" not in " ".join(s.label for s in turn.suggestions)

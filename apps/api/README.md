@@ -16,6 +16,8 @@ DATABASE_URL=postgresql://… uvicorn app.main:app --app-dir apps/api    # store
 | `LANGGRAPH_API_URL`, `LANGSMITH_API_KEY`, `LANGGRAPH_ASSISTANT` (default `dispute_intake`) | agent proxy; the key is sent only in the api's requests to Platform, never to the browser |
 | `TELEGRAM_BOT_TOKEN`, `TELEGRAM_BOT_NAME`, `TELEGRAM_WEBHOOK_SECRET`, `RESEND_API_KEY`, `RESEND_WEBHOOK_SECRET`, `EMAIL_FROM`, `PUBLIC_URL` | channels (spec 13) |
 | `LINK_SIGNING_KEY` | signs the Telegram deep-link and e-mail confirmation tokens; its own SSM secret, unset = no channel link is issued |
+| `TRUSTED_PROXY_CIDRS` (default `172.16.0.0/12,192.168.0.0/16`), `RATE_SESSIONS_PER_IP_HOUR` (10), `RATE_SESSIONS_GLOBAL_HOUR` (300), `RATE_TURNS_PER_IP_HOUR` (60), `RATE_TURNS_GLOBAL_HOUR` (1500) | abuse guard (spec 05 AC-18): `X-Forwarded-For` is read only from a peer in the trusted proxy networks; in-process counters, one worker |
+| `DAILY_LLM_CAP_USD` (default 5) | G-OPS-01 daily LLM cap passed to every run with the day's `llm_calls` spend (spec 04 §5) |
 | `DEFAULT_SESSION_MODE`, `DEMO_TODAY`, `SCORE_PROVIDER`, `OTP_FIXED` | demo and time-mode knobs (ADR 0020); `OTP_FIXED` pins the mock OTP |
 
 ## Accounts

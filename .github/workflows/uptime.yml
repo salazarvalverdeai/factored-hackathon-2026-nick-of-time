@@ -1,0 +1,102 @@
+# Production uptime monitor: every 15 minutes, checks the public endpoints and alerts the lead on Telegram.
+# Needs the repository secrets TELEGRAM_BOT_TOKEN and TELEGRAM_ALERT_CHAT_ID (see docs/infrastructure.md).
+# Alerts only when a run goes from healthy to failing (no storm), plus one recovery message. Owner: @gianzk.
+name: Uptime
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: uptime
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_ALERT_CHAT_ID: ${{ secrets.TELEGRAM_ALERT_CHAT_ID }}
+      RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+    steps:
+      - name: Require the alert secrets
+        run: |
+          missing=""
+          [ -n "$TELEGRAM_BOT_TOKEN" ] || missing="$missing TELEGRAM_BOT_TOKEN"
+          [ -n "$TELEGRAM_ALERT_CHAT_ID" ] || missing="$missing TELEGRAM_ALERT_CHAT_ID"
+          if [ -n "$missing" ]; then
+            echo "::error::Missing repository secret(s):$missing. Add them in Settings > Secrets and variables > Actions; the monitor cannot alert without them."
+            exit 1
+          fi
+          echo "::add-mask::$TELEGRAM_BOT_TOKEN"
+          echo "::add-mask::$TELEGRAM_ALERT_CHAT_ID"
+
+      - name: Restore previous result
+        uses: actions/cache/restore@v4
+        with:
+          path: .uptime-state
+          key: uptime-state-none
+          restore-keys: uptime-state-
+
+      - name: Check production
+        id: probe
+        run: |
+          fails=""
+          check() { # name url jq-filter
+            local name="$1" url="$2" filter="$3" code
+            code=$(curl -sS -o body.json -w '%{http_code}' --connect-timeout 5 --max-time 10 \
+              --retry 2 --retry-delay 3 --retry-all-errors "$url" 2>/dev/null) || code="000"
+            if [ "$code" != "200" ]; then
+              fails="$fails\n- $name: HTTP $code"
+            elif [ -n "$filter" ] && ! jq -e "$filter" body.json >/dev/null 2>&1; then
+              fails="$fails\n- $name: HTTP 200 but unexpected body"
+            fi
+          }
+          check "web /api/health" "https://nickoftime.salazarvalverdeai.com/api/health" '.status == "ok"'
+          check "mcp /health" "https://mcp.nickoftime.salazarvalverdeai.com/health" \
+            '.status == "ok" and .store == "postgres" and ((.modules // ["n/a"]) | length > 0)'
+          check "web /chat" "https://nickoftime.salazarvalverdeai.com/chat" ""
+          if [ -n "$fails" ]; then
+            printf 'Failing checks:%b\n' "$fails"
+            { echo "failed=true"; echo "detail<<EOF"; printf '%b\n' "$fails"; echo "EOF"; } >> "$GITHUB_OUTPUT"
+          else
+            echo "All checks passed"
+            echo "failed=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Notify on Telegram
+        env:
+          FAILED: ${{ steps.probe.outputs.failed }}
+          DETAIL: ${{ steps.probe.outputs.detail }}
+        run: |
+          prev=$(cat .uptime-state/status 2>/dev/null || echo ok)
+          msg=""
+          if [ "$FAILED" = "true" ] && { [ "$prev" != "fail" ] || [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; }; then
+            msg=$(printf 'Nick of Time DOWN\n%s\nRun: %s' "$DETAIL" "$RUN_URL")
+          elif [ "$FAILED" != "true" ] && [ "$prev" = "fail" ]; then
+            msg=$(printf 'Nick of Time recovered, all checks pass.\nRun: %s' "$RUN_URL")
+          fi
+          if [ -n "$msg" ]; then
+            curl -sS -o /dev/null --fail --max-time 10 --retry 2 \
+              --data-urlencode "chat_id=$TELEGRAM_ALERT_CHAT_ID" --data-urlencode "text=$msg" \
+              "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" 2>/dev/null \
+              || { echo "::error::Telegram alert could not be sent"; exit 1; }
+          fi
+          mkdir -p .uptime-state
+          if [ "$FAILED" = "true" ]; then echo fail > .uptime-state/status; else echo ok > .uptime-state/status; fi
+
+      - name: Save result
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: .uptime-state
+          key: uptime-state-${{ github.run_id }}-${{ github.run_attempt }}
+
+      - name: Fail the run when production is unhealthy
+        if: steps.probe.outputs.failed == 'true'
+        run: exit 1

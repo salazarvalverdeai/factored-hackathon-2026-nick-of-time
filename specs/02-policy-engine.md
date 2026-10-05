@@ -186,7 +186,9 @@ test, no code change.** A country without a verified entry falls back to `POL-CL
   fixtures; the demo runs on MX, CO and AR (BR in Portuguese with a fixture). The README states it.
 - **Every entry cites its official public source and the date it was verified** (ADR 0019); `policies.yaml` stores them as
   `source_url` and `verified_on` fields plus a comment, and a test fails if an entry lacks them. Rows marked
-  `[external, to verify]` are re-checked in T3.
+  `[external, to verify]` are re-checked in T3. Each entry also has a `source_label` with the customer's `es` and `pt`
+  name of the same source and `source_url` (task DLANG; `clock.source_label()`): the customer never reads the
+  analyst's English `source`, and the agent never translates it (constitution #5).
 - Business days = Monday–Friday minus the country's bank holidays. A day whose bank closure is not certain (e.g. AR
   "días no laborables", BR Good Friday) counts as a business day `[assumption]`, so a deadline can only
   come earlier, never later, except CO's Monday–Friday count (CO row). A count that reaches a year with no holiday file returns no deadline at all, not even a calendar-day term of the same
