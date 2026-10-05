@@ -222,3 +222,11 @@ def test_ac_02_deploy_runs_only_after_a_green_ci_on_main(deploy_workflow):
     assert "workflow_run.conclusion == 'success'" in gate and "workflow_dispatch" in gate
     text = (WORKFLOWS / "deploy.yml").read_text()
     assert "github.event.workflow_run.head_sha" in text and "${{ github.sha }}" not in text
+
+
+def test_ac_06_env_file_carries_the_demo_arm_and_public_links():
+    """AC-06 / FR-09: the demo runs S1 (Haiku 4.5) and the links point at the public URL and the real bot."""
+    script = (INFRA / "deploy.sh").read_text()
+    for needle in ("DEFAULT_ARM=${DEFAULT_ARM:-S1}", "PUBLIC_URL=https://nickoftime.salazarvalverdeai.com",
+                   "TELEGRAM_BOT_NAME=NickOfTimeUpdatesBot", "EMAIL_FROM=", "BEDROCK_MODEL_FAST="):
+        assert needle in script, needle

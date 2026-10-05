@@ -306,7 +306,8 @@ def create_live_app(store: Store, *, catalog: Optional[Catalog] = None, verifier
         mode = body.mode or os.getenv("DEFAULT_SESSION_MODE") or "live"
         otp = os.getenv("OTP_FIXED") or f"{secrets.randbelow(10**6):06d}"            # mock OTP, shown on screen (ADR 0017)
         row = store.create_session(customer_id=body.customer_id, otp_hash=_sha(otp),
-                                   expires_at=app.state.now() + SESSION_TTL, language=customer["language"], mode=mode)
+                                   expires_at=app.state.now() + SESSION_TTL, language=customer["language"], mode=mode,
+                                   arm=os.getenv("DEFAULT_ARM") or None)   # demo sessions: S1 in prod; eval seeds set their own
         return {"session_id": row.session_id, "mode": mode, "today": today(mode, customer["country"]),
                 "otp_demo": otp, "expires_at": row.expires_at}
 

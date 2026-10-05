@@ -73,6 +73,12 @@ write_env() {  # $1 = image tag to run. Writes infra/.env with mode 0600, no val
     echo "DEFAULT_SESSION_MODE=live"
     echo "DEMO_TODAY=2026-06-01"
     echo "LANGGRAPH_ASSISTANT=${LANGGRAPH_ASSISTANT:-dispute_intake}"
+    echo "DEFAULT_ARM=${DEFAULT_ARM:-S1}"                       # demo sessions understand with Haiku 4.5 (lead, 2026-10-05)
+    echo "PUBLIC_URL=https://nickoftime.salazarvalverdeai.com"
+    echo "TELEGRAM_BOT_NAME=NickOfTimeUpdatesBot"
+    echo "EMAIL_FROM=\"Nick of Time <updates@notify.nickoftime.salazarvalverdeai.com>\""
+    echo "BEDROCK_MODEL_FAST=us.anthropic.claude-haiku-4-5-20251001-v1:0"
+    echo "BEDROCK_MODEL_GRAPH=us.anthropic.claude-sonnet-4-6"
     for name in MCP_API_KEY TELEGRAM_BOT_TOKEN TELEGRAM_WEBHOOK_SECRET RESEND_API_KEY RESEND_WEBHOOK_SECRET \
                 LANGGRAPH_API_URL LANGSMITH_API_KEY LINK_SIGNING_KEY \
                 COGNITO_USER_POOL_ID COGNITO_CLIENT_ID COGNITO_DOMAIN; do
