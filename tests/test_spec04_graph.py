@@ -276,4 +276,6 @@ def test_g_in_03_another_language_gets_the_session_language_plus_english_with_no
 
 def test_g_in_03_code_switching_and_loanwords_keep_the_es_pt_behavior():
     turn = Chat().say("no reconozco un cargo de Amazon Prime", language="pt", dropped=0)
-    assert "G-IN-03" not in turn.guardrails_triggered and "I can help" not in turn.reply
+    # G-IN-03 also names ambiguity (POL-CLARIFY): since D-067 (#142) this charge, named without amount or date, is asked
+    # about. What G-IN-03's other-language rule must not do here is answer with the ES/PT-plus-English refusal.
+    assert "I can help" not in turn.reply and turn.intent == "unrecognized_charge"

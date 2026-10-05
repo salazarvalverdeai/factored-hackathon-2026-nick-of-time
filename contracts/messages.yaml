@@ -20,13 +20,14 @@
 #   added status.no_cases, status.no_cards and status.case_done; task 04c (T4) added act.case_opened,
 #   act.case_not_confirmed, act.not_confirmed, act.decided_on_case and act.sign_in; task 04d (T5) added
 #   act.block_held (D-043), status.read_failed_cards and status.read_failed_case; task 04d2 gave status.no_cards a
-#   {read_at} (contract 1.4.0).
+#   {read_at} (contract 1.4.0); task 04h added clarify.confirm_one, clarify.confirm_call and
+#   suggest.confirm_charge (D-067).
 # - Chips: `kind` is static here; the action payload ({type}, spec 01 §6.4) is set by the server code.
 # - Never a placeholder or text for the fraud score, policy ids, rule ids, zones or the transcript
 #   (notifications.never_send in policies.yaml).
 # - Never promise an outcome or a provisional credit: a person reviews and decides (CLAUDE.md rule 6).
 # - Dates are absolute (YYYY-MM-DD) and come from tools; the template never computes them.
-version: "0.6.3"
+version: "0.8.0"
 
 system:
   # The agent platform is unreachable, timed out, answered an error or dropped the stream (spec 05 AC-05). Calm, no
@@ -255,6 +256,11 @@ suggest:
     kind: action
     es: "Sí, continúa"
     pt: "Sim, continue"
+  confirm_charge:
+    # Task 04h (D-067, pending the lead): confirms the one charge shown as a card (clarify.confirm_one).
+    kind: action
+    es: "Sí, es ese cargo"
+    pt: "Sim, é essa cobrança"
   confirm_no:
     kind: action
     es: "No es ese cargo"
@@ -375,6 +381,17 @@ clarify:
     # their amount, date and merchant from search_transaction. Nothing is done until the customer picks one.
     es: "Elige abajo el cargo que quieres reportar."
     pt: "Escolha abaixo a cobrança que você quer informar."
+  confirm_one:
+    # Spec 04 task 04h (D-067, pending the lead): the turn named no amount or date, and no merchant whose every
+    # content word is in the charge's merchant, and the search found one charge, shown below as a card from
+    # search_transaction. Nothing is done until the customer confirms it.
+    es: "¿Es este el cargo que quieres reportar? Aún no hice ningún cambio."
+    pt: "É esta a cobrança que você quer informar? Ainda não fiz nenhuma alteração."
+  confirm_call:
+    # Task 04h (D-067, pending the lead): the same card after a call request, right after connect.requested*; a call
+    # WAS registered, so it does not say that nothing changed. No case is opened until the customer confirms it.
+    es: "¿Es este el cargo que quieres reportar?"
+    pt: "É esta a cobrança que você quer informar?"
   exhausted:
     # Spec 04 task 04b (pending the lead): AC-13, rule 5b. No single charge after the clarification turns; a general
     # call request follows in the same reply (connect.requested*). No case is opened without a charge.

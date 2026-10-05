@@ -2,8 +2,10 @@
 
 - **Feature:** the system learns from its own operation: the records of the cases it handles go bronze → silver → gold
   and produce the daily KPIs of `/analytics` and the analysts' decisions as labels for the next evaluation set.
-- **Status:** Draft
-- **Owner:** @vldiego · **Priority:** P1 (Databricks: P2) · **Size:** M–L
+- **Status:** Approved — **deferred until after the submission** (lead, 2026-10-05): nobody can build it before the
+  deadline, and no P0 criterion depends on it
+- **Owner:** @vldiego (follow-ups from 2026-10-05: @salazarvalverdeai) · **Priority:** P1 (Databricks: P2) ·
+  **Size:** M–L
 - **Challenge dimension:** Data Engineering, Data Analytics
 - **Depends on:** 05 (operational tables in Postgres; `schema.sql` is in `main`), the existing pipeline
   (`data/pipeline/`), gold v1 · **Enables:** 12 (`/analytics`, AC-02) · **ADRs:** 0004, 0010, 0018, 0020, 0021
@@ -125,8 +127,9 @@ the online auditor (spec 18) · any write to Postgres · the `/analytics` sectio
 
 ## 10. Plan, tasks and verification
 Implementation goes in `feat/14-…` branches once this spec is approved, after specs 09, 10 and 12 (P0).
-- [ ] T1 — bronze extractor with row-count and high-water checks, on the in-memory store · covers AC-01, AC-07
-- [ ] T2 — silver tables, contracts and the quality counts · covers AC-02, AC-11
+- [x] T1 — bronze extractor with row-count and high-water checks, on the in-memory store · covers AC-01, AC-07 ·
+      `data/ops/bronze.py`, [T] `tests/test_spec14_bronze_silver.py`
+- [x] T2 — silver tables, contracts and the quality counts · covers AC-02, AC-11 · `data/ops/silver.py`
 - [ ] T3 — gold `ops_kpis` and `feedback_cases`, manifest, `make ops` · covers AC-03, AC-04, AC-05, AC-08
 - [ ] T4 — `ops_kpis.json` export · covers AC-09
 - [ ] T5 — run against Postgres (after spec 05 is deployed); schedule documented · covers AC-01

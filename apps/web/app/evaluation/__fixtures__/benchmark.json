@@ -1,0 +1,365 @@
+{
+  "generated_at": "2026-10-05T12:00:00Z",
+  "git_sha": "0000000",
+  "source": "SAMPLE FOR TESTS ONLY — invented values in the shape of spec 15 §7.1; never shown on the site",
+  "data": {
+    "label": "[simulated]",
+    "protocol": {
+      "status": "UNSEALED",
+      "sha256": null
+    },
+    "mode": "replay",
+    "demo_today": "2026-06-01",
+    "run_date": "2026-10-05",
+    "b1": {
+      "arms": [
+        {
+          "arm": "Haiku 4.5",
+          "model_id": "sample/Haiku 4.5",
+          "version": "v0",
+          "prompt_hash": "00000000",
+          "tool_choice_mode": "tool",
+          "temperature": 0,
+          "status": "ok",
+          "unavailable_reason": null,
+          "price": {
+            "label": "[external]",
+            "input_per_1m_usd": 0.8,
+            "output_per_1m_usd": 4.0,
+            "source": "AWS Price List",
+            "date": "2026-10-04"
+          },
+          "macro_f1": {
+            "es": 0.86,
+            "pt": 0.83
+          },
+          "macro_f1_ci": {
+            "es": [
+              0.81,
+              0.91
+            ],
+            "pt": [
+              0.78,
+              0.88
+            ]
+          },
+          "dispute_recall": {
+            "value": 0.9,
+            "numerator": 90,
+            "denominator": 100,
+            "ci_low": 0.8256,
+            "ci_high": 0.9448
+          },
+          "human_request_recall": {
+            "value": 0.96,
+            "numerator": 48,
+            "denominator": 50,
+            "ci_low": 0.8654,
+            "ci_high": 0.989
+          },
+          "slot_accuracy": {
+            "value": 0.8,
+            "numerator": 80,
+            "denominator": 100,
+            "ci_low": 0.7112,
+            "ci_high": 0.8666
+          },
+          "missing_tool_calls": 0,
+          "p50_ms": 450.0,
+          "p95_ms": 900,
+          "cost_per_1000_usd": 0.45,
+          "meets_bar": true,
+          "pareto": true,
+          "gate": {
+            "benchmark_pass": true,
+            "production_pass": false,
+            "criteria": []
+          },
+          "same_family_as_generator": false
+        },
+        {
+          "arm": "Sonnet 4.6",
+          "model_id": "sample/Sonnet 4.6",
+          "version": "v0",
+          "prompt_hash": "00000000",
+          "tool_choice_mode": "tool",
+          "temperature": 0,
+          "status": "ok",
+          "unavailable_reason": null,
+          "price": {
+            "label": "[external]",
+            "input_per_1m_usd": 0.8,
+            "output_per_1m_usd": 4.0,
+            "source": "AWS Price List",
+            "date": "2026-10-04"
+          },
+          "macro_f1": {
+            "es": 0.91,
+            "pt": 0.88
+          },
+          "macro_f1_ci": {
+            "es": [
+              0.86,
+              0.96
+            ],
+            "pt": [
+              0.83,
+              0.93
+            ]
+          },
+          "dispute_recall": {
+            "value": 0.9,
+            "numerator": 90,
+            "denominator": 100,
+            "ci_low": 0.8256,
+            "ci_high": 0.9448
+          },
+          "human_request_recall": {
+            "value": 0.96,
+            "numerator": 48,
+            "denominator": 50,
+            "ci_low": 0.8654,
+            "ci_high": 0.989
+          },
+          "slot_accuracy": {
+            "value": 0.8,
+            "numerator": 80,
+            "denominator": 100,
+            "ci_low": 0.7112,
+            "ci_high": 0.8666
+          },
+          "missing_tool_calls": 0,
+          "p50_ms": 700.0,
+          "p95_ms": 1400,
+          "cost_per_1000_usd": 1.8,
+          "meets_bar": true,
+          "pareto": true,
+          "gate": {
+            "benchmark_pass": true,
+            "production_pass": false,
+            "criteria": []
+          },
+          "same_family_as_generator": false
+        },
+        {
+          "arm": "Sample C",
+          "model_id": "sample/Sample C",
+          "version": "v0",
+          "prompt_hash": "00000000",
+          "tool_choice_mode": "tool",
+          "temperature": 0,
+          "status": "ok",
+          "unavailable_reason": null,
+          "price": {
+            "label": "[external]",
+            "input_per_1m_usd": 0.8,
+            "output_per_1m_usd": 4.0,
+            "source": "AWS Price List",
+            "date": "2026-10-04"
+          },
+          "macro_f1": {
+            "es": 0.84,
+            "pt": 0.81
+          },
+          "macro_f1_ci": {
+            "es": [
+              0.79,
+              0.89
+            ],
+            "pt": [
+              0.76,
+              0.86
+            ]
+          },
+          "dispute_recall": {
+            "value": 0.9,
+            "numerator": 90,
+            "denominator": 100,
+            "ci_low": 0.8256,
+            "ci_high": 0.9448
+          },
+          "human_request_recall": {
+            "value": 0.96,
+            "numerator": 48,
+            "denominator": 50,
+            "ci_low": 0.8654,
+            "ci_high": 0.989
+          },
+          "slot_accuracy": {
+            "value": 0.8,
+            "numerator": 80,
+            "denominator": 100,
+            "ci_low": 0.7112,
+            "ci_high": 0.8666
+          },
+          "missing_tool_calls": 0,
+          "p50_ms": 850.0,
+          "p95_ms": 1700,
+          "cost_per_1000_usd": 1.2,
+          "meets_bar": false,
+          "pareto": false,
+          "gate": {
+            "benchmark_pass": true,
+            "production_pass": false,
+            "criteria": []
+          },
+          "same_family_as_generator": false
+        },
+        {
+          "arm": "Sample D",
+          "model_id": "sample/Sample D",
+          "version": "v0",
+          "prompt_hash": "00000000",
+          "tool_choice_mode": "tool",
+          "temperature": 0,
+          "status": "unavailable",
+          "unavailable_reason": "not available for this account",
+          "price": {
+            "label": "[external]",
+            "input_per_1m_usd": 0.8,
+            "output_per_1m_usd": 4.0,
+            "source": "AWS Price List",
+            "date": "2026-10-04"
+          },
+          "macro_f1": {
+            "es": null,
+            "pt": null
+          },
+          "macro_f1_ci": {
+            "es": [
+              null,
+              null
+            ],
+            "pt": [
+              null,
+              null
+            ]
+          },
+          "dispute_recall": {
+            "value": null,
+            "numerator": 0,
+            "denominator": 0,
+            "ci_low": null,
+            "ci_high": null
+          },
+          "human_request_recall": {
+            "value": null,
+            "numerator": 0,
+            "denominator": 0,
+            "ci_low": null,
+            "ci_high": null
+          },
+          "slot_accuracy": {
+            "value": null,
+            "numerator": 0,
+            "denominator": 0,
+            "ci_low": null,
+            "ci_high": null
+          },
+          "missing_tool_calls": null,
+          "p50_ms": null,
+          "p95_ms": null,
+          "cost_per_1000_usd": null,
+          "meets_bar": null,
+          "pareto": null,
+          "gate": {
+            "benchmark_pass": false,
+            "production_pass": null,
+            "criteria": []
+          },
+          "same_family_as_generator": true
+        }
+      ]
+    },
+    "word": {
+      "arms": []
+    },
+    "judge": {
+      "arms": []
+    },
+    "b2": {
+      "set": "dev",
+      "cases": 20,
+      "runs_per_case": 4,
+      "arms": [
+        {
+          "arm": "S1",
+          "safe_automated_resolution": {
+            "value": 0.75,
+            "numerator": 9,
+            "denominator": 12,
+            "ci_low": 0.4677,
+            "ci_high": 0.9111
+          },
+          "unsafe_outcomes": {
+            "value": 0.0125,
+            "numerator": 1,
+            "denominator": 80,
+            "ci_low": 0.0022,
+            "ci_high": 0.0675
+          },
+          "receipt_rate": {
+            "value": 0.8333,
+            "numerator": 30,
+            "denominator": 36,
+            "ci_low": 0.6811,
+            "ci_high": 0.9213
+          },
+          "coherence_rate": {
+            "value": 1.0,
+            "numerator": 8,
+            "denominator": 8,
+            "ci_low": 0.6756,
+            "ci_high": 1.0
+          },
+          "p50_ms": 900,
+          "p95_ms": 2100,
+          "cost_per_case_usd": 0.0123
+        },
+        {
+          "arm": "S2",
+          "safe_automated_resolution": {
+            "value": 0.75,
+            "numerator": 9,
+            "denominator": 12,
+            "ci_low": 0.4677,
+            "ci_high": 0.9111
+          },
+          "unsafe_outcomes": {
+            "value": 0.0125,
+            "numerator": 1,
+            "denominator": 80,
+            "ci_low": 0.0022,
+            "ci_high": 0.0675
+          },
+          "receipt_rate": {
+            "value": 0.8333,
+            "numerator": 30,
+            "denominator": 36,
+            "ci_low": 0.6811,
+            "ci_high": 0.9213
+          },
+          "coherence_rate": {
+            "value": 1.0,
+            "numerator": 8,
+            "denominator": 8,
+            "ci_low": 0.6756,
+            "ci_high": 1.0
+          },
+          "p50_ms": 900,
+          "p95_ms": 2100,
+          "cost_per_case_usd": 0.0123
+        }
+      ]
+    },
+    "model_map": {
+      "understand": {
+        "best_measured": "Sonnet 4.6",
+        "cheapest_meeting_bar": "Haiku 4.5",
+        "chosen": "Haiku 4.5"
+      },
+      "word": {},
+      "judge": {}
+    }
+  }
+}

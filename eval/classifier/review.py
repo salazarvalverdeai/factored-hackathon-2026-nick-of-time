@@ -6,8 +6,10 @@
 
 Review (ADR 0025): every draft line gets a `decision` — `keep`, `fix` (with the `fixed_*` cells to change) or `drop` —
 and the `reviewer`'s GitHub handle. Train and validation are reviewed by the lead; test by someone who is not the
-classifier's developer (in practice @gianzk). `checks` lists the generator's hints (planned slot missing, card type
-added, language drift...); a hint is not a decision.
+classifier's developer (in practice @gianzk). `checks` lists the deterministic hints (planned slot missing, card type
+added, language drift, and from `generate --recheck`: same_as_seed, duplicate:<first id>, near_duplicate:<id>:<jaccard>,
+language_leak, too_short, injection_without_marker, cross_split_duplicate:<split>/<id>); no model produces them, so they
+do not bias a test review (ADR 0025). A hint is not a decision: the reviewer still reads every line and decides.
 
 `fixed_*` cells: empty keeps the draft value, `null` clears it. `fixed_intent` takes one of the five intents or
 `injection`; `fixed_also_dispute` takes `true` or `false`; `fixed_amount` is a decimal ("1250.50"), `fixed_currency`
