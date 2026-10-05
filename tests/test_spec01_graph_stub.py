@@ -46,10 +46,18 @@ def test_ac_04_echo_graph_returns_a_turn_result_with_the_sample_receipt(language
     assert "receipt" in turn.for_customer().model_dump()        # the projection the browser gets still validates
 
 
-def test_ac_04_echo_graph_takes_a_chip_press_and_defaults_to_spanish():
-    out = graph.invoke({"messages": [], "action": {"type": "send_summary"}}, CONFIG)
+def test_ac_04_echo_graph_takes_a_chip_press_and_defaults_to_spanish_and_replay():
+    session_only = {"configurable": {"session_id": CONFIG["configurable"]["session_id"]}}   # no mode, no language
+    out = graph.invoke({"messages": [], "action": {"type": "send_summary"}}, session_only)
     turn = c.TurnResult.model_validate(out)
-    assert turn.language == "es" and "send_summary" in turn.reply
+    assert turn.language == "es" and "send_summary" in turn.reply and turn.mode == "replay"
+
+
+def test_ac_04_echo_graph_answers_the_last_message_and_never_shows_the_session():
+    messages = [{"role": "user", "content": "primer mensaje"}, {"role": "user", "content": "segundo mensaje"}]
+    turn = c.TurnResult.model_validate(graph.invoke({"messages": messages}, CONFIG))
+    assert "segundo mensaje" in turn.reply and "primer mensaje" not in turn.reply
+    assert CONFIG["configurable"]["session_id"] not in turn.for_customer().model_dump_json()
 
 
 def test_ac_04_echo_graph_needs_the_session_the_api_injects_and_a_known_language():
@@ -80,3 +88,4 @@ def test_ac_04_langgraph_json_serves_the_echo_graph():
     assert getattr(module, attr).name == graph.name == "dispute_intake"
     assert config["python_version"] == "3.13"                       # spec 01 §6.1 (Platform defaults to 3.11)
     assert config["dependencies"] == [".", "./packages"]               # "." carries the graph and contracts
+    assert set(config) == {"dependencies", "graphs", "python_version"}    # no "env": secrets are deployment secrets
