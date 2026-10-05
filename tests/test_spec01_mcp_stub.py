@@ -268,7 +268,8 @@ def test_d_025_list_my_cards_verifies_no_write():
     assert [(card["action_id"], card["verification_id"]) for card in result.structured_content["cards"]] == [
         (None, None)]
     with pytest.raises(ValidationError, match="verifies no write"):
-        tools.ListMyCardsOut.model_validate({"cards": [fake.FIXTURES["get_product_status"]]})
+        tools.ListMyCardsOut.model_validate({"cards": [fake.FIXTURES["get_product_status"]],
+                                             "read_at": fake.FIXTURES["list_my_cards"]["read_at"]})
 
 
 @pytest.mark.parametrize("case_id", ["absent", None])

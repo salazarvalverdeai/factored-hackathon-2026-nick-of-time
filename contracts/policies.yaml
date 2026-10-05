@@ -34,7 +34,7 @@ identity:
 
 scope:
   only_own_products: true                 # the tool filters by the session's customer_id; it is not a prompt
-  cross_customer_request: deny_and_log    # "show me another customer's account" → DENY with policy_id
+  cross_customer_request: deny_and_log    # D-052: another customer's record → NOT_FOUND, never revealing it exists; logged as a policy_denials row (POL-CROSS-CUSTOMER, G-SES-02)
 
 scoring:                                 # where the fraud_score read by the zones comes from
   provider: dataset                      # dataset | rules | model | llm; live-mode synthetic transactions carry their own score (synthetic)
@@ -144,7 +144,10 @@ reliability:
   tool_retries: 2
   tool_timeout_ms: 800
   on_failure: escalate_with_unconfirmed_action   # never report an unverified action
-  idempotency_key: "{session_id}:{transaction_id}:{action}"
+  # The stored idempotency.key of store.once (spec 01 §6.5): the run prefix only when the session has a run_id; the
+  # scope c={customer_id} from the session (the api's analyst actions use "-" instead); {key} is the call's
+  # idempotency_key argument. One key belongs to one action and one set of arguments (contract 1.4.0).
+  idempotency_key: "[{run_id}:]c={customer_id}:{key}"
 
 security:
   prompt_injection: {strategy: "instructions and data kept apart; tools on an allowlist; customer text never changes permissions"}
@@ -182,7 +185,7 @@ guardrails:                              # each lives in code; every DENY cites 
   - {id: G-IN-03, layer: input, name: "language and ambiguity", impl: "ES/PT detection with a threshold; low confidence → ask, then human", test: ambiguous}
   - {id: G-IN-04, layer: input, name: "PII and out of scope", impl: "PAN/CVV/password regex → reject and ask not to send it; topic outside disputes → abstain", test: out_of_scope}
   - {id: G-SES-01, layer: session, name: "identity and scope", impl: "mock OTP TTL 15 min; customer_id only from the session; expired → no data", test: session_expired}
-  - {id: G-SES-02, layer: session, name: "access to another customer", impl: "the tool filters by session; DENY with policy_id", test: unauthorized_access}
+  - {id: G-SES-02, layer: session, name: "access to another customer", impl: "the tool filters by session; another customer's record answers NOT_FOUND, as an unknown id does, and is logged as a policy_denials row with POL-CROSS-CUSTOMER (D-052)", test: unauthorized_access}
   - {id: G-TOOL-01, layer: tools, name: "allowlist and strict schemas", impl: "the agent only sees customer tools; Pydantic rejects unexpected arguments; rate limit per session", test: unauthorized_access}
   - {id: G-TOOL-02, layer: tools, name: "controlled writes", impl: "approval mode per action; idempotency key; mandatory post-condition; credit never auto", test: tool_failure}
   - {id: G-POL-01, layer: policy, name: "default deny and logging", impl: "versioned policies.yaml; every denial is a row in policy_denials", test: all}
