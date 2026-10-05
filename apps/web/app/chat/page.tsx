@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { StatusBadge } from "@/components/badges";
 import { PageShell } from "@/components/page-shell";
 import { DenyState, ErrorState, LoadingState } from "@/components/states";
@@ -13,8 +13,10 @@ import { formatDeadline } from "@/lib/format";
 import { MESSAGES, fill } from "@/lib/mock/messages";
 import type { AgentReply, DemoCustomer, PersonaDraft, Receipt, Suggestion, TraceStep, TurnAction } from "@/lib/types";
 import { useMounted, useSession } from "@/lib/use-query";
+import { VOICE_COPY } from "@/lib/voice";
 import { DemoStart } from "./demo-start";
 import { DemoTools } from "./demo-tools";
+import { MicButton, ReadAloudToggle, useReadAloud } from "./voice";
 
 interface Message {
   id: number;
@@ -205,6 +207,11 @@ function Conversation({ onExpired }: { onExpired: () => void }) {
   const [chosenTx, setChosenTx] = useState<string | null>(null);
   const [draftSource, setDraftSource] = useState<PersonaDraft["source"] | null>(null);
 
+  const readAloud = useReadAloud(lang);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [heard, setHeard] = useState(false);
+  const voiceOn = api.mode === "live"; // voice needs the live api (spec 05 AC-21)
+
   const lastReply = [...messages].reverse().find((m) => m.reply)?.reply;
 
   /** A typed message, or a chip press: an action chip sends its action and skips the classifier (spec 01 §6.4). */
@@ -213,6 +220,7 @@ function Conversation({ onExpired }: { onExpired: () => void }) {
     setMessages((m) => [...m, { id: m.length, role: "customer", text }]);
     setInput("");
     setDraftSource(null);
+    setHeard(false);
     setBusy(true);
     setError(null);
     setStep(null);
@@ -220,6 +228,7 @@ function Conversation({ onExpired }: { onExpired: () => void }) {
       const reply = await api.chat(text, { pendingRequest: pending, action, onProgress: (p) => setStep(p.label) });
       setPending(reply.awaitingConfirmation ? text : undefined);
       setMessages((m) => [...m, { id: m.length, role: "agent", text: reply.text, reply }]);
+      readAloud.speak(reply.text);
     } catch (e) {
       if (e instanceof ApiError && e.code === "SESSION_EXPIRED") onExpired();
       else setError(e instanceof ApiError ? e.message : "unexpected error");
@@ -238,6 +247,7 @@ function Conversation({ onExpired }: { onExpired: () => void }) {
             {customerSession ? new Date(customerSession.expiresAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "—"}
           </span>
           <span className="flex gap-2">
+            {voiceOn && readAloud.supported ? <ReadAloudToggle lang={lang} on={readAloud.on} onToggle={readAloud.toggle} /> : null}
             {api.mode === "mock" ? (
               <Button size="xs" variant="outline" onClick={() => api.expireCustomerSession()}>
                 Expire session (demo)
@@ -306,22 +316,39 @@ function Conversation({ onExpired }: { onExpired: () => void }) {
             Suggested message ({draftSource === "llm" ? "written by a model" : "from a template"}): edit it, then send it yourself.
           </p>
         ) : null}
+        {heard ? <p className="text-xs text-muted-foreground">{VOICE_COPY[lang].draft}</p> : null}
         <form
-          className="flex gap-2"
+          className="flex flex-wrap gap-2"
           onSubmit={(e) => {
             e.preventDefault();
             send(input);
           }}
         >
           <Input
+            ref={inputRef}
+            className="min-w-0 flex-1"
             value={input}
             onChange={(e) => {
               setInput(e.target.value);
               setDraftSource(null);
+              setHeard(false);
             }}
             placeholder={lang === "es" ? "Escribe tu mensaje…" : "Escreva sua mensagem…"}
             aria-label="Message"
           />
+          {voiceOn ? (
+            <MicButton
+              lang={lang}
+              disabled={busy}
+              onRecordStart={readAloud.cancel}
+              onTranscript={(text) => {
+                setInput(text);
+                setDraftSource(null);
+                setHeard(true);
+                inputRef.current?.focus();
+              }}
+            />
+          ) : null}
           <Button type="submit" disabled={busy || !input.trim()}>
             {lang === "es" ? "Enviar" : "Enviar"}
           </Button>

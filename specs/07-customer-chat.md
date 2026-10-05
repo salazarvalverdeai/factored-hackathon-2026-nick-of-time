@@ -42,7 +42,7 @@ AC-01 to AC-05 are copied from issue #9 with the same numbers. None is dropped o
   the customer sends like typed text (never sent on its own); with the read-aloud toggle on, each agent reply shall be
   spoken with the browser's `speechSynthesis` in the session language. A 413, 415 or 503 shall show the api's calm
   message and keep typing available; with no microphone, no permission or no `speechSynthesis`, the chat works as
-  today. · [U] · [T] (to add with the web work)
+  today. · [U] · [T] (`apps/web/lib/voice.test.ts`: "spec 07 AC-07 …")
 
 ## 8. Assumptions and open questions
 - Assumption `[assumption]`: the scripted agent in `lib/mock/agent.ts` stands in for the LangGraph graph; refusal,
@@ -91,6 +91,10 @@ AC-01 to AC-05 are copied from issue #9 with the same numbers. None is dropped o
      color (icon and text); keyboard push-to-talk works; read-aloud respects the mute toggle and is never the only
      channel (every reply stays on screen). Without mic permission the button explains how to enable it and typing
      stays the default.
+- Decided (web, Task 6): the page shows its own calm ES/PT copy for 413 and 415 (the api's messages are developer
+  strings) and passes the api's 503 message through. Read-aloud prefers a local voice over a network one, so the reply
+  text does not leave the device to a speech service. Voice shows only in live mode; the mock client answers 501.
+  Push-to-talk: a press longer than 0.4 s sends on release; a shorter tap keeps recording until the next tap.
 - Open question: the receipt deadline line uses `status.credit_deadline` until the stub returns `source_url` and
   `verified_on` (ADR 0019); then it uses `receipt.credit_deadline`.
 
@@ -105,7 +109,7 @@ AC-01 to AC-05 are copied from issue #9 with the same numbers. None is dropped o
 - [x] Task 4 — call the live agent proxy (`/api/agent/...`, spec 05 M05) · covers AC-01 to AC-04 · done when: same flow on the public URL (shipped with the live mode, PR #168; checked here against a local backend)
 - [x] Task 5 — demo-mode start screen (D-068, the contract in §8; `app/chat/demo-start.tsx`, `demo-tools.tsx`, tests in `lib/demo.test.ts` and `lib/live.test.ts`) · covers AC-01 · done when: a visitor opens a demo
   session by scenario and picks a recent transaction on the public URL
-- [ ] Task 6 — voice (D-072, the contract in §8): mic, push-to-talk, draft, read-aloud and mute · covers AC-07 · done
+- [x] Task 6 — voice (D-072, the contract in §8): mic, push-to-talk, draft, read-aloud and mute · covers AC-07 · done
   when: a visitor speaks a claim in ES and in PT on the public URL and hears the reply
 
 **Task 5 notes.** The web never sends a `customer_id`; the session id (equal to the httpOnly cookie value) is kept in
