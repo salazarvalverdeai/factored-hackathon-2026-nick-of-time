@@ -16,6 +16,7 @@ import secrets
 import threading
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
+from decimal import Decimal
 from typing import Any, Literal, Optional, get_args
 
 import psycopg
@@ -444,6 +445,10 @@ class PostgresStore:
             "and (%s::text is null or trace_id = %s) order by created_at, call_id collate \"C\"",
             (check_key(run_id), check_key(trace_id), trace_id))
         return [LLMCall(**r) for r in rows]
+
+    def llm_spend_since(self, since: dt.datetime) -> Decimal:
+        return self._rows("select coalesce(sum(cost_usd), 0) as total from llm_calls where created_at >= %s",
+                          (since,))[0]["total"]
 
     def add_channel_event(self, case_id: str, channel: LinkedChannel, address: str, event: ChannelEvent, *,
                           actor: str, trace_id: str) -> CustomerChannel:

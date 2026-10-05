@@ -93,8 +93,10 @@ def same_deadline(turn, mcp: L.LocalMCP, sid: str, transaction_id: str) -> None:
     deadline = turn.receipt.deadline
     assert (deadline.country, deadline.product, deadline.credit_deadline, deadline.ruling_deadline) == (
         legal.country, legal.product, legal.credit_deadline, legal.ruling_deadline)
+    # DLANG (contract 1.5.0): the customer reads the source in the session's language, as compute_deadline labels it
     assert (deadline.deadline_source, deadline.source_url, deadline.verified_on) == (
-        legal.deadline_source, legal.source_url, legal.verified_on)
+        legal.deadline_source_label, legal.source_url, legal.verified_on)
+    assert legal.deadline_source_label == legal.deadline_source or legal.deadline_source not in turn.reply
     for day in filter(None, (legal.credit_deadline, legal.ruling_deadline)):
         assert day.isoformat() in turn.reply
 

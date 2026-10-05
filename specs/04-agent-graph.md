@@ -263,8 +263,9 @@ Rules: at most 3 chips; a path to a person is always among them, except right af
 ## 5. Non-functional requirements
 - **Latency:** p95 per turn ≤ 6 s with S1 `[assumption]`; first progress label within 1 s.
 - **Cost:** ≤ 0.02 USD per case with S1 `[assumption]`, measured by the harness.
-- **Graceful degradation:** if Bedrock fails or the per-conversation budget is exhausted (G-OPS-01), the run continues
-  as `S0` and says so in the trace.
+- **Graceful degradation:** if Bedrock fails or the per-conversation or daily budget is exhausted (G-OPS-01), the run continues
+  as `S0` and says so in the trace. `[assumption]` The daily cap binds only runs the api starts (it passes the day's
+  spend); runs started outside the api (Studio, the SDK, an eval run against the deployment) are not capped by it.
 - **Safety:** customer text and tool outputs reach the LLM as delimited data; the LLM never sees `policies.yaml` and
   never writes outbound messages.
 - **Observability:** LangSmith traces in development; the run's `trace` and `usage` are the source of truth for the api.
@@ -360,8 +361,10 @@ messages.
       has none yet `[assumption]`) runs that turn as S0 (`no price (D-058)`); the graph's load only logs it, since S0
       and the echo graph share the Platform server, and CI's `config.check_prices()` test fails when a default
       production (bedrock) arm has no price row. Open: AC-17
-      (progress stream, P1, D-001); S1/S2 rewording (spec 15 `word` gate); a per-day cap (G-OPS-01) needs a store-side
-      counter
+      (progress stream, P1, D-001); S1/S2 rewording (spec 15 `word` gate). The per-day cap (G-OPS-01) is checked
+      before calling too: the day's spend of every session (`configurable.llm_day_spent_usd`, the api's `llm_calls`
+      sum, spec 05 AC-18) plus the call's estimate above `configurable.llm_day_cap_usd` (else env `DAILY_LLM_CAP_USD`,
+      5 USD `[assumption]`) runs the step as S0 with `S1 -> S0: daily cap` and G-OPS-01
 - [ ] T7a — Shared LLM client `nick_of_time.llm` (`fake`, `bedrock`, `anthropic`) and `nick_of_time.config.resolve(arm)`:
       forced tool use with the tool → any → auto ladder (D-011), temperature 0 or provider default recorded per arm
       (D-016), usage, latency and cost from a price table, `ProviderUnavailable` for provider errors (graph degrades to

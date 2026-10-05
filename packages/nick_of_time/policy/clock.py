@@ -19,7 +19,7 @@ from nick_of_time.policy.calendars import CalendarNotCovered, add_business_days,
 from nick_of_time.policy.model import ChargeWindow, Policies, Term, load_policies
 
 __all__ = ["DEMO_TODAY", "CalendarNotCovered", "Deadline", "add_business_days", "deadline", "holidays",
-           "is_business_day", "time_zone", "today"]
+           "is_business_day", "source_label", "time_zone", "today"]
 
 DEMO_TODAY = date(2026, 6, 1)          # replay "today" (ADR 0020): a Monday, the day after the gold ends
 UNKNOWN = "POL-CLOCK-UNKNOWN"
@@ -107,6 +107,15 @@ def _add(country: str, start: date, term: Term) -> tuple[date, list[date]]:
     if term.calendar == "calendar":
         return start + timedelta(days=term.days), []
     return walk(country, start, term.days)
+
+
+def source_label(source: Optional[str], language: str, policies: Optional[Policies] = None) -> Optional[str]:
+    """DLANG: the customer's `es`/`pt` name of a stored `deadline_source`, from the clock entry with that exact
+    `source` (an unknown language reads `es`); None when no entry has it (an old case keeps its stored source)."""
+    p = policies or load_policies()
+    entry = next((e for products in p.regulatory_clock.values() for rows in products.values() for e in rows
+                  if source and e.source == source), None)
+    return getattr(entry.source_label, language if language in ("es", "pt") else "es") if entry else None
 
 
 def deadline(country: str, product: str, opened_on: date, *, abroad: bool = False,
