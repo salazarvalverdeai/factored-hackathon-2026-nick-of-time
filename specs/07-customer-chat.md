@@ -37,7 +37,7 @@ AC-01 to AC-05 are copied from issue #9 with the same numbers. None is dropped o
 - AC-06 — While the medium zone applies, the system shall state the plan and wait for the customer's confirmation
   before blocking (spec 04 AC-16); `customer_id` shall come only from the session. · [T] ("spec 07: the medium zone asks
   to confirm first …", "spec 07: customer_id comes only from the session")
-- AC-07 — (lead, D-072) Where the browser can record audio, the chat shall offer push-to-talk: the clip goes to
+- AC-10 — (lead, D-072) Where the browser can record audio, the chat shall offer push-to-talk: the clip goes to
   `POST /api/voice/transcribe` (spec 05 AC-21) and the returned `text` lands in the composer as an editable draft that
   the customer sends like typed text (never sent on its own); with the read-aloud toggle on, each agent reply shall be
   spoken with the browser's `speechSynthesis` in the session language. A 413, 415 or 503 shall show the api's calm
@@ -110,7 +110,7 @@ AC-01 to AC-05 are copied from issue #9 with the same numbers. None is dropped o
 - [ ] Task 4 — call the live agent proxy (`/api/agent/...`, spec 05 M05) · covers AC-01 to AC-04 · done when: same flow on the public URL
 - [ ] Task 5 — demo-mode start screen (D-068, the contract in §8) · covers AC-01 · done when: a visitor opens a demo
   session by scenario and picks a recent transaction on the public URL
-- [ ] Task 6 — voice (D-072, the contract in §8): mic, push-to-talk, draft, read-aloud and mute · covers AC-07 · done
+- [ ] Task 7 — voice (D-072, the contract in §8): mic, push-to-talk, draft, read-aloud and mute · covers AC-10 · done
   when: a visitor speaks a claim in ES and in PT on the public URL and hears the reply
 
 **Closing checklist** (last PR): every AC has a passing test or check that cites it · status → Implemented · ADR for

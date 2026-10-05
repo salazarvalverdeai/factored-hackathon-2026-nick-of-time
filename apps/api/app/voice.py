@@ -37,7 +37,7 @@ AUDIO_TOKENS_PER_S, MAX_TOKENS = 15, 400
 SILENCE_PEAK = 300                           # [assumption] about -40 dBFS on 16-bit PCM
 TIMESTAMPS = re.compile(r"\[\s*\d+m\d+s\d+ms\s*-\s*\d+m\d+s\d+ms\s*\]\s*")   # segment stamps Voxtral may add
 READ_TIMEOUT_S = 20
-# Customer-facing (spec 07 AC-07 shows them as they are): 503, 413 and 415, in the session language
+# Customer-facing (spec 07 AC-10 shows them as they are): 503, 413 and 415, in the session language
 TYPE_INSTEAD = {"es": "Ahora no podemos escuchar tu audio. Escríbenos tu mensaje y seguimos.",
                 "pt": "No momento não conseguimos ouvir seu áudio. Escreva sua mensagem e seguimos."}
 TOO_LONG = {"es": "Tu audio es muy largo. Graba hasta 30 segundos o escríbenos tu mensaje.",
