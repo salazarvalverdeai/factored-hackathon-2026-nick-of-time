@@ -17,6 +17,7 @@ Served as `dispute_intake` in langgraph.json (D-048 applied); the echo graph sta
 # No `from __future__ import annotations`: the state types must resolve when the server loads this file by path.
 import asyncio
 import json
+import logging
 import os
 import re
 import uuid
@@ -41,7 +42,10 @@ from nick_of_time.nlu.text import fold
 from nick_of_time.policy import DecisionInput, PolicyDecision, PolicyEngine
 
 ENGINE, NLU = PolicyEngine.load(), load_nlu("B0")
-check_prices()                              # D-058: a production (bedrock) LLM arm without a price fails at load
+try:    # D-058: logged, not raised, so S0 and the echo graph on the same server stay up; that turn runs as S0
+    check_prices()
+except ValueError as err:
+    logging.getLogger(__name__).error("%s: S1/S2 turns run as S0 until a price is configured", err)
 TIMEOUT_S = ENGINE.policies.reliability["tool_timeout_ms"] / 1000
 RETRIES = ENGINE.policies.reliability["tool_retries"]
 MAX_OPTIONS = ENGINE.policies.clarify.max_candidate_transactions
@@ -217,6 +221,9 @@ async def understand(state: State, config: RunnableConfig) -> dict[str, Any]:
         heard, extra = await arms.understand(state, config, text, day.isoformat(), TAU)
     if heard:                               # D-020: dispute words the rules saw still count
         heard["dispute_detected"] = heard["dispute_detected"] or reading.dispute_detected
+        if heard["intent"] == "human_request" and reading.intent != "human_request":
+            heard["intent"] = reading.intent    # D-065 [assumption]: no call on an LLM-only reading; the turn asks
+
     return {**base, **found, "intent": reading.intent, "intent_confidence": reading.confidence,
             "dispute_detected": reading.dispute_detected, **(heard or {}), **extra}
 

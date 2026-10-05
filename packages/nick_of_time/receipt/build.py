@@ -65,15 +65,22 @@ INTERNAL = re.compile(r"\b[a-z]+(?:_[a-z0-9]+)+\b|\bG-[A-Z]+-\d+\b")
 SCORE_WORD = re.compile(r"(?i)score|puntaje|puntuaci[oó]n|pontua[cç][aã]o|riesgo|risco|fraud|probabilidad|[íi]ndice")
 
 
+def states(text: str, number: float) -> bool:
+    """True when `text` holds `number` as a plain number ('87', '87.0' or '87,0')."""
+    return any(float(m.replace(",", ".")) == number for m in re.findall(r"(?<![\d.,])\d+(?:[.,]\d+)?(?![\d])", text))
+
+
 def never_send(text: str, template: str = "", *, score: Any = None, transcript: Iterable[str] = ()) -> list[str]:
     """What a customer-facing line leaks that `notifications.never_send` forbids (spec 04 §4.3, D-056 follow-up): a
     policy id of any shape, an internal name or a score word its template line did not have (a source URL may hold
-    one), the score's value or a customer utterance of at least 20 characters. [] when clean. A utility for spec 15's
-    `word` gate: no reworded line reaches a customer yet."""
+    one), the score's value (near a score word, or bare when its template line did not state it) or a customer
+    utterance of at least 20 characters. [] when clean. A utility for spec 15's `word` gate: no reworded line reaches
+    a customer yet."""
     internal = set(INTERNAL.findall(text)) - set(INTERNAL.findall(template))
     hits = ["policy_id"] * bool(POLICY_ID.search(text)) + ["internal_name"] * bool(internal)
-    if (score is not None and check_privacy({"reply": text}, score=float(score)).status == "finding") or (
-            SCORE_WORD.search(text) and not SCORE_WORD.search(template)):
+    value = score is not None and (check_privacy({"reply": text}, score=float(score)).status == "finding" or (
+        states(text, float(score)) and not states(template, float(score))))
+    if value or (SCORE_WORD.search(text) and not SCORE_WORD.search(template)):
         hits.append("score")
     said = [t.casefold() for t in transcript if len(t) >= 20]
     return hits + ["transcript"] * any(re.search(rf"(?<!\w){re.escape(t)}(?!\w)", text.casefold()) for t in said)

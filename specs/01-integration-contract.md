@@ -535,7 +535,9 @@ Implementation goes in one `feat/01-*` branch per task (for example `feat/01-pac
       with no default so `None` (production) is passed on purpose (D-023), no update or delete, oldest first; the api
       writes one row per billed call from a run's usage, spec 04 AC-14, spec 18 AC-10; no column beyond the §6.5
       table; `cost_usd` is never null, so any arm that can write an `llm_calls` row must have a configured price
-      `[assumption]`, pending lead decision D-058, with no schema change); `demo_transactions` → task 03b; `link_tokens` and
+      `[assumption]`, pending lead decision D-058, with no schema change; the graph runs a turn whose arm has no price
+      as S0 and only logs it at load, while CI fails when a default production arm has none, spec 04 T7);
+      `demo_transactions` → task 03b; `link_tokens` and
       `settings_events` → spec 05 (api). The api checks `AnalystActionIn.idempotency_key` through the `idempotency`
       accessor before it calls `record_analyst_action`. Once task 02c merges, `record_analyst_action` takes the new
       status from `nick_of_time.policy.transition(current, action, actor)` (`Moved.status`), and the store's

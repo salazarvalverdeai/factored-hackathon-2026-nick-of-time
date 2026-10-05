@@ -183,7 +183,8 @@ is written once by the evaluation script (T6) from the frozen test split, never 
 - **Q4 — intent set:** **Decided (lead, 2026-10-04):** five intents. Spec 09 (Diego) relabels and adds sentences.
 - **D-065 — LLM confidence in the graph** `[assumption]`, pending the lead: below τ, S1/S2 ask the LLM (spec 04 T7),
   and its self-reported confidence is capped below τ, so an LLM-only reading proposes intent and slots and the rules
-  still ask the customer before anything is done.
+  still ask the customer before anything is done. An LLM-only `human_request` registers no call: the call is
+  registered only when the rules (B0) also read `human_request`; otherwise the turn asks, with the person chip.
 - **Intent order (B0) `[assumption]`:** `human_request` > `status_inquiry` > `wrongful_charge` > `unrecognized_charge`
   > `out_of_scope`, with the status rule of §6.
 - **D-020 — what `dispute_detected` triggers** (defaults applied, pending the lead's confirmation). Specs 02, 04 and

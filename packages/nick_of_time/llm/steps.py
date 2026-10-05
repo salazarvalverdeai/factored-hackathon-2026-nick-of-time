@@ -11,6 +11,7 @@ runs the step as S0 (rules) and says so in the trace; every billed call is a `us
 import asyncio
 import datetime as dt
 import json
+import re
 from typing import Any, Optional, get_args
 
 from pydantic import ValidationError
@@ -21,10 +22,13 @@ from nick_of_time.config import price, resolve
 from nick_of_time.contracts import Intent
 from nick_of_time.nlu import Slots
 
-TIMEOUT_S = 4.0     # [assumption] client read timeout, one attempt, one call per turn: turn p95 <= 6 s (spec 04 §5)
+# [assumption] one attempt, one call per turn: at most 4 s read + 2 s connect (bedrock.py) per request, so the
+# turn's p95 <= 6 s with S1 (spec 04 §5)
+TIMEOUT_S = 4.0
 CAP_USD = 0.02      # [assumption] G-OPS-01 per conversation: spec 04 §5's cost target per case with S1
 MAX_TOKENS = 512    # spec 15 section 4.1: maxTokens of at least 512
 OPS = "G-OPS-01"
+DAY = re.compile(r"\d{4}-\d{2}-\d{2}")    # the exact form retrieve sends as approx_date
 
 INTENT_SCHEMA = {
     "type": "object", "required": ["intent", "confidence", "dispute_detected", "slots"],
@@ -105,14 +109,15 @@ def note(state: dict, node: str, reason: str, alerts: list[str] = ()) -> dict[st
 
 
 def slots_of(raw: Any, session_id: str) -> Optional[dict]:
-    """The LLM's slots if they fit both `nlu.Slots` and the `search_transaction` input (ISO date, numeric amount,
-    merchant within its length), else None."""
+    """The LLM's slots if they fit both `nlu.Slots` and the `search_transaction` input retrieve will send (a
+    YYYY-MM-DD date string that is a real date, numeric amount, merchant within its length), else None."""
     try:
         slots = Slots.model_validate(raw).model_dump()
+        if slots["date"] and not (DAY.fullmatch(slots["date"]) and dt.date.fromisoformat(slots["date"])):
+            return None
         SearchTransactionIn.model_validate({
             "session_id": session_id, "amount": float(slots["amount"]) if slots["amount"] else None,
-            "currency": slots["currency"], "merchant": slots["merchant"],
-            "approx_date": dt.date.fromisoformat(slots["date"]) if slots["date"] else None})
+            "currency": slots["currency"], "merchant": slots["merchant"], "approx_date": slots["date"]})
     except (ValidationError, ValueError, TypeError):
         return None
     return slots

@@ -79,8 +79,9 @@ def price(cfg: ArmConfig) -> dict | None:
 
 
 def check_prices(env: Mapping[str, str] | None = None) -> None:
-    """Config load (D-058): with `LLM_PROVIDER=bedrock` (production), arms S1 and S2 must have a price, else
-    ValueError. [assumption] Other providers are checked per turn, where a missing price runs the turn as S0."""
+    """D-058: with `LLM_PROVIDER=bedrock` (production), arms S1 and S2 must have a price, else ValueError. CI calls it
+    so a missing default price fails the build; the graph only logs it at load and runs those turns as S0, so S0 and
+    the echo graph on the same server stay up. Other providers are checked per turn the same way [assumption]."""
     env = os.environ if env is None else env
     if env.get("LLM_PROVIDER") == "bedrock":
         for arm in ("S1", "S2"):

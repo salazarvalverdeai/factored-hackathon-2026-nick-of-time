@@ -17,7 +17,7 @@ from nick_of_time.config import HAIKU, check_prices, price, resolve
 from nick_of_time.contracts import TurnResult
 from nick_of_time.llm import FakeClient, ProviderUnavailable, steps
 from nick_of_time.receipt import build
-from tests.test_spec04_graph import Chat, intake
+from tests.test_spec04_graph import PERSON, Chat, intake
 
 ROOT = Path(__file__).resolve().parents[1]
 SLOTS = {"amount": None, "currency": None, "date": None, "merchant": None}
@@ -97,6 +97,8 @@ def test_ac_14_above_tau_status_unverified_injection_and_cross_customer_turns_ne
     ([{**HEARD, "slots": {**SLOTS, "amount": "12,50"}}], 1, "invalid slots"),
     ([{**HEARD, "slots": {**SLOTS, "date": "2026-13-45"}}], 1, "invalid slots"),
     ([{**HEARD, "slots": {**SLOTS, "merchant": "X" * 101}}], 1, "invalid slots"),
+    ([{**HEARD, "slots": {**SLOTS, "date": "20260531"}}], 1, "invalid slots"),      # fromisoformat takes these
+    ([{**HEARD, "slots": {**SLOTS, "date": "2026-W22-1"}}], 1, "invalid slots"),
     ([ProviderUnavailable("ReadTimeoutError: Read timeout on endpoint URL")], 0, "timeout"),
     ([ProviderUnavailable("ThrottlingException: slow down")], 0, "ProviderUnavailable")])
 def test_ac_14_any_llm_failure_runs_the_turn_as_s0_and_records_it(script, rows, reason):
@@ -133,7 +135,9 @@ def test_d_058_a_missing_price_at_runtime_runs_the_turn_as_s0(monkeypatch, env):
     assert detail(turn, "understand") == ("error", "S1 -> S0: no price (D-058)")
 
 
-def test_d_058_a_production_arm_without_a_price_fails_at_config_load():
+def test_d_058_ci_fails_on_a_missing_production_price_while_the_graph_only_logs_it():
+    """CI: the default production arms are priced, and an unpriced one raises. The graph's load only logs it, so S0
+    and the echo graph on the same Platform server stay up; its S1/S2 turns run as S0 (test above)."""
     check_prices({"LLM_PROVIDER": "bedrock"})
     check_prices({"LLM_PROVIDER": "anthropic"})      # checked per turn instead
     with pytest.raises(ValueError, match="D-058"):
@@ -141,7 +145,7 @@ def test_d_058_a_production_arm_without_a_price_fails_at_config_load():
     env = {**os.environ, "PYTHONPATH": os.pathsep.join(str(ROOT / p) for p in (".", "packages", "apps/agent")),
            "LLM_PROVIDER": "bedrock", "BEDROCK_MODEL_FAST": "us.example.unpriced-v1:0"}
     out = subprocess.run([sys.executable, "-c", "import agent.intake"], env=env, capture_output=True, text=True)
-    assert out.returncode != 0 and "D-058" in out.stderr
+    assert out.returncode == 0 and "D-058" in out.stderr, out.stderr
 
 
 def test_d_058_prices_resolve_in_the_platform_image_layout(tmp_path):
@@ -165,3 +169,25 @@ def test_never_send_flags_score_policy_ids_transcript_and_internal_names():
     assert build.never_send("Regla pol-clock-unknown y block_and_open_case.") == ["policy_id", "internal_name"]
     assert build.never_send("Dijiste: no reconozco el cargo de la tienda de ayer.", transcript=said) == ["transcript"]
     assert build.never_send("Tu caso K-104233 sigue abierto.", "Tu caso K-104233 sigue abierto.", score=87.0) == []
+    assert build.never_send("Tu caso sigue en 87.", "Tu caso sigue abierto.", score=87.0) == ["score"]   # bare value
+    assert build.never_send("Cargo de 87,0 USD.", "Cargo de 87.0 USD.", score=87.0) == []   # the template's own amount
+
+
+def test_d_065_an_llm_only_call_request_registers_no_call_and_the_turn_asks_with_a_person_chip():
+    """The rules (B0) did not read a call request, so the LLM's human_request is not acted on (no D-043 hold)."""
+    wants = {**HEARD, "intent": "human_request", "confidence": 0.95}
+    turn = run(Chat(arm="S1", llm_client=client(wants)), "hola")
+    assert turn.decision == "ask" and turn.actions == [] and turn.intent != "human_request"
+    assert PERSON & {s.label for s in turn.suggestions}
+
+
+def test_ac_14_a_deployment_client_has_a_4_s_read_timeout_and_one_attempt(monkeypatch):
+    made = []
+
+    def make(cfg, **kw):
+        made.append(kw)
+        return client(HEARD)
+    monkeypatch.setattr(steps.llm, "make_client", make)
+    monkeypatch.setattr(steps, "_CLIENTS", {})
+    run(Chat(arm="S1"), "hola")
+    assert [(kw["read_timeout_s"], kw["max_attempts"]) for kw in made] == [(4.0, 1)]
