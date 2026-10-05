@@ -38,8 +38,8 @@ Source: `specs/11-intent-classifier.md` §3 (AC-01, AC-06, AC-07), §4, §4.1 an
 
 ### 1.1 Data and split
 Sentence set of spec 09 (`eval/classifier/*.jsonl`), about 800 sentences in ES and PT with author ids
-`[assumption, spec 11 §8; delivered by spec 09]`. Five intents: `unrecognized_charge`, `wrongful_charge`,
-`status_inquiry`, `human_request`, `out_of_scope`.
+`[assumption, spec 11 §8; delivered by spec 09]`, written by model generators and reviewed line by line by a person
+(ADR 0025). Five intents: `unrecognized_charge`, `wrongful_charge`, `status_inquiry`, `human_request`, `out_of_scope`.
 
 | Split | Share `[assumption]` | May be used for | May not be used for |
 |---|---|---|---|
@@ -47,6 +47,10 @@ Sentence set of spec 09 (`eval/classifier/*.jsonl`), about 800 sentences in ES a
 | Validation | 15% | τ, hyperparameters, prompt wording of B2, the one calibration split | the final reported score |
 | Test | 25% | the final score of every arm, once, after the arms are frozen | any tuning, prompt edit, threshold or rule change |
 
+- **Author** = the generator model id of the sentence. Each split has one generator, of a different model family
+  from the other two, and none is Claude (ADR 0025): train Llama 3.3 70B (`us.meta.llama3-3-70b-instruct-v1:0`),
+  validation Gemma 3 27B (`google.gemma-3-27b-it`), test DeepSeek V3.2 (`deepseek.v3.2`). Each split records its
+  generator: model id, prompt hash, sampling settings and seed (`eval/classifier/draft/generation.json`).
 - The split is **by author**, never by sentence: all sentences of one author are in one split (AC-06). The realized
   shares of train, validation and test must each be within 3 points of 60/15/25 `[assumption]` (D-017e, decided by the
   lead on 2026-10-04), the same tolerance `tests/test_spec11_protocol.py` checks on the files.
@@ -59,7 +63,8 @@ Sentence set of spec 09 (`eval/classifier/*.jsonl`), about 800 sentences in ES a
 - Rows with `label: injection` follow the author rule, the shares and the manifest hash, and are scored only by the
   injection detector (AC-04); the test minimums and the intent metrics count only the other rows `[assumption]` (D-022).
 - B2 (LLM) gets the label definitions and no example from the test split (spec 11 §4).
-- Results from a candidate of the same family as the LLM that paraphrased the sentences are flagged (spec 11 §8).
+- Results from a candidate of the same family as the generator of the split being scored are flagged (spec 11 §8,
+  ADR 0025).
 
 ### 1.2 Arms and metrics
 Arms: B0 rules, B1 TF-IDF + LR, B2 LLM, B3 cascade (B1, below τ then B2); injection detector rules vs rules + LR
@@ -251,7 +256,8 @@ sed '/^<!-- SEAL:BEGIN -->$/,/^<!-- SEAL:END -->$/d' eval/PROTOCOL.md | shasum -
 validation and test) of `eval/classifier/*.jsonl` (top level only; subfolders are not split files), in C-locale path
 order; it fails when no file matches. The layout of spec 09 is `[assumption]`: top-level files whose names start with
 `train`, `validation` and `test`, each row with `author`, `language` and `intent` (injection rows carry
-`label: injection`); confirmed at M02 as above:
+`label: injection`) and the other fields of spec 09 §7.6; `eval/classifier/draft/` holds the unreviewed drafts and is
+not hashed; confirmed at M02 as above:
 
 ```
 files=$(find eval/classifier -maxdepth 1 -name '*.jsonl' | LC_ALL=C sort); test -n "$files" && echo "$files" | xargs shasum -a 256 | shasum -a 256

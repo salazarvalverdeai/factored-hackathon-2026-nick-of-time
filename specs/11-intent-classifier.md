@@ -192,8 +192,10 @@ Reads the sentence set of spec 09 (`eval/classifier/*.jsonl`). Writes `models/in
   - A PT ordinal before a noun ("na segunda semana", "na quinta loja", "na segunda metade do mês") is no weekday. A
     "-feira" day ("na sexta-feira loja Renner") and "na sexta semana passada" still are.
 - **Currency `[assumption]`:** a bare "$" or "pesos" leaves `currency` null; the country comes from the session.
-- Assumption: spec 09 delivers about 800 sentences (ES and PT, with author ids) written by the team and paraphrased
-  with an LLM whose name is recorded; results from a candidate of the same family as the generator are flagged.
+- Assumption: spec 09 delivers about 800 sentences (ES and PT, with author ids) written by one generator model family
+  per split, none of them Claude (ADR 0025: train Llama 3.3 70B, validation Gemma 3 27B, test DeepSeek V3.2), each line
+  reviewed by a person; `author` is the generator model id. Results from a candidate of the same family as the
+  generator of the split being scored are flagged.
 
 ## 9. Out of scope
 Fine-tuning; embeddings + LR (P2); Jev (benchmarked in spec 15); the agent's use of the result (spec 04).
