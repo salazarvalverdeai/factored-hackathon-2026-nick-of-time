@@ -78,6 +78,18 @@ UNDELIVERED: frozenset[str] = frozenset({"bounced", "failed"})
 MAX_CASE_ID_ATTEMPTS = 8      # 10^6 case ids; at 1% occupancy, 8 straight conflicts happen once in 10^16 inserts
 
 
+DEMO_RUN_PREFIX = "demo-"            # a public demo session's run (ADR 0026): `demo-<UTC yyyymmddThhmmssZ>-<6 base32>`
+
+
+def is_demo_run(run_id: Optional[str]) -> bool:
+    """A public demo session's run: isolated like an eval run, and with no Telegram or e-mail channel (ADR 0026)."""
+    return (run_id or "").startswith(DEMO_RUN_PREFIX)
+
+
+def in_runs(case_run: Optional[str], run_id: Optional[str], demo_runs: bool) -> bool:
+    return case_run == run_id or (demo_runs and is_demo_run(case_run))
+
+
 class StoreError(Exception):
     """A write the store refuses or a row it cannot find; nothing was written."""
 
@@ -305,16 +317,18 @@ class Store(Protocol):
         set (a closed case of the same customer and run), `related_case_opened` on that case, all in one operation. A
         write has no V- id: only `record_verification` mints one (D-025). A used `action_id` is refused."""
 
-    def get_case(self, case_id: str, *, run_id: Optional[str], customer_id: Optional[str]) -> Optional[CaseRecord]:
+    def get_case(self, case_id: str, *, run_id: Optional[str], customer_id: Optional[str],
+                 demo_runs: bool = False) -> Optional[CaseRecord]:
         """The case if it belongs to `run_id` (None = production) and to `customer_id` (None = analyst console),
-        with the V- id of the latest `action_verified` of its `case_opened` action."""
+        with the V- id of the latest `action_verified` of its `case_opened` action. `demo_runs` (the analyst console
+        only, ADR 0026) also matches a case of any demo session run (`DEMO_RUN_PREFIX`)."""
 
     def list_cases(self, customer_id: str, *, run_id: Optional[str]) -> list[CaseRecord]:
         """The customer's cases in `run_id`: active (not closed) first, newest first within each group."""
 
-    def list_all_cases(self, *, run_id: Optional[str]) -> list[CaseRecord]:
-        """Spec 05: every customer's cases in `run_id`, in the order of `list_cases`. Only the analyst console calls it,
-        so a customer route can never widen its scope by passing no customer."""
+    def list_all_cases(self, *, run_id: Optional[str], demo_runs: bool = False) -> list[CaseRecord]:
+        """Spec 05: every customer's cases in `run_id` (and, with `demo_runs`, of every demo session run), in the order
+        of `list_cases`. Only the analyst console calls it, so a customer route can never widen its scope."""
 
     def append_event(self, case_id: str, type: EventType, *, actor: str, trace_id: str,
                      payload: Optional[dict[str, Any]] = None) -> CaseEvent:

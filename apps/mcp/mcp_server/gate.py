@@ -52,6 +52,7 @@ class SessionRow(BaseModel):
     display_currency: Optional[str] = None
     tool_faults: tuple[str, ...] = ()
     run_id: Optional[str] = None
+    display_name: Optional[str] = None               # a demo visitor's typed name (ADR 0026)
 
 
 class Sessions(Protocol):

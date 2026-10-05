@@ -171,8 +171,33 @@ class SeedOut(Out):
 
 
 class SessionIn(BaseModel):
-    customer_id: str
+    customer_id: Optional[str] = None                # the original picker; a demo session names a scenario instead
     mode: Optional[Mode] = None                      # default: DEFAULT_SESSION_MODE, else live
+    # demo session (D-068, ADR 0026): the customer behind the scenario is chosen server-side, never sent
+    display_name: Optional[str] = None               # checked by app.demo.clean_name (422 when not a plain name)
+    language: Optional[Literal["es", "pt"]] = None   # required for a demo session
+    country: Optional[Literal["MX", "CO", "AR"]] = None
+    scenario: Optional[str] = None                   # a scenario_id of GET /api/demo/scenarios, or "auto"
+
+
+class ScenarioOut(Out):
+    scenario_id: str
+    title: str
+    country: str
+    language: Literal["es", "pt"]
+    segment: str
+    customer_name: Optional[str]                     # gold's synthetic first name, the default greeting name
+    cases: list[str]                                 # spec 09 dev/sample case ids for this customer, never held-out
+    tags: list[str]
+
+
+class RecentTransactionOut(Out):
+    transaction_id: str
+    date: dt.date
+    amount: float
+    currency: str
+    merchant: Optional[str]                          # null in some gold rows: the chip then names no merchant
+    last4: Optional[str]                             # the card's last 4, for a customer with several cards
 
 
 class VerifyIn(BaseModel):
