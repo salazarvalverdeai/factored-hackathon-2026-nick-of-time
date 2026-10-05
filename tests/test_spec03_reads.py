@@ -24,6 +24,8 @@ from mcp_server.gold import Gold  # noqa: E402
 NOW = dt.datetime(2026, 6, 1, 15, 0, tzinfo=dt.UTC)
 ANA, BRUNO, CARLA = "CLI-ANA000000001", "CLI-BRUNO0000001", "CLI-CARLA0000001"     # MX, MX, AR
 S_ANA, S_BRUNO, S_CARLA, S_LIVE = "S-anareplay0000001", "S-brunoreplay00001", "S-carlareplay00001", "S-analive000000001"
+DORA, EDU = "CLI-DORA00000001", "CLI-EDU000000001"                                    # BR by name, BR by ISO code
+S_DORA, S_EDU = "S-dorareplay000001", "S-edureplay0000001"
 
 
 def _trx(n, customer, day, amount, currency="USD", merchant=None, status="Approved", ptype="Tarjeta Crédito",
@@ -31,6 +33,7 @@ def _trx(n, customer, day, amount, currency="USD", merchant=None, status="Approv
     return {"transaction_id": f"TRX-{n:020d}", "product_id": f"PRD-{customer[4:16]}", "customer_id": customer,
             "transaction_date": dt.datetime(2026, 4, 30, 12, 30) + dt.timedelta(days=day), "amount": amount, "currency": currency,
             "amount_usd": amount_usd, "merchant_name": merchant, "transaction_status": status, "product_type": ptype,
+            "transaction_country": "Argentina" if customer == CARLA else "México",
             "fraud_score": score, "is_fraud": True}         # is_fraud planted: the loader must never select it
 
 
@@ -51,7 +54,8 @@ def gold_dir(tmp_path_factory):
     pl.DataFrame([{"customer_id": c, "first_name": f, "last_name": "Pérez", "document_number": "DOC-SECRET",
                    "email": f"{f.lower()}.perez@example.com", "mobile_phone": "+525512345678", "address": "Calle 1",
                    "country": k} for c, f, k in ((ANA, "Ana", "México"), (BRUNO, "Bruno", "México"),
-                                                 (CARLA, "Carla", "Argentina"))]).write_parquet(
+                                                 (CARLA, "Carla", "Argentina"), (DORA, "Dora", "Brasil"),
+                                                 (EDU, "Edu", "BR"))]).write_parquet(
         root / "gold/customers.parquet")
     (root / "gold_eval").mkdir()
     labels = root / "gold_eval/transaction_labels.parquet"
@@ -67,7 +71,8 @@ class Run:
             return gate.SessionRow(**{"session_id": sid, "customer_id": customer, "verified_at": NOW, "language": "es",
                                       "mode": "replay", "expires_at": NOW + dt.timedelta(minutes=15), **extra})
         sessions = {S_ANA: row(S_ANA, ANA), S_BRUNO: row(S_BRUNO, BRUNO, display_currency="USD"),
-                    S_CARLA: row(S_CARLA, CARLA), S_LIVE: row(S_LIVE, ANA, mode="live")}
+                    S_CARLA: row(S_CARLA, CARLA), S_LIVE: row(S_LIVE, ANA, mode="live"),
+                    S_DORA: row(S_DORA, DORA, language="pt"), S_EDU: row(S_EDU, EDU, language="pt")}
         self.denials, policies = [], load_policies()
         handlers = reads.read_handlers(Gold(gold_dir / "gold"), policies, **kwargs)
         guardrails = {rule_id: rule.guardrail for rule_id, rule in policies.rules.items() if rule.guardrail}
@@ -179,6 +184,13 @@ def test_ac_11_profile_gives_the_first_name_and_masked_confirmed_channels_only(g
         == {"country": "AR", "display_currency": "ARS", "channels": []}
 
 
+def test_ac_11_a_br_profile_maps_the_country_by_name_or_iso_code_like_compute_deadline(gold_dir):
+    run = Run(gold_dir)
+    for session in (S_DORA, S_EDU):                      # "Brasil" and "BR" both map through reads._code
+        assert run("get_customer_profile", session).model_dump(include={"language", "country", "display_currency"}) \
+            == {"language": "pt", "country": "BR", "display_currency": "BRL"}
+
+
 def test_ac_11_the_loader_reads_named_gold_columns_only_and_never_gold_eval(gold_dir):
     loaded = Gold(gold_dir / "gold")                     # gold_eval's file is unreadable: it was never opened
     columns = {table: [r[0] for r in loaded._rows(f"DESCRIBE {table}", [])] for table in ("card", "customer")}
@@ -206,5 +218,10 @@ def test_ac_20_convert_amount_answers_null_without_a_verified_labeled_rate(gold_
     assert other("convert_amount", amount=1, currency="USD", to_currency="MXN").converted.currency == "MXN"
 
 
-def test_ac_08_a_live_session_search_is_unavailable_until_the_live_clock_lands(gold_dir):
-    assert Run(gold_dir)("search_transaction", S_LIVE, amount=69.44).code == "UNAVAILABLE"
+def test_ac_08_a_live_session_searches_up_to_the_real_date_in_the_customers_time_zone(gold_dir):
+    def search(utc_now, session=S_LIVE):
+        run = Run(gold_dir, utc_now=lambda: utc_now)
+        return _ids(run("search_transaction", session, amount=69.44, approx_date="2026-05-30", window_days=0))
+    assert search(dt.datetime(2026, 5, 30, 5, 59, tzinfo=dt.UTC)) == []    # 23:59 on 05-29 in Mexico City
+    assert search(dt.datetime(2026, 5, 30, 6, 0, tzinfo=dt.UTC)) == [1]    # 00:00 on 05-30: the charge's day
+    assert search(dt.datetime(2026, 5, 30, 5, 59, tzinfo=dt.UTC), S_ANA) == [1]   # replay keeps DEMO_TODAY

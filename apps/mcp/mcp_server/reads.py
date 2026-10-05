@@ -1,6 +1,7 @@
 """Read tools over gold (spec 03 T2 and T3): `get_customer_profile`, `search_transaction`, `get_fraud_score`,
-`convert_amount`. Each handler takes the customer only from `call.session` (constitution #3); a transaction outside
-that customer's cards is NOT_FOUND, whoever owns it. Facts are returned as stored: exact amount, original currency.
+`compute_deadline`, `convert_amount`. Each handler takes the customer only from `call.session` (constitution #3); a
+transaction outside that customer's cards is NOT_FOUND, whoever owns it. Facts are returned as stored: exact amount,
+original currency. "Today" comes only from `clock.today(mode, country)` (ADR 0020).
 """
 from __future__ import annotations
 
@@ -13,17 +14,22 @@ from contracts import tools as t
 from mcp_server.gate import UNAVAILABLE, Call, Handler
 from mcp_server.gold import Gold, GoldCustomer, GoldTransaction
 from nick_of_time.nlu.text import fold
-from nick_of_time.policy import Policies
+from nick_of_time.policy import Policies, clock
 
-# [assumption] replay "today" (ADR 0020) until nick_of_time.policy.clock.today (spec 02 T7, PR #67) merges
-REPLAY_TODAY = dt.date(2026, 6, 1)
-COUNTRY = {"mexico": "MX", "argentina": "AR", "colombia": "CO"}   # gold customers.country (spec 03 §6, compute_deadline)
+# gold customers.country, folded → the code of policies.yaml `countries` (spec 03 §6, compute_deadline)
+COUNTRY = {"mexico": "MX", "argentina": "AR", "colombia": "CO", "brasil": "BR", "brazil": "BR", "peru": "PE",
+           "chile": "CL"}
+PRODUCT = {"Tarjeta Débito": "debit", "Tarjeta Crédito": "credit"}   # spec 02 §4.3 product mapping
 STATUSES = ("Approved", "Pending")                                # Q2: Declined and Reversed are never candidates
 TOLERANCE, NO_DATE_DAYS, MAX_CANDIDATES = 0.02, 30, 4
 STOP = frozenset("de del la las el los y e en da das do dos em".split())   # [assumption] merchant tokens to ignore
 NOT_FOUND = t.ToolError(code="NOT_FOUND", message="No such transaction among your cards.")
 # A refusal answered as NOT_FOUND: the gate logs it as a denial and strips the policy id (scope.cross_customer_request)
 PROBE = NOT_FOUND.model_copy(update={"policy_id": "POL-CROSS-CUSTOMER"})
+# [assumption] ComputeDeadlineOut requires a source, so "no verified entry" is this error, never an invented date: the
+# case is still opened and a person decides (spec 02 AC-14); UNAVAILABLE keeps the policy id visible to the agent
+NO_CLOCK = t.ToolError(code="UNAVAILABLE", policy_id=clock.UNKNOWN,
+                       message="No verified legal deadline for this country; a person sets it.")
 Converter = Callable[[float, str, str], Optional[dict[str, Any]]]   # spec 02 §6 fx.convert(amount, from, to)
 
 
@@ -46,15 +52,25 @@ def _tokens(text: Optional[str]) -> set[str]:
     return set(re.findall(r"\w+", fold(text or ""))) - STOP
 
 
+def _code(country: Optional[str]) -> Optional[str]:
+    folded = fold(country or "").strip()
+    return COUNTRY.get(folded, folded.upper() or None)
+
+
 def read_handlers(gold: Gold, policies: Policies, *, channels: Optional[Callable[[str], Iterable[Any]]] = None,
-                  convert: Converter = no_verified_rate) -> dict[str, Handler]:
+                  convert: Converter = no_verified_rate,
+                  utc_now: Optional[Callable[[], dt.datetime]] = None) -> dict[str, Handler]:
     """`channels(customer_id)` yields the store's customer channels (task 01g, PR #87) with `channel`, `address` and
-    `confirmed`; without it no channel is listed [assumption]."""
+    `confirmed`; without it no channel is listed [assumption]. `utc_now` serves tests; without it `clock.today` reads
+    the real date, and only in live mode."""
     gates = policies.amount_gate.by_country
+
+    def today(call: Call, country: str) -> dt.date:
+        return clock.today(call.session.mode, country, utc_now=utc_now() if utc_now else None, policies=policies)
 
     def customer(call: Call) -> Optional[tuple[GoldCustomer, str]]:
         row = gold.customer(call.session.customer_id)
-        country = COUNTRY.get(fold(row.country or "")) if row else None
+        country = _code(row.country) if row else None
         return (row, country) if country in gates else None
 
     def display_currency(call: Call, country: str) -> str:
@@ -93,17 +109,16 @@ def read_handlers(gold: Gold, policies: Policies, *, channels: Optional[Callable
         return min((g for g in gaps if g <= TOLERANCE), default=None)
 
     def search(call: Call, args: t.SearchTransactionIn):
-        if call.session.mode != "replay":                   # [assumption] live needs clock.today and AC-14 (P1)
-            return UNAVAILABLE
         found = customer(call)
         if found is None:
             return UNAVAILABLE
-        (row, country), today = found, REPLAY_TODAY
-        anchor = args.approx_date or today
+        row, country = found
+        now = today(call, country)          # live: the country's real date; demo_transactions wait for AC-14 (P1)
+        anchor = args.approx_date or now
         start, end = ((anchor - dt.timedelta(days=args.window_days), anchor + dt.timedelta(days=args.window_days))
-                      if args.approx_date else (today - dt.timedelta(days=NO_DATE_DAYS), today))
+                      if args.approx_date else (now - dt.timedelta(days=NO_DATE_DAYS), now))
         wanted, ranked = _tokens(args.merchant), []
-        for trx in gold.transactions(row.customer_id, start, min(end, today), STATUSES):
+        for trx in gold.transactions(row.customer_id, start, min(end, now), STATUSES):
             gap = 0.0 if args.amount is None else amount_error(args.amount, args.currency, trx, country)
             similarity = len(wanted & _tokens(trx.merchant)) / len(wanted) if wanted else 0.0
             if gap is None or (wanted and trx.merchant and not similarity) or usd(trx) is None:
@@ -121,6 +136,28 @@ def read_handlers(gold: Gold, policies: Policies, *, channels: Optional[Callable
         return t.GetFraudScoreOut(transaction_id=trx.transaction_id, score=trx.fraud_score, source="dataset",
                                   version=policies.scoring.providers["dataset"]["version"])
 
+    def deadline(call: Call, args: t.ComputeDeadlineIn):
+        """Spec 03 §6: delegates to `clock.deadline()` (spec 02 §4.3), opened today in the customer's country."""
+        trx = gold.transaction(call.session.customer_id, args.transaction_id)
+        if trx is None:                                     # unknown or another customer's: the same answer
+            return PROBE if gold.owner(args.transaction_id) else NOT_FOUND
+        row = gold.customer(call.session.customer_id)
+        if row is None:
+            return UNAVAILABLE
+        country = _code(row.country)
+        if country not in policies.countries:               # no code, no time zone, no verified entry (spec 02 AC-14)
+            return NO_CLOCK
+        where = _code(trx.transaction_country)              # [assumption] an unknown place is not abroad: 45, not 180
+        # [assumption] the gold date, not its naive timestamp: spec 02 §4.3's date rule settles a UTC date shift
+        found = clock.deadline(country, PRODUCT[trx.product_type], today(call, country),
+                               abroad=where is not None and where != country, charged_at=trx.transaction_date,
+                               policies=policies)
+        if not (found.source_url and found.deadline_source and found.verified_on):
+            return NO_CLOCK                                 # POL-CLOCK-UNKNOWN: no date is invented
+        return t.ComputeDeadlineOut(country=country, product=found.product, credit_deadline=found.credit_deadline,
+                                    ruling_deadline=found.ruling_deadline, deadline_source=found.deadline_source,
+                                    source_url=found.source_url, verified_on=found.verified_on)
+
     def convert_amount(call: Call, args: t.ConvertAmountIn):
         to = args.to_currency
         if to is None:
@@ -135,4 +172,4 @@ def read_handlers(gold: Gold, policies: Policies, *, channels: Optional[Callable
         return t.ConvertAmountOut(converted=t.ConvertedAmount.model_validate({**result, "currency": to}))
 
     return {"get_customer_profile": profile, "search_transaction": search, "get_fraud_score": score,
-            "convert_amount": convert_amount}
+            "compute_deadline": deadline, "convert_amount": convert_amount}

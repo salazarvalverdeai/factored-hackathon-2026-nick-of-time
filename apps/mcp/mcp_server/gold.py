@@ -18,9 +18,9 @@ import duckdb
 CARD_TYPES = ("Tarjeta Débito", "Tarjeta Crédito")           # spec 02 §4.3 product mapping: debit, credit
 FILES = {"transactions": "transactions_enriched.parquet", "customers": "customers.parquet"}
 _LOAD = ("transaction_id, product_id, customer_id, CAST(transaction_date AS DATE) AS transaction_date, amount, currency,"
-         " amount_usd, merchant_name AS merchant, transaction_status, fraud_score")
+         " amount_usd, merchant_name AS merchant, transaction_status, fraud_score, product_type, transaction_country")
 _TRX = ("transaction_id, product_id, customer_id, transaction_date, amount, currency, amount_usd, merchant,"
-        " transaction_status, fraud_score")             # the card table's columns, in GoldTransaction's order
+        " transaction_status, fraud_score, product_type, transaction_country")   # in GoldTransaction's order
 
 
 @dataclass(frozen=True)
@@ -35,6 +35,8 @@ class GoldTransaction:
     merchant: Optional[str]
     transaction_status: str
     fraud_score: Optional[float]
+    product_type: str                          # one of CARD_TYPES: the deadline's product (compute_deadline)
+    transaction_country: Optional[str]         # where the charge was made: `abroad` (compute_deadline)
 
 
 @dataclass(frozen=True)
