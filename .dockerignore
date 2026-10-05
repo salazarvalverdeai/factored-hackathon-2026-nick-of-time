@@ -8,6 +8,9 @@ data
 **/*.parquet
 **/*.duckdb
 **/*.duckdb.wal
+# spec 09: the held-out evaluation cases never enter an image (the langgraph build does `ADD .`)
+eval/cases/heldout*
+**/heldout*.jsonl
 **/.env*
 **/*.pem
 .git

@@ -44,7 +44,7 @@ from nick_of_time.policy.clock import deadline
 from nick_of_time.policy.engine import Deny
 from nick_of_time.policy.model import load_policies
 from nick_of_time.receipt import messages
-from nick_of_time.store import CaseRecord, NewCase, Store, StoreError
+from nick_of_time.store import CaseRecord, NewCase, Store, StoreError, is_demo_run
 
 STATUS_LABEL = {"new": "Case opened", "verification": "Verifying the block", "review": "Under review by a person",
                 "resolved": "Resolved", "closed": "Closed"}
@@ -222,7 +222,7 @@ def create_live_app(store: Store, *, catalog: Optional[Catalog] = None, verifier
                 receipt = CustomerReceipt.model_validate(raw)
             except ValueError:
                 receipt = None                                    # a receipt that fails its contract is never shown
-        channels = store.channels(record.customer_id)
+        channels = [] if is_demo_run(record.run_id) else store.channels(record.customer_id)   # ADR 0026
         notes = [n for n in store.list_notifications(record.customer_id, run_id=record.run_id)
                  if n.case_id == record.case_id]
         deadline = min((d for d in (record.credit_deadline, record.ruling_deadline) if d), default=None)
@@ -267,6 +267,8 @@ def create_live_app(store: Store, *, catalog: Optional[Catalog] = None, verifier
         failing channel leaves its row `failed` and changes nothing else (AC-07)."""
         spec = policies.notifications["events"][event]
         trace = _trace()
+        if is_demo_run(record.run_id):        # a demo customer's channels belong to no visitor: in-app only (ADR 0026)
+            return
         for ch in store.channels(record.customer_id):
             if ch.channel not in spec["channels"] or not ch.confirmed:
                 continue
@@ -318,8 +320,7 @@ def create_live_app(store: Store, *, catalog: Optional[Catalog] = None, verifier
             name = demo.clean_name(body.display_name)
         except ValueError as error:
             raise ApiError(422, "INVALID", str(error)) from None
-        run_id = None
-        if body.customer_id is not None:                         # the original picker: no scenario, production run
+        if body.customer_id is not None:                         # the original picker, until the web uses scenarios
             if body.scenario or body.country:
                 raise ApiError(422, "INVALID", "Send a scenario or a customer, not both")
             customer = catalog.customer(body.customer_id)
@@ -329,9 +330,10 @@ def create_live_app(store: Store, *, catalog: Optional[Catalog] = None, verifier
             picked = demo.choose(demo_scenarios(), body.scenario, body.country, body.language)
             if picked is None:
                 raise ApiError(404, "NOT_FOUND", "Unknown scenario")
-            customer, run_id = catalog.customer(picked["customer_id"]), demo.new_run_id(app.state.now())
+            customer = catalog.customer(picked["customer_id"])
         if customer is None:
             raise ApiError(404, "NOT_FOUND", "Unknown customer")
+        run_id = demo.new_run_id(app.state.now())               # every public session is isolated (ADR 0026)
         mode = body.mode or os.getenv("DEFAULT_SESSION_MODE") or "live"
         otp = os.getenv("OTP_FIXED") or f"{secrets.randbelow(10**6):06d}"            # mock OTP, shown on screen (ADR 0017)
         row = store.create_session(customer_id=customer["customer_id"], otp_hash=_sha(otp), run_id=run_id,
@@ -434,7 +436,9 @@ def create_live_app(store: Store, *, catalog: Optional[Catalog] = None, verifier
         only the session in the cookie, and no score or label (D-013, constitution #7)."""
         if session_id != s["session_id"]:
             raise ApiError(404, "NOT_FOUND", "Unknown session")
-        return catalog.recent_transactions(s["customer_id"], today(s["mode"], s["country"]), limit)
+        last4 = {p["product_id"]: p["last4"] for p in catalog.products(s["customer_id"])}
+        return [{**{k: v for k, v in t.items() if k != "product_id"}, "last4": last4.get(t["product_id"])}
+                for t in catalog.recent_transactions(s["customer_id"], today(s["mode"], s["country"]), limit)]
 
     @app.get("/api/me/products", response_model=list[ProductView])
     def products(s: dict = Depends(session)):
@@ -532,15 +536,25 @@ def create_live_app(store: Store, *, catalog: Optional[Catalog] = None, verifier
             raise ApiError(409, "DENY", str(error)) from None
         return {"event_id": store.events(fresh.case_id)[0].event_id, "case_id": fresh.case_id}
 
+    def no_demo_channel(record: CaseRecord, s: dict) -> None:
+        """ADR 0026: a demo customer is shared by every visitor, so a demo run links no Telegram chat or inbox."""
+        if is_demo_run(record.run_id):
+            store.add_denial(trace_id=_trace(), session_id=s["session_id"], actor="customer",
+                             policy_id="POL-DEFAULT-DENY", run_id=s["run_id"], detail={"case_id": record.case_id})
+            raise ApiError(403, "DENY", "Telegram and e-mail are off in the demo; this page shows every update",
+                           "POL-DEFAULT-DENY")
+
     @app.post("/api/cases/{case_id}/channels/telegram", status_code=201, response_model=TelegramOut)
-    def telegram(record: CaseRecord = Depends(own_case)):
+    def telegram(record: CaseRecord = Depends(own_case), s: dict = Depends(session)):
+        no_demo_channel(record, s)
         expires = app.state.now() + TELEGRAM_TTL
         bot = os.getenv("TELEGRAM_BOT_NAME", "nick_of_time_bot")
         return {"deep_link": f"https://t.me/{bot}?start={tokens.make('tg', record.case_id, expires)}",
                 "expires_at": expires}
 
     @app.post("/api/cases/{case_id}/channels/email", status_code=202, response_model=EmailOut)
-    def email(body: EmailIn, record: CaseRecord = Depends(own_case)):
+    def email(body: EmailIn, record: CaseRecord = Depends(own_case), s: dict = Depends(session)):
+        no_demo_channel(record, s)
         address = body.email.strip()
         if not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", address):
             raise ApiError(400, "INVALID", "Not an e-mail address")
@@ -581,7 +595,7 @@ def create_live_app(store: Store, *, catalog: Optional[Catalog] = None, verifier
             return {"ok": True}                                  # anything but a link request is ignored
         token = text[7:].strip()
         got = tokens.read("tg", token, app.state.now())
-        record = store.get_case(got[0], run_id=None, customer_id=None, demo_runs=True) if got else None
+        record = store.get_case(got[0], run_id=None, customer_id=None) if got else None
         if record is None:
             raise ApiError(401, "UNAUTHENTICATED", "Invalid or expired token")
         try:

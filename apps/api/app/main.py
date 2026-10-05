@@ -196,7 +196,8 @@ class RecentTransactionOut(Out):
     date: dt.date
     amount: float
     currency: str
-    merchant: Optional[str]
+    merchant: Optional[str]                          # null in some gold rows: the chip then names no merchant
+    last4: Optional[str]                             # the card's last 4, for a customer with several cards
 
 
 class VerifyIn(BaseModel):

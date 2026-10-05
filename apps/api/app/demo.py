@@ -86,7 +86,8 @@ def clean_name(raw: Optional[str]) -> Optional[str]:
         return None
     if len(name) > NAME_MAX:
         raise ValueError(f"display_name is longer than {NAME_MAX} characters")
-    if any(unicodedata.category(ch).startswith("C") for ch in raw) or not NAME.fullmatch(name):
+    compat = unicodedata.normalize("NFKC", name) != name             # ², Ⅻ, full-width or ligature look-alikes
+    if compat or any(unicodedata.category(ch).startswith("C") for ch in raw) or not NAME.fullmatch(name):
         raise ValueError("display_name must be a plain name: letters, spaces, apostrophes, dots and hyphens only")
     if injection_flagged(name):
         raise ValueError("display_name must be a plain name")

@@ -48,7 +48,7 @@ class Catalog(Protocol):
 
     def recent_transactions(self, customer_id: str, until: dt.date, limit: int) -> list[dict[str, Any]]:
         """The customer's latest card transactions dated on or before `until`, newest first, as
-        `{transaction_id, date, amount, currency, merchant}` (no score, no label)."""
+        `{transaction_id, product_id, date, amount, currency, merchant}` (no score, no label)."""
 
 
 class FixtureCatalog:
@@ -76,7 +76,8 @@ class FixtureCatalog:
     def recent_transactions(self, customer_id: str, until: dt.date, limit: int) -> list[dict[str, Any]]:
         txn = self.transaction(fx.TRANSACTION_ID)
         keep = customer_id == fx.OWNER and dt.date.fromisoformat(txn["date"]) <= until and limit > 0
-        return [{k: txn[k] for k in ("transaction_id", "date", "amount", "currency", "merchant")}] if keep else []
+        row = {k: txn[k] for k in ("transaction_id", "date", "amount", "currency", "merchant")}
+        return [{**row, "product_id": fx.PRODUCT_ID}] if keep else []
 
 
 class GoldCatalog:
@@ -139,13 +140,14 @@ class GoldCatalog:
         return rows[0][0] if rows and rows[0][0] else None
 
     def recent_transactions(self, customer_id: str, until: dt.date, limit: int) -> list[dict[str, Any]]:
-        rows = self._rows("SELECT transaction_id, CAST(transaction_date AS DATE), amount, currency, merchant_name "
+        rows = self._rows("SELECT transaction_id, product_id, CAST(transaction_date AS DATE), amount, currency, "
+                          "merchant_name "
                           "FROM read_parquet(?) WHERE customer_id = ? AND product_type IN (?, ?) AND "
                           "transaction_status IN (?, ?) AND CAST(transaction_date AS DATE) <= ? "
                           "ORDER BY transaction_date DESC, transaction_id LIMIT ?",
                           [self._files["transactions_enriched"], customer_id, *CARD_TYPES, *STATUSES, until, limit])
-        return [{"transaction_id": tid, "date": date.isoformat(), "amount": float(amount), "currency": currency,
-                 "merchant": merchant} for tid, date, amount, currency, merchant in rows]
+        return [{"transaction_id": tid, "product_id": pid, "date": date.isoformat(), "amount": float(amount),
+                 "currency": currency, "merchant": merchant} for tid, pid, date, amount, currency, merchant in rows]
 
 
 def catalog_from_env() -> Catalog:
