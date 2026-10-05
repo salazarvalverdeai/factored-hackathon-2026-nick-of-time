@@ -18,13 +18,15 @@
 #   re-evaluation AC-24, reversed charge); each extension is a contract change approved by the lead. Task 04b
 #   (T3) added clarify.pick_one, clarify.exhausted, clarify.read_failed and duplicate.case_exists; task 04e (T6)
 #   added status.no_cases, status.no_cards and status.case_done; task 04c (T4) added act.case_opened,
-#   act.case_not_confirmed, act.not_confirmed, act.decided_on_case and act.sign_in.
+#   act.case_not_confirmed, act.not_confirmed, act.decided_on_case and act.sign_in; task 04d (T5) added
+#   act.block_held (D-043), status.read_failed_cards and status.read_failed_case; task 04d2 gave status.no_cards a
+#   {read_at} (contract 1.4.0).
 # - Chips: `kind` is static here; the action payload ({type}, spec 01 §6.4) is set by the server code.
 # - Never a placeholder or text for the fraud score, policy ids, rule ids, zones or the transcript
 #   (notifications.never_send in policies.yaml).
 # - Never promise an outcome or a provisional credit: a person reviews and decides (CLAUDE.md rule 6).
 # - Dates are absolute (YYYY-MM-DD) and come from tools; the template never computes them.
-version: "0.5.0"
+version: "0.6.1"
 
 greet:
   # AC-15: first name from get_customer_profile, at most 3 capabilities, a person reviews what needs it.
@@ -173,6 +175,14 @@ status:
   read_failed:
     es: "No pude verificarlo ahora, así que prefiero no darte un estado que no confirmé. Intenta de nuevo en un momento."
     pt: "Não consegui verificar agora, então prefiro não informar uma situação que não confirmei. Tente novamente em instantes."
+  # Spec 04 task 04d (pending the lead): a question about cards and a case where one of the two reads failed; the
+  # other read is answered, this one states no status.
+  read_failed_cards:
+    es: "No pude verificar tus tarjetas ahora, así que no te doy su estado."
+    pt: "Não consegui verificar seus cartões agora, então não informo a situação deles."
+  read_failed_case:
+    es: "No pude verificar tu caso ahora, así que no te doy su estado."
+    pt: "Não consegui verificar seu caso agora, então não informo a situação dele."
   # Spec 04 task 04e (pending the lead): answer_status replies beyond the readings above.
   no_cases:
     # list_my_cases read no case for the session's customer.
@@ -180,8 +190,8 @@ status:
     pt: "Você não tem casos registrados (consultado em {read_at}). Se quiser informar uma cobrança, me conte qual é."
   no_cards:
     # list_my_cards read no card for the session's customer.
-    es: "No encontré tarjetas a tu nombre."
-    pt: "Não encontrei cartões em seu nome."
+    es: "No encontré tarjetas a tu nombre (consultado el {read_at})."
+    pt: "Não encontrei cartões em seu nome (consultado em {read_at})."
   case_done:
     # AC-06 next step for a resolved or closed case (a person closes every case, CLAUDE.md rule 6). Promises nothing.
     es: "Una persona ya revisó este caso. Si tienes dudas, puedes pedir que te llamen."
@@ -382,6 +392,12 @@ act:
     # not escalate (D-050): the person on that case decides it. case_id is get_case's.
     es: "{action_label}: SIN CONFIRMAR. La persona a cargo del caso {case_id} decide el bloqueo."
     pt: "{action_label}: SEM CONFIRMAÇÃO. A pessoa responsável pelo caso {case_id} decide o bloqueio."
+  block_held:
+    # Spec 04 task 04d (D-043, pending the lead): block_card answered DENY with POL-HUMAN-REQUEST because a call
+    # request holds the case, so the block was not done; a person decides it after the call. Not a failure, no
+    # escalation. action_label is status.action_label.block_card.
+    es: "{action_label}: SIN CONFIRMAR. No bloqueé tu tarjeta; una persona decide si bloquearla después de la llamada que pediste."
+    pt: "{action_label}: SEM CONFIRMAÇÃO. Não bloqueei seu cartão; uma pessoa decide se vai bloqueá-lo depois da ligação que você pediu."
   sign_in:
     # open_case answered SESSION_EXPIRED after an attempt with no answer, so the case may exist: the sign-in line of
     # refuse.reauthenticate without "nothing was changed", which is not verified.

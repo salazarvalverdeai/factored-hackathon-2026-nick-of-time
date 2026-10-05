@@ -79,9 +79,9 @@ def test_ac_04_output_schema_is_typed_from_turn_result():
     assert schema["properties"]["language"]["enum"] == ["es", "pt"]
 
 
-def test_ac_04_langgraph_json_serves_the_echo_graph():
+def test_ac_04_langgraph_json_serves_the_echo_graph_as_dispute_intake_echo():
     config = json.loads((ROOT / "langgraph.json").read_text())
-    path, attr = config["graphs"]["dispute_intake"].split(":")
+    path, attr = config["graphs"]["dispute_intake_echo"].split(":")
     spec = importlib.util.spec_from_file_location("dispute_intake_probe", ROOT / path)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
