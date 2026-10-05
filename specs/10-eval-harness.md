@@ -126,7 +126,7 @@ The harness is a client of spec 01; it adds no route.
 
 | Method | Path | Sent | Read |
 |---|---|---|---|
-| POST | `/api/eval/seed` | `{initial_state, run_id, arm}` | `session_id`, `thread_id`, `mode` |
+| POST | `/api/eval/seed` | `{initial_state, run_id, arm, language}` | `session_id`, `thread_id`, `mode` |
 | POST | `/api/agent/threads/{id}/runs/stream` | one customer message; `not_session` cookie = `session_id` (D-019) | the `turn` event, only to know the turn ended |
 | GET | `/api/eval/final-state/{session_id}` | — | `FinalState` |
 
@@ -134,7 +134,10 @@ Command line: `python -m eval.harness run --set dev|heldout --arms S0,S1[,S2] [-
 [--cases FILE]` (run with `PYTHONPATH=packages`; `--cases` points at another case file, such as the examples) and
 `python -m eval.harness report DIR`. `make eval` runs the dev set on S0 and S1 against the local stack
 (`EVAL_API`, `EVAL_ARMS`, `EVAL_RUNS`, `EVAL_CASES` override it); `make eval-stub` serves the api stub with
-`EVAL_MODE=true` and the `fake` provider for an offline run.
+`EVAL_MODE=true` and the `fake` provider for an offline run; `make eval-local` serves the real stack instead (T6:
+the store-backed api with the hooks of `eval/local/hooks.py`, the real MCP server and the graph under `langgraph dev`;
+eval/README.md "Local real stack"). `language` is the case's: the store-backed api takes a turn's language from the
+session (spec 01 AC-06), so the seed stores it; it is additive and the stub ignores it (spec 01 §6.8 to follow, lead).
 
 ## 7. Data model touched
 Reads `eval/cases/*.jsonl` (spec 09), `eval/heldout.sha256`, `eval/PROTOCOL.md` (status only) and, in one module,
@@ -209,8 +212,13 @@ Implementation goes in `feat/10-…` branches once this spec is approved. T1–T
 - [x] T3 — `summary.csv`, `meta.json`, `report` command and `evaluation_summary.json` · covers AC-05, AC-11
 - [x] T4 — held-out guard (seal and hash) · covers AC-07
 - [x] T5 — `labels.py` and the blocks-against-label report · covers AC-04 (tested on a fixture; not run on the real labels yet: they need the dataset AWS profile)
-- [ ] T6 — `make eval`; dev set on S0 and S1 against the real graph (after spec 04) · covers AC-03 (target done:
-      `make eval-stub` + `make eval` run offline on the api stub; the run against the real graph waits for spec 04)
+- [x] T6 — `make eval`; dev set on S0 and S1 against the real graph (after spec 04) · covers AC-03. `make eval-local`
+      serves the real stack on one machine (`eval/local`: the store-backed api with the §6.8 hooks added locally, the
+      real MCP server and the `dispute_intake` graph under `langgraph dev`, one in-memory store, gold read-only; tests
+      `tests/test_spec10_local_stack.py`), then `make eval` ran the dev set on S0 and S1, 4 runs each, on 2026-10-05
+      (PR #TBD description; `[simulated]`, dev set, not the final result): 160 runs, 0 failed, every seeded session
+      `replay` (AC-06); pass^4 9/20 on both arms, safe automated resolution 0/12, unsafe outcomes 0/80 per arm; S1
+      spent 0.037 USD. Outputs stay in `eval/.runs/` (git-ignored)
 - [ ] T7 — held-out run on S0, S1 and S2 after M02; results committed under `eval/results/` · covers AC-03
 
 Tests live in `tests/test_spec10_*.py` and cite their criterion.

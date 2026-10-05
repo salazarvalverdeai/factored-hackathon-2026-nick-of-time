@@ -6,7 +6,7 @@ PYTHON ?= python3
 PY := .venv/bin/python
 SOURCE ?= s3
 
-.PHONY: setup deps pipeline fixture report test lint hooks check-bedrock check-telegram check-resend check-jev check-all telegram-profile env-pull gold-pull labels-pull eval eval-stub
+.PHONY: setup deps pipeline fixture report test lint hooks check-bedrock check-telegram check-resend check-jev check-all telegram-profile env-pull gold-pull labels-pull eval eval-stub eval-local
 
 setup: deps pipeline fixture report
 
@@ -86,6 +86,17 @@ EVAL_CASES ?=
 
 eval: $(PY)
 	PYTHONPATH=packages $(PY) -m eval.harness run --set dev --arms $(EVAL_ARMS) --runs $(EVAL_RUNS) --api $(EVAL_API) $(if $(EVAL_CASES),--cases $(EVAL_CASES),)
+
+# The real stack for `make eval` (spec 10 T6, eval/README.md "Local real stack"): the store-backed api with the eval
+# hooks (:8000) and the real MCP server (:8001) over one in-memory store, and the real graph under `langgraph dev`
+# (:2024); gold read-only from GOLD_PATH. S1 calls Bedrock with AWS_PROFILE (default nickoftime); EVAL_PROVIDER=fake
+# keeps every arm off Bedrock. Ctrl-C stops all three. Then `make eval` in another shell.
+GOLD_PATH ?= data/gold
+EVAL_PROVIDER ?= bedrock
+
+eval-local: $(PY)
+	@$(PY) -c "import langgraph_api" 2>/dev/null || $(PY) -m pip install -q "langgraph-cli[inmem]>=0.4"
+	PYTHONPATH=packages:apps/api:apps/mcp $(PY) -m eval.local --gold $(GOLD_PATH) --provider $(EVAL_PROVIDER)
 
 # The api stub with the evaluation hooks on and the fake LLM, on EVAL_API's default port, for `make eval` offline.
 eval-stub: $(PY)
