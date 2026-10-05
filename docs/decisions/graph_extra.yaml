@@ -1,0 +1,159 @@
+# Edges and annotations that the ADR and spec headers do not carry (read by scripts/docs/decision_graph.py).
+#
+# Everything else in graph.md and graph.json is parsed from the headers of docs/adr/*.md and specs/NN-*.md:
+#   ADR  Status ("supersedes"), "Amended by", "Related"   ->  supersedes / amends / related edges, ADR -> spec edges
+#   spec "ADRs", "Depends on", "Status"                    ->  ADR -> spec edges, spec -> spec dependencies
+# This file adds only: (1) the problem layer and its edges to ADRs, (2) the evidence layer and its edges, (3) the
+# components of each spec, (4) a theme per ADR for layout, (5) ADRs drawn as one node. The script fails when a path
+# named here does not exist, so the evidence cannot rot silently. Change this file in the same PR as the change it
+# describes.
+
+# Problem layer. Figures are read from the committed query output (csv), never typed here; `template` is a
+# Python format string over the csv rows (r[0] is the first data row). Each figure carries its label (constitution
+# rule 8) and the path of its query (the .sql that produced the csv). `adrs` are the decisions the finding drove.
+problem:
+  - id: P1
+    label: "[data]"
+    csv: queries/pitch/p01_w3_share_complaints.csv
+    query: queries/pitch/p01_w3_share_complaints.sql
+    template: "W3 = {r[0][pct_w3]:.1f}% of complaints ({r[0][n_w3]:,} of {r[0][n_complaints]:,})"
+    adrs: ["0003", "0004"]
+  - id: P2
+    label: "[data]"
+    csv: queries/pitch/p02_fcr_complaint_vs_bank.csv
+    query: queries/pitch/p02_fcr_complaint_vs_bank.sql
+    template: "FCR {r[0][fcr_pct]:.1f}% on complaint contacts vs {r[1][fcr_pct]:.1f}% for the bank"
+    adrs: ["0014", "0013", "0015"]
+  - id: P3
+    label: "[data]"
+    csv: queries/pitch/p03_complaint_follow_up.csv
+    query: queries/pitch/p03_complaint_follow_up.sql
+    template: "Follow-up needed in {r[0][follow_up_pct]:.1f}% of complaint contacts vs {r[1][follow_up_pct]:.1f}% for the bank"
+    adrs: ["0013", "0007"]
+  - id: P4
+    label: "[data]"
+    csv: queries/pitch/p08_fraud_score_thresholds.csv
+    query: queries/pitch/p08_fraud_score_thresholds.sql
+    # row 1 is the threshold 50 row
+    template: "fraud_score >= {r[1][threshold]}: precision {r[1][precision_pct]:.0f}%, recall of all frauds {r[1][recall_all_frauds_pct]:.1f}%"
+    adrs: ["0005", "0006", "0016", "0022"]
+
+# ADR themes, only to lay the Decisions layer out in readable rows. Every ADR must appear exactly once.
+themes:
+  - name: Scope and process
+    adrs: ["0001", "0002", "0003", "0014"]
+  - name: Data and evaluation
+    adrs: ["0004", "0007", "0015", "0018", "0021", "0022", "0025", "0028"]
+  - name: Agent, rules and safety
+    adrs: ["0005", "0006", "0008", "0009", "0013", "0016", "0024"]
+  - name: Platform and identity
+    adrs: ["0010", "0011", "0017", "0026"]
+  - name: Time and regulation
+    adrs: ["0012", "0019", "0020", "0023"]
+
+# ADRs drawn as one node in graph.md (graph.json keeps every ADR as its own node).
+collapse:
+  - id: process
+    label: "0001 and 0002: ADRs plus spec-driven work, English repository"
+    adrs: ["0001", "0002"]
+
+# Components that implement each spec (paths from the repository root; validated to exist).
+components:
+  "01": [contracts/, packages/nick_of_time/contracts.py, packages/nick_of_time/store/]
+  "02": [packages/nick_of_time/policy/, contracts/policies.yaml]
+  "03": [apps/mcp/mcp_server/]
+  "04": [apps/agent/agent/, langgraph.json]
+  "05": [apps/api/app/]
+  "06": [infra/, .github/workflows/deploy.yml]
+  "07": [apps/web/app/chat/]
+  "08": [apps/web/app/console/]
+  "09": [eval/demo/, eval/classifier/, eval/cases/]
+  "10": [eval/harness/]
+  "11": [packages/nick_of_time/nlu/]
+  "12": [apps/web/app/evaluation/, apps/web/app/analytics/, apps/web/app/data/]
+  "13": [apps/web/app/case/, apps/mcp/mcp_server/notify.py, apps/api/app/notify.py]
+  "14": [data/pipeline/]
+  "15": [eval/bench/]
+  "16": [apps/web/README.md, apps/web/components/]
+  "17": [scripts/ml/]
+  "18": [packages/nick_of_time/audit/]
+
+# Evidence layer: one node per test file, committed result file, metric file or merged PR. `kind` is test | file |
+# metric | pr. `path` is validated; a pr node has `pr` (a merged PR number) and no path. `supports` lists ADRs
+# ("adr-0005") and specs ("spec-02") the evidence backs.
+evidence:
+  - id: E-policies
+    kind: file
+    label: "contracts/policies.yaml (default: deny)"
+    path: contracts/policies.yaml
+    supports: [adr-0005, adr-0006, adr-0019, adr-0023]
+  - id: E-decide
+    kind: test
+    label: "tests/test_spec02_decide.py"
+    path: tests/test_spec02_decide.py
+    supports: [adr-0005, adr-0024, spec-02]
+  - id: E-respond
+    kind: test
+    label: "tests/test_spec04_respond.py"
+    path: tests/test_spec04_respond.py
+    supports: [adr-0013, adr-0016, spec-04]
+  - id: E-notify
+    kind: pr
+    label: "PR 174: notify only after the verifying read"
+    pr: 174
+    supports: [adr-0013, spec-13]
+  - id: E-fcr-panel
+    kind: pr
+    label: "PR 171: as-is vs with Nick of Time panel"
+    pr: 171
+    supports: [adr-0014, spec-12]
+  - id: E-protocol
+    kind: file
+    label: "eval/PROTOCOL.md (sealed protocol)"
+    path: eval/PROTOCOL.md
+    supports: [adr-0007, adr-0015, adr-0025, adr-0028]
+  - id: E-bench
+    kind: metric
+    label: "eval/bench/gate_evidence.yaml"
+    path: eval/bench/gate_evidence.yaml
+    supports: [adr-0009, adr-0015, spec-15]
+  - id: E-audit
+    kind: test
+    label: "tests/test_spec18_audit_a3_a7.py"
+    path: tests/test_spec18_audit_a3_a7.py
+    supports: [adr-0021, spec-18]
+  - id: E-store
+    kind: test
+    label: "tests/test_spec01_store.py"
+    path: tests/test_spec01_store.py
+    supports: [adr-0010, spec-01]
+  - id: E-deploy
+    kind: file
+    label: ".github/workflows/deploy.yml"
+    path: .github/workflows/deploy.yml
+    supports: [adr-0011, spec-06]
+  - id: E-gold
+    kind: test
+    label: "tests/test_spec14_gold.py"
+    path: tests/test_spec14_gold.py
+    supports: [adr-0004, adr-0018, spec-14]
+  - id: E-fraud
+    kind: test
+    label: "tests/test_spec17_screen.py"
+    path: tests/test_spec17_screen.py
+    supports: [adr-0022, spec-17]
+  - id: E-identity
+    kind: test
+    label: "tests/test_spec05_guard.py"
+    path: tests/test_spec05_guard.py
+    supports: [adr-0017, spec-05]
+  - id: E-demo
+    kind: pr
+    label: "PR 188: demo sessions in replay mode"
+    pr: 188
+    supports: [adr-0020, adr-0026]
+  - id: E-mcp
+    kind: test
+    label: "tests/test_spec03_server.py"
+    path: tests/test_spec03_server.py
+    supports: [adr-0008, spec-03]
