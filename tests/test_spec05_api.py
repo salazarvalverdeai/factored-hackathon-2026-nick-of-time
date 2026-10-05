@@ -428,8 +428,10 @@ def test_ac_11_spec13_ac_01_07_08_a_status_change_reaches_telegram_and_a_failing
     done = env.action(case_id, "resolve", "k4", reason="Reembolso aprobado POL-X score 91").json()
     assert done["notification_id"]                                                    # the log row survived the failure
     rows = env.store.list_notifications(ME, run_id=None)
-    last = [r for r in rows if r.event == "resolved"][:2]
-    assert {r.channel: r.delivery_status for r in last} == {"log": "delivered", "telegram": "failed"}
+    log = next(r for r in rows if r.notification_id == done["notification_id"])
+    assert (log.channel, log.delivery_status) == ("log", "delivered")
+    assert sorted((r.channel, r.delivery_status) for r in rows if r.event == "resolved") == [
+        ("log", "delivered"), ("log", "delivered"), ("telegram", "failed"), ("telegram", "sent")]
     assert out["notification_id"]
     for r in rows:                                                                    # never_send: score, policy ids
         assert not re.search(r"POL-|score|transcript", r.text, re.I), r.text
