@@ -6,6 +6,7 @@ applies the whole file to a real server when `TEST_DATABASE_URL` is set; the CI 
 """
 from __future__ import annotations
 
+import codecs
 import os
 import re
 import secrets
@@ -25,7 +26,7 @@ TABLES_SQL, POSTGRES_ONLY = SQL.split("-- postgres-only")
 SPEC = (ROOT / "specs/01-integration-contract.md").read_text()
 SECTION = SPEC.split("### 6.5")[1].split("### 6.6")[0]
 SPEC_TYPES = {"text": "VARCHAR", "text[]": "VARCHAR[]", "timestamptz": "TIMESTAMP WITH TIME ZONE", "date": "DATE",
-              "int": "INTEGER", "bool": "BOOLEAN", "jsonb": "JSON", "numeric": "DECIMAL(18,3)"}
+              "int": "INTEGER", "bigint": "BIGINT", "bool": "BOOLEAN", "jsonb": "JSON", "numeric": "DECIMAL(18,3)"}
 UNTYPED = {"created_at": "TIMESTAMP WITH TIME ZONE", "generated_at": "TIMESTAMP WITH TIME ZONE",
            "expires_at": "TIMESTAMP WITH TIME ZONE", "used_at": "TIMESTAMP WITH TIME ZONE",
            "tokens_in": "INTEGER", "tokens_out": "INTEGER", "latency_ms": "INTEGER"}      # else text (§6.5 convention)
@@ -132,14 +133,15 @@ BAD = [event("E-2", "K-000001", 1, "handoff_emitted"),                       # d
        "values ('C-1', 'CLI-1', 'email', 'a@example.com', 'deleted')",
        DENIAL.format(id="P-1", actor="bot"),
        DENIAL.format(id="P-2", actor="analyst:")]                                # an analyst with no sub
+# A no-break space is blank too, as for the store's ACTOR: the CHECKs spell the class out, so no locale changes it.
+NBSP_SUB = "analyst:\u00a0"
+BAD += [event("E-33", "K-000011", 1, "handoff_emitted", actor=NBSP_SUB),
+        OVERRIDE.format(id="A-00000000000D", status="Blocked", actor=NBSP_SUB), DENIAL.format(id="P-5", actor=NBSP_SUB),
+        event("E-35", "K-000011", 1, "handoff_emitted", actor="analyst:x\n"),   # no newline in a sub, as in ACTOR
+        DENIAL.format(id="P-7", actor="analyst:\nx")]
 # Postgres only (DuckDB has no partial index): a write's action id cannot come back in another write (D-025).
 BAD_ON_POSTGRES = [event("E-8", "K-000001", 8, "card_blocked", ACTION.format(n=1)),
                    event("E-9", "K-000010", 1, "customer_info_added", ACTION.format(n=1))]
-# Postgres only: DuckDB's RE2 \S takes a no-break space as a character; Postgres and the store's ACTOR do not.
-NBSP_SUB = "analyst: "
-BAD_ACTORS_ON_POSTGRES = [event("E-33", "K-000011", 1, "handoff_emitted", actor=NBSP_SUB),
-                          OVERRIDE.format(id="A-00000000000D", status="Blocked", actor=NBSP_SUB),
-                          DENIAL.format(id="P-5", actor=NBSP_SUB)]
 
 
 def spec_table() -> dict[str, dict]:
@@ -169,7 +171,10 @@ def spec_table() -> dict[str, dict]:
 def db():
     con = duckdb.connect()
     con.execute("create type jsonb as json")
-    con.execute(TABLES_SQL)
+    con.execute("create sequence row_no")             # DuckDB: no identity column; RE2 writes a \uXXXX escape as \x{XXXX}
+    con.execute(re.sub(r"\\u([0-9a-f]{4})", r"\\x{\1}", TABLES_SQL).replace("generated always as identity",
+                                                                       "default nextval('row_no')")
+                .replace("'(?p)^", "'^"))                     # RE2's `.` already skips newlines
     yield con
     con.close()
 
@@ -217,7 +222,7 @@ def append_only_tables() -> set[str]:
 def test_ac_01_append_only_tables_refuse_update_delete_and_truncate():
     """§6.5 AO tables (cases insert-only, D-023) are exactly the trigger's list; it fires before every statement."""
     guarded = set(re.findall(r"'(\w+)'", re.search(r"array\[(.*?)\]", POSTGRES_ONLY, re.S).group(1)))
-    assert guarded == append_only_tables() and len(guarded) == 9 and "cases" in guarded
+    assert guarded == append_only_tables() and len(guarded) == 10 and "cases" in guarded
     assert "before update or delete or truncate on %I '\n" in POSTGRES_ONLY
     assert "'for each statement execute function forbid_append_only_change()', t || '_append_only', t)" in POSTGRES_ONLY
     assert "raise exception '% is append-only: % is not allowed', tg_table_name, tg_op;" in POSTGRES_ONLY
@@ -241,6 +246,18 @@ def test_d025_schema_vocabularies_match_the_store_models():
     for column in ("mode", "zone", "product_type", "dispute_type"):
         literal = NewCase.model_fields[column].annotation
         assert sql_list(rf"\n  {column} text not null check \({column} in \((.*?)\)\)") == set(get_args(literal))
+
+
+def test_t10_actor_checks_spell_out_the_whitespace_of_the_store_actor():
+    """The three actor CHECKs share one "sub not blank" class, exactly Python's str.isspace() set (ACTOR's \\s), so
+    the schema and the store agree on any server locale (a glibc en_US \\S takes a no-break space as a character)."""
+    classes = re.findall(r"actor ~ '\(\?p\)\^analyst:\.\*\[\^(.*?)\]\.\*\$'", TABLES_SQL)
+    assert len(classes) == 3 and len(set(classes)) == 1
+    blank = set()
+    for first, last in re.findall(r"(\\[tnvfr]|\\u[0-9a-f]{4}| )(?:-(\\u[0-9a-f]{4}))?", classes[0]):
+        low, high = (ord(codecs.decode(c, "unicode_escape")) for c in (first, last or first))
+        blank |= {chr(c) for c in range(low, high + 1)}
+    assert blank == {chr(c) for c in range(0x110000) if chr(c).isspace()}
 
 
 def test_d025_an_action_id_is_unique_over_the_store_write_events():
@@ -268,9 +285,6 @@ def test_ac_01_schema_sql_on_postgres_keeps_constraints_and_refuses_changes():
                     con.execute(statement)
             for statement in BAD_ON_POSTGRES:
                 with pytest.raises(psycopg.errors.UniqueViolation, match="case_events_action_id_once"):
-                    con.execute(statement)
-            for statement in BAD_ACTORS_ON_POSTGRES:
-                with pytest.raises(psycopg.errors.CheckViolation):
                     con.execute(statement)
             for table in sorted(append_only_tables()):
                 for op in (f"update {table} set created_at = created_at", f"delete from {table}", f"truncate {table}"):
