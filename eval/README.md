@@ -20,6 +20,8 @@ harness of spec 10 when it scores.
 | `eval_case.schema.json`, `examples.jsonl` | shape of an agent case, with five examples | 01 |
 | `PROTOCOL.md` | pre-registered evaluation rules; unsealed until M02 | 11, 15, 17 |
 | `bench/` | model benchmark | 15 |
+| `classifier/generate.py`, `classifier/draft/` | classifier sentence drafts from three model families and their run record | 09 §7.6 |
+| `classifier/review.py` | review sheets of the drafts and promotion to `classifier/{train,validation,test}.jsonl` | 09 §7.6 |
 
 ## Demo index
 `python -m eval.demo_index` rewrites `demo_index.csv` from `data/gold/` (it needs `make setup`). The same gold gives
@@ -119,4 +121,31 @@ With 80 cases the intervals per cell are wide: results show n and do not over-cl
 The hash becomes binding at M02, when `eval/PROTOCOL.md` is sealed; after that the file never changes and new data
 is a new sealed set (ADR 0021). **Do not use the held-out to tune prompts, rules or thresholds: use the dev set.**
 
-Not done yet: the second labeling of 20 cases (AC-06) and the classifier sentences (AC-04, AC-10).
+## Classifier set (`classifier/`)
+The ES/PT sentences of spec 11, with five intents, slots and injection rows (spec 09 §7.6). They are written by three
+model families, one per split and none of them Claude, so the author split tests writers the classifier never saw
+(ADR 0025): train **Llama 3.3 70B**, validation **Gemma 3 27B**, test **DeepSeek V3.2**, on Bedrock us-east-2.
+`author` is the generator model id. The sentences are `[simulated]`: less varied than real customers.
+
+1. **Generate** (done once; cents):
+   `AWS_PROFILE=nickoftime PYTHONPATH=packages python -m eval.classifier.generate` (`--dry-run` plans and prices
+   without calling a model; it stops when the projected cost is over 2 USD). The code plans each item — persona,
+   situation, slots, card wording — from a fixed seed; the prompt is versioned by a hash. Each generator writes seeds,
+   then about three paraphrases per seed, about 20% more than the final size in every cell. Output:
+   `classifier/draft/{train,validation,test}.jsonl` (`review_status: pending`, with `checks` hints) and
+   `classifier/draft/generation.json` (model, region, temperature, seed, prompt hash, counts, tokens, cost).
+2. **Review** every line: `PYTHONPATH=packages python -m eval.classifier.review export` writes
+   `classifier/draft/review_<split>.csv`. Fill `decision` (`keep`, `fix` with the `fixed_*` cells, or `drop`) and
+   `reviewer` on every row; look for intent, amount, product and language drift (for example "mi tarjeta" turned into
+   "mi tarjeta de crédito"). **Train and validation: the lead. Test: someone who is not the classifier's developer
+   (GianMarco).**
+3. **Promote** once the three sheets are done: `PYTHONPATH=packages python -m eval.classifier.review promote`
+   (`--dry-run` first). It refuses rows without a decision, a test sheet reviewed by the classifier developer and a set
+   outside spec 11 AC-06, writes `classifier/{train,validation,test}.jsonl` and prints the manifest sha256 of
+   `PROTOCOL.md` Seal (b). The hash is recorded at M02 by the lead; after the seal the split files never change.
+
+Results of a candidate in the same family as a split's generator are flagged (spec 11 §8). Nothing under `draft/` is
+a split file: the manifest hashes top-level files only.
+
+Not done yet: the second labeling of 20 cases (AC-06), and the review and promotion of the classifier set (AC-04,
+AC-10).
