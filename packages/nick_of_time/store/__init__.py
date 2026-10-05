@@ -394,7 +394,7 @@ class Store(Protocol):
         then `denial_id`)."""
 
     def add_llm_call(self, *, trace_id: str, provider: str, model: str, tokens_in: int, tokens_out: int,
-                     latency_ms: int, cost_usd: Any, run_id: Optional[str] = None) -> LLMCall:
+                     latency_ms: int, cost_usd: Any, run_id: Optional[str]) -> LLMCall:
         """Insert one `llm_calls` row (NewLLMCall, spec 04 AC-14, spec 18 AC-10) under a fresh `LC-` id and the
         store's clock; counts are non-negative integers and `cost_usd` a finite non-negative number, kept as a
         decimal. Append-only: the interface has no update or delete. `run_id` is the session's (D-023)."""

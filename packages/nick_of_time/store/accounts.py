@@ -1,4 +1,5 @@
-"""Rows and rules of `sessions`, `policy_denials` and `customer_channels`, shared by every backend (spec 01 §6.5, T9).
+"""Rows and rules of `sessions`, `policy_denials`, `customer_channels`, `idempotency` and `llm_calls`, shared by every
+backend (spec 01 §6.5, T9).
 
 - `sessions`: the api or the eval seed inserts a row under a store-made id and every tool reads it (spec 03 AC-02).
   The store has no update, so `mode` and `run_id` stay as created (AC-07, §6.8) [assumption]: OTP verification and
@@ -8,6 +9,9 @@
 - `customer_channels` (AO): the latest row of each channel (the one inserted last) wins. A Telegram `/start` writes
   `linked` with `telegram_linked` on the case (spec 13 AC-02); a typed e-mail writes `linked`, its confirmation link
   `confirmed` with `email_confirmed`. The store returns raw addresses; tools mask them (spec 03 AC-11).
+- `llm_calls` (AO): one row per billed LLM call under a store-made `LC-` id, written from a run's usage; `run_id` has no
+  default, so a caller passes `None` for production on purpose (D-023); `cost_usd` is a finite decimal in
+  [0, 10^6] `[assumption]` with a scale Postgres `numeric` holds, and is never null (spec 01 §6.5, §10).
 - `idempotency` (spec 03 AC-03, §6.3 Idempotency, §6.5): `once` runs a W or N tool's write at most once per key and returns
   the stored result afterwards; the row's key is `[run_id:]<scope>:<key>` with `<scope>` = `c=<customer_id>` or `-` (the api's
   analyst actions) [assumption: §6.5 names only the run prefix; the scope keeps one customer from replaying another's
@@ -107,8 +111,16 @@ class NewLLMCall(_Row):
     tokens_in: int = Field(ge=0, strict=True, le=2**31 - 1)               # Postgres integer
     tokens_out: int = Field(ge=0, strict=True, le=2**31 - 1)
     latency_ms: int = Field(ge=0, strict=True, le=2**31 - 1)
-    cost_usd: Decimal = Field(ge=0, allow_inf_nan=False)
-    run_id: Optional[str] = None
+    cost_usd: Decimal = Field(ge=0, le=Decimal(10) ** 6, allow_inf_nan=False)   # per-call cap [assumption]
+    run_id: Optional[str]                                   # no default: None (production) must be passed on purpose
+
+    @field_validator("cost_usd")
+    @classmethod
+    def _cost_fits_numeric(cls, value: Decimal) -> Decimal:
+        # Postgres `numeric` keeps at most 16383 digits after the point; memory must refuse what the column refuses.
+        if value.as_tuple().exponent < -16383:
+            raise ValueError("more decimal places than a Postgres numeric holds")
+        return abs(value) if value.is_zero() else value       # -0 reads back as 0 from Postgres
 
 
 class LLMCall(NewLLMCall):

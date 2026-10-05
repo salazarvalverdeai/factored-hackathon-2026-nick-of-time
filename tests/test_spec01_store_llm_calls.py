@@ -26,6 +26,7 @@ def test_ac_14_spec04_a_billed_call_is_one_row_with_its_usage_run_and_store_cloc
     store = ticking_store()
     first, second = call(store, trace_id="run-1"), call(store, trace_id="run-1", tokens_in=7, cost_usd=Decimal("0.5"))
     other = call(store, trace_id="run-2", run_id=None, cost_usd=0)
+    elsewhere = call(store, trace_id="run-1", run_id="EV-0002:S1:1")
     assert first.call_id.startswith("LC-") and len({first.call_id, second.call_id, other.call_id}) == 3
     assert first.created_at == dt.datetime(2026, 6, 1, 15, 0, tzinfo=dt.UTC) and first.run_id == RUN
     assert (first.provider, first.model, first.tokens_in, first.tokens_out, first.latency_ms) == (
@@ -34,6 +35,8 @@ def test_ac_14_spec04_a_billed_call_is_one_row_with_its_usage_run_and_store_cloc
     assert store.list_llm_calls(run_id=RUN) == [first, second]
     assert store.list_llm_calls(run_id=RUN, trace_id="run-2") == []
     assert store.list_llm_calls(run_id=None) == [other] == store.list_llm_calls(run_id=None, trace_id="run-2")
+    assert store.list_llm_calls(run_id="EV-0002:S1:1") == [elsewhere]
+    assert elsewhere not in store.list_llm_calls(run_id=RUN) + store.list_llm_calls(run_id=None)
     assert sum(c.cost_usd for c in store.list_llm_calls(run_id=RUN)) == Decimal("0.5012")
 
 
@@ -44,6 +47,7 @@ def test_ac_14_spec04_a_bad_call_is_refused_before_writing_and_the_interface_is_
     bad_rows = [dict(trace_id=""), dict(provider=""), dict(model=""), dict(tokens_in=-1), dict(tokens_out=1.5),
                 dict(latency_ms="5"), dict(tokens_in=True), dict(tokens_in=2**31), dict(cost_usd=-0.01),
                 dict(cost_usd=float("nan")), dict(cost_usd=float("inf")), dict(cost_usd="x"), dict(extra=1),
+                dict(cost_usd=Decimal("1e200000")), dict(cost_usd=Decimal("1e-20000")), dict(cost_usd=Decimal("1000000.01")),
                 dict(trace_id="t" + NUL), dict(model="m" + SURROGATE), dict(run_id="r" + NUL)]
     for bad in bad_rows:
         with pytest.raises(StoreError):
@@ -60,3 +64,12 @@ def test_t9_llm_calls_that_tie_on_created_at_come_back_by_call_id():
     store = new_store(now=lambda: dt.datetime(2026, 6, 1, 15, tzinfo=dt.UTC))
     rows = [call(store) for _ in range(8)]
     assert [c.call_id for c in store.list_llm_calls(run_id=RUN)] == sorted(c.call_id for c in rows)
+
+
+def test_ac_14_spec04_run_id_is_required_and_a_negative_zero_cost_reads_back_as_zero():
+    """D-023: no default `run_id`, so a forgotten one is a StoreError, not production usage; `-0` is stored as `0`."""
+    store = new_store()
+    with pytest.raises(StoreError):
+        store.add_llm_call(trace_id="t", provider="p", model="m", tokens_in=1, tokens_out=1, latency_ms=1, cost_usd=0)
+    row = call(store, cost_usd=Decimal("-0"))
+    assert not row.cost_usd.is_signed() and not store.list_llm_calls(run_id=RUN)[0].cost_usd.is_signed()
