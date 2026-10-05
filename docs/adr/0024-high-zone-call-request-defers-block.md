@@ -37,8 +37,10 @@ The details that matter:
   `call_requested`. After the mode check, it denies a money action when the flag is true, citing `POL-HUMAN-REQUEST`.
 - **How long the hold lasts (D-042).** The block stays held until the analyst decides it or ends the case, not only
   in the turn of the call request. The `block_card` tool reads `call_requested` from the store: it is true while the case has an open
-  call, that is a `call_requested` event with no `approve_block`, `resolve` or `close_case` on that case after it
-  (spec 03 §8). Decided 2026-10-05: only those three analyst actions end the hold; `take`, `request_customer_info`,
+  call: the case has a `call_requested` event or was opened with `handoff_reason` `person_requested` (this covers a
+  failed verify of `request_call`, where spec 04's `connect` falls back to `active_or_general`), and no
+  `approve_block`, `resolve` or `close_case` on that case followed (spec 03 §8). The hold is per case: a different
+  charge opens a new case with no hold. Decided 2026-10-05: only those three analyst actions end the hold; `take`, `request_customer_info`,
   `mark_ambiguous` and every other analyst action keep it, because an analyst usually takes a case before the call
   and the block is the analyst's decision after the call. So a later plain-dispute turn about the same transaction
   cannot block either.
@@ -73,7 +75,8 @@ The details that matter:
   minor bump (1.4.0). The analyst console shows `handoff_reason` as it is stored, so it needs a label for
   `person_requested`.
 - Easier: the handoff card names why a high-zone case waits in `review`. `check()` and `allowed_actions` agree exactly,
-  except while the medium zone waits for confirmation.
+  except while the medium zone waits for confirmation, and on a later turn while a D-042 hold is open (D-043), where
+  the tool's `check()` denies the block that `decide()` allowed.
 
 ## Confidence
 Medium. Revisit if high-zone call requests turn out to be frequent in the evaluation, if the callback promise grows
