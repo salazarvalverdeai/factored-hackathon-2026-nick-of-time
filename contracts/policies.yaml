@@ -17,6 +17,7 @@ rules:                   # stable ids every decision cites (spec 02 §4.1, AC-12
   POL-ZONE-HIGH:         {text: "score in zones.high -> block_and_open_case: the high zone blocks and verifies, unless the customer asked for a person in that turn: the case opens, the call is registered and the analyst decides the block after the call (D-029: connect_person, person_requested; held until the analyst approves the block, resolves or closes the case, D-042). When the block needs a person (amount tier, supervised mode): a handoff, or connect_person on a call request"}
   POL-ZONE-MEDIUM:       {text: "score in zones.medium -> confirm with the customer, then open the case and hand off proposing approve_block; a call request opens the case without asking; never a block"}
   POL-ZONE-HUMAN:        {text: "score in zones.human -> open the case and hand off (zone_human); no block"}
+  POL-ZONE-MISMATCH:     {text: "open_case called with a zone other than the one computed from get_fraud_score for that transaction -> deny (spec 03 AC-09); the zone comes from the score, never from the agent or the customer", guardrail: G-IN-02}
   POL-TICKET-ALWAYS:     {text: "open_case runs with mode auto in every zone; registering is not a money decision"}
   POL-AMOUNT-GATE:       {text: "the amount tier made a money action's approval mode stricter; it never changes a deadline", guardrail: G-TOOL-02}
   POL-AMOUNT-UNKNOWN:    {text: "no tier applies (country without a gate, amount missing, negative or not finite, other currency) -> human_required", guardrail: G-TOOL-02}

@@ -235,6 +235,10 @@ so the queue adds no method to `PolicyEngine`. Analyst actions (`AnalystActionIn
 | `reopen_case` | `resolved` | `review` |
 | `approve_credit`, `approve_block`, `unblock_card`, `request_customer_info`, `mark_ambiguous` | any but `closed` | unchanged |
 
+The agent's write tools (spec 03 `open_case`, `block_card`) move a case through `store.change_status`, which checks the
+same `case_queue.transitions` table, not through `queue.transition()`, which is for analyst actions only `[assumption]`
+pending D-063.
+
 A closed case takes no analyst action; any other move is `POL-QUEUE-TRANSITION`, an unknown action
 `POL-DEFAULT-DENY`. Every analyst action needs a person (`analyst:<sub>`, sub not blank): `close_case` by anyone else
 is `POL-CLOSE-HUMAN`, any other action `POL-DEFAULT-DENY` `[assumption]`. The loader types `case_queue` and refuses a
@@ -300,7 +304,8 @@ fx.convert(amount=1250.0, from_currency="USD", to_currency="MXN") -> {amount, ra
 - `contracts/policies.yaml`: adds `rules:` (every id this spec names, each with its text and guardrail: those of §4.1,
   `POL-SCORE-SOURCE` for a score from a source that does not decide, `POL-AMOUNT-GATE`, `POL-AMOUNT-UNKNOWN` and
   `POL-SUPERVISED` for a stricter mode in §4.2, `POL-CLOCK-UNKNOWN`, `POL-QUEUE-TRANSITION`, `POL-CLOSE-HUMAN` and
-  `POL-REEVAL-WINDOW`), `scoring.deciding_sources` (the sources whose score places a zone: `dataset`, `rules`,
+  `POL-REEVAL-WINDOW`; spec 03 adds `POL-ZONE-MISMATCH`, G-IN-02, for its `open_case` zone check, D-060),
+  `scoring.deciding_sources` (the sources whose score places a zone: `dataset`, `rules`,
   `model` and `synthetic`; never `llm`) with a `scoring.providers.synthetic` entry,
   `approval.money_actions` (AC-15), `usd_rate` per `amount_gate.by_country` entry (§4.2), the handoff reasons
   `zone_medium` and `supervised_mode` (also in `contracts/handoff.schema.json`), per-country `time_zone`,

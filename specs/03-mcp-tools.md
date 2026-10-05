@@ -91,9 +91,9 @@ graph's run id). Kind: R read · W write · N notification.
 | `search_transaction` | R | Loads the session's customer; filters gold `transactions_enriched` to that customer's cards (`Tarjeta Débito`, `Tarjeta Crédito`), status `Approved`/`Pending`, `approx_date ± window_days` (default 7; if no date, the last 30 days) and `≤ clock.today(mode)`; in `live` also the customer's `demo_transactions` (AC-14). Optional filters: **amount** (±2%, compared in the transaction currency and in the customer's local currency through the policy rates MXN 18.0, ARS 350, COP 4,000), **merchant** (case- and accent-insensitive token match; null merchants still match on amount and date). Ranks by amount match, then date distance, then merchant similarity; returns ≤ 4 `Transaction` with `synthetic`, without `fraud_score` or `split` (D-026). Ties break on `transaction_id`; a null `amount_usd` is the amount for USD and amount ÷ the policy rate (2 decimals) for ARS/COP `[assumption]`; `amount_usd` is internal (matching only) and never rendered to the customer. "Today" is `clock.today(mode, country)` (spec 02, PR #67): `DEMO_TODAY` 2026-06-01 in replay, the real date in the customer's time zone in `live`; until AC-14 lands, a `live` session searches gold only `[assumption]`. |
 | `get_fraud_score` | R | Provider `dataset` (ADR 0006): `transactions.fraud_score` for a transaction of the session's customer, `source: "dataset"`, `version: "gold-v1"`; for a synthetic transaction, its generated score with `source: "synthetic"`. Another customer's transaction answers the same `NOT_FOUND` as an unknown id (no existence oracle; D-052, confirmed by the lead 2026-10-05; contract wording in PR #107); the probe is still written to `policy_denials` with `POL-CROSS-CUSTOMER` (`scope.cross_customer_request: deny_and_log`), its rule's guardrail (G-SES-02) and best-effort (a failed write still answers `NOT_FOUND`), its policy id never shown. |
 | `compute_deadline` | R | Country from the customer (`México`→MX, `Argentina`→AR, `Colombia`→CO, `Brasil`/`Brazil`→BR, `Perú`→PE, `Chile`→CL), product from the card type (`Tarjeta Débito`→debit, `Tarjeta Crédito`→credit), opened on `clock.today(mode, country)`, `abroad` when `transaction_country` ≠ customer country (a null `transaction_country` is not abroad, the earlier ruling date `[assumption]`), `charged_at` the gold transaction date; delegates to `clock.deadline()` (spec 02 §4.3); returns `deadline_source`, `source_url` and `verified_on`. Another customer's transaction answers `NOT_FOUND` as `get_fraud_score` does. A country with no verified entry, or none that maps to `policies.yaml` `countries`, answers `UNAVAILABLE` with `POL-CLOCK-UNKNOWN` and no date, since `ComputeDeadlineOut` requires a source `[assumption]`: the case is still opened and a person decides. |
-| `open_case` | W | Duplicate check first (AC-15); recomputes the zone from the score (mismatch → AC-09); idempotent on `idempotency_key` (prefixed with `run_id`); writes `cases` (with `mode`, `related_case_id` when given) and `case_events(case_opened)`; returns `case_id`, deadlines and `duplicate_of`. |
-| `block_card` | W | Requires an open case for that product in the session and run; asks `engine.check("block_card", zone, supervised_mode=…, call_requested=…, amount=…, currency=…, country=…)` (spec 02 §6; `call_requested` is true while the case has an open call (§8, D-042), so the block is denied, D-029); on allow, writes `product_overrides(Blocked)` and `case_events(card_blocked)`, returns `state: "requested"` (not yet verified). |
-| `get_product_status` | R | Latest override for the product in the same `run_id`, else gold `product_status`; returns type, last 4, status and `read_at`, plus `action_id` + `verification_id` only when called with a write's `action_id` whose post-condition holds (D-025). No cache. |
+| `open_case` | W | Duplicate check first (AC-15); recomputes the zone from the score (mismatch → AC-09); idempotent on `idempotency_key` (prefixed with `run_id`); writes `cases` (with `mode`, `related_case_id` when given) and `case_events(case_opened)`; when the engine's own `queue_status_after` for this dispute is `review` (spec 02 §4.2: medium or human zone, or a high-zone block a person must approve), also `status_changed(review)` in the same write, so it commits or rolls back with the case (`[assumption]` pending D-063/D-066); returns `case_id`, deadlines and `duplicate_of`. |
+| `block_card` | W | Requires an open case for that product in the session and run; asks `engine.check("block_card", zone, supervised_mode=…, call_requested=…, amount=…, currency=…, country=…)` (spec 02 §6; `call_requested` is true while the case has an open call (§8, D-042), so the block is denied, D-029); on allow, writes `product_overrides(Blocked)` and `case_events(card_blocked)`, returns `state: "requested"` (not yet verified). In the same write it moves a `new` case to `verification` (`approval.manual_check_leaves_case_in`: the automatic action ran; the customer label `En revisión` claims nothing about the block, so accepted ≠ verified holds); a move another writer already made is not an error, any other failure fails the write (`[assumption]` pending D-063/D-066). |
+| `get_product_status` | R | Latest override for the product in the same `run_id`, else gold `product_status`; returns type, last 4, status and `read_at`, plus `action_id` + `verification_id` only when called with a write's `action_id` whose post-condition holds (D-025). No cache. It never moves a case (`[assumption]` pending D-063: the writes move the queue; a high-zone case held by a call request is moved to `review` by `request_call`, task 03d1, PR #124). |
 | `list_my_cards` | R | The session customer's cards with the same fields as `get_product_status`, never with an `action_id` or `V-`: a listing verifies no write (D-025). |
 | `get_case` | R | Replaces `get_case_status`. Status label for the customer (`Recibido`, `En revisión`, `Resuelto`, `Cerrado` and PT equivalents from `messages.yaml`), stored deadlines with source, transaction, visible timeline, `taken_by_person` (an `assigned` event exists), `related_case_id`, `read_at`. |
 | `list_my_cases` | R | The session customer's cases (active first) with status label, deadlines, last 4 and `updated_at`. |
@@ -127,7 +127,8 @@ which answers `DENY` to an unexpected argument such as `customer_id`. A rate-lim
 a failing handler or a failing audit answers `UNAVAILABLE`. Tool outputs are typed data, delimited when passed to the
 LLM (G-IN-01). Every call is audited as one JSON line on stdout (D-040) with `trace_id` (`X-Trace-Id`, else a minted
 `mcp-` id), actor `agent` and hashes of the input and the session id, never either one; every `DENY` is a
-`policy_denials` row (AC-12); a handler's `DENY` cites G-POL-01 until T4 maps its rule's guardrail. A handler's
+`policy_denials` row (AC-12); a handler's `DENY` cites its rule's guardrail (`policies.yaml` `rules.<id>.guardrail`,
+passed to the gate), else G-POL-01 (T4). A handler's
 `NOT_FOUND` that carries a policy id (a cross-customer probe) is written as a denial too, best-effort and with the
 rule's own guardrail, and answered without it (D-052, confirmed 2026-10-05).
 The analysts' actions never appear in this server.
@@ -151,10 +152,16 @@ The analysts' actions never appear in this server.
 ## 7. Data model touched
 Reads gold `transactions_enriched`, `products` and `customers` through DuckDB; from `customers` the loader selects only
 `customer_id`, `first_name` and `country`, so `email`, phones, `document_number` and `address` are never loaded (AC-11,
-AC-21). Card transactions are loaded at startup into an in-memory table indexed by `customer_id` (≈ 516k rows). Reads
+AC-21). From `products` (`apps/mcp/mcp_server/cards.py`, T4) only the card rows' `product_id`, `customer_id`, type,
+`product_status` and the last 4 digits of `product_number` (the full number is never loaded); from
+`transactions_enriched` also each card transaction's `transaction_country`, which tells `open_case` an operation
+abroad. Card transactions are loaded at startup into an in-memory table indexed by `customer_id` (≈ 516k rows). Reads
 and writes Postgres through `nick_of_time.store`: `sessions` (read), `demo_transactions` (read, `live` only), `cases`,
 `case_events`, `product_overrides`, `idempotency`, `policy_denials`, `notifications`, `notification_deliveries` (read),
-`customer_channels` (read).
+`customer_channels` (read). Takes the store's `serialize` lock (a Postgres transaction-level advisory lock) on
+`open_case:<run>:<customer>:<transaction>` around the duplicate check and the insert (AC-15, task 03c).
+`contracts/policies.yaml` gains the rule `POL-ZONE-MISMATCH` (G-IN-02, AC-09; D-060: `version` stays 2, since the
+engine's behavior does not change).
 
 ## 8. Decisions (gate 1, lead, 2026-10-04)
 - **Q1 — currency:** match MX pesos against USD transactions through the policy rate (18.0 `[assumption]`). Display in
@@ -191,6 +198,11 @@ and writes Postgres through `nick_of_time.store`: `sessions` (read), `demo_trans
   event on the case) is still held; and that
   the hold is per case (a block on another case of the same customer is not denied by it).
 - Assumption: the DuckDB in-memory load fits the EC2 (t3.medium, 4 GB) — measured in T5.
+- Single worker, defense in depth (task 03c): the server runs one uvicorn worker (T8), and `open_case` still takes the
+  store's advisory lock on the transaction, so two calls with different keys through separate connections open one
+  case (AC-15).
+- `supervised_mode` (task 03c, follow-up): the console's toggle (spec 08 AC-05, stored as `settings_events`, spec 01 §6.5) does not reach the MCP
+  yet; `block_card` passes `supervised_mode=False` and only the file's `approval.supervised_mode` switch applies.
 
 ## 9. Out of scope
 Analyst tools (they live in the backend API, spec 05); automatic notifications on each status change and the delivery
@@ -206,10 +218,38 @@ Implementation goes in one `feat/03-*` branch per task (T1: `feat/03-mcp-server`
 - [x] T3 — `get_customer_profile`, `get_fraud_score`, `compute_deadline`, `convert_amount` · AC-11, AC-20. Profile,
       score and convert in `reads.py` (task 03b part 1, PR #106); `compute_deadline` and live search on
       `clock.today` (task 03b2), tests in `tests/test_spec03_{reads,deadline}.py`
-- [ ] T4 — `open_case` (duplicates, related case), `block_card` with idempotency, engine re-check and denials · AC-03,
-      04, 09, 10, 12, 15
-- [ ] T5 — read tools (`get_product_status`, `list_my_cards`, `get_case`, `list_my_cases`) + latency benchmark on
-      gold v1 · AC-04, AC-13, AC-16
+- [x] T4 — `open_case` (duplicates, related case), `block_card` with idempotency, engine re-check and denials · AC-03,
+      04, 09, 10, 12, 15 · `apps/mcp/mcp_server/{writes,cards}.py`, `tests/test_spec03_case_and_block.py` (task 03c);
+      the entry point wires the factory `writes_handlers(gold, policies, store)`; the card index is built over the
+      same folder as `gold` (`cards.cards_of`) and loads on its first read, once per process.
+      `POL-ZONE-MISMATCH` (G-IN-02) added to `policies.yaml` `rules` (D-060). `[assumption]`s: pending D-054, the
+      block is for a case of that card of the session's customer and run in `new`, `verification` or `review` (never
+      resolved or closed), the one opened under the call's trace id when there is one, else the newest, since a case
+      records no session; the hold reads any `handoff_emitted` `person_requested` of the case (a superset of the
+      opening turn's, fail closed, pending D-055); `supervised_mode` is false in `check()` (§8); the idempotency
+      arguments hash leaves out `session_id`; a key reused with other arguments, or a blank or unstorable key (its own
+      message), answers `DENY` `POL-DEFAULT-DENY`; so does a related case that is open, and a `Declined` or `Reversed`
+      transaction (Q2); a transaction with no `transaction_country` is not abroad; the customer's country needs only a
+      `COUNTRY` mapping, so a country with no amount gate still opens its case (no clock entry: POL-CLOCK-UNKNOWN)
+- [x] T5 — read tools (`get_product_status`, `list_my_cards`, `get_case`, `list_my_cases`) + latency benchmark on
+      gold v1 · AC-04, AC-13, AC-16 · `apps/mcp/mcp_server/{case_reads,bench}.py`, `tests/test_spec03_case_reads.py`
+      (task 03c; factory `case_reads_handlers(gold, policies, store)`). A verifying read mints a V- only for a write of
+      the session's customer and run, of that case or card, that `VERIFIED_WITH` gives to this read, and whose
+      post-condition holds; any other `action_id` gets a plain reading. `[assumption]` the timeline labels (ES/PT)
+      live in `case_reads.TIMELINE_LABEL` until `messages.yaml` carries them; `related_case_id` of a closed case is the
+      newest case opened to follow it. AC-13 `[C]`: `PYTHONPATH=.:packages:apps/mcp python -m mcp_server.bench --gold
+      data/gold --customers 200` on gold v1, 2026-10-05, one local laptop process, `Gate.call` without HTTP over the
+      in-memory store `[data]`: every tool p95 ≤ 7.12 ms (`open_case`; `block_card` 5.95, `search_transaction` 1.50,
+      `get_case` 1.56, the others < 1 ms) against the 800 ms budget; gold load 0.35 s, peak RSS 433 MB. Postgres
+      round trips and the EC2 are not measured `[assumption]`; the §8 t3.medium memory assumption holds on this
+      reading (433 MB of 4 GB)
+- [x] Queue status after the agent's writes (task 03c, `[assumption]` pending D-063/D-066) ·
+      `tests/test_spec03_queue_status.py`: the write tools move the queue through `store.change_status` (it enforces
+      `case_queue.transitions`; spec 02 §4.5); reads never move a case. The D-029 call-request case is moved to
+      `review` by `request_call` (task 03d1, PR #124). Gaps: a high-zone case whose `escalate_unconfirmed_action`
+      turn (spec 09 EV-0118) leaves it `new` depends on who writes `handoff_emitted`, pending D-066; and
+      `notifications.events.in_review` ("Un analista está revisando tu caso") is wrong for a case that opens in
+      `review` with no analyst yet, a wording change recorded for spec 13
 - [ ] T6 — follow-up tools (`add_case_info`, `request_call`, `request_reevaluation`) · AC-17, AC-18, AC-19
 - [ ] T7 — `send_case_summary`, `list_my_notifications` · AC-21, AC-22
 - [ ] T8 — entry point, Dockerfile and compose service `mcp` · AC-02, AC-06, AC-12 · `apps/mcp/mcp_server/__main__.py`,

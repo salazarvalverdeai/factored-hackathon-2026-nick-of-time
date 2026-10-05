@@ -152,7 +152,8 @@ class Gate:
     def __init__(self, sessions: Sessions, handlers: Mapping[str, Handler], *, denials: Callable[[DenialRow], None],
                  audit: Callable[[dict[str, Any]], None] = stdout_audit, limiter: Optional[RateLimiter] = None,
                  now: Callable[[], dt.datetime] = _utc_now, guardrails: Optional[Mapping[str, str]] = None) -> None:
-        """`guardrails`: rule id → its guardrail (policies.yaml `rules.<id>.guardrail`), cited by a probe's denial."""
+        """`guardrails`: rule id → its guardrail (policies.yaml `rules.<id>.guardrail`), cited by a handler's DENY or
+        probe denial (AC-12); a rule without one cites G-POL-01."""
         self._sessions, self._handlers, self._denials, self._audit = sessions, handlers, denials, audit
         self._limiter, self._now, self._guardrails = limiter or RateLimiter(), now, dict(guardrails or {})
 
@@ -205,9 +206,10 @@ class Gate:
         if handler is None:                                  # [assumption] tasks 03b–03d register the handlers
             return UNAVAILABLE
         result = handler(Call(tool, session, trace_id), args)
-        if isinstance(result, ToolError) and result.code == "DENY":     # G-POL-01 until T4 maps the rule's guardrail
-            return self._deny(Deny(result.policy_id or DEFAULT_DENY, "G-POL-01", result.message, {}), session, trace_id,
-                              tool)
+        if isinstance(result, ToolError) and result.code == "DENY":     # the rule's guardrail, else G-POL-01 (T4)
+            policy_id = result.policy_id or DEFAULT_DENY
+            return self._deny(Deny(policy_id, self._guardrails.get(policy_id, "G-POL-01"), result.message, {}), session,
+                              trace_id, tool)
         if isinstance(result, ToolError) and result.code == "NOT_FOUND" and result.policy_id:
             # a refusal answered as not found (a cross-customer probe, D-052): logged as a denial with its
             # rule's guardrail, its policy id never shown; best-effort, since UNAVAILABLE here would be an oracle
