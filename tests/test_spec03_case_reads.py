@@ -11,7 +11,7 @@ import json
 import pytest
 
 from contracts import tools
-from nick_of_time.policy import clock
+from nick_of_time.policy import clock, load_policies
 from tests.test_spec01_store import backend, new_store, types  # noqa: F401
 from tests.test_spec03_case_and_block import (ANA, BRUNO_CARD, CREDIT, DEBIT, S_BRUNO, S_OTHER_RUN, Run, session,
                                               write_gold)
@@ -31,7 +31,7 @@ def tick() -> dt.datetime:
 
 
 def reads_run(gold_dir, store=None) -> Run:
-    run = Run(gold_dir, store=store, extra=lambda r: case_reads.case_reads_handlers(r.gold, None, r.store, cards=r.cards, now=tick))
+    run = Run(gold_dir, store=store, extra=lambda r: case_reads.case_reads_handlers(r.gold, load_policies(), r.store, cards=r.cards, now=tick))
     run.sessions[S_PT] = session(S_PT, ANA, language="pt")
     return run
 
@@ -114,14 +114,15 @@ def test_ac_16_get_case_returns_stored_facts_label_timeline_and_verifies_its_ope
     monkeypatch.setattr(clock, "deadline", never)
     out = run("get_case", case_id=opened.case_id, action_id=opened.action_id)
     assert (out.case_id, out.queue_status, out.status_label, out.taken_by_person) == (
-        opened.case_id, "new", "Recibido", False)
+        opened.case_id, "verification", "En revisión", False)          # the verified block moved it (D-063)
     assert (out.credit_deadline, out.deadline_source_url) == (opened.credit_deadline, opened.deadline_source_url)
     assert (out.action_id, out.transaction.transaction_id, out.product_last4) == (opened.action_id, "TRX-" + "0" * 19
                                                                                   + "1", "4417")
     assert out.verification_id.startswith("V-")
     assert [(e.type, e.label) for e in out.timeline] == [("case_opened", "Caso abierto"),
                                                          ("card_blocked", "Bloqueo de la tarjeta solicitado"),
-                                                         ("block_verified", "Bloqueo de la tarjeta verificado")]
+                                                         ("block_verified", "Bloqueo de la tarjeta verificado"),
+                                                         ("status_changed", "Estado actualizado")]
     assert plain(run("get_case", case_id=opened.case_id))
 
 

@@ -38,6 +38,10 @@ CROSS_CUSTOMER = "POL-CROSS-CUSTOMER"
 ENDS_HOLD = frozenset({"approve_block", "resolve", "close_case"})
 # [assumption] pending D-054: a block is for a case still being worked on, never a resolved or closed one.
 BLOCKABLE = frozenset({"new", "verification", "review"})
+# [assumption] pending D-063: a medium- or human-zone case is a handoff without an action, so it opens in `review`
+# (policies.yaml case_queue.transitions); a high-zone case stays `new` until its block verifies (`verification`, moved
+# by get_product_status) or an analyst takes it.
+TO_REVIEW = frozenset({"medium", "human"})
 NO_CARD = t.ToolError(code="NOT_FOUND", message="No such card among yours.")
 NO_CASE = t.ToolError(code="NOT_FOUND", message="No such case among yours.")
 
@@ -183,6 +187,8 @@ def writes_handlers(gold: Gold, policies: Policies, store: Store, *, cards: Opti
                 deadline_verified_on=legal.verified_on, related_case_id=args.related_case_id,
                 mode=call.session.mode, run_id=run_id, trace_id=call.trace_id), actor=ACTOR,
                 action_id=ids.new_id("action"))
+            if args.zone in TO_REVIEW:                      # same transaction as the case (inside once)
+                store.change_status(case.case_id, "review", on=opened_on, actor=ACTOR, trace_id=call.trace_id)
             return case_out(case)
 
         return run_once(store, call, args, write)
