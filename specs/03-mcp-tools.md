@@ -201,7 +201,7 @@ engine's behavior does not change).
 - Single worker, defense in depth (task 03c): the server runs one uvicorn worker (T8), and `open_case` still takes the
   store's advisory lock on the transaction, so two calls with different keys through separate connections open one
   case (AC-15).
-- `supervised_mode` (task 03c, follow-up): the console's toggle (`settings_events`, spec 05) does not reach the MCP
+- `supervised_mode` (task 03c, follow-up): the console's toggle (spec 08 AC-05, stored as `settings_events`, spec 01 §6.5) does not reach the MCP
   yet; `block_card` passes `supervised_mode=False` and only the file's `approval.supervised_mode` switch applies.
 
 ## 9. Out of scope

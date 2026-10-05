@@ -8,8 +8,8 @@
   of opening a second one (AC-15); `block_card` needs an open case of that card in the session's run and the engine's
   `check()` (AC-10), with `call_requested` read from the case's events (D-042, D-043; `call_open`).
 - Another customer's transaction, card or case answers NOT_FOUND as an unknown id does; the gate logs the probe (D-052).
-- [assumption] `supervised_mode=False` until the store exposes the console's `settings_events` (spec 05); the file's
-  `approval.supervised_mode` switch still applies inside the engine.
+- [assumption] `supervised_mode=False` until the store exposes the console toggle's `settings_events` (spec 08
+  AC-05, spec 01 §6.5); the file's `approval.supervised_mode` switch still applies inside the engine.
 - Accepted ≠ verified (D-025): both answer `state: "requested"` and no V- id; `get_case` and `get_product_status` verify.
 """
 from __future__ import annotations

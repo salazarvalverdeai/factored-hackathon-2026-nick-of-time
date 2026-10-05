@@ -490,3 +490,14 @@ def test_ac_10_writes_handlers_is_wired_from_the_entry_points_dependencies(gold_
     lazy = cards.cards_of(Gold(bare))                              # no products: built, not loaded
     with pytest.raises(Exception):
         lazy.card(ANA, DEBIT)
+
+
+def test_ac_11_the_card_index_keeps_only_the_last_4_digits(gold_dir):
+    """Spec 03 §7: from `products` only the last 4 digits of `product_number` are loaded; the full number never is."""
+    index = GoldCards(gold_dir)
+    columns = [row[0] for row in index._rows("DESCRIBE card", [])]
+    assert columns == ["product_id", "customer_id", "type", "last4", "status"]
+    stored = {value for row in index._rows("SELECT * FROM card", []) for value in row}
+    assert "4111111111114417" not in stored and "4417" in stored
+    assert not any(isinstance(value, str) and len(value) > 4 and value.isdigit() for value in stored)
+    assert "PRD-ANASAVINGS01" not in stored                                   # only card products
