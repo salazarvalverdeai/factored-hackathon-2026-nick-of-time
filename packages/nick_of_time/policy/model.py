@@ -12,7 +12,7 @@ from types import MappingProxyType
 from typing import Any, Literal, Optional
 
 import yaml
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_serializer, model_validator
 
 from nick_of_time.contracts import CONTRACTS_DIR, Zone
 
@@ -27,6 +27,12 @@ def _freeze(value: Any) -> Any:
     return tuple(_freeze(item) for item in value) if isinstance(value, list) else value
 
 
+def _thaw(value: Any) -> Any:
+    if isinstance(value, MappingProxyType):
+        return {key: _thaw(item) for key, item in value.items()}
+    return [_thaw(item) for item in value] if isinstance(value, tuple) else value
+
+
 class _Strict(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
@@ -35,6 +41,11 @@ class _Strict(BaseModel):
         for name in list(self.__dict__):
             object.__setattr__(self, name, _freeze(self.__dict__[name]))
         return self
+
+    @field_serializer("*", mode="wrap")
+    def _plain(self, value: Any, handler: Any) -> Any:
+        """model_dump() and model_dump_json() give the frozen proxies and tuples back as the file's dicts and lists."""
+        return handler(_thaw(value))
 
 
 class Scoring(_Strict):
@@ -127,6 +138,9 @@ class Policies(_Strict):
                      if v.guardrail and v.guardrail not in guardrails]
         if "llm" in self.scoring.deciding_sources:
             problems.append("an llm score never decides a zone (POL-SCORE-LLM)")
+        providers = set(self.scoring.providers)
+        problems += [f"scoring source {s} has no scoring.providers entry (note and version for the audit)"
+                     for s in dict.fromkeys((self.scoring.provider, *self.scoring.deciding_sources)) if s not in providers]
         z = self.zones
         if set(z) != {"high", "medium", "human"} or not (
                 z["human"].score_min == 0 and z["human"].score_max + 1 == z["medium"].score_min

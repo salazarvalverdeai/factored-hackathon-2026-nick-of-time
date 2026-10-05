@@ -47,6 +47,21 @@ def test_ac_15_money_actions_are_the_three_the_spec_names_and_load_is_cached():
     assert load_policies(POLICIES_PATH) is load_policies(POLICIES_PATH)
 
 
+def test_ac_02_the_deciding_sources_are_pinned_and_never_llm():
+    """AC-02: only these sources place a score in a zone (D-027: synthetic decides in live mode, labeled [simulated])."""
+    scoring = load_policies().scoring
+    assert scoring.deciding_sources == ("dataset", "rules", "model", "synthetic")
+    assert set(scoring.deciding_sources) | {"llm"} == set(scoring.providers)
+
+
+def test_ac_12_the_frozen_policies_still_serialize_as_the_file():
+    """§5 observability: model_dump_json works on the frozen model and, without defaults, gives back the YAML."""
+    policies = load_policies()
+    assert json.loads(policies.model_dump_json(exclude_unset=True)) == RAW
+    assert Policies.model_validate_json(policies.model_dump_json()) == policies
+    assert isinstance(policies.model_dump()["approval"]["per_action"], dict)
+
+
 def test_ac_12_handoff_reasons_match_the_handoff_schema():
     schema = json.loads((ROOT / "contracts/handoff.schema.json").read_text())
     assert RAW["handoff"]["triggers"] == schema["properties"]["handoff_reason"]["enum"]
@@ -78,6 +93,8 @@ INVALID = [
     ("AC-01 high band stops at 99", "zones.high.score_max", 99),
     ("AC-02 llm score decides", "scoring.deciding_sources", ["dataset", "llm"]),
     ("AC-02 no deciding source", "scoring.deciding_sources", []),
+    ("AC-02 deciding source without provider", "scoring.deciding_sources", ["dataset", "customer"]),
+    ("AC-12 provider without entry", "scoring.provider", "magic"),
     ("AC-06 clock key in the gate", "amount_gate.deadline_days", 10),
     ("AC-06 tiers loosen", "amount_gate.tiers.above_high", "auto"),
     ("AC-06 low above high", "amount_gate.by_country.CO.low", 30_000_000),

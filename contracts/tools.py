@@ -48,7 +48,7 @@ class GetFraudScoreIn(BaseModel):
 class GetFraudScoreOut(BaseModel):
     transaction_id: str
     score: Optional[float]            # 0-100 or None
-    source: Literal["dataset", "rules", "model", "llm"]
+    source: Literal["dataset", "rules", "model", "llm", "synthetic"]   # synthetic: live-mode demo transactions (ADR 0020)
     version: str                      # e.g. "gold-v1", "model-v0"
     features_used: Optional[dict] = None   # rules/model only; goes to the evidence
 

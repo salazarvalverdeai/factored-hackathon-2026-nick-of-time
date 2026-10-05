@@ -31,8 +31,9 @@ carries the ids of the rules that produced it, so a regulator or an analyst can 
 AC-01 to AC-06 come from issue #4 with the same numbers; AC-07 onward are added by this spec.
 
 - **AC-01** — When the score is ≥ 50, 30–49 or < 30, the zone shall be `high`, `medium` or `human`. · [T]
-- **AC-02** — If the score is null or its source is `llm`, then the zone shall be `human` with its own policy id
-  (`POL-SCORE-NULL` / `POL-SCORE-LLM`), and the decision shall still open a case. · [T]
+- **AC-02** — If the score is null, its source is `llm`, or its source is not in `scoring.deciding_sources`, then the
+  zone shall be `human` with its own policy id (`POL-SCORE-NULL` / `POL-SCORE-LLM` / `POL-SCORE-SOURCE`), and the
+  decision shall still open a case. · [T]
 - **AC-03** — When a MX debit dispute is opened for a charge made within the 48 hours before the notice, `credit_deadline`
   shall be the second business day after opening (opened 2026-06-01 → 2026-06-03) with its Banxico source; for an older
   MX debit charge it shall be a ruling deadline instead; an AR dispute shall get +10 business days and a CO dispute +15 business days,
@@ -205,15 +206,23 @@ fx.convert(amount=1250.0, from_currency="USD", to_currency="MXN") -> {amount, ra
 - `contracts/policies.yaml`: adds `rules:` (every id this spec names, each with its text and guardrail: those of §4.1,
   `POL-SCORE-SOURCE` for a score from a source that does not decide, `POL-AMOUNT-GATE`, `POL-AMOUNT-UNKNOWN` and
   `POL-SUPERVISED` for a stricter mode in §4.2, `POL-CLOCK-UNKNOWN`, `POL-QUEUE-TRANSITION`, `POL-CLOSE-HUMAN` and
-  `POL-REEVAL-WINDOW`), `scoring.deciding_sources` (the sources whose score places a zone; never `llm`),
+  `POL-REEVAL-WINDOW`), `scoring.deciding_sources` (the sources whose score places a zone: `dataset`, `rules`,
+  `model` and `synthetic`; never `llm`) with a `scoring.providers.synthetic` entry,
   `approval.money_actions` (AC-15), `usd_rate` per `amount_gate.by_country` entry (§4.2), the handoff reasons
   `zone_medium` and `supervised_mode` (also in `contracts/handoff.schema.json`), per-country `time_zone`,
   `display_currency` and `fx_reference`, the `reevaluation` section, and `version: 2`; validates
   `contact.callback_within_business_days` (D-008, task 02b). No threshold changes.
 - The loader (FR-01) also refuses a file that breaks a firm rule: `default` other than `deny`, `open_case` not `auto`
   or `provisional_credit` not `human_required` in every zone, `close` not `human_only`, zone bands with gaps, tiers
-  that loosen as the amount grows, a rule citing an unknown guardrail, or `llm` among the deciding sources. The loaded
-  model is deeply frozen (read-only mappings, tuples), so no caller can loosen a rule at runtime.
+  that loosen as the amount grows, a rule citing an unknown guardrail, `llm` among the deciding sources, or a
+  `scoring.provider` or deciding source without a `scoring.providers` entry (the audit needs its version). The loaded
+  model is deeply frozen (read-only mappings, tuples), so no caller can loosen a rule at runtime; `model_dump()` and
+  `model_dump_json()` still return plain dicts and lists, and without defaults they give back the file.
+- **`synthetic` decides (D-027, default pending the lead):** a live-mode synthetic transaction (ADR 0020) carries the
+  score generated with it, `get_fraud_score` returns it with `source: "synthetic"` (spec 03 §6), and it places a zone
+  like the dataset score. It never reaches `replay`, the evaluation or a pitch number (ADR 0020 rule 2), and the receipt,
+  the handoff card and the console label it `[simulated]` (constitution #8). `tools.py` v1.1 `GetFraudScoreOut.source`
+  must list `"synthetic"` (#59). Any other source still goes to zone human with `POL-SCORE-SOURCE`.
 - New data files: `packages/nick_of_time/policy/holidays/*_2026.yaml`.
 - No database access.
 
