@@ -251,7 +251,8 @@ is written once by the evaluation script (T6) from the frozen test split, never 
     cobr-, debit-, pag-, descont-, retir-, saque, sumi-, desaparec-, sacaron/sacou, "sin permiso / sem autorização"
     or a negated consent (no acepté, não aceitei, no autoricé, no reconozco, no hice, não fiz, no pedí…).
   - Person words are whole words with their plural and feminine forms (asesora, atendentes, supervisores), so
-    "préstamo personal" and "empréstimo pessoal" ask for no person.
+    "préstamo personal" and "empréstimo pessoal" ask for no person; a plural article (los, las, os, as, unos, unas,
+    uns, umas) may come before them ("Pásame con los asesores", "Passa para os atendentes").
   - A PT ordinal before a noun ("na segunda semana", "na quinta loja", "na segunda metade do mês") is no weekday. A
     "-feira" day ("na sexta-feira loja Renner") and "na sexta semana passada" still are.
 - **Currency `[assumption]`:** a bare "$" or "pesos" leaves `currency` null; the country comes from the session.

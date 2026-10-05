@@ -24,6 +24,7 @@ ARM, VERSION = "B0", "b0-v1"
 _STAFF = (r"(?:personas?|humanos?|agentes?|asesor(?:a|es|as)?|ejecutiv[oa]s?|operador(?:a|es|as)?|atendentes?|pessoas?"
           r"|representantes?|gerentes?|supervisor(?:a|es|as)?)\b")
 _PERSON = r"(?:alguem|alguien|" + _STAFF + r")\b"
+_PLURAL = r"los |las |os |as |unos |unas |uns |umas "     # "pásame con los asesores", "passa para os atendentes"
 # a request form of pasar/passar/comunicar: with the pronoun attached ("pásame") or right before it ("me pasa",
 # "que me pase", "me passa"), or an imperative that opens the message; past forms ("me pasé", "me comuniqué",
 # "passei") and third persons ("mi hijo pasa con el gerente") stay out
@@ -43,12 +44,12 @@ _INTENT_RULES: list[tuple[str, list[str]]] = [
     ("human_request", [
         # "comuni-" needs a person after it: "me comunico con ustedes por un cargo" is an opener, not a request
         r"\b(?!passei\b)(?:hablar|conversar|comuni\w*|pas\w*|falar|passar) (?:\w+ ){0,2}(?:con|com|para|a) "
-        r"(?:un |una |um |uma |o |a )?" + _PERSON,
+        r"(?:un |una |um |uma |o |a |" + _PLURAL + ")?" + _PERSON,
         # ES "el/la" and PT "pra/pro" only after a request form, and not "el gerente de la tienda"
-        _ASK + r" (?:\w+ ){0,2}(?:con|com|para|pra|pro|a) (?:un |una |um |uma |o |a |el |la )?" + _PERSON
+        _ASK + r" (?:\w+ ){0,2}(?:con|com|para|pra|pro|a) (?:un |una |um |uma |o |a |el |la |" + _PLURAL + ")?" + _PERSON
         + r"(?! (?:de|del|da|do)\b)",
-        r"^(?:hablar|conversar|falar) (?:con|com|pra|pro) (?:el |la |o |a )?" + _PERSON + r"(?! (?:de|del|da|do)\b)",
-        r"\b(?:quiero|necesito|quero|preciso|prefiero|prefiro) (?:(?!si |se )\w+ ){0,3}(?:un |una |um |uma |o |a )?" + _PERSON,
+        r"^(?:hablar|conversar|falar) (?:con|com|pra|pro) (?:el |la |o |a |" + _PLURAL + ")?" + _PERSON + r"(?! (?:de|del|da|do)\b)",
+        r"\b(?:quiero|necesito|quero|preciso|prefiero|prefiro) (?:(?!si |se )\w+ ){0,3}(?:un |una |um |uma |o |a |" + _PLURAL + ")?" + _PERSON,
         # a message that is only the person word ("Supervisor", "Un asesor", "Humano por favor", "Atendente, por favor")
         r"^(?:un |una |um |uma |o |a |el |la )?" + _STAFF + r"(?: humano| real)?(?:,? por favor)?[.!? ]*$",
         r"\b(?:atienda|atiende|atenda|atendid[oa] por) (?:\w+ )?" + _PERSON,

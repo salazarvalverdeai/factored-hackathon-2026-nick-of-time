@@ -347,7 +347,9 @@ def test_ac_10_personal_and_pessoal_are_no_person_request(text):
 
 
 @pytest.mark.parametrize("text", ["Quiero hablar con una asesora", "Quero falar com atendentes", "Supervisora, por favor",
-                                  "Necesito una ejecutiva", "Quiero hablar con personas reales"])
+                                  "Necesito una ejecutiva", "Quiero hablar con personas reales",
+                                  "Pásame con los asesores", "Quiero hablar con las ejecutivas",
+                                  "Passa para os atendentes", "Quero falar com as atendentes"])
 def test_ac_10_whole_person_words_with_plural_and_feminine_forms_still_ask_for_a_person(text):
     assert _parse(text).intent == "human_request"
 
