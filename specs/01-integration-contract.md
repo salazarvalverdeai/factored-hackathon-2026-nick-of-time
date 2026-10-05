@@ -267,12 +267,12 @@ shape of `data` is fixed in the producing spec.
 `apps/api/migrations` adopts `schema.sql` as its first migration (D-002); a test keeps the file in step with this
 table. A column the table leaves untyped is `text` (timestamps `timestamptz`, counters `integer`) and a column is
 `not null` unless marked `null` `[assumption]`. Append-only tables are marked **AO** (no `UPDATE`, `DELETE` or
-`TRUNCATE`; enforced by a trigger in `schema.sql` and a test). The **latest** row of `product_overrides` or
-`notification_deliveries` is the one inserted last, the highest `row_no` (the in-memory backend's insertion order),
+`TRUNCATE`; enforced by a trigger in `schema.sql` and a test). The **latest** row of `product_overrides`,
+`notification_deliveries` or `settings_events` is the one inserted last, the highest `row_no` (the in-memory backend's insertion order),
 never the latest `created_at`, which a fixed or skewed clock can repeat or step back `[assumption]`. `list_cases`
 breaks a `created_at` tie by `case_id` and `list_notifications` by `notification_id`, both descending, in both
 backends `[assumption]`. "Sub not blank" means a character outside Python's `str.isspace()` set, spelled out in the
-actor CHECKs so no server locale changes it.
+actor CHECKs so no server locale changes it; their `(?p)` keeps a newline out of the sub, as in the store's `ACTOR`.
 
 | Table | Columns (type) | Notes |
 |---|---|---|
@@ -288,7 +288,7 @@ actor CHECKs so no server locale changes it.
 | `idempotency` | `key` PK · `action` · `result` jsonb · `run_id` text null · `created_at` | the key is prefixed with `run_id` when present |
 | `policy_denials` **AO** | `denial_id` PK · `trace_id` · `session_id` text null · `actor` (`agent\|customer\|analyst:<sub>`) · `policy_id` · `guardrail_id` · `detail` jsonb · `run_id` text null · `created_at` | `actor` is a closed list (no `system`; sub not blank); `session_id` null for an api or analyst denial; a rule-only denial cites `G-POL-01` (writers map a missing guardrail id to it) `[assumption]` (D-023) |
 | `llm_calls` **AO** | `call_id` PK · `trace_id` · `provider` · `model` · `tokens_in` · `tokens_out` · `latency_ms` · `cost_usd` numeric · `run_id` text null · `created_at` | `run_id` from the session, so a run's tokens and cost sum alone `[assumption]` (D-023) |
-| `settings_events` **AO** | `event_id` PK · `key` · `value` jsonb · `actor` · `created_at` | `supervised_mode` = latest |
+| `settings_events` **AO** | `event_id` PK · `key` · `value` jsonb · `actor` · `created_at` · `row_no` bigint identity | `supervised_mode` = latest row |
 
 **Case event types** (`case_events.type`, visible to the customer when marked ✓): `case_opened` ✓ · `card_blocked` ✓ ·
 `block_verified` ✓ · `action_verified` (D-025) · `status_changed` ✓ · `handoff_emitted` · `assigned` ✓ (a person took

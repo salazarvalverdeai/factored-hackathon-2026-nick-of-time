@@ -2,7 +2,8 @@
 -- migration (D-002); tests/test_spec01_store_schema.py keeps it in step with the spec table.
 -- Conventions [assumption]: a column the spec leaves untyped is text (timestamps timestamptz, counters integer); a
 -- column is not null unless the spec marks it null. Rows are never updated or deleted in the append-only (AO) tables.
--- A "sub not blank" holds a character outside Python's str.isspace() set, spelled out so no server locale changes it.
+-- A "sub not blank" holds a character outside Python's str.isspace() set, spelled out so no server locale changes it;
+-- (?p) keeps `.` off newlines, as in the store's ACTOR.
 
 create table sessions (
   session_id text primary key,
@@ -81,7 +82,7 @@ create table case_events (                                           -- AO
     'reevaluation_requested', 'related_case_opened', 'notification_sent', 'receipt_issued', 'telegram_linked',
     'email_confirmed')),
   actor text not null check (actor in ('agent', 'customer', 'system')
-    or actor ~ '^analyst:.*[^\t\n\v\f\r\u001c-\u001f \u0085\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000].*$'),
+    or actor ~ '(?p)^analyst:.*[^\t\n\v\f\r\u001c-\u001f \u0085\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000].*$'),
   payload jsonb not null default '{}',
   customer_visible boolean not null,
   trace_id text not null,
@@ -111,7 +112,7 @@ create table product_overrides (                                     -- AO; stat
   status text not null check (status in ('Active', 'Blocked', 'Closed', 'Suspended')),
   case_id text not null,
   actor text not null check (actor in ('agent', 'customer', 'system')
-    or actor ~ '^analyst:.*[^\t\n\v\f\r\u001c-\u001f \u0085\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000].*$'),
+    or actor ~ '(?p)^analyst:.*[^\t\n\v\f\r\u001c-\u001f \u0085\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000].*$'),
   run_id text null,
   created_at timestamptz not null default now(),
   row_no bigint not null generated always as identity                -- insertion order: "latest" (T9)
@@ -169,7 +170,7 @@ create table policy_denials (                                        -- AO
   trace_id text not null,
   session_id text null,                                              -- null for api and analyst denials (D-023)
   actor text not null check (actor in ('agent', 'customer')
-    or actor ~ '^analyst:.*[^\t\n\v\f\r\u001c-\u001f \u0085\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000].*$'),
+    or actor ~ '(?p)^analyst:.*[^\t\n\v\f\r\u001c-\u001f \u0085\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000].*$'),
   policy_id text not null,
   guardrail_id text not null,                                        -- a rule-only denial cites G-POL-01
   detail jsonb not null,
@@ -190,12 +191,13 @@ create table llm_calls (                                             -- AO
   created_at timestamptz not null default now()
 );
 
-create table settings_events (                                       -- AO; supervised_mode = latest
+create table settings_events (                                       -- AO; supervised_mode = latest row_no
   event_id text primary key,
   key text not null,
   value jsonb not null,
   actor text not null,
-  created_at timestamptz not null default now()
+  created_at timestamptz not null default now(),
+  row_no bigint not null generated always as identity                -- insertion order: "latest" (T9)
 );
 
 -- postgres-only: the action-id index and the append-only guard. The offline DuckDB check stops at this line.

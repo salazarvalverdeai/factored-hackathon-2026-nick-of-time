@@ -697,7 +697,18 @@ def test_ac_01_both_backends_refuse_a_bad_action_id_nul_and_lone_surrogates_alik
         with pytest.raises(StoreError, match="not storable text"):
             store.add_notification(case_id, event="case_opened", channel="log", masked_address=None, text=text,
                                    trigger="auto", actor="system", trace_id="t")
+    for writer in (lambda: store.create_case(new_case(trace_id="t" + nul), actor="agent",
+                                             action_id=ids.new_id("action")),
+                   lambda: store.create_case(new_case(transaction_id="TRX-" + nul), actor="agent",
+                                             action_id=ids.new_id("action")),
+                   lambda: store.append_event(case_id, "handoff_emitted", actor="agent", trace_id="t" + nul),
+                   lambda: store.append_event(case_id, "handoff_emitted", actor="analyst:x" + nul, trace_id="t")):
+        with pytest.raises(StoreError, match="not storable text"):
+            writer()
+    with pytest.raises(StoreError):                         # Postgres: before the advisory-lock query, not raw
+        store.append_event("K-" + surrogate, "handoff_emitted", actor="agent", trace_id="t")
     assert len(store.events(case_id)) == written and store.list_notifications("CLI-000001", run_id=None) == []
+    assert [c.case_id for c in store.list_cases("CLI-000001", run_id=None)] == [case_id]
 
 
 def test_d035_a_summary_send_is_verified_only_while_its_latest_delivery_is_not_lost():

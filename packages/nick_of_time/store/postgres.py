@@ -282,6 +282,8 @@ class PostgresStore:
                 raise StoreError(f"refused by the schema: {error.diag.message_primary}") from None
             except psycopg.DataError as error:              # e.g. NUL in text; the store checks it first
                 raise StoreError(f"refused by the server: {error}") from None
+            except UnicodeEncodeError:                      # e.g. a lone surrogate in an id, before the server
+                raise StoreError("refused: text with no UTF-8 form") from None
 
     def _rows(self, query: str, params: Any = None) -> list[dict[str, Any]]:
         with self._lock:

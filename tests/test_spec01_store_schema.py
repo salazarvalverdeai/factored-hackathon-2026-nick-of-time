@@ -136,7 +136,9 @@ BAD = [event("E-2", "K-000001", 1, "handoff_emitted"),                       # d
 # A no-break space is blank too, as for the store's ACTOR: the CHECKs spell the class out, so no locale changes it.
 NBSP_SUB = "analyst:\u00a0"
 BAD += [event("E-33", "K-000011", 1, "handoff_emitted", actor=NBSP_SUB),
-        OVERRIDE.format(id="A-00000000000D", status="Blocked", actor=NBSP_SUB), DENIAL.format(id="P-5", actor=NBSP_SUB)]
+        OVERRIDE.format(id="A-00000000000D", status="Blocked", actor=NBSP_SUB), DENIAL.format(id="P-5", actor=NBSP_SUB),
+        event("E-35", "K-000011", 1, "handoff_emitted", actor="analyst:x\n"),   # no newline in a sub, as in ACTOR
+        DENIAL.format(id="P-7", actor="analyst:\nx")]
 # Postgres only (DuckDB has no partial index): a write's action id cannot come back in another write (D-025).
 BAD_ON_POSTGRES = [event("E-8", "K-000001", 8, "card_blocked", ACTION.format(n=1)),
                    event("E-9", "K-000010", 1, "customer_info_added", ACTION.format(n=1))]
@@ -171,7 +173,8 @@ def db():
     con.execute("create type jsonb as json")
     con.execute("create sequence row_no")             # DuckDB: no identity column; RE2 writes a \uXXXX escape as \x{XXXX}
     con.execute(re.sub(r"\\u([0-9a-f]{4})", r"\\x{\1}", TABLES_SQL).replace("generated always as identity",
-                                                                       "default nextval('row_no')"))
+                                                                       "default nextval('row_no')")
+                .replace("'(?p)^", "'^"))                     # RE2's `.` already skips newlines
     yield con
     con.close()
 
@@ -248,7 +251,7 @@ def test_d025_schema_vocabularies_match_the_store_models():
 def test_t10_actor_checks_spell_out_the_whitespace_of_the_store_actor():
     """The three actor CHECKs share one "sub not blank" class, exactly Python's str.isspace() set (ACTOR's \\s), so
     the schema and the store agree on any server locale (a glibc en_US \\S takes a no-break space as a character)."""
-    classes = re.findall(r"actor ~ '\^analyst:\.\*\[\^(.*?)\]\.\*\$'", TABLES_SQL)
+    classes = re.findall(r"actor ~ '\(\?p\)\^analyst:\.\*\[\^(.*?)\]\.\*\$'", TABLES_SQL)
     assert len(classes) == 3 and len(set(classes)) == 1
     blank = set()
     for first, last in re.findall(r"(\\[tnvfr]|\\u[0-9a-f]{4}| )(?:-(\\u[0-9a-f]{4}))?", classes[0]):
