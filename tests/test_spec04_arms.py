@@ -191,3 +191,27 @@ def test_ac_14_a_deployment_client_has_a_4_s_read_timeout_and_one_attempt(monkey
     monkeypatch.setattr(steps, "_CLIENTS", {})
     run(Chat(arm="S1"), "hola")
     assert [(kw["read_timeout_s"], kw["max_attempts"]) for kw in made] == [(4.0, 1)]
+
+
+def test_ac_14_g_ops_01_the_daily_cap_across_sessions_runs_the_turn_as_s0_before_calling():
+    """The api passes the day's `llm_calls` sum and the cap; at or past it the step never calls and says so."""
+    llm = client()
+    turn = run(Chat(arm="S1", llm_client=llm, llm_day_spent_usd=4.9999, llm_day_cap_usd=5.0), "hola")
+    assert llm.calls == [] and turn.usage == [] and turn.reply == s0("hola")[0]
+    assert turn.guardrails_triggered.count("G-OPS-01") == 1
+    assert detail(turn, "understand") == ("error", "S1 -> S0: daily cap")
+
+
+def test_ac_14_g_ops_01_under_the_daily_cap_the_turn_is_unchanged(monkeypatch):
+    monkeypatch.setenv("DAILY_LLM_CAP_USD", "0")             # the run's own cap wins over the environment
+    llm = client(HEARD)
+    turn = run(Chat(arm="S1", llm_client=llm, llm_day_spent_usd=1.0, llm_day_cap_usd=5.0), "hola")
+    assert len(llm.calls) == 1 and detail(turn, "understand") == ("ok", "S1: ok") and "G-OPS-01" not in (
+        turn.guardrails_triggered)
+
+
+def test_ac_14_g_ops_01_the_environment_cap_applies_when_the_run_carries_none(monkeypatch):
+    monkeypatch.setenv("DAILY_LLM_CAP_USD", "0.5")
+    llm = client()
+    turn = run(Chat(arm="S1", llm_client=llm, llm_day_spent_usd=0.5), "hola")
+    assert llm.calls == [] and detail(turn, "understand") == ("error", "S1 -> S0: daily cap")

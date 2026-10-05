@@ -11,6 +11,7 @@ runs the step as S0 (rules) and says so in the trace; every billed call is a `us
 import asyncio
 import datetime as dt
 import json
+import os
 import re
 from typing import Any, Optional, get_args
 
@@ -26,6 +27,7 @@ from nick_of_time.nlu import Slots
 # turn's p95 <= 6 s with S1 (spec 04 §5)
 TIMEOUT_S = 4.0
 CAP_USD = 0.02      # [assumption] G-OPS-01 per conversation: spec 04 §5's cost target per case with S1
+DAY_CAP_USD = 5.0   # [assumption] G-OPS-01 per day across sessions; the api passes its cap and the day's llm_calls sum
 MAX_TOKENS = 512    # spec 15 section 4.1: maxTokens of at least 512
 OPS = "G-OPS-01"
 DAY = re.compile(r"\d{4}-\d{2}-\d{2}")    # the exact form retrieve sends as approx_date
@@ -82,6 +84,8 @@ async def ask(state: dict, config: dict, node: str, system: str, payload: dict, 
         return None, note(state, node, "no price (D-058)")
     if spent + estimate > CAP_USD:                          # checked before calling
         return None, note(state, node, "budget", [OPS])
+    if over_day_cap(config, estimate):
+        return None, note(state, node, "daily cap", [OPS])
     result, reason = None, "ok"
     try:   # the client's read timeout bounds the call, so a late but billed answer is still counted
         result = await asyncio.to_thread(client.complete, system, user, schema=schema, tool_name=tool,
@@ -98,6 +102,17 @@ async def ask(state: dict, config: dict, node: str, system: str, payload: dict, 
                     "tokens_out": result.tokens_out, "latency_ms": result.latency_ms, "cost_usd": cost}],
                 "llm_spent_usd": spent + cost}
     return (result.tool_input if reason == "ok" else None), out
+
+
+def over_day_cap(config: dict, estimate: float) -> bool:
+    """G-OPS-01 per day: the day's spend of every session (the api's sum of `llm_calls` since 00:00 UTC, in
+    `configurable.llm_day_spent_usd`) plus this call's estimate above the cap (`configurable.llm_day_cap_usd`, else env
+    DAILY_LLM_CAP_USD, else DAY_CAP_USD). A run without the day's spend (tests, a direct graph run) is not capped."""
+    settings = config.get("configurable") or {}
+    day = settings.get("llm_day_spent_usd")
+    cap = settings.get("llm_day_cap_usd")
+    cap = (os.getenv("DAILY_LLM_CAP_USD") or DAY_CAP_USD) if cap is None else cap
+    return day is not None and float(day) + estimate > float(cap)
 
 
 def note(state: dict, node: str, reason: str, alerts: list[str] = ()) -> dict[str, Any]:

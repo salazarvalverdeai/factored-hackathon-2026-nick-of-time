@@ -27,10 +27,12 @@ from contracts.tools import CUSTOMER_TOOLS, VERIFIED_WITH, ToolError
 SESSION_ID = "S-demoreplay000001"
 _CASE, _TRX, _PRD = "K-104233", "TRX-FIXTURE0000000000001", "PRD-FIXTURE00001"   # the sample receipt's ids
 _SOURCE = "Banxico Circular 3/2012, as amended by Circular 14/2018"
+_LABEL = {"es": "Banxico, Circular 3/2012 (modificada por la Circular 14/2018)",        # the source in the session's
+          "pt": "Banxico (México), Circular 3/2012 (modificada pela Circular 14/2018)"}  # language (1.5.0, DLANG)
 _URL = ("https://www.gob.mx/condusef/prensa/cargos-no-reconocidos-en-tarjeta-de-debito-se-restituiran-en-dos-dias-"
         "habiles-bancarios?idiom=es")
-_DEADLINE = {"credit_deadline": "2026-06-03", "deadline_source": _SOURCE, "deadline_source_url": _URL,
-             "deadline_verified_on": "2026-10-04"}
+_DEADLINE = {"credit_deadline": "2026-06-03", "deadline_source": _SOURCE, "deadline_source_label": _LABEL["es"],
+             "deadline_source_url": _URL, "deadline_verified_on": "2026-10-04"}
 _CARD = {"product_id": _PRD, "type": "debit", "last4": "4417", "status": "Blocked", "read_at": "2026-06-01T15:04:09Z"}
 _TELEGRAM = {"channel": "telegram", "masked_address": "···4821"}
 _EVENT = {"case_id": _CASE, "event_id": "E-5D0E7A21C9B4"}
@@ -43,7 +45,8 @@ FIXTURES: dict[str, dict[str, Any]] = {
         "currency": "USD", "amount_usd": 1250.0, "merchant": "TIENDA X", "transaction_status": "Approved"}]},
     "get_fraud_score": {"transaction_id": _TRX, "score": 72.0, "source": "dataset", "version": "gold-v1"},
     "compute_deadline": {"country": "MX", "product": "debit", "credit_deadline": "2026-06-03", "ruling_deadline": None,
-                         "deadline_source": _SOURCE, "source_url": _URL, "verified_on": "2026-10-04"},
+                         "deadline_source": _SOURCE, "deadline_source_label": _LABEL["es"], "source_url": _URL,
+                         "verified_on": "2026-10-04"},
     # writes stay "requested" and carry no V- id: the read of VERIFIED_WITH mints it when asked about the write (D-025)
     "open_case": {"action_id": "A-71C0D5E8A2F3", "case_id": _CASE, "country": "MX", **_DEADLINE},
     "block_card": {"action_id": "A-3E9F20B7C164", "product_id": _PRD},
@@ -98,6 +101,7 @@ def _error(error: ToolError) -> ToolResult:
 
 class FixtureTool(Tool):
     """A contract tool: input schema of `<Name>In`, output schema of `<Name>Out`, answers its fixture."""
+    language: str = "es"                                          # the fake session's language: picks the source label
 
     async def run(self, arguments: dict[str, Any]) -> ToolResult:
         if arguments.get("session_id") != SESSION_ID:             # session first (spec 03 AC-02)
@@ -112,13 +116,16 @@ class FixtureTool(Tool):
                                                "verification_id": verification_id})
         if self.name == "request_call" and arguments.get("case_id") is None:   # a general request: no case (D-026)
             answer = answer.model_copy(update=CASELESS_CALL)
+        if getattr(answer, "deadline_source_label", None):
+            answer = answer.model_copy(update={"deadline_source_label": _LABEL[self.language]})
         return ToolResult(structured_content=answer.model_dump(mode="json"))
 
 
-def build_server() -> FastMCP:
+def build_server(language: str = "es") -> FastMCP:
+    """The fake server for one session in `language` (es or pt), as the real one reads session.language."""
     server = FastMCP("nick-of-time-fake-mcp")
     for name, (model_in, model_out) in CUSTOMER_TOOLS.items():
-        server.add_tool(FixtureTool(name=name, description=f"{name} — fake fixture (spec 01 §6.3)",
+        server.add_tool(FixtureTool(name=name, description=f"{name} — fake fixture (spec 01 §6.3)", language=language,
                                     parameters=model_in.model_json_schema(),
                                     output_schema=model_out.model_json_schema()))
     return server
