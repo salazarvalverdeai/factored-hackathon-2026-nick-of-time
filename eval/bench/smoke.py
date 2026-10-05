@@ -101,13 +101,15 @@ def meta(r: dict) -> dict:
             "usage": r.get("usage")}
 
 
-def smoke_arm(model_id: str, provider: Provider) -> dict:
+def smoke_arm(model_id: str, provider: Provider, *, system: str = SYSTEM, user: str = PROMPT,
+              schema: dict = INTENT_SCHEMA) -> dict:
     """Walk the ladder: a mode Bedrock rejects (ToolChoiceUnsupported) moves to the next one; the first accepted mode
-    decides, and its tool input must match the schema. Every mode rejected means "no structured output"."""
+    decides, and its tool input must match the schema. Every mode rejected means "no structured output". B1 passes
+    its own system prompt and schema, so the smoke call is the B1 request (D-011)."""
     rejected = []
     for mode in LADDER:
         try:
-            r = provider(model_id, SYSTEM, PROMPT, INTENT_SCHEMA, mode)
+            r = provider(model_id, system, user, schema, mode)
         except ToolChoiceUnsupported as exc:
             rejected.append(f"{mode}: {exc}"[:130])
             continue
@@ -117,7 +119,7 @@ def smoke_arm(model_id: str, provider: Provider) -> dict:
         try:
             if r.get("tool_input") is None:
                 raise jsonschema.ValidationError("no tool call returned")
-            jsonschema.validate(r["tool_input"], INTENT_SCHEMA)
+            jsonschema.validate(r["tool_input"], schema)
         except jsonschema.ValidationError as exc:
             return {"result": "no structured output", "reason": f"{exc.message}; {detail}"[:400],
                     "tool_choice_mode": mode, **meta(r)}
