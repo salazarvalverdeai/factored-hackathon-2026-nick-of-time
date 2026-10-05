@@ -7,12 +7,15 @@ from __future__ import annotations
 
 import json
 import logging
+import subprocess
+from datetime import datetime, timezone
 from pathlib import Path
 
-from data.pipeline.config import DATA_DIR, FIXTURE_WORKDIR, REPORT_PATH, Layout
+from data.pipeline.config import DATA_DIR, FIXTURE_WORKDIR, REPORT_PATH, ROOT, Layout
 from data.pipeline.run import expected_vs_actual
 
 log = logging.getLogger("pipeline.report")
+WEB_JSON = ROOT / "apps" / "web" / "public" / "data" / "data_quality.json"   # read by /data (spec 12 §7.2)
 
 
 def n(x) -> str:
@@ -260,3 +263,66 @@ def write_report() -> None:
               "make test      # pytest, no network", "```", ""]
     REPORT_PATH.write_text("\n".join(lines))
     log.info("report: %s", REPORT_PATH)
+
+
+def late_arrival(fx: dict) -> dict:
+    """What changed between the first and the last delivery of the late_arrival fixture (spec 12 §7.2)."""
+    spec, first, last = fx["spec"], fx["runs"][0], fx["runs"][-1]
+    silver, before = last["silver"]["transactions"], {(c["id"], c["table"]): c["n"] for c in first["checks"]}
+    compared = [x for d, r in zip(spec["deliveries"], fx["runs"]) for x in expected_vs_actual(r, spec["expected"][d["name"]])]
+    return {
+        "label": "fixture: synthetic test data, not from the dataset",
+        "deliveries": [{"name": d["name"], "delivered_at": d["delivered_at"], "gold_version": r["gold"]["manifest"]["version"]}
+                       for d, r in zip(spec["deliveries"], fx["runs"])],
+        "rows_added": {t: d["inserted"] for t, d in last["gold"]["diff"].items() if d["inserted"]},
+        "rows_updated": {t: d["updated"] for t, d in last["gold"]["diff"].items() if d["updated"]},
+        "columns_added": silver["extra_columns"], "columns_renamed": list(silver["renamed"]),
+        "late_rows": silver["late"]["n_late"], "max_lag_days": silver["late"]["max_lag_days"],
+        "checks_changed": [{"id": c["id"], "table": c["table"], "check": c["check"],
+                            "before": before.get((c["id"], c["table"])), "after": c["n"]}
+                           for c in last["checks"] if before.get((c["id"], c["table"])) != c["n"]],
+        "expected_counts": {"matched": sum(1 for x in compared if x["ok"]), "total": len(compared)}}
+
+
+def data_quality(r: dict, fx: dict | None) -> dict:
+    """The `data` of data_quality.json (spec 12 §7.2), from the same results as the Markdown report."""
+    m = r["gold"]["manifest"]
+    layers = [
+        {"layer": "bronze", "note": "faithful copy of the CSV files, all text, with lineage",
+         "tables": [{"table": t, "rows": r["bronze"][t]["rows"], "bytes": r["bronze"][t]["bytes"],
+                     "files": r["bronze"][t]["files"]} for t in r["tables"]]},
+        {"layer": "silver", "note": "typed, deduplicated and validated against the contract",
+         "tables": [{"table": t, "rows": r["silver"][t]["rows_silver"], "bytes": None,
+                     "quarantined": r["silver"][t]["quarantined"]} for t in r["tables"]]},
+        {"layer": "gold", "note": "what the solution reads; quality flags per row, nothing deleted",
+         "tables": [{"table": t, "rows": v["rows"], "bytes": v["bytes"], "sha256": v["sha256"][:12]}
+                    for t, v in m["tables"].items()]}]
+    return {
+        "label": "[data]", "layers": layers,
+        "gold_rules": [{"id": x["id"], "rule": x["rule"], "value": x["value"], "ok": x["ok"]} for x in m["contract"]["rules"]],
+        "checks": [{"id": c["id"], "table": c["table"], "check": c["check"], "rows_affected": c["n"],
+                    "denominator": c["denominator"], "action": c["action"]} for c in r["checks"]],
+        "manifest": {"gold_version": m["version"], "version_created_at": m["version_created_at"],
+                     "pipeline_version": r["pipeline_version"], "contract_version": r["contract_version"],
+                     "run_at": r["run_at"], "transactions_window": m["contract"]["transactions_window"],
+                     "source_files": r["source"]["files"], "source_bytes": r["source"]["bytes"]},
+        "late_arrival": late_arrival(fx) if fx else None}
+
+
+def write_json(path: Path = WEB_JSON) -> None:
+    """`python -m data.pipeline report --json`: writes `{generated_at, git_sha, source, data}` (spec 01 §6.2)."""
+    real, fx_path = Layout(DATA_DIR).results, FIXTURE_WORKDIR / "fixture_results.json"
+    if not real.exists():
+        raise SystemExit("no real run: run `make setup` or `python -m data.pipeline run` first")
+    fx = json.loads(fx_path.read_text(encoding="utf-8")) if fx_path.exists() else None
+    try:
+        sha = subprocess.run(["git", "rev-parse", "--short", "HEAD"], cwd=ROOT, capture_output=True, text=True,
+                             check=True).stdout.strip()
+    except (OSError, subprocess.CalledProcessError):
+        sha = "unknown"
+    payload = {"generated_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"), "git_sha": sha,
+               "source": "data/pipeline report [data] — data/gold/run_results.json and the late_arrival fixture",
+               "data": data_quality(json.loads(real.read_text(encoding="utf-8")), fx)}
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8", newline="\n")
+    log.info("report: %s", path)
