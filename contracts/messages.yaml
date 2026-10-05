@@ -17,13 +17,14 @@
 # - Tasks T2-T7 of spec 04 extend this file (clarify, refuse, progress labels AC-17, duplicate case AC-23,
 #   re-evaluation AC-24, reversed charge); each extension is a contract change approved by the lead. Task 04b
 #   (T3) added clarify.pick_one, clarify.exhausted, clarify.read_failed and duplicate.case_exists; task 04e (T6)
-#   added status.no_cases, status.no_cards and status.case_done.
+#   added status.no_cases, status.no_cards and status.case_done; task 04c (T4) added act.case_opened,
+#   act.case_not_confirmed, act.not_confirmed, act.decided_on_case and act.sign_in.
 # - Chips: `kind` is static here; the action payload ({type}, spec 01 §6.4) is set by the server code.
 # - Never a placeholder or text for the fraud score, policy ids, rule ids, zones or the transcript
 #   (notifications.never_send in policies.yaml).
 # - Never promise an outcome or a provisional credit: a person reviews and decides (CLAUDE.md rule 6).
 # - Dates are absolute (YYYY-MM-DD) and come from tools; the template never computes them.
-version: "0.4.0"
+version: "0.5.0"
 
 greet:
   # AC-15: first name from get_customer_profile, at most 3 capabilities, a person reviews what needs it.
@@ -358,6 +359,34 @@ clarify:
     # charge. Says so, states nothing and blames no one; the chips retry the search or reach a person.
     es: "No pude consultar tus cargos ahora, así que no hice ningún cambio. Intenta de nuevo en un momento."
     pt: "Não consegui consultar suas cobranças agora, então não fiz nenhuma alteração. Tente novamente em instantes."
+
+act:
+  # Spec 04 task 04c (pending the lead): lines `verify` writes after the post-condition reads (AC-01, AC-04, AC-18).
+  case_opened:
+    # open_case verified by get_case: the case id, the V- id and read_at of that read; the stored deadlines follow
+    # with receipt.ruling_deadline / credit_deadline / deadline_unknown.
+    es: "Caso {case_id} abierto y verificado (verificación {verification_id}, {verified_at})."
+    pt: "Caso {case_id} aberto e verificado (verificação {verification_id}, {verified_at})."
+  case_not_confirmed:
+    # open_case got no answer, or get_case did not confirm it: no case id is given and nobody is said to review it;
+    # the first chip asks for a call. A turn that registers a call or asks to sign in uses act.not_confirmed instead.
+    es: "Apertura del caso: SIN CONFIRMAR. Pide que te llame una persona para revisarlo."
+    pt: "Abertura do caso: SEM CONFIRMAÇÃO. Peça que uma pessoa ligue para você para revisar."
+  not_confirmed:
+    # Any action not confirmed (or not tried) when no case is verified, so no review is promised; or the case itself
+    # on a turn that registers a call or asks to sign in. action_label is status.action_label.
+    es: "{action_label}: SIN CONFIRMAR."
+    pt: "{action_label}: SEM CONFIRMAÇÃO."
+  decided_on_case:
+    # open_case returned duplicate_of and get_case verified that case, so the block was not tried and the turn does
+    # not escalate (D-050): the person on that case decides it. case_id is get_case's.
+    es: "{action_label}: SIN CONFIRMAR. La persona a cargo del caso {case_id} decide el bloqueo."
+    pt: "{action_label}: SEM CONFIRMAÇÃO. A pessoa responsável pelo caso {case_id} decide o bloqueio."
+  sign_in:
+    # open_case answered SESSION_EXPIRED after an attempt with no answer, so the case may exist: the sign-in line of
+    # refuse.reauthenticate without "nothing was changed", which is not verified.
+    es: "Necesito que verifiques tu sesión de nuevo para continuar."
+    pt: "Preciso que você verifique sua sessão novamente para continuar."
 
 duplicate:
   # Spec 04 task 04b (pending the lead): AC-23. The charge already has an active case (get_case); no second case is
