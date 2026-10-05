@@ -160,22 +160,34 @@ Reads the sentence set of spec 09 (`eval/classifier/*.jsonl`). Writes `models/in
   report states it.
 - **B0 coverage `[assumption]` (task 11c):** each rule only adds a reading that the merged B0 missed, or drops one it got
   wrong; a pattern that could not be made that safe stays as it was.
-  - Amounts: "dos mil" (one to ten) and a bare "mil" before a currency word read as 2000 and 1000 only at the start of
-    the message or after a word that comes before an amount (de, por, son, cobraron, pagué, los...), never after menos,
-    más or cerca de. A second figure after "mil" ("7 mil 500", "dos mil quinientos", "2 mil cinco pesos") or "mil
-    millones" gives no amount for that span; another amount in the same message still reads.
+  - Amounts: "dos mil" (one to ten) and a bare "mil" before a currency word read as 2000 and 1000 only when no digit
+    amount reads ("la compra era de mil pesos pero me cobraron 1,500 pesos" is 1500), and only at the start of the
+    message or after a word that comes before an amount (de, por, son, cobraron, pagué, los...), never after menos, más
+    or cerca de. "Mil millones", or a hundreds or tens word after "mil" ("dos mil quinientos", "dos mil veinte"), gives
+    no amount for that span. So does a digit or a word from two to ten after "mil" ("7 mil 500", "2 mil cinco pesos",
+    "tres mil diez pesos"), but only before a currency word, punctuation or the end: "5 mil 2 veces" and "7 mil 500 en
+    Amazon" read 5000 and 7000, as before. Another amount in the same message still reads.
   - Dispute nouns open a dispute only after a first-person want that is not negated (quiero, quero, necesito, preciso,
-    gostaria, deseo), at most two opening verbs (abrir, presentar, hacer, fazer, pedir...) and an article, or after an
-    opening verb that starts the message. Disputa, contracargo, chargeback, contestação and estorno need no charge noun;
-    reclamo, reclamação and aclaración do. "Necesito noticias de la disputa", "ya no quiero la disputa" and "¿cuándo me
-    van a hacer el contracargo?" open nothing. "No son míos" and "não são meus" count only next to a charge noun.
-  - A person request is refused only right after "sin" or "sem", or after "no" or "não" plus a closed list (quiero,
-    necesito, preciso, precisa, deseo, hace falta, es necesario, tengo que, que), with a pronoun only after a listed word,
-    and nothing else; a later "sino" or "mas sim" keeps the request. "¿No me pasa con un asesor?" and "No me pasen con un
-    asesor" stay requests: a missed refusal still gives the customer a person.
+    gostaria, deseo), at most two opening verbs (abrir, presentar, hacer, fazer, pedir, solicitar...) and an optional
+    article, or after an opening verb that starts the message. Disputa, contracargo, chargeback, contestação and estorno
+    need no charge noun; reclamo, reclamação and aclaración do. "Necesito noticias de la disputa", "ya no quiero la
+    disputa" and "¿cuándo me van a hacer el contracargo?" open nothing. "No son míos" and "não são meus" count only next
+    to a charge noun; transacción and consumo count after a dispute verb, but not after "informar" or before "que voy a"
+    (travel notices).
+  - These 11c dispute readings (dispute nouns, plural "no son míos", "no es mi compra", "alguien usó mi tarjeta",
+    transacción/consumo) set `dispute_detected`, but they open a dispute only when no status rule fires or another charge
+    is named. "¿Cómo va mi caso? Quiero el contracargo ya" stays `status_inquiry` with the flag, the D-020 (a) path;
+    "¿Cómo va mi caso? Quiero abrir una disputa por otro cargo" opens one.
+  - A person request is refused only right after "sin" or "sem", or after "no" or "não" (not "si no" or "se não",
+    meaning otherwise) plus a closed list (quiero, necesito, preciso, precisa, deseo, hace falta, es necesario, hay que,
+    tengo que, que) and nothing else. A pronoun counts only after a listed word, or in "me hace falta". A question ("¿no
+    es necesario hablar con un asesor?") or a later "sino", "mas sim" or "e sim" keeps the request. "¿No me pasa con un
+    asesor?" and "No me pasen con un asesor" stay requests: a missed refusal still gives the customer a person.
   - "el/la" (ES) and "pra/pro" (PT) before the person word count only after a request form of pasar, passar or comunicar
     (pronoun attached or right before it) or a verb that starts the message, and not before "de" ("el gerente de la
     tienda"). A message that is only a person word is a request; "alguien" or "alguém" alone is not.
+  - A PT ordinal before a noun ("na segunda semana", "na quinta loja", "na segunda metade do mês") is no weekday. A
+    "-feira" day ("na sexta-feira loja Renner") and "na sexta semana passada" still are.
 - **Currency `[assumption]`:** a bare "$" or "pesos" leaves `currency` null; the country comes from the session.
 - Assumption: spec 09 delivers about 800 sentences (ES and PT, with author ids) written by the team and paraphrased
   with an LLM whose name is recorded; results from a candidate of the same family as the generator are flagged.

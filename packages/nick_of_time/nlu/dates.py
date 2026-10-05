@@ -63,7 +63,7 @@ def parse_date(text: str, today: date) -> Optional[date]:
     if m := _AGO.search(t):
         return today - timedelta(days=int(m[1]))
     for m in _WEEKDAY.finditer(t):
-        if m[2] in _PT_ORDINALS and (not (m[1] or m[3]) or _NOT_A_DAY.match(t, m.end())):
+        if m[2] in _PT_ORDINALS and (not (m[1] or m[3]) or m[3] != "-feira" and _NOT_A_DAY.match(t, m.end())):
             continue
         back = (today.weekday() - _WEEKDAYS[m[2]]) % 7 or 7
         return today - timedelta(days=back)
