@@ -4,10 +4,11 @@ FROM python:3.13-slim
 WORKDIR /srv
 RUN pip install --no-cache-dir "fastapi>=0.115,<1" "uvicorn>=0.30,<1" "pydantic>=2.7,<3" "pyyaml>=6" "jsonschema>=4" \
     "rfc3339-validator>=0.1.4,<1" tzdata "httpx>=0.27,<1" "psycopg[binary]>=3.2,<4" "pyjwt[crypto]>=2.8,<3" \
-    "alembic>=1.13,<2" "sqlalchemy>=2,<3"
+    "alembic>=1.13,<2" "sqlalchemy>=2,<3" "duckdb>=1.1"
 COPY contracts ./contracts
 COPY packages ./packages
 COPY apps/api/app ./apps/api/app
+COPY eval/demo/customers.json ./eval/demo/customers.json
 COPY apps/api/alembic.ini apps/api/migrate.sh ./apps/api/
 COPY apps/api/migrations ./apps/api/migrations
 # infra/deploy.sh runs /app/migrate.sh once before `up` (spec 06 FR-04)
