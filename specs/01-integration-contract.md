@@ -481,8 +481,9 @@ Implementation goes in one `feat/01-*` branch per task (for example `feat/01-pac
 - [x] T4 — `contracts/tools.py` v1.1 and `policies.yaml` `actors.customer.tools` with the 16 tools; fake MCP server
       returning fixtures from those models · covers AC-03 · `tests/test_spec01_mcp_stub.py`. `synthetic` rows in
       `live` (AC-08) are P1 (D-001) and stay open.
-- [ ] T5 — echo graph `dispute_intake` returning a `TurnResult` with a sample receipt; `langgraph.json` sets
-      `"python_version": "3.13"` (§6.1) · covers AC-04
+- [x] T5 — echo graph `dispute_intake` (`apps/agent/agent/graph.py`) returning a `TurnResult` with a sample receipt;
+      a minimal `langgraph.json` (graph path, `"python_version": "3.13"`, §6.1) · covers AC-04 ·
+      `tests/test_spec01_graph_stub.py`. Task 04g owns the Platform configuration later.
 - [x] T6 — `infra/compose.dev.yml` (api stub, mcp stub, postgres) and `.env.example` names of §6.9 · covers AC-02
 - [x] T7 — remove the empty `apps/api/{audit,classifier,graph,policy,tools}` folders
 - [ ] T8 — tests `tests/test_spec01_*.py` citing AC-02, AC-03, AC-04, AC-06, AC-07, AC-08
