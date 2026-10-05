@@ -37,7 +37,8 @@ def gold(tmp_path_factory):
     pl.DataFrame([{"transaction_id": "TRX-1", "product_id": "PRD-1", "customer_id": CUSTOMER,
                    "transaction_date": dt.datetime(2026, 5, 30, 10), "amount": 120.0, "currency": "MXN",
                    "amount_usd": 6.67, "merchant_name": "Tienda", "transaction_status": "Approved",
-                   "fraud_score": 61.0, "product_type": "Tarjeta Crédito"}]).write_parquet(
+                   "fraud_score": 61.0, "product_type": "Tarjeta Crédito",
+                   "transaction_country": "México"}]).write_parquet(
         root / "transactions_enriched.parquet")
     pl.DataFrame([{"customer_id": CUSTOMER, "first_name": "Ana", "country": "Mexico"}]).write_parquet(
         root / "customers.parquet")
