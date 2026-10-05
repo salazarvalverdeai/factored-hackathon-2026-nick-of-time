@@ -89,7 +89,12 @@ rejects the mode (a ValidationException about tool use), the first accepted mode
 the schema, and the mode is recorded per arm (`tool_choice_mode`) for B1 to reuse. An arm whose reply fails the schema,
 or that rejects every mode, is "no structured output". A ValidationException for an invalid model id or a required
 inference profile is "unavailable" with a `config:` reason; any other ValidationException and botocore's
-`ParamValidationError` are bugs in our request and stop the run. **Lifecycle:** each arm's model card state is recorded
+`ParamValidationError` are bugs in our request and stop the standalone smoke test. In B1 an arm is "unavailable" only
+when it cannot start (its smoke call fails, for any reason, before any sentence is scored); once it started, an error
+on one sentence (throttling after the retries, a dropped connection, a rejected input, an unreadable answer) scores that
+sentence as a wrong prediction that stays in the denominator, as D-022 does for a missing tool call, and is counted
+per error class in the arm's `errors` `[assumption]`. Each scored item is appended to the items file as it arrives, so
+a crash leaves every item already paid for on disk. **Lifecycle:** each arm's model card state is recorded
 in `arms.yaml`; five arms are Legacy (Gemma 3 12B and 27B, Llama 3.3 70B, Llama 4 Scout and Maverick; EOL 2027-03-30)
 and may come back unavailable, since new customers cannot use Legacy models (AC-06). **Prices
 (`eval/bench/prices.yaml`):** all but Jev come from the offer files above and match the table; the Anthropic rows are
@@ -250,7 +255,8 @@ Public third-party leaderboards; fine-tuning; batch or provisioned throughput pr
       date); budget guard · AC-05, AC-08
 - [x] T2 — B1 runner over spec 11 arms + the LLM candidates + Jev; unavailable arms recorded · AC-01, AC-06
       (`eval/bench/b1.py`: smoke then B1 with exactly `smoke.converse_request`, the `understand` prompt and schema of
-      spec 04; B1 TF-IDF + LR through `load_nlu`, unavailable until spec 11 T3 lands)
+      spec 04; B1 TF-IDF + LR through `load_nlu`, unavailable until spec 11 T3 lands; per-sentence errors scored
+      wrong and counted in `errors`, items appended to disk as they arrive, §4.1)
 - [ ] T3 — structured-output smoke test (done, `eval/bench/smoke.py`, AC-11; live run pending Bedrock invoke
       rights); `word` task set (40 template instances from dev cases) and blind preference sheet (pending spec 09) ·
       AC-11, AC-12
