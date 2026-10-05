@@ -149,6 +149,7 @@ reproduce (spec 02 §4.1 and §4.2):
 | more than one candidate | `ask` | `Active` | false | — | false | false |
 | status question on an existing case | `answer_status` | unchanged | unchanged | unchanged | false | false |
 | request for a person | `connect_person` | `Active` | per D-020 | per D-020 | true | per D-020 |
+| request for a person on a score ≥ 50 charge (D-029) | `connect_person` | `Active` | true | `review` | true | true |
 | injection, another customer's data, out of scope | `deny` | `Active` | false | — | false | false |
 | session expired or none | `reauthenticate` | `Active` | false | — | false | false |
 | `block_card` fails twice | `escalate_unconfirmed_action` | `Active` | true | `review` | true | true |
