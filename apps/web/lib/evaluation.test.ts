@@ -1,7 +1,10 @@
 // Offline checks for the display logic of /evaluation (spec 12). Run with `npm test`.
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { resolve } from "node:path";
 import test from "node:test";
+import { dataDir } from "./data-dir.ts";
 import { GENERATOR_FLAG, METRICS, METRIC_MEANING, RULES_REVIEW_SENTENCE, DETAILS, detailUrl, headingSlug, limitations, RESULT_FILES, costQualityPoints, developmentNotice, generatorFlag, interval, pending, protocolNotice, rateParts, rateText, scoreText } from "./evaluation.ts";
 import type { BenchmarkData, ClassifierData, EvaluationData, FraudData, Insight, Rate } from "./evaluation.ts";
 
@@ -189,7 +192,9 @@ test("spec 12 AC-11: limitations are plain sentences, with no bracket labels, on
   assert.ok(all.includes(RULES_REVIEW_SENTENCE));
   assert.match(all.join(" "), /run once/);
   assert.match(all.join(" "), /synthetic dataset/);
-  assert.match(all.join(" "), /written by language models/);
+  assert.match(all.join(" "), /written by the team with AI assistance/);
+  assert.match(all.join(" "), /one model family per split/);
+  assert.match(all.join(" "), /benchmark scores the models/);
   for (const text of all) assert.doesNotMatch(text, /\[(simulated|data|projected|assumption)\]/);
   const onlyFraud = limitations({ ...FILES, summary: null, benchmark: null, classifier: null });
   assert.equal(onlyFraud.length, 1);
@@ -215,4 +220,13 @@ test("spec 12 AC-04, AC-05, AC-06, AC-07, AC-11: the new charts keep the empty s
   const intro = page.slice(page.indexOf('<p className="mb-4'), page.indexOf('<div className="space-y-4">'));
   const prose = panel.replace(/<th[^]*?<\/th>/g, "").replace(/Contacts avoided[^]*?<\/p>/, "");
   for (const text of [intro, prose]) assert.doesNotMatch(text, /\[(simulated|data|projected)\]/); // AC-11: labels go on figures, not in prose
+});
+
+test("spec 12 AC-11: EVALUATION_DATA_DIR is honored only inside the repo or the temp dir", () => {
+  const cwd = resolve("/repo/apps/web");
+  assert.equal(dataDir(undefined, cwd, "/tmp"), resolve(cwd, "public/data"));
+  assert.equal(dataDir("/etc", cwd, tmpdir()), resolve(cwd, "public/data"));
+  assert.equal(dataDir("/repo/apps/web/app/evaluation/__fixtures__", cwd, tmpdir()), "/repo/apps/web/app/evaluation/__fixtures__");
+  assert.equal(dataDir("/repo/../etc", cwd, tmpdir()), resolve(cwd, "public/data"));
+  assert.equal(dataDir(resolve(tmpdir(), "fx"), cwd, tmpdir()), resolve(tmpdir(), "fx"));
 });

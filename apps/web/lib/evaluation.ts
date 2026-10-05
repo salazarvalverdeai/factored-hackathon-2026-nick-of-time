@@ -253,7 +253,8 @@ export type ResultFiles = {
 };
 
 /** The sentence ADR 0028 requires next to every classifier test result. */
-export const RULES_REVIEW_SENTENCE = "The classifier test split was decided by fixed rules, without independent human review (ADR 0028).";
+export const RULES_REVIEW_SENTENCE =
+  "The classifier test split was decided by fixed rules, without independent human review (ADR 0028); train and validation were reviewed by the lead.";
 
 /**
  * spec 12 AC-11: plain sentences, only for the files that exist. With no result file there is nothing to limit,
@@ -270,7 +271,9 @@ export function limitations(files: ResultFiles): string[] {
     const n = Object.values(classifier.data.test_split.sentences).reduce<number>((a, b) => a + (b ?? 0), 0);
     out.push(`The classifier test split has ${n > 0 ? `${n} sentences` : "few sentences"}, so its intervals are wide too.`);
   }
-  if (classifier || benchmark) out.push("The customer messages were written by language models, so real customers may phrase things differently.");
+  if (summary) out.push("The customer messages of the agent cases were written by the team with AI assistance, on real dataset state, so real customers may phrase things differently.");
+  if (classifier) out.push("The classifier sentences were written by language models, one model family per split (ADR 0025), so real customers may phrase things differently.");
+  if (benchmark) out.push("The benchmark scores the models on the classifier sentences (written by language models) and on the agent development cases (written by the team with AI assistance).");
   if (classifier?.data.test_review === "rules-v1") out.push(RULES_REVIEW_SENTENCE);
   if (summary) out.push("The held-out set is run once, after the protocol is sealed; there is no second run to tune on.");
   if (summary || benchmark || classifier || fraud) {

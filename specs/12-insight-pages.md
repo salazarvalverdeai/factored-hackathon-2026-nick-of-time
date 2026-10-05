@@ -58,8 +58,8 @@ comment). AC-04 onward are added by this spec. Evidence: [T] test · [C] command
   markdown that defines it (spec 10 §4.1, spec 11 §4.1, spec 15 §4.4, spec 17 §4.4, `eval/PROTOCOL.md`); the headline
   rates and the per-arm comparisons (harness, whole system, classifier macro-F1 per arm and language, fraud PR-AUC)
   shall be charts with their 95% interval, not text alone; and a "Limitations" block in plain sentences, without
-  bracket labels, shall cover only the result files that exist: few cases and wide intervals, messages written by
-  models, the classifier test split decided by fixed rules without independent review when `test_review` is
+  bracket labels, shall cover only the result files that exist: few cases and wide intervals, classifier sentences written by models (ADR 0025) and agent cases written by the team
+  with AI assistance, each only where it applies, the classifier test split decided by fixed rules without independent review when `test_review` is
   `rules-v1` (ADR 0028), the held-out run once, and simulated results on a synthetic dataset. Bracket labels stay on
   figures. The architecture is not drawn here; the page links to `/agent`. · [T] `apps/web/lib/evaluation.test.ts`
 

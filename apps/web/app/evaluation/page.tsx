@@ -1,5 +1,6 @@
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
+import { dataDir } from "@/lib/data-dir";
 import Link from "next/link";
 import { EmptyState } from "@/components/states";
 import { PageShell } from "@/components/page-shell";
@@ -21,8 +22,8 @@ import { Limitations } from "./explain";
 import { EvaluationResults } from "./results";
 import { BenchmarkSection, ClassifierSection, FraudSection } from "./sections";
 
-// EVALUATION_DATA_DIR lets a local build read the test fixtures for a screenshot check; it is unset in production.
-const DATA_DIR = process.env.EVALUATION_DATA_DIR ?? path.join(process.cwd(), "public", "data");
+// EVALUATION_DATA_DIR (see apps/web/README.md) lets a local build read the test fixtures for a screenshot check; it is unset in production.
+const DATA_DIR = dataDir(process.env.EVALUATION_DATA_DIR);
 
 // The result files are read when the page is built. A file that does not exist yet gives the "results pending"
 // state of spec 12 AC-04; there are no placeholder result files (eval/PROTOCOL.md counts them as results).
@@ -40,8 +41,8 @@ export default function Page() {
   return (
     <PageShell title="Evaluation" description="Does the system work, and how do we know? Final state of scripted cases, never the reply text.">
       <p className="mb-4 rounded-lg border border-dashed px-4 py-3 text-sm text-muted-foreground">
-        Each section says what its figures are made from and carries its own label. The scripted cases run through the real system and are compared with the
-        outcome the policy engine expects. The rules were written down before any result existed:{" "}
+        Each section says what its figures are made from and carries its own label. The scripted agent cases are written by the team with AI assistance on real dataset state, run through the
+        real system and compared with the outcome the policy engine expects. The rules were written down before any result existed:{" "}
         <a className="underline underline-offset-2" href={detailUrl("protocol")}>
           evaluation protocol
         </a>
