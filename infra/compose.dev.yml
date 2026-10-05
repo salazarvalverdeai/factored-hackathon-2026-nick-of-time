@@ -1,0 +1,33 @@
+# Local stack for development (spec 01 T6, AC-02):  docker compose -f infra/compose.dev.yml up --build api postgres
+# api stub on :8000, Postgres on :5432; the mcp stub (host :8100, container :8001) is behind the `mcp` profile until task 01b's Dockerfile
+# lands:  docker compose -f infra/compose.dev.yml --profile mcp up --build.  Copy .env.example to .env (names only).
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: nickoftime
+      POSTGRES_HOST_AUTH_METHOD: trust      # local development only, bound to localhost
+    ports: ["127.0.0.1:5432:5432"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d nickoftime"]
+      interval: 5s
+      retries: 10
+
+  api:
+    build: {context: .., dockerfile: apps/api/Dockerfile}
+    env_file: [{path: ../.env, required: false}]
+    environment:
+      DATABASE_URL: postgresql://postgres@postgres:5432/nickoftime
+      MCP_URL: http://mcp:8001/mcp
+      # This line overrides EVAL_MODE in ../.env: only the shell or infra/.env can turn the eval hooks on.
+      EVAL_MODE: ${EVAL_MODE:-false}
+    ports: ["127.0.0.1:8000:8000"]
+    depends_on: {postgres: {condition: service_healthy}}
+
+  mcp:
+    profiles: [mcp]       # the fake MCP server lands with spec 01 task 01b (apps/mcp/Dockerfile, PR #59)
+    build: {context: .., dockerfile: apps/mcp/Dockerfile}
+    env_file: [{path: ../.env, required: false}]
+    environment:
+      LLM_PROVIDER: fake
+    ports: ["127.0.0.1:8100:8001"]       # host :8100 (spec 01 §6.3) -> container :8001, where the fake MCP image serves (PR #59)

@@ -1,0 +1,1981 @@
+{
+ "customer_tools": {
+  "add_case_info": {
+   "in": {
+    "additionalProperties": false,
+    "properties": {
+     "case_id": {
+      "pattern": "^K-[0-9]{6}$",
+      "title": "Case Id",
+      "type": "string"
+     },
+     "idempotency_key": {
+      "minLength": 1,
+      "title": "Idempotency Key",
+      "type": "string"
+     },
+     "session_id": {
+      "pattern": "^S-[A-Za-z0-9_-]{16}$",
+      "title": "Session Id",
+      "type": "string"
+     },
+     "text": {
+      "maxLength": 1000,
+      "minLength": 1,
+      "title": "Text",
+      "type": "string"
+     }
+    },
+    "required": [
+     "session_id",
+     "idempotency_key",
+     "case_id",
+     "text"
+    ],
+    "title": "AddCaseInfoIn",
+    "type": "object"
+   },
+   "out": {
+    "additionalProperties": false,
+    "properties": {
+     "action_id": {
+      "pattern": "^A-[0-9A-F]{12}$",
+      "title": "Action Id",
+      "type": "string"
+     },
+     "case_id": {
+      "anyOf": [
+       {
+        "pattern": "^K-[0-9]{6}$",
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "title": "Case Id"
+     },
+     "event_id": {
+      "pattern": "^E-[0-9A-F]{12}$",
+      "title": "Event Id",
+      "type": "string"
+     },
+     "state": {
+      "const": "requested",
+      "default": "requested",
+      "title": "State",
+      "type": "string"
+     }
+    },
+    "required": [
+     "action_id",
+     "event_id"
+    ],
+    "title": "AddCaseInfoOut",
+    "type": "object"
+   }
+  },
+  "block_card": {
+   "in": {
+    "additionalProperties": false,
+    "properties": {
+     "idempotency_key": {
+      "minLength": 1,
+      "title": "Idempotency Key",
+      "type": "string"
+     },
+     "product_id": {
+      "pattern": "^PRD-[A-Z0-9]{12}$",
+      "title": "Product Id",
+      "type": "string"
+     },
+     "reason": {
+      "enum": [
+       "high_zone_dispute",
+       "confirmed_dispute"
+      ],
+      "title": "Reason",
+      "type": "string"
+     },
+     "session_id": {
+      "pattern": "^S-[A-Za-z0-9_-]{16}$",
+      "title": "Session Id",
+      "type": "string"
+     }
+    },
+    "required": [
+     "session_id",
+     "idempotency_key",
+     "product_id",
+     "reason"
+    ],
+    "title": "BlockCardIn",
+    "type": "object"
+   },
+   "out": {
+    "additionalProperties": false,
+    "properties": {
+     "action_id": {
+      "pattern": "^A-[0-9A-F]{12}$",
+      "title": "Action Id",
+      "type": "string"
+     },
+     "product_id": {
+      "pattern": "^PRD-[A-Z0-9]{12}$",
+      "title": "Product Id",
+      "type": "string"
+     },
+     "state": {
+      "const": "requested",
+      "default": "requested",
+      "title": "State",
+      "type": "string"
+     }
+    },
+    "required": [
+     "action_id",
+     "product_id"
+    ],
+    "title": "BlockCardOut",
+    "type": "object"
+   }
+  },
+  "compute_deadline": {
+   "in": {
+    "additionalProperties": false,
+    "properties": {
+     "session_id": {
+      "pattern": "^S-[A-Za-z0-9_-]{16}$",
+      "title": "Session Id",
+      "type": "string"
+     },
+     "transaction_id": {
+      "pattern": "^TRX-[A-Z0-9]{20}$",
+      "title": "Transaction Id",
+      "type": "string"
+     }
+    },
+    "required": [
+     "session_id",
+     "transaction_id"
+    ],
+    "title": "ComputeDeadlineIn",
+    "type": "object"
+   },
+   "out": {
+    "additionalProperties": false,
+    "properties": {
+     "country": {
+      "pattern": "^[A-Z]{2}$",
+      "title": "Country",
+      "type": "string"
+     },
+     "credit_deadline": {
+      "anyOf": [
+       {
+        "format": "date",
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Credit Deadline"
+     },
+     "deadline_source": {
+      "title": "Deadline Source",
+      "type": "string"
+     },
+     "product": {
+      "enum": [
+       "debit",
+       "credit"
+      ],
+      "title": "Product",
+      "type": "string"
+     },
+     "ruling_deadline": {
+      "anyOf": [
+       {
+        "format": "date",
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Ruling Deadline"
+     },
+     "source_url": {
+      "pattern": "^https://\\S+$",
+      "title": "Source Url",
+      "type": "string"
+     },
+     "verified_on": {
+      "format": "date",
+      "title": "Verified On",
+      "type": "string"
+     }
+    },
+    "required": [
+     "country",
+     "product",
+     "credit_deadline",
+     "ruling_deadline",
+     "deadline_source",
+     "source_url",
+     "verified_on"
+    ],
+    "title": "ComputeDeadlineOut",
+    "type": "object"
+   }
+  },
+  "convert_amount": {
+   "in": {
+    "additionalProperties": false,
+    "properties": {
+     "amount": {
+      "title": "Amount",
+      "type": "number"
+     },
+     "currency": {
+      "pattern": "^[A-Z]{3}$",
+      "title": "Currency",
+      "type": "string"
+     },
+     "session_id": {
+      "pattern": "^S-[A-Za-z0-9_-]{16}$",
+      "title": "Session Id",
+      "type": "string"
+     },
+     "to_currency": {
+      "anyOf": [
+       {
+        "pattern": "^[A-Z]{3}$",
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "title": "To Currency"
+     }
+    },
+    "required": [
+     "session_id",
+     "amount",
+     "currency"
+    ],
+    "title": "ConvertAmountIn",
+    "type": "object"
+   },
+   "out": {
+    "$defs": {
+     "ConvertedAmount": {
+      "additionalProperties": false,
+      "properties": {
+       "amount": {
+        "pattern": "^-?[0-9]+(\\.[0-9]+)?$",
+        "title": "Amount",
+        "type": "string"
+       },
+       "as_of": {
+        "format": "date",
+        "title": "As Of",
+        "type": "string"
+       },
+       "currency": {
+        "pattern": "^[A-Z]{3}$",
+        "title": "Currency",
+        "type": "string"
+       },
+       "rate": {
+        "pattern": "^-?[0-9]+(\\.[0-9]+)?$",
+        "title": "Rate",
+        "type": "string"
+       },
+       "rate_source": {
+        "title": "Rate Source",
+        "type": "string"
+       }
+      },
+      "required": [
+       "amount",
+       "currency",
+       "rate",
+       "rate_source",
+       "as_of"
+      ],
+      "title": "ConvertedAmount",
+      "type": "object"
+     }
+    },
+    "additionalProperties": false,
+    "properties": {
+     "converted": {
+      "anyOf": [
+       {
+        "$ref": "#/$defs/ConvertedAmount"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     }
+    },
+    "required": [
+     "converted"
+    ],
+    "title": "ConvertAmountOut",
+    "type": "object"
+   }
+  },
+  "get_case": {
+   "in": {
+    "additionalProperties": false,
+    "properties": {
+     "action_id": {
+      "anyOf": [
+       {
+        "pattern": "^A-[0-9A-F]{12}$",
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "title": "Action Id"
+     },
+     "case_id": {
+      "pattern": "^K-[0-9]{6}$",
+      "title": "Case Id",
+      "type": "string"
+     },
+     "session_id": {
+      "pattern": "^S-[A-Za-z0-9_-]{16}$",
+      "title": "Session Id",
+      "type": "string"
+     }
+    },
+    "required": [
+     "session_id",
+     "case_id"
+    ],
+    "title": "GetCaseIn",
+    "type": "object"
+   },
+   "out": {
+    "$defs": {
+     "CaseCharge": {
+      "additionalProperties": false,
+      "properties": {
+       "amount": {
+        "title": "Amount",
+        "type": "number"
+       },
+       "currency": {
+        "pattern": "^[A-Z]{3}$",
+        "title": "Currency",
+        "type": "string"
+       },
+       "merchant": {
+        "anyOf": [
+         {
+          "type": "string"
+         },
+         {
+          "type": "null"
+         }
+        ],
+        "default": null,
+        "title": "Merchant"
+       },
+       "synthetic": {
+        "default": false,
+        "title": "Synthetic",
+        "type": "boolean"
+       },
+       "transaction_date": {
+        "format": "date",
+        "title": "Transaction Date",
+        "type": "string"
+       },
+       "transaction_id": {
+        "pattern": "^TRX-[A-Z0-9]{20}$",
+        "title": "Transaction Id",
+        "type": "string"
+       }
+      },
+      "required": [
+       "transaction_id",
+       "amount",
+       "currency",
+       "transaction_date"
+      ],
+      "title": "CaseCharge",
+      "type": "object"
+     },
+     "CaseEventItem": {
+      "additionalProperties": false,
+      "properties": {
+       "created_at": {
+        "format": "date-time",
+        "title": "Created At",
+        "type": "string"
+       },
+       "event_id": {
+        "pattern": "^E-[0-9A-F]{12}$",
+        "title": "Event Id",
+        "type": "string"
+       },
+       "label": {
+        "title": "Label",
+        "type": "string"
+       },
+       "type": {
+        "title": "Type",
+        "type": "string"
+       }
+      },
+      "required": [
+       "event_id",
+       "type",
+       "label",
+       "created_at"
+      ],
+      "title": "CaseEventItem",
+      "type": "object"
+     }
+    },
+    "additionalProperties": false,
+    "properties": {
+     "action_id": {
+      "anyOf": [
+       {
+        "pattern": "^A-[0-9A-F]{12}$",
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "title": "Action Id"
+     },
+     "case_id": {
+      "pattern": "^K-[0-9]{6}$",
+      "title": "Case Id",
+      "type": "string"
+     },
+     "credit_deadline": {
+      "anyOf": [
+       {
+        "format": "date",
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "title": "Credit Deadline"
+     },
+     "deadline_source": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "title": "Deadline Source"
+     },
+     "deadline_source_url": {
+      "anyOf": [
+       {
+        "pattern": "^https://\\S+$",
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "title": "Deadline Source Url"
+     },
+     "deadline_verified_on": {
+      "anyOf": [
+       {
+        "format": "date",
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "title": "Deadline Verified On"
+     },
+     "product_last4": {
+      "anyOf": [
+       {
+        "pattern": "^[0-9]{4}$",
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "title": "Product Last4"
+     },
+     "queue_status": {
+      "enum": [
+       "new",
+       "verification",
+       "review",
+       "resolved",
+       "closed"
+      ],
+      "title": "Queue Status",
+      "type": "string"
+     },
+     "read_at": {
+      "format": "date-time",
+      "title": "Read At",
+      "type": "string"
+     },
+     "related_case_id": {
+      "anyOf": [
+       {
+        "pattern": "^K-[0-9]{6}$",
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "title": "Related Case Id"
+     },
+     "ruling_deadline": {
+      "anyOf": [
+       {
+        "format": "date",
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "title": "Ruling Deadline"
+     },
+     "status_label": {
+      "title": "Status Label",
+      "type": "string"
+     },
+     "taken_by_person": {
+      "default": false,
+      "title": "Taken By Person",
+      "type": "boolean"
+     },
+     "timeline": {
+      "default": [],
+      "items": {
+       "$ref": "#/$defs/CaseEventItem"
+      },
+      "title": "Timeline",
+      "type": "array"
+     },
+     "transaction": {
+      "$ref": "#/$defs/CaseCharge"
+     },
+     "verification_id": {
+      "anyOf": [
+       {
+        "pattern": "^V-[0-9A-F]{12}$",
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "title": "Verification Id"
+     }
+    },
+    "required": [
+     "read_at",
+     "case_id",
+     "queue_status",
+     "status_label",
+     "transaction"
+    ],
+    "title": "GetCaseOut",
+    "type": "object"
+   }
+  },
+  "get_customer_profile": {
+   "in": {
+    "additionalProperties": false,
+    "properties": {
+     "session_id": {
+      "pattern": "^S-[A-Za-z0-9_-]{16}$",
+      "title": "Session Id",
+      "type": "string"
+     }
+    },
+    "required": [
+     "session_id"
+    ],
+    "title": "GetCustomerProfileIn",
+    "type": "object"
+   },
+   "out": {
+    "$defs": {
+     "ConfirmedChannel": {
+      "additionalProperties": false,
+      "properties": {
+       "channel": {
+        "enum": [
+         "telegram",
+         "email"
+        ],
+        "title": "Channel",
+        "type": "string"
+       },
+       "masked_address": {
+        "title": "Masked Address",
+        "type": "string"
+       }
+      },
+      "required": [
+       "channel",
+       "masked_address"
+      ],
+      "title": "ConfirmedChannel",
+      "type": "object"
+     }
+    },
+    "additionalProperties": false,
+    "properties": {
+     "channels": {
+      "default": [],
+      "items": {
+       "$ref": "#/$defs/ConfirmedChannel"
+      },
+      "title": "Channels",
+      "type": "array"
+     },
+     "country": {
+      "pattern": "^[A-Z]{2}$",
+      "title": "Country",
+      "type": "string"
+     },
+     "display_currency": {
+      "pattern": "^[A-Z]{3}$",
+      "title": "Display Currency",
+      "type": "string"
+     },
+     "first_name": {
+      "title": "First Name",
+      "type": "string"
+     },
+     "language": {
+      "enum": [
+       "es",
+       "pt"
+      ],
+      "title": "Language",
+      "type": "string"
+     }
+    },
+    "required": [
+     "first_name",
+     "language",
+     "country",
+     "display_currency"
+    ],
+    "title": "GetCustomerProfileOut",
+    "type": "object"
+   }
+  },
+  "get_fraud_score": {
+   "in": {
+    "additionalProperties": false,
+    "properties": {
+     "session_id": {
+      "pattern": "^S-[A-Za-z0-9_-]{16}$",
+      "title": "Session Id",
+      "type": "string"
+     },
+     "transaction_id": {
+      "pattern": "^TRX-[A-Z0-9]{20}$",
+      "title": "Transaction Id",
+      "type": "string"
+     }
+    },
+    "required": [
+     "session_id",
+     "transaction_id"
+    ],
+    "title": "GetFraudScoreIn",
+    "type": "object"
+   },
+   "out": {
+    "additionalProperties": false,
+    "properties": {
+     "features_used": {
+      "anyOf": [
+       {
+        "additionalProperties": true,
+        "type": "object"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "title": "Features Used"
+     },
+     "score": {
+      "anyOf": [
+       {
+        "maximum": 100,
+        "minimum": 0,
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Score"
+     },
+     "source": {
+      "enum": [
+       "dataset",
+       "rules",
+       "model",
+       "llm",
+       "synthetic"
+      ],
+      "title": "Source",
+      "type": "string"
+     },
+     "transaction_id": {
+      "pattern": "^TRX-[A-Z0-9]{20}$",
+      "title": "Transaction Id",
+      "type": "string"
+     },
+     "version": {
+      "title": "Version",
+      "type": "string"
+     }
+    },
+    "required": [
+     "transaction_id",
+     "score",
+     "source",
+     "version"
+    ],
+    "title": "GetFraudScoreOut",
+    "type": "object"
+   }
+  },
+  "get_product_status": {
+   "in": {
+    "additionalProperties": false,
+    "properties": {
+     "action_id": {
+      "anyOf": [
+       {
+        "pattern": "^A-[0-9A-F]{12}$",
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "title": "Action Id"
+     },
+     "product_id": {
+      "pattern": "^PRD-[A-Z0-9]{12}$",
+      "title": "Product Id",
+      "type": "string"
+     },
+     "session_id": {
+      "pattern": "^S-[A-Za-z0-9_-]{16}$",
+      "title": "Session Id",
+      "type": "string"
+     }
+    },
+    "required": [
+     "session_id",
+     "product_id"
+    ],
+    "title": "GetProductStatusIn",
+    "type": "object"
+   },
+   "out": {
+    "additionalProperties": false,
+    "properties": {
+     "action_id": {
+      "anyOf": [
+       {
+        "pattern": "^A-[0-9A-F]{12}$",
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "title": "Action Id"
+     },
+     "last4": {
+      "pattern": "^[0-9]{4}$",
+      "title": "Last4",
+      "type": "string"
+     },
+     "product_id": {
+      "pattern": "^PRD-[A-Z0-9]{12}$",
+      "title": "Product Id",
+      "type": "string"
+     },
+     "read_at": {
+      "format": "date-time",
+      "title": "Read At",
+      "type": "string"
+     },
+     "status": {
+      "enum": [
+       "Active",
+       "Blocked",
+       "Closed",
+       "Suspended"
+      ],
+      "title": "Status",
+      "type": "string"
+     },
+     "type": {
+      "enum": [
+       "debit",
+       "credit"
+      ],
+      "title": "Type",
+      "type": "string"
+     },
+     "verification_id": {
+      "anyOf": [
+       {
+        "pattern": "^V-[0-9A-F]{12}$",
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "title": "Verification Id"
+     }
+    },
+    "required": [
+     "read_at",
+     "product_id",
+     "type",
+     "last4",
+     "status"
+    ],
+    "title": "GetProductStatusOut",
+    "type": "object"
+   }
+  },
+  "list_my_cards": {
+   "in": {
+    "additionalProperties": false,
+    "properties": {
+     "session_id": {
+      "pattern": "^S-[A-Za-z0-9_-]{16}$",
+      "title": "Session Id",
+      "type": "string"
+     }
+    },
+    "required": [
+     "session_id"
+    ],
+    "title": "ListMyCardsIn",
+    "type": "object"
+   },
+   "out": {
+    "$defs": {
+     "Card": {
+      "additionalProperties": false,
+      "properties": {
+       "action_id": {
+        "anyOf": [
+         {
+          "pattern": "^A-[0-9A-F]{12}$",
+          "type": "string"
+         },
+         {
+          "type": "null"
+         }
+        ],
+        "default": null,
+        "title": "Action Id"
+       },
+       "last4": {
+        "pattern": "^[0-9]{4}$",
+        "title": "Last4",
+        "type": "string"
+       },
+       "product_id": {
+        "pattern": "^PRD-[A-Z0-9]{12}$",
+        "title": "Product Id",
+        "type": "string"
+       },
+       "read_at": {
+        "format": "date-time",
+        "title": "Read At",
+        "type": "string"
+       },
+       "status": {
+        "enum": [
+         "Active",
+         "Blocked",
+         "Closed",
+         "Suspended"
+        ],
+        "title": "Status",
+        "type": "string"
+       },
+       "type": {
+        "enum": [
+         "debit",
+         "credit"
+        ],
+        "title": "Type",
+        "type": "string"
+       },
+       "verification_id": {
+        "anyOf": [
+         {
+          "pattern": "^V-[0-9A-F]{12}$",
+          "type": "string"
+         },
+         {
+          "type": "null"
+         }
+        ],
+        "default": null,
+        "title": "Verification Id"
+       }
+      },
+      "required": [
+       "read_at",
+       "product_id",
+       "type",
+       "last4",
+       "status"
+      ],
+      "title": "Card",
+      "type": "object"
+     }
+    },
+    "additionalProperties": false,
+    "properties": {
+     "cards": {
+      "items": {
+       "$ref": "#/$defs/Card"
+      },
+      "title": "Cards",
+      "type": "array"
+     }
+    },
+    "required": [
+     "cards"
+    ],
+    "title": "ListMyCardsOut",
+    "type": "object"
+   }
+  },
+  "list_my_cases": {
+   "in": {
+    "additionalProperties": false,
+    "properties": {
+     "session_id": {
+      "pattern": "^S-[A-Za-z0-9_-]{16}$",
+      "title": "Session Id",
+      "type": "string"
+     }
+    },
+    "required": [
+     "session_id"
+    ],
+    "title": "ListMyCasesIn",
+    "type": "object"
+   },
+   "out": {
+    "$defs": {
+     "MyCase": {
+      "additionalProperties": false,
+      "properties": {
+       "case_id": {
+        "pattern": "^K-[0-9]{6}$",
+        "title": "Case Id",
+        "type": "string"
+       },
+       "credit_deadline": {
+        "anyOf": [
+         {
+          "format": "date",
+          "type": "string"
+         },
+         {
+          "type": "null"
+         }
+        ],
+        "default": null,
+        "title": "Credit Deadline"
+       },
+       "product_last4": {
+        "anyOf": [
+         {
+          "pattern": "^[0-9]{4}$",
+          "type": "string"
+         },
+         {
+          "type": "null"
+         }
+        ],
+        "default": null,
+        "title": "Product Last4"
+       },
+       "queue_status": {
+        "enum": [
+         "new",
+         "verification",
+         "review",
+         "resolved",
+         "closed"
+        ],
+        "title": "Queue Status",
+        "type": "string"
+       },
+       "related_case_id": {
+        "anyOf": [
+         {
+          "pattern": "^K-[0-9]{6}$",
+          "type": "string"
+         },
+         {
+          "type": "null"
+         }
+        ],
+        "default": null,
+        "title": "Related Case Id"
+       },
+       "ruling_deadline": {
+        "anyOf": [
+         {
+          "format": "date",
+          "type": "string"
+         },
+         {
+          "type": "null"
+         }
+        ],
+        "default": null,
+        "title": "Ruling Deadline"
+       },
+       "status_label": {
+        "title": "Status Label",
+        "type": "string"
+       },
+       "updated_at": {
+        "format": "date-time",
+        "title": "Updated At",
+        "type": "string"
+       }
+      },
+      "required": [
+       "case_id",
+       "queue_status",
+       "status_label",
+       "updated_at"
+      ],
+      "title": "MyCase",
+      "type": "object"
+     }
+    },
+    "additionalProperties": false,
+    "properties": {
+     "cases": {
+      "items": {
+       "$ref": "#/$defs/MyCase"
+      },
+      "title": "Cases",
+      "type": "array"
+     },
+     "read_at": {
+      "format": "date-time",
+      "title": "Read At",
+      "type": "string"
+     }
+    },
+    "required": [
+     "cases",
+     "read_at"
+    ],
+    "title": "ListMyCasesOut",
+    "type": "object"
+   }
+  },
+  "list_my_notifications": {
+   "in": {
+    "additionalProperties": false,
+    "properties": {
+     "action_id": {
+      "anyOf": [
+       {
+        "pattern": "^A-[0-9A-F]{12}$",
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "title": "Action Id"
+     },
+     "case_id": {
+      "anyOf": [
+       {
+        "pattern": "^K-[0-9]{6}$",
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "title": "Case Id"
+     },
+     "session_id": {
+      "pattern": "^S-[A-Za-z0-9_-]{16}$",
+      "title": "Session Id",
+      "type": "string"
+     }
+    },
+    "required": [
+     "session_id"
+    ],
+    "title": "ListMyNotificationsIn",
+    "type": "object"
+   },
+   "out": {
+    "$defs": {
+     "NotificationItem": {
+      "additionalProperties": false,
+      "properties": {
+       "case_id": {
+        "pattern": "^K-[0-9]{6}$",
+        "title": "Case Id",
+        "type": "string"
+       },
+       "channel": {
+        "enum": [
+         "log",
+         "telegram",
+         "email"
+        ],
+        "title": "Channel",
+        "type": "string"
+       },
+       "created_at": {
+        "format": "date-time",
+        "title": "Created At",
+        "type": "string"
+       },
+       "delivery_status": {
+        "enum": [
+         "queued",
+         "sent",
+         "delivered",
+         "bounced",
+         "failed"
+        ],
+        "title": "Delivery Status",
+        "type": "string"
+       },
+       "event": {
+        "title": "Event",
+        "type": "string"
+       },
+       "masked_address": {
+        "anyOf": [
+         {
+          "type": "string"
+         },
+         {
+          "type": "null"
+         }
+        ],
+        "default": null,
+        "title": "Masked Address"
+       },
+       "notification_id": {
+        "pattern": "^N-[0-9A-F]{12}$",
+        "title": "Notification Id",
+        "type": "string"
+       },
+       "text": {
+        "title": "Text",
+        "type": "string"
+       }
+      },
+      "required": [
+       "notification_id",
+       "case_id",
+       "event",
+       "channel",
+       "text",
+       "delivery_status",
+       "created_at"
+      ],
+      "title": "NotificationItem",
+      "type": "object"
+     }
+    },
+    "additionalProperties": false,
+    "properties": {
+     "action_id": {
+      "anyOf": [
+       {
+        "pattern": "^A-[0-9A-F]{12}$",
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "title": "Action Id"
+     },
+     "notifications": {
+      "items": {
+       "$ref": "#/$defs/NotificationItem"
+      },
+      "title": "Notifications",
+      "type": "array"
+     },
+     "read_at": {
+      "format": "date-time",
+      "title": "Read At",
+      "type": "string"
+     },
+     "verification_id": {
+      "anyOf": [
+       {
+        "pattern": "^V-[0-9A-F]{12}$",
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "title": "Verification Id"
+     }
+    },
+    "required": [
+     "read_at",
+     "notifications"
+    ],
+    "title": "ListMyNotificationsOut",
+    "type": "object"
+   }
+  },
+  "open_case": {
+   "in": {
+    "additionalProperties": false,
+    "properties": {
+     "dispute_type": {
+      "enum": [
+       "unrecognized_charge",
+       "wrongful_charge"
+      ],
+      "title": "Dispute Type",
+      "type": "string"
+     },
+     "idempotency_key": {
+      "minLength": 1,
+      "title": "Idempotency Key",
+      "type": "string"
+     },
+     "related_case_id": {
+      "anyOf": [
+       {
+        "pattern": "^K-[0-9]{6}$",
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "title": "Related Case Id"
+     },
+     "session_id": {
+      "pattern": "^S-[A-Za-z0-9_-]{16}$",
+      "title": "Session Id",
+      "type": "string"
+     },
+     "transaction_id": {
+      "pattern": "^TRX-[A-Z0-9]{20}$",
+      "title": "Transaction Id",
+      "type": "string"
+     },
+     "zone": {
+      "enum": [
+       "high",
+       "medium",
+       "human"
+      ],
+      "title": "Zone",
+      "type": "string"
+     }
+    },
+    "required": [
+     "session_id",
+     "idempotency_key",
+     "transaction_id",
+     "dispute_type",
+     "zone"
+    ],
+    "title": "OpenCaseIn",
+    "type": "object"
+   },
+   "out": {
+    "additionalProperties": false,
+    "properties": {
+     "action_id": {
+      "pattern": "^A-[0-9A-F]{12}$",
+      "title": "Action Id",
+      "type": "string"
+     },
+     "case_id": {
+      "pattern": "^K-[0-9]{6}$",
+      "title": "Case Id",
+      "type": "string"
+     },
+     "country": {
+      "pattern": "^[A-Z]{2}$",
+      "title": "Country",
+      "type": "string"
+     },
+     "credit_deadline": {
+      "anyOf": [
+       {
+        "format": "date",
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "title": "Credit Deadline"
+     },
+     "deadline_source": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "title": "Deadline Source"
+     },
+     "deadline_source_url": {
+      "anyOf": [
+       {
+        "pattern": "^https://\\S+$",
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "title": "Deadline Source Url"
+     },
+     "deadline_verified_on": {
+      "anyOf": [
+       {
+        "format": "date",
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "title": "Deadline Verified On"
+     },
+     "duplicate_of": {
+      "anyOf": [
+       {
+        "pattern": "^K-[0-9]{6}$",
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "title": "Duplicate Of"
+     },
+     "related_case_id": {
+      "anyOf": [
+       {
+        "pattern": "^K-[0-9]{6}$",
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "title": "Related Case Id"
+     },
+     "ruling_deadline": {
+      "anyOf": [
+       {
+        "format": "date",
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "title": "Ruling Deadline"
+     },
+     "state": {
+      "const": "requested",
+      "default": "requested",
+      "title": "State",
+      "type": "string"
+     }
+    },
+    "required": [
+     "action_id",
+     "case_id",
+     "country"
+    ],
+    "title": "OpenCaseOut",
+    "type": "object"
+   }
+  },
+  "request_call": {
+   "in": {
+    "additionalProperties": false,
+    "properties": {
+     "case_id": {
+      "anyOf": [
+       {
+        "pattern": "^K-[0-9]{6}$",
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "title": "Case Id"
+     },
+     "idempotency_key": {
+      "minLength": 1,
+      "title": "Idempotency Key",
+      "type": "string"
+     },
+     "preferred_time": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "title": "Preferred Time"
+     },
+     "session_id": {
+      "pattern": "^S-[A-Za-z0-9_-]{16}$",
+      "title": "Session Id",
+      "type": "string"
+     }
+    },
+    "required": [
+     "session_id",
+     "idempotency_key"
+    ],
+    "title": "RequestCallIn",
+    "type": "object"
+   },
+   "out": {
+    "additionalProperties": false,
+    "properties": {
+     "action_id": {
+      "pattern": "^A-[0-9A-F]{12}$",
+      "title": "Action Id",
+      "type": "string"
+     },
+     "case_id": {
+      "anyOf": [
+       {
+        "pattern": "^K-[0-9]{6}$",
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "title": "Case Id"
+     },
+     "event_id": {
+      "pattern": "^E-[0-9A-F]{12}$",
+      "title": "Event Id",
+      "type": "string"
+     },
+     "expected_contact_by": {
+      "anyOf": [
+       {
+        "format": "date",
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "title": "Expected Contact By"
+     },
+     "state": {
+      "const": "requested",
+      "default": "requested",
+      "title": "State",
+      "type": "string"
+     }
+    },
+    "required": [
+     "action_id",
+     "event_id"
+    ],
+    "title": "RequestCallOut",
+    "type": "object"
+   }
+  },
+  "request_reevaluation": {
+   "in": {
+    "additionalProperties": false,
+    "properties": {
+     "case_id": {
+      "pattern": "^K-[0-9]{6}$",
+      "title": "Case Id",
+      "type": "string"
+     },
+     "idempotency_key": {
+      "minLength": 1,
+      "title": "Idempotency Key",
+      "type": "string"
+     },
+     "reason": {
+      "maxLength": 1000,
+      "minLength": 1,
+      "title": "Reason",
+      "type": "string"
+     },
+     "session_id": {
+      "pattern": "^S-[A-Za-z0-9_-]{16}$",
+      "title": "Session Id",
+      "type": "string"
+     }
+    },
+    "required": [
+     "session_id",
+     "idempotency_key",
+     "case_id",
+     "reason"
+    ],
+    "title": "RequestReevaluationIn",
+    "type": "object"
+   },
+   "out": {
+    "additionalProperties": false,
+    "properties": {
+     "action_id": {
+      "pattern": "^A-[0-9A-F]{12}$",
+      "title": "Action Id",
+      "type": "string"
+     },
+     "case_id": {
+      "anyOf": [
+       {
+        "pattern": "^K-[0-9]{6}$",
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "title": "Case Id"
+     },
+     "event_id": {
+      "pattern": "^E-[0-9A-F]{12}$",
+      "title": "Event Id",
+      "type": "string"
+     },
+     "outcome": {
+      "enum": [
+       "back_to_review",
+       "related_case_opened",
+       "already_in_progress"
+      ],
+      "title": "Outcome",
+      "type": "string"
+     },
+     "related_case_id": {
+      "anyOf": [
+       {
+        "pattern": "^K-[0-9]{6}$",
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "title": "Related Case Id"
+     },
+     "state": {
+      "const": "requested",
+      "default": "requested",
+      "title": "State",
+      "type": "string"
+     }
+    },
+    "required": [
+     "action_id",
+     "event_id",
+     "outcome"
+    ],
+    "title": "RequestReevaluationOut",
+    "type": "object"
+   }
+  },
+  "search_transaction": {
+   "in": {
+    "additionalProperties": false,
+    "properties": {
+     "amount": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "description": "amount in local currency; ±2% tolerance",
+      "title": "Amount"
+     },
+     "approx_date": {
+      "anyOf": [
+       {
+        "format": "date",
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "title": "Approx Date"
+     },
+     "currency": {
+      "anyOf": [
+       {
+        "pattern": "^[A-Z]{3}$",
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "title": "Currency"
+     },
+     "merchant": {
+      "anyOf": [
+       {
+        "maxLength": 100,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "title": "Merchant"
+     },
+     "session_id": {
+      "pattern": "^S-[A-Za-z0-9_-]{16}$",
+      "title": "Session Id",
+      "type": "string"
+     },
+     "window_days": {
+      "default": 7,
+      "maximum": 30,
+      "minimum": 0,
+      "title": "Window Days",
+      "type": "integer"
+     }
+    },
+    "required": [
+     "session_id"
+    ],
+    "title": "SearchTransactionIn",
+    "type": "object"
+   },
+   "out": {
+    "$defs": {
+     "Transaction": {
+      "additionalProperties": false,
+      "properties": {
+       "amount": {
+        "title": "Amount",
+        "type": "number"
+       },
+       "amount_usd": {
+        "title": "Amount Usd",
+        "type": "number"
+       },
+       "currency": {
+        "pattern": "^[A-Z]{3}$",
+        "title": "Currency",
+        "type": "string"
+       },
+       "merchant": {
+        "anyOf": [
+         {
+          "type": "string"
+         },
+         {
+          "type": "null"
+         }
+        ],
+        "title": "Merchant"
+       },
+       "product_id": {
+        "pattern": "^PRD-[A-Z0-9]{12}$",
+        "title": "Product Id",
+        "type": "string"
+       },
+       "synthetic": {
+        "default": false,
+        "title": "Synthetic",
+        "type": "boolean"
+       },
+       "transaction_date": {
+        "format": "date",
+        "title": "Transaction Date",
+        "type": "string"
+       },
+       "transaction_id": {
+        "pattern": "^TRX-[A-Z0-9]{20}$",
+        "title": "Transaction Id",
+        "type": "string"
+       },
+       "transaction_status": {
+        "enum": [
+         "Approved",
+         "Declined",
+         "Pending",
+         "Reversed"
+        ],
+        "title": "Transaction Status",
+        "type": "string"
+       }
+      },
+      "required": [
+       "transaction_id",
+       "product_id",
+       "transaction_date",
+       "amount",
+       "currency",
+       "amount_usd",
+       "merchant",
+       "transaction_status"
+      ],
+      "title": "Transaction",
+      "type": "object"
+     }
+    },
+    "additionalProperties": false,
+    "properties": {
+     "candidates": {
+      "items": {
+       "$ref": "#/$defs/Transaction"
+      },
+      "maxItems": 4,
+      "title": "Candidates",
+      "type": "array"
+     }
+    },
+    "required": [
+     "candidates"
+    ],
+    "title": "SearchTransactionOut",
+    "type": "object"
+   }
+  },
+  "send_case_summary": {
+   "in": {
+    "additionalProperties": false,
+    "properties": {
+     "case_id": {
+      "pattern": "^K-[0-9]{6}$",
+      "title": "Case Id",
+      "type": "string"
+     },
+     "channel": {
+      "enum": [
+       "telegram",
+       "email"
+      ],
+      "title": "Channel",
+      "type": "string"
+     },
+     "idempotency_key": {
+      "minLength": 1,
+      "title": "Idempotency Key",
+      "type": "string"
+     },
+     "session_id": {
+      "pattern": "^S-[A-Za-z0-9_-]{16}$",
+      "title": "Session Id",
+      "type": "string"
+     }
+    },
+    "required": [
+     "session_id",
+     "idempotency_key",
+     "case_id",
+     "channel"
+    ],
+    "title": "SendCaseSummaryIn",
+    "type": "object"
+   },
+   "out": {
+    "additionalProperties": false,
+    "properties": {
+     "action_id": {
+      "pattern": "^A-[0-9A-F]{12}$",
+      "title": "Action Id",
+      "type": "string"
+     },
+     "channel": {
+      "enum": [
+       "telegram",
+       "email"
+      ],
+      "title": "Channel",
+      "type": "string"
+     },
+     "masked_address": {
+      "title": "Masked Address",
+      "type": "string"
+     },
+     "notification_id": {
+      "pattern": "^N-[0-9A-F]{12}$",
+      "title": "Notification Id",
+      "type": "string"
+     },
+     "state": {
+      "const": "requested",
+      "default": "requested",
+      "title": "State",
+      "type": "string"
+     }
+    },
+    "required": [
+     "action_id",
+     "notification_id",
+     "channel",
+     "masked_address"
+    ],
+    "title": "SendCaseSummaryOut",
+    "type": "object"
+   }
+  }
+ },
+ "tool_error": {
+  "properties": {
+   "code": {
+    "enum": [
+     "DENY",
+     "NOT_FOUND",
+     "SESSION_EXPIRED",
+     "UNAVAILABLE"
+    ],
+    "title": "Code",
+    "type": "string"
+   },
+   "message": {
+    "title": "Message",
+    "type": "string"
+   },
+   "policy_id": {
+    "anyOf": [
+     {
+      "type": "string"
+     },
+     {
+      "type": "null"
+     }
+    ],
+    "default": null,
+    "title": "Policy Id"
+   }
+  },
+  "required": [
+   "code",
+   "message"
+  ],
+  "title": "ToolError",
+  "type": "object"
+ },
+ "verified_with": {
+  "add_case_info": "get_case",
+  "block_card": "get_product_status",
+  "open_case": "get_case",
+  "request_call": "get_case",
+  "request_reevaluation": "get_case",
+  "send_case_summary": "list_my_notifications"
+ }
+}

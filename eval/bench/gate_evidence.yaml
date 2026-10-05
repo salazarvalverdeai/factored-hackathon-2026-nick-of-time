@@ -1,0 +1,67 @@
+# Evidence for the third-party gate (spec 15 section 4.5), by provider, read on 2026-10-04 on the cited pages.
+# A criterion with no entry here is "not documented" (which fails a production criterion), stamped with the run date.
+# version_pinning comes from the provider's lifecycle policy; gate.py falls back to the id format only for a provider
+# without evidence here (an id without a version is then "not documented"). Overrides are per arm.
+# Verdicts are written by gate.py from this file; nothing is pre-registered before the run.
+providers:
+  bedrock:
+    synthetic_only:
+      verdict: pass
+      evidence_url: "docs/adr/0009 (internal: synthetic data only)"
+      checked_on: "2026-10-04"
+    no_training:
+      verdict: pass
+      evidence_url: https://aws.amazon.com/bedrock/security-compliance/
+      note: "page: data is not shared with model providers and is not used to improve the base models"
+      checked_on: "2026-10-04"
+    retention:
+      verdict: pass
+      evidence_url: https://docs.aws.amazon.com/bedrock/latest/userguide/data-retention.html
+      note: "documented: account-level mode 'none' is zero retention; each model declares allowed_modes, so zero retention holds only for models that allow it (default mode may retain for abuse detection); per-model check still needed"
+      checked_on: "2026-10-04"
+    region:
+      verdict: pass
+      evidence_url: https://docs.aws.amazon.com/bedrock/latest/userguide/cross-region-inference.html
+      note: "documented: a geographic (us.) profile routes only within the US geography; CloudTrail records the inference region"
+      checked_on: "2026-10-04"
+    certification:
+      verdict: pass
+      evidence_url: https://aws.amazon.com/bedrock/security-compliance/
+      note: "page: Bedrock is in scope for ISO, SOC and CSA STAR Level 2"
+      checked_on: "2026-10-04"
+    credentials:
+      verdict: pass
+      evidence_url: "docs/infrastructure.md section IAM (internal: svc-nickoftime-langgraph, Bedrock invoke only; its key lives in the Platform deployment secrets) and CLAUDE.md constraint 10"
+      note: "outside the repo and least privilege: the only Bedrock service principal is limited to invoke"
+      checked_on: "2026-10-04"
+    version_pinning:
+      verdict: pass
+      evidence_url: https://docs.aws.amazon.com/bedrock/latest/userguide/model-lifecycle-legacy.html
+      note: "a Bedrock model id is one fixed version: each model card (model-card-*.html, linked per arm in arms.yaml) gives that id a launch date, an EOL date and a lifecycle state, and 'Migration will not happen automatically'"
+      checked_on: "2026-10-04"
+  typesafe:
+    synthetic_only:
+      verdict: pass
+      evidence_url: "docs/adr/0009 (internal: synthetic data only)"
+      checked_on: "2026-10-04"
+    no_training:
+      verdict: pass
+      evidence_url: https://docs.typesafe.ai/legal.md
+      note: "weak evidence: the legal index cites a commitment not to train on user data; the privacy policy text itself was not read"
+      checked_on: "2026-10-04"
+    retention:
+      verdict: not documented
+      evidence_url: https://docs.typesafe.ai/legal.md
+      note: "zero data retention is offered to enterprise customers; the retention terms sit in the DPA, not read"
+      checked_on: "2026-10-04"
+    credentials:
+      verdict: pass
+      evidence_url: "specs/15-model-benchmark.md section 4.5 (internal: key in SSM /nickoftime/prod/TYPESAFE_API_KEY)"
+      note: "outside the repo is evidenced; least privilege not applicable to a single API key"
+      checked_on: "2026-10-04"
+arms:
+  sonnet-5-5:
+    availability:
+      verdict: fail
+      evidence_url: "specs/15-model-benchmark.md section 8 (internal: quota 0, AccessDeniedException on 2026-10-04)"
+      checked_on: "2026-10-04"

@@ -34,6 +34,8 @@
     "handoff_reason": {
       "enum": [
         "zone_human",
+        "zone_medium",
+        "supervised_mode",
         "amount_over_case_gate",
         "identity_unverified",
         "clarification_exhausted",
@@ -90,6 +92,14 @@
           "verification_id": {
             "type": "string"
           }
+        },
+        "if": {
+          "required": ["verified"],
+          "properties": {"verified": {"const": true}}
+        },
+        "then": {
+          "required": ["verification_id"],
+          "properties": {"verification_id": {"pattern": "^V-[0-9A-F]{12}$"}}
         }
       }
     },
@@ -98,7 +108,7 @@
       "items": {
         "type": "string"
       },
-      "description": "IDs: T-, P-, A-, V-, R-, K-"
+      "description": "IDs: TRX-, PRD-, CLI- (gold ids, unchanged), A-, V-, RC-, K-"
     },
     "open_questions": {
       "type": "array",
@@ -131,6 +141,12 @@
         "country",
         "deadline_source"
       ],
+      "if": {
+        "anyOf": [{"required": ["credit_deadline"]}, {"required": ["ruling_deadline"]}]
+      },
+      "then": {
+        "required": ["source_url", "verified_on"]
+      },
       "properties": {
         "country": {
           "type": "string"
@@ -148,6 +164,14 @@
         },
         "deadline_source": {
           "type": "string"
+        },
+        "source_url": {
+          "type": "string",
+          "pattern": "^https://\\S+$"
+        },
+        "verified_on": {
+          "type": "string",
+          "format": "date"
         }
       }
     },
@@ -184,6 +208,20 @@
         "number",
         "null"
       ]
+    },
+    "score_source": {
+      "enum": [
+        "dataset",
+        "rules",
+        "model",
+        "llm",
+        "synthetic"
+      ],
+      "description": "GetFraudScoreOut.source; the console and the card show a synthetic score as [simulated]"
+    },
+    "score_version": {
+      "type": "string",
+      "description": "GetFraudScoreOut.version, e.g. gold-v1"
     },
     "intent_confidence": {
       "type": "number"

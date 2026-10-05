@@ -1,0 +1,152 @@
+# Candidate arms of the model benchmark (spec 15 section 4.1). Adding a model is one entry.
+# Model ids and families: spec 15 section 4.1, availability checked 2026-10-04 (list-foundation-models, us-east-2).
+# llm: true arms get the structured-output smoke test (AC-11) before B1.
+# lifecycle: state and EOL date from each arm's Bedrock model card, read on 2026-10-04. Legacy arms may come back
+# unavailable ("New customers can't use Legacy models", model-lifecycle-legacy.html); AC-06 records them.
+arms:
+  - id: b0_rules
+    name: "B0 rules"
+    provider: rules
+    model_id: null
+    llm: false
+    note: "no-LLM baseline (spec 11)"
+  - id: b1_tfidf_lr
+    name: "B1 TF-IDF + LR"
+    provider: classifier
+    model_id: null
+    llm: false
+    note: "no-LLM baseline (spec 11)"
+  - id: nova-micro
+    name: "Amazon Nova Micro"
+    provider: bedrock
+    model_id: us.amazon.nova-micro-v1:0
+    llm: true
+    lifecycle: {state: active, model_card: "https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-amazon-nova-micro.html"}
+  - id: nova-lite
+    name: "Amazon Nova Lite"
+    provider: bedrock
+    model_id: us.amazon.nova-lite-v1:0
+    llm: true
+    lifecycle: {state: active, model_card: "https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-amazon-nova-lite.html"}
+  - id: nova-2-lite
+    name: "Amazon Nova 2 Lite"
+    provider: bedrock
+    model_id: us.amazon.nova-2-lite-v1:0
+    llm: true
+    lifecycle: {state: active, model_card: "https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-amazon-nova-2-lite.html"}
+  - id: nova-pro
+    name: "Amazon Nova Pro"
+    provider: bedrock
+    model_id: us.amazon.nova-pro-v1:0
+    llm: true
+    lifecycle: {state: active, model_card: "https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-amazon-nova-pro.html"}
+  - id: gpt-oss-20b
+    name: "OpenAI gpt-oss-20b"
+    provider: bedrock
+    model_id: openai.gpt-oss-20b-1:0
+    llm: true
+    lifecycle: {state: active, model_card: "https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-openai-gpt-oss-20b.html"}
+  - id: gpt-oss-120b
+    name: "OpenAI gpt-oss-120b"
+    provider: bedrock
+    model_id: openai.gpt-oss-120b-1:0
+    llm: true
+    lifecycle: {state: active, model_card: "https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-openai-gpt-oss-120b.html"}
+  - id: ministral-3-8b
+    name: "Ministral 3 8B"
+    provider: bedrock
+    model_id: mistral.ministral-3-8b-instruct
+    llm: true
+    lifecycle: {state: active, model_card: "https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-mistral-ai-ministral-3-8b.html"}
+  - id: ministral-3-14b
+    name: "Ministral 3 14B"
+    provider: bedrock
+    model_id: mistral.ministral-3-14b-instruct
+    llm: true
+    lifecycle: {state: active, model_card: "https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-mistral-ai-ministral-14b-3-0.html"}
+  - id: mistral-large-3
+    name: "Mistral Large 3"
+    provider: bedrock
+    model_id: mistral.mistral-large-3-675b-instruct
+    llm: true
+    lifecycle: {state: active, model_card: "https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-mistral-ai-mistral-large-3.html"}
+  - id: gemma-3-12b
+    name: "Gemma 3 12B"
+    provider: bedrock
+    model_id: google.gemma-3-12b-it
+    llm: true
+    lifecycle: {state: legacy, eol: "2027-03-30", model_card: "https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-google-gemma-3-12b-it.html"}
+  - id: gemma-3-27b
+    name: "Gemma 3 27B"
+    provider: bedrock
+    model_id: google.gemma-3-27b-it
+    llm: true
+    lifecycle: {state: legacy, eol: "2027-03-30", model_card: "https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-google-gemma-3-27b-pt.html"}
+  - id: llama-3-3-70b
+    name: "Llama 3.3 70B"
+    provider: bedrock
+    model_id: meta.llama3-3-70b-instruct-v1:0
+    llm: true
+    lifecycle: {state: legacy, eol: "2027-03-30", model_card: "https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-meta-llama-3-3-70b-instruct.html"}
+  - id: llama-4-scout
+    name: "Llama 4 Scout"
+    provider: bedrock
+    model_id: us.meta.llama4-scout-17b-instruct-v1:0
+    llm: true
+    lifecycle: {state: legacy, eol: "2027-03-30", model_card: "https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-meta-llama-4-scout-17b-instruct.html"}
+  - id: llama-4-maverick
+    name: "Llama 4 Maverick"
+    provider: bedrock
+    model_id: us.meta.llama4-maverick-17b-instruct-v1:0
+    llm: true
+    lifecycle: {state: legacy, eol: "2027-03-30", model_card: "https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-meta-llama-4-maverick-17b-instruct.html"}
+  - id: qwen3-32b
+    name: "Qwen3 32B"
+    provider: bedrock
+    model_id: qwen.qwen3-32b-v1:0
+    llm: true
+    lifecycle: {state: active, model_card: "https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-qwen-qwen3-32b.html"}
+  - id: qwen3-235b
+    name: "Qwen3 235B A22B"
+    provider: bedrock
+    model_id: qwen.qwen3-235b-a22b-2507-v1:0
+    llm: true
+    lifecycle: {state: active, model_card: "https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-qwen-qwen3-235b-a22b-2507.html"}
+  - id: nemotron-nano-3
+    name: "NVIDIA Nemotron Nano 3 30B"
+    provider: bedrock
+    model_id: nvidia.nemotron-nano-3-30b
+    llm: true
+    lifecycle: {state: active, model_card: "https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-nvidia-nemotron-nano-3-30b.html"}
+  - id: deepseek-v3-2
+    name: "DeepSeek V3.2"
+    provider: bedrock
+    model_id: deepseek.v3.2
+    llm: true
+    lifecycle: {state: active, model_card: "https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-deepseek-deepseek-v3-2.html"}
+  - id: haiku-4-5
+    name: "Claude Haiku 4.5 (incumbent)"
+    provider: bedrock
+    model_id: us.anthropic.claude-haiku-4-5-20251001-v1:0
+    llm: true
+    lifecycle: {state: active, model_card: "https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-anthropic-claude-haiku-4-5.html"}
+    note: "incumbent"
+  - id: sonnet-5-5
+    name: "Claude Sonnet 5.5 (preferred ceiling)"
+    provider: bedrock
+    model_id: us.anthropic.claude-sonnet-5-5
+    llm: true
+    lifecycle: {state: active, model_card: "https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-anthropic-claude-sonnet-5-5.html"}
+    note: "quota 0 on 2026-10-04, expect unavailable (spec 15 section 8)"
+  - id: sonnet-4-6
+    name: "Claude Sonnet 4.6 (ceiling otherwise)"
+    provider: bedrock
+    model_id: us.anthropic.claude-sonnet-4-6
+    llm: true
+    lifecycle: {state: active, model_card: "https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-anthropic-claude-sonnet-4-6.html"}
+  - id: jev
+    name: "TypeSafe Jev"
+    provider: typesafe
+    model_id: jev-1.13.0
+    llm: false
+    note: "typed answers, no free-text JSON; B1 only, smoke test not applicable"

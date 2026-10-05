@@ -1,0 +1,8 @@
+[
+  {"customer_id": "CLI-Y0L7FZFOF0AZ", "mandatory_case": "normal", "transaction_id": "TRX-GGFY5RXGMZN6XCPQE833"},
+  {"customer_id": "CLI-D5US5Q686CIL", "mandatory_case": "normal", "transaction_id": "TRX-KPY9I9X75ZQJGZMO72UA"},
+  {"customer_id": "CLI-S3L7P0DXIYV7", "mandatory_case": "ambiguous", "transaction_id": "TRX-VOY2WVQYGDPEJRZQNEGF"},
+  {"customer_id": "CLI-YSL35Q5OYTAJ", "mandatory_case": "ambiguous", "transaction_id": "TRX-E6U1TZW8300SC9IUVY7E"},
+  {"customer_id": "CLI-52TJRRO5YA9F", "mandatory_case": "human", "transaction_id": "TRX-7ICD6CG295AZ1Q5MALCR"},
+  {"customer_id": "CLI-J5VPX6OQPPV2", "mandatory_case": "human", "transaction_id": "TRX-O3AAPZFUYN4510F9OJEK"}
+]

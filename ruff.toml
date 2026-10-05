@@ -1,0 +1,12 @@
+# Lenient, high-signal lint (CI job "python · ruff"): syntax errors and pyflakes only.
+# Import sorting (I001) is not enabled: 5 files fail today; enable it once their owners sort imports.
+target-version = "py313"
+extend-exclude = [".claude", ".venv", "node_modules"]
+
+[lint]
+select = ["E9", "F"]
+
+# Existing findings in other people's files; each owner removes its entry when fixing (follow-up).
+[lint.per-file-ignores]
+"data/pipeline/checks.py" = ["F401"]
+"data/pipeline/report.py" = ["F401", "F541"]
