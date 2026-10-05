@@ -126,7 +126,7 @@ which answers `DENY` to an unexpected argument such as `customer_id`. A rate-lim
 a failing handler or a failing audit answers `UNAVAILABLE`. Tool outputs are typed data, delimited when passed to the
 LLM (G-IN-01). Every call is audited as one JSON line on stdout (D-040) with `trace_id` (`X-Trace-Id`, else a minted
 `mcp-` id), actor `agent` and hashes of the input and the session id, never either one; every `DENY` is a
-`policy_denials` row (AC-12), one per limit and window for a throttled session.
+`policy_denials` row (AC-12); a handler's `DENY` cites G-POL-01 until T4 maps its rule's guardrail.
 The analysts' actions never appear in this server.
 
 **Verification, call requests and score sources** `[assumption]` (defaults pending the lead):
@@ -183,8 +183,10 @@ Implementation goes in one `feat/03-*` branch per task (T1: `feat/03-mcp-server`
 - [ ] T6 — follow-up tools (`add_case_info`, `request_call`, `request_reevaluation`) · AC-17, AC-18, AC-19
 - [ ] T7 — `send_case_summary`, `list_my_notifications` · AC-21, AC-22
 - [ ] T8 — entry point (`MCP_API_KEY` from SSM, one uvicorn worker) over the in-memory store (the Postgres backend
-      and its `sessions` and `policy_denials` accessors are task 01g's), Dockerfile and compose service `mcp`; tests
-      `tests/test_spec03_*.py` against a gold fixture
+      and its `sessions` and `policy_denials` accessors are task 01g's; the gate's `SessionRow` and `DenialRow` move to
+      those accessors once 01g part 2, PR #87, merges), Dockerfile and compose service `mcp`; tests
+      `tests/test_spec03_*.py` against a gold fixture. The `tools/list` descriptions (today `<name> (spec 03 §6)`) are
+      set here from what spec 04 binds for the agent (owner: spec 04 / T8)
 
 **Closing checklist:** every AC has a passing test or check that cites it · status → Implemented · lessons to `CLAUDE.md`.
 

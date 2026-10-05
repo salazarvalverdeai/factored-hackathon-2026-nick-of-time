@@ -2,7 +2,7 @@
 
 Order: session (AC-02), injected faults (AC-05), per-session rate limits, strict input model, then the handler, whose
 only source of `customer_id` is the session row (constitution #3). Every outcome is a `ToolError` or the tool's
-`<Name>Out`, never an exception; every call is audited (G-OPS-02) and every gate DENY is a `policy_denials` row.
+`<Name>Out`, never an exception; every call is audited (G-OPS-02) and every DENY is a `policy_denials` row (AC-12).
 """
 from __future__ import annotations
 
@@ -15,7 +15,7 @@ import sys
 import threading
 import time
 import uuid
-from collections import defaultdict, deque
+from collections import deque
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from typing import Any, Literal, Optional, Protocol, Union
@@ -57,8 +57,9 @@ class Sessions(Protocol):
     def get(self, session_id: str) -> Optional[SessionRow]: ...   # a dict of rows serves tests
 
 
-class Denial(BaseModel):
-    """A `policy_denials` row (spec 01 §6.5): actor `agent`, a guardrail id always (G-POL-01 when none is given)."""
+class DenialRow(BaseModel):
+    """A `policy_denials` row (spec 01 §6.5): actor `agent`, a guardrail id always (G-POL-01 when none is given).
+    [assumption] It moves to the store's `policy_denials` accessor (task 01g part 2) once that merges."""
     denial_id: str
     trace_id: str
     session_id: str
@@ -72,8 +73,7 @@ class Denial(BaseModel):
 
 @dataclass(frozen=True)
 class Deny:
-    """A gate refusal: written as a `policy_denials` row, answered as `ToolError` DENY. [assumption] T4 (AC-12) lets a
-    handler return one too."""
+    """A refusal: written as a `policy_denials` row, answered as `ToolError` DENY."""
     policy_id: str
     guardrail_id: str
     message: str
@@ -92,34 +92,32 @@ Handler = Callable[[Call, BaseModel], Union[BaseModel, ToolError]]
 
 
 class RateLimiter:
-    """Sliding windows per session (LIMITS); only admitted calls count. One process holds the counts [assumption];
-    a lock makes check-and-count atomic when the gate runs in worker threads."""
+    """Sliding windows per session (LIMITS); only admitted calls count, and an emptied window is dropped. One process
+    holds the counts [assumption]; a lock makes check-and-count atomic when the gate runs in worker threads."""
 
     def __init__(self, clock: Callable[[], float] = time.monotonic) -> None:
         self._clock, self._lock = clock, threading.Lock()
-        self._seen: dict[tuple[str, str], deque[float]] = defaultdict(deque)
-        self._noted: dict[tuple[str, str], float] = {}     # the last refusal that wrote a policy_denials row
+        self._seen: dict[tuple[str, str], deque[float]] = {}
 
-    def admit(self, session_id: str, tool: str) -> Optional[tuple[str, bool]]:
-        """None when the call fits every limit (and is counted); else the limit it exceeds and whether this is the
-        first refusal of that limit's window, the only one that writes a `policy_denials` row."""
+    def admit(self, session_id: str, tool: str) -> Optional[str]:
+        """None when the call fits every limit (and is counted); else the limit it exceeds."""
         with self._lock:
             now, windows = self._clock(), []
             for name, tools, limit, seconds in LIMITS:
                 if tools is not None and tool not in tools:
                     continue
-                seen = self._seen[(session_id, name)]
+                key = (session_id, name)
+                seen = self._seen.pop(key, deque())
                 while seen and seen[0] <= now - seconds:
                     seen.popleft()
+                if seen:
+                    self._seen[key] = seen
                 if len(seen) >= limit:
-                    noted = self._noted.get((session_id, name))
-                    first = noted is None or noted <= now - seconds
-                    if first:
-                        self._noted[(session_id, name)] = now
-                    return name, first
-                windows.append(seen)
-            for seen in windows:
+                    return name
+                windows.append((key, seen))
+            for key, seen in windows:
                 seen.append(now)
+                self._seen[key] = seen
             return None
 
 
@@ -150,7 +148,7 @@ def _failed(what: str, tool: str, error: Exception, trace_id: str) -> None:
 
 
 class Gate:
-    def __init__(self, sessions: Sessions, handlers: Mapping[str, Handler], *, denials: Callable[[Denial], None],
+    def __init__(self, sessions: Sessions, handlers: Mapping[str, Handler], *, denials: Callable[[DenialRow], None],
                  audit: Callable[[dict[str, Any]], None] = stdout_audit, limiter: Optional[RateLimiter] = None,
                  now: Callable[[], dt.datetime] = _utc_now) -> None:
         self._sessions, self._handlers, self._denials, self._audit = sessions, handlers, denials, audit
@@ -191,11 +189,9 @@ class Gate:
                  trace_id: str) -> Union[BaseModel, ToolError]:
         if tool in session.tool_faults:                      # AC-05, set only by the eval seed
             return UNAVAILABLE
-        if (throttled := self._limiter.admit(session.session_id, tool)) is not None:
-            limit, first = throttled
-            deny = Deny(DEFAULT_DENY, "G-TOOL-01", "Too many requests in this session; try again later.",
-                        {"limit": limit})
-            return self._deny(deny, session, trace_id, tool, record=first)
+        if (limit := self._limiter.admit(session.session_id, tool)) is not None:
+            return self._deny(Deny(DEFAULT_DENY, "G-TOOL-01", "Too many requests in this session; try again later.",
+                                   {"limit": limit}), session, trace_id, tool)
         model_in, model_out = CUSTOMER_TOOLS[tool]
         try:
             args = model_in.model_validate(arguments)        # extra="forbid": a customer_id argument is refused
@@ -207,16 +203,17 @@ class Gate:
         if handler is None:                                  # [assumption] tasks 03b–03d register the handlers
             return UNAVAILABLE
         result = handler(Call(tool, session, trace_id), args)
+        if isinstance(result, ToolError) and result.code == "DENY":     # G-POL-01 until T4 maps the rule's guardrail
+            return self._deny(Deny(result.policy_id or DEFAULT_DENY, "G-POL-01", result.message, {}), session, trace_id,
+                              tool)
         if not isinstance(result, (model_out, ToolError)):
             raise TypeError(f"{tool} returned {type(result).__name__}, not {model_out.__name__}")
         return result
 
-    def _deny(self, deny: Deny, session: SessionRow, trace_id: str, tool: str, record: bool = True) -> ToolError:
-        if record:
-            self._denials(Denial(denial_id=uuid.uuid4().hex, trace_id=trace_id, session_id=session.session_id,
-                                 policy_id=deny.policy_id, guardrail_id=deny.guardrail_id,
-                                 detail={"tool": tool, **deny.detail}, run_id=session.run_id,
-                                 created_at=self._now()))
+    def _deny(self, deny: Deny, session: SessionRow, trace_id: str, tool: str) -> ToolError:
+        self._denials(DenialRow(denial_id=uuid.uuid4().hex, trace_id=trace_id, session_id=session.session_id,
+                                policy_id=deny.policy_id, guardrail_id=deny.guardrail_id,
+                                detail={"tool": tool, **deny.detail}, run_id=session.run_id, created_at=self._now()))
         return ToolError(code="DENY", policy_id=deny.policy_id, message=deny.message)
 
 

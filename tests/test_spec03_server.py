@@ -123,10 +123,14 @@ def test_ac_02_the_default_audit_sink_writes_a_stdout_line_or_fails_closed(capsy
     [result] = h.run(("list_my_cards", _args("list_my_cards")))
     [line] = capsys.readouterr().out.splitlines()
     assert not result.is_error and set(json.loads(line)) == AUDIT_KEYS and json.loads(line)["tool"] == "list_my_cards"
+    class Unflushable(io.StringIO):
+        def flush(self):
+            raise BrokenPipeError
     closed = io.StringIO()
     closed.close()
-    monkeypatch.setattr(sys, "stdout", closed)                   # the write raises
-    assert _code(h.run(("list_my_cards", _args("list_my_cards")))[0]) == "UNAVAILABLE"
+    for stream in (closed, Unflushable()):                       # the write or the flush raises
+        monkeypatch.setattr(sys, "stdout", stream)
+        assert _code(h.run(("list_my_cards", _args("list_my_cards")))[0]) == "UNAVAILABLE"
 
 
 def test_ac_05_an_injected_fault_answers_unavailable_before_the_arguments():
@@ -147,7 +151,7 @@ def test_ac_05_faulted_calls_do_not_count_toward_the_limits_and_invalid_ones_do(
     assert [_code(r) for r in results[:6]] == ["UNAVAILABLE"] * 6 and not results[6].is_error
     results = h.run(*[("block_card", _args("block_card", extra=1))] * 6, ("block_card", _args("block_card")))
     assert [_code(r) for r in results] == ["DENY"] * 7
-    assert [sorted(d.detail) for d in h.denials] == [["fields", "tool"]] * 5 + [["limit", "tool"]]
+    assert [sorted(d.detail) for d in h.denials] == [["fields", "tool"]] * 5 + [["limit", "tool"]] * 2
 
 
 def test_ac_05_a_failing_or_missing_handler_answers_unavailable_never_an_exception(caplog):
@@ -178,19 +182,31 @@ def test_ac_12_unexpected_arguments_are_denied_and_written_to_policy_denials():
     assert "4111" not in json.dumps([d.model_dump(mode="json") for d in h.denials]) and "IGNORE" not in str(h.denials)
 
 
-def test_ac_12_rate_limits_per_session_deny_with_g_tool_01_and_one_row_per_window():
+def test_ac_12_a_handler_deny_is_written_to_policy_denials_with_g_pol_01():
+    """Until T4 maps each rule's guardrail, a handler's ToolError DENY is recorded with the spec 01 §6.5 fallback."""
+    h = Harness(handlers={"open_case": lambda call, args: tools.ToolError(code="DENY", policy_id="POL-ZONE-MISMATCH",
+                                                                          message="Not allowed.")})
+    [result] = h.run(("open_case", _args("open_case")))
+    assert (_code(result), result.structured_content["message"]) == ("DENY", "Not allowed.")
+    [denial] = h.denials
+    assert (denial.policy_id, denial.guardrail_id, denial.trace_id) == ("POL-ZONE-MISMATCH", "G-POL-01",
+                                                                        h.audit[0]["trace_id"])
+
+
+def test_ac_12_rate_limits_per_session_deny_with_g_tool_01_and_a_row_per_deny():
     """Spec 03 §6 [assumption]: 30 calls/min, 5 writes/min (request_call is one), 3 notifications/hour per session
-    (D-041); only admitted calls count, the windows slide, and only a window's first refusal writes a row."""
+    (D-041); only admitted calls count, the windows slide (an emptied one is dropped), and every DENY writes a row."""
     clock = [0.0]
     limiter = gate.RateLimiter(clock=lambda: clock[0])
-    notified = [limiter.admit(LIVE, "send_case_summary") for _ in range(5)]
-    assert notified == [None] * 3 + [("notifications_per_hour", True), ("notifications_per_hour", False)]
-    assert [limiter.admit(LIVE, "request_call") for _ in range(3)] == [None, None, ("writes_per_minute", True)]
-    assert [limiter.admit(LIVE, "get_case") for _ in range(26)][-2:] == [None, ("calls_per_minute", True)]
+    notified = [limiter.admit(LIVE, "send_case_summary") for _ in range(4)]
+    assert notified == [None] * 3 + ["notifications_per_hour"]
+    assert [limiter.admit(LIVE, "request_call") for _ in range(3)] == [None, None, "writes_per_minute"]
+    assert [limiter.admit(LIVE, "get_case") for _ in range(26)][-2:] == [None, "calls_per_minute"]
     assert limiter.admit("S-anothersession1", "get_case") is None               # per session
     clock[0] = 60.0
-    assert (limiter.admit(LIVE, "block_card"), limiter.admit(LIVE, "send_case_summary")) == (
-        None, ("notifications_per_hour", False))                                 # same hour: no second row
+    assert limiter.admit(LIVE, "send_case_summary") == "notifications_per_hour"  # same hour
+    assert (LIVE, "calls_per_minute") not in limiter._seen                      # emptied, then refused: dropped
+    assert limiter.admit(LIVE, "block_card") is None
     clock[0], fresh = 0.0, gate.RateLimiter(clock=lambda: clock[0])
     assert [fresh.admit(LIVE, "block_card") for _ in range(5)] == [None] * 5
     clock[0] = 30.0
@@ -200,9 +216,8 @@ def test_ac_12_rate_limits_per_session_deny_with_g_tool_01_and_one_row_per_windo
     h = Harness(limiter=gate.RateLimiter(clock=lambda: 0.0))
     results = h.run(*[("block_card", _args("block_card"))] * 7)
     assert [r.is_error for r in results] == [False] * 5 + [True] * 2 and _code(results[-1]) == "DENY"
-    [denial] = h.denials
-    assert (denial.policy_id, denial.guardrail_id, denial.detail) == (
-        "POL-DEFAULT-DENY", "G-TOOL-01", {"tool": "block_card", "limit": "writes_per_minute"})
+    assert [(d.policy_id, d.guardrail_id, d.detail) for d in h.denials] == [
+        ("POL-DEFAULT-DENY", "G-TOOL-01", {"tool": "block_card", "limit": "writes_per_minute"})] * 2   # AC-12: each
     assert gate.DEFAULT_DENY in yaml.safe_load((ROOT / "contracts/policies.yaml").read_text())["rules"]
 
 
