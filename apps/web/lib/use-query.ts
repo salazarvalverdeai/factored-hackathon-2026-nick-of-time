@@ -1,11 +1,12 @@
 "use client";
 
-// How pages read data (spec 16 AC-03). In mock mode the data lives in lib/mock/store.ts; a page never imports the
-// store directly: it calls `useQuery` to read and `api` (lib/api.ts) to act. When the backend exists, only this file
-// and lib/api.ts change; the pages do not.
-import { useSyncExternalStore } from "react";
-import { ApiError } from "@/lib/api";
-import { type MockState, type MockStore, mockStore } from "@/lib/mock/store";
+// How pages read data (spec 16 AC-03). A page never imports the mock store or fetches by hand: it reads with `useQuery`
+// (any `api` call that returns a promise) and `useSession`, and acts with `api` (lib/api.ts). The same page code runs in
+// mock and live mode; only lib/api.ts picks the client.
+import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
+import { ApiError, api } from "@/lib/api";
+import type { ApiClient } from "@/lib/client";
+import type { SessionSnapshot } from "@/lib/types";
 
 const noopSubscribe = () => () => {};
 
@@ -14,9 +15,9 @@ export function useMounted(): boolean {
   return useSyncExternalStore(noopSubscribe, () => true, () => false);
 }
 
-/** Re-renders the component whenever the mock data changes. */
-export function useMockState(): MockState {
-  return useSyncExternalStore(mockStore.subscribe, mockStore.getState, mockStore.getServerState);
+/** Who is signed in, supervised mode and this console session's audit; re-renders on every change. */
+export function useSession(): SessionSnapshot {
+  return useSyncExternalStore(api.subscribe, api.session.getSnapshot, api.session.getServerSnapshot);
 }
 
 export type Query<T> =
@@ -24,15 +25,39 @@ export type Query<T> =
   | { status: "error"; error: ApiError }
   | { status: "ok"; data: T };
 
-/** Reads through the same rules the backend enforces: no session → UNAUTHORIZED, expired → SESSION_EXPIRED, … */
-export function useQuery<T>(read: (store: MockStore) => T): Query<T> {
+function asApiError(e: unknown): ApiError {
+  return e instanceof ApiError ? e : new ApiError("UNAVAILABLE", 0, "Something went wrong. Try again.");
+}
+
+/**
+ * Loads `load(api)` once the page is mounted and again whenever `deps` change or the api reports a change (an action, a
+ * login). While it reloads, the last data stays on screen, so the page does not flash. Rules the backend enforces come
+ * back as an `error` (no session → UNAUTHORIZED, expired → SESSION_EXPIRED, …).
+ */
+export function useQuery<T>(load: (client: ApiClient) => Promise<T>, deps: readonly unknown[] = []): Query<T> {
   const mounted = useMounted();
-  useMockState(); // subscribe: the read runs again after every change
-  if (!mounted) return { status: "loading" };
-  try {
-    return { status: "ok", data: read(mockStore) };
-  } catch (e) {
-    if (e instanceof ApiError) return { status: "error", error: e };
-    throw e;
-  }
+  const [state, setState] = useState<Query<T>>({ status: "loading" });
+  const [tick, setTick] = useState(0);
+  const loader = useRef(load);
+  // The latest `load` is read by the effect below; it is kept in a ref after render so a new closure does not refetch.
+  useLayoutEffect(() => {
+    loader.current = load;
+  });
+
+  useEffect(() => api.subscribe(() => setTick((t) => t + 1)), []);
+
+  useEffect(() => {
+    if (!mounted) return;
+    let alive = true;
+    loader.current(api).then(
+      (data) => alive && setState({ status: "ok", data }),
+      (e: unknown) => alive && setState({ status: "error", error: asApiError(e) }),
+    );
+    return () => {
+      alive = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mounted, tick, ...deps]);
+
+  return mounted ? state : { status: "loading" };
 }
