@@ -1,0 +1,45 @@
+{
+  "sample": "dev",
+  "n_cases": 20,
+  "labelers": [
+    "salazarvalverdeai"
+  ],
+  "fields": {
+    "intent": {
+      "n": 20,
+      "agreements": 19,
+      "percent_agreement": 95.0,
+      "kappa": 0.925,
+      "disagreements": [
+        "EV-0117"
+      ],
+      "disagreement_types": {
+        "EV-0117": "session_expired"
+      }
+    },
+    "decision": {
+      "n": 20,
+      "agreements": 20,
+      "percent_agreement": 100.0,
+      "kappa": 1.0,
+      "disagreements": [],
+      "disagreement_types": {}
+    },
+    "handoff": {
+      "n": 20,
+      "agreements": 20,
+      "percent_agreement": 100.0,
+      "kappa": 1.0,
+      "disagreements": [],
+      "disagreement_types": {}
+    },
+    "case_open": {
+      "n": 20,
+      "agreements": 20,
+      "percent_agreement": 100.0,
+      "kappa": 1.0,
+      "disagreements": [],
+      "disagreement_types": {}
+    }
+  }
+}

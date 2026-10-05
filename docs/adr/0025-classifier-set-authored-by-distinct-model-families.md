@@ -1,6 +1,7 @@
 # 0025. The classifier set is written by three model families, one per split, none of them Claude
 
 - **Status:** Accepted — decided by the lead on 2026-10-05
+- **Amended by:** [0028](0028-test-split-decided-by-fixed-rules-without-independent-reviewer.md)
 - **Date:** 2026-10-05
 - **Deciders:** Freddy · **Owner:** @salazarvalverdeai
 - **Related:** specs 09 (§7.6, §8 Q3 and Q7), 11 (§8), 15 (§4.1, §8) · ADRs 0007, 0015, 0021 · `eval/PROTOCOL.md` §1.1
@@ -89,3 +90,4 @@ be a candidate we would choose, or if review drops more than the 20% margin in a
 - Supported models and inference profiles: https://docs.aws.amazon.com/bedrock/latest/userguide/models-supported.html ·
   https://docs.aws.amazon.com/bedrock/latest/userguide/inference-profiles-support.html (checked 2026-10-05).
 - Prices: `eval/bench/prices.yaml` (AWS Price List offer files, us-east-2, read 2026-10-04).
+

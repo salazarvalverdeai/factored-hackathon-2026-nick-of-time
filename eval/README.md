@@ -185,7 +185,22 @@ python -m eval.second_label agreement    # writes eval/labeling/agreement.json a
   `cases/plan/dev.jsonl` (intent) and `cases/dev.jsonl` `expected` (decision, handoff, case open). If both raters use
   a single category for every case, kappa is 0/0 and is defined as 1.0. Disagreements are discussed and the cases
   fixed in the plan, never in `expected` by hand.
-- **Result:** pending; paste the table printed by `agreement` here.
+- **Result (2026-10-05):** the sheet was pre-filled blind by an AI assistant (Claude Code), from the sheet and the
+  rules only (spec 02, `contracts/policies.yaml`, spec 09 §7.5), without opening `cases/`, and every row was then
+  checked by the lead, who signs it as `labeler`. Sheet: `labeling/dev_second_label.csv`; numbers:
+  `labeling/agreement.json`.
+
+  | Field | n | Agreements | % agreement | Cohen's kappa | Disagreeing cases |
+  |---|---|---|---|---|---|
+  | `intent` | 20 | 19 | 95.0 | 0.925 | EV-0117 |
+  | `decision` | 20 | 20 | 100.0 | 1.0 | - |
+  | `handoff` | 20 | 20 | 100.0 | 1.0 | - |
+  | `case_open` | 20 | 20 | 100.0 | 1.0 | - |
+
+  EV-0117 (expired session): the second label is `none`, because the case is refused before any intent matters,
+  and the first keeps the intent of the message. Both give `reauthenticate`, so it is a labeling convention, not a
+  disagreement on the outcome, and no case changes. With 20 cases the kappas are wide; they show the labels are
+  reproducible from the written rules, not that the rules are right.
 
 ## Classifier set (`classifier/`)
 The ES/PT sentences of spec 11, with five intents, slots and injection rows (spec 09 §7.6). They are written by three

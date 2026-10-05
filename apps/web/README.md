@@ -38,17 +38,36 @@ npm run lint && npm test && npm run build     # what CI runs
 | States | `LoadingState`, `EmptyState`, `ErrorState`, `DenyState` | `components/states.tsx` |
 
 ## Fetching data
-Pages never import the mock store. They read with `useQuery` (`lib/use-query.ts`) and act with `api` (`lib/api.ts`).
+Pages never import the mock store or call `fetch`. They read with `useQuery` (`lib/use-query.ts`) and `useSession`, and act
+with `api` (`lib/api.ts`). Both modes answer the same `ApiClient` interface (`lib/client.ts`), so a page never knows which one it uses.
 
 ```tsx
-const cases = useQuery((store) => store.listCases());   // { status: "loading" | "error" | "ok", … }
-await api.approveCredit(id);                            // throws ApiError { code, status }
+const cases = useQuery((api) => api.listCases());      // { status: "loading" | "error" | "ok", … }; reloads after every action
+const { analystSession, supervised } = useSession();   // who is signed in: the same in mock and live mode
+await api.analystAction(id, "take");                    // throws ApiError { code, status }
 ```
 - **Mock mode (default):** `lib/mock/` answers locally, persists in `localStorage` and enforces the backend rules: 15-minute
   customer sessions (`SESSION_EXPIRED`), analyst login, a status that is the last event, 409 for transitions outside the
   case queue, supervised mode, audit. `[simulated]` — none of it is dataset data.
-- **Live mode:** `NEXT_PUBLIC_API_MODE=live` answers `LIVE_API_NOT_READY` until spec 05 ships the backend. Only
-  `lib/api.ts` and `lib/use-query.ts` change then; the pages do not.
+- **Live mode:** `NEXT_PUBLIC_API_MODE=live` (read at build time) uses `lib/live.ts` over the spec 05 api. Customers verify with
+  the on-screen code and the api sets an httpOnly cookie; analysts sign in with Amazon Cognito (`USER_PASSWORD_AUTH`) and the
+  id token goes as `Authorization: Bearer` (kept in `sessionStorage`, this tab only). The chat is the api's agent proxy
+  (thread + SSE stream with the step labels); a chip press sends its `action`, never text. A call that fails answers the
+  api's error (`UNAVAILABLE`, `DENY`, `RATE_LIMITED`…): live mode never invents data.
+
+  | Variable | Used for |
+  |---|---|
+  | `NEXT_PUBLIC_API_MODE` | `mock` (default) or `live`; inlined at build, so the production image takes it as a build arg (`deploy.yml` reads the repository variable of the same name) |
+  | `NEXT_PUBLIC_COGNITO_CLIENT_ID`, `NEXT_PUBLIC_COGNITO_REGION` (default `us-east-2`) | the analysts' pool; the app client must allow `ALLOW_USER_PASSWORD_AUTH`, and the same pool must be the one the api verifies (`COGNITO_*`) |
+  | `API_PROXY_URL` | `next dev` only: forwards `/api/*` to a local api (e.g. `http://localhost:8000`). In production Caddy routes `/api/*` |
+
+  ```bash
+  # a local api on :8000 (apps/api/README.md), then:
+  NEXT_PUBLIC_API_MODE=live API_PROXY_URL=http://localhost:8000 NEXT_PUBLIC_COGNITO_CLIENT_ID=<app client id> npm run dev
+  ```
+  Known differences from the mock: the api has no customer logout route, so "Sign out" only forgets the session here (it expires
+  by itself after 15 minutes); the console's audit panel lists this session's actions (the case timeline holds the server's
+  record); e-mail is confirmed by a link, not at once; Telegram and e-mail answer `DENY` in a demo run (spec 05 AC-16).
 - **Contract alignment (spec 01 §6.2, D-013):** customer pages get projections only. `api.getCase` returns `CustomerCaseView`
   (no score, zone, priority, handoff, policy ids, analyst names); the handoff card is `api.getConsoleCase`, analyst session only.
   The demo picker reads `api.listDemoCustomers()` (`GET /api/demo/customers`): no score. Priority is `normal | high`, dates are

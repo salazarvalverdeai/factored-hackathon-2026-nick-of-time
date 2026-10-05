@@ -8,19 +8,20 @@ import { EmptyState, ErrorState, LoadingState } from "@/components/states";
 import { Timeline } from "@/components/timeline";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ApiError, api } from "@/lib/api";
+import { type AnalystActionName, type ConsoleAction, consoleActions } from "@/lib/console-actions";
 import { formatDeadline } from "@/lib/format";
-import { caseStatus } from "@/lib/mock/store";
-import type { CaseRecord, CaseStatus } from "@/lib/types";
-import { useMockState, useMounted, useQuery } from "@/lib/use-query";
+import type { CaseStatus, ConsoleCase } from "@/lib/types";
+import { useMounted, useQuery, useSession } from "@/lib/use-query";
 
 const ORDER: CaseStatus[] = ["new", "verification", "review", "resolved", "closed"];
 
 export default function ConsolePage() {
   const router = useRouter();
   const mounted = useMounted();
-  const { analystSession } = useMockState();
+  const { analystSession } = useSession();
 
   // Without an analyst session the console is never shown: it sends the person to /login (spec 08 AC-01).
   useEffect(() => {
@@ -39,13 +40,19 @@ export default function ConsolePage() {
 
 function Console({ actor }: { actor: string }) {
   const router = useRouter();
-  const { supervised, audit } = useMockState();
-  const cases = useQuery((s) => s.listCases());
+  const { supervised, audit } = useSession();
+  const cases = useQuery((a) => a.listCases());
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [tab, setTab] = useState("inbox");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
-  const [confirming, setConfirming] = useState<string | null>(null);
+  const [confirming, setConfirming] = useState<{ caseId: string; action: AnalystActionName } | null>(null);
+  const [reason, setReason] = useState("");
+
+  // The inbox lists summaries; the selected case (the first one until a person picks) is read with its handoff card.
+  const firstId = cases.status === "ok" ? (cases.data[0]?.id ?? null) : null;
+  const activeId = selectedId ?? firstId;
+  const detail = useQuery((a) => (activeId ? a.getConsoleCase(activeId) : Promise.resolve(null)), [activeId]);
 
   if (cases.status === "loading") return <PageShell title="Console" description="Analyst inbox."><LoadingState /></PageShell>;
   if (cases.status === "error") {
@@ -57,17 +64,29 @@ function Console({ actor }: { actor: string }) {
   }
 
   const all = cases.data;
-  const selected = all.find((c) => c.id === selectedId) ?? all[0] ?? null;
 
-  async function run(action: () => Promise<unknown>) {
+  async function run(caseId: string, action: AnalystActionName, confirmed = false) {
     setBusy(true);
     setMessage(null);
     try {
-      await action();
+      await api.analystAction(caseId, action, { reason, confirmed });
       setConfirming(null);
+      setReason("");
     } catch (err) {
-      if (err instanceof ApiError && err.code === "APPROVAL_REQUIRED") setConfirming(selected?.id ?? null);
+      if (err instanceof ApiError && err.code === "APPROVAL_REQUIRED") setConfirming({ caseId, action });
       else setMessage(err instanceof ApiError ? err.message : "unexpected error");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function runSetting(on: boolean) {
+    setBusy(true);
+    setMessage(null);
+    try {
+      await api.setSupervised(on);
+    } catch (err) {
+      setMessage(err instanceof ApiError ? err.message : "unexpected error");
     } finally {
       setBusy(false);
     }
@@ -82,7 +101,7 @@ function Console({ actor }: { actor: string }) {
       <CardContent className="space-y-4">
         {all.length === 0 ? <EmptyState title="No cases yet" hint="Open one from /chat." /> : null}
         {ORDER.map((status) => {
-          const rows = all.filter((c) => caseStatus(c) === status);
+          const rows = all.filter((c) => c.status === status);
           if (rows.length === 0) return null;
           return (
             <section key={status} aria-label={status}>
@@ -98,9 +117,10 @@ function Console({ actor }: { actor: string }) {
                         setSelectedId(c.id);
                         setConfirming(null);
                         setMessage(null);
+                        setReason("");
                         setTab("case");
                       }}
-                      aria-current={selected?.id === c.id}
+                      aria-current={activeId === c.id}
                       className="w-full rounded-lg border p-2 text-left text-sm hover:bg-accent aria-[current=true]:border-foreground"
                     >
                       <span className="flex items-center justify-between gap-2">
@@ -122,26 +142,31 @@ function Console({ actor }: { actor: string }) {
     </Card>
   );
 
-  const detail = selected ? (
+  const shown = detail.status === "ok" && detail.data && detail.data.id === activeId ? detail.data : null;
+  const detailPanel = !activeId ? (
+    <EmptyState title="Select a case" />
+  ) : detail.status === "error" ? (
+    <ErrorState title="Cannot load the case" message={detail.error.message} />
+  ) : shown ? (
     <CaseDetail
-      c={selected}
+      c={shown}
       busy={busy}
-      confirming={confirming === selected.id}
+      confirming={confirming?.caseId === shown.id ? confirming.action : null}
       message={message}
       supervised={supervised}
-      onApprove={() => run(() => api.approveCredit(selected.id))}
-      onConfirmApprove={() => run(() => api.approveCredit(selected.id, { confirmed: true }))}
-      onClose={() => run(() => api.closeCase(selected.id))}
+      reason={reason}
+      onReason={setReason}
+      onRun={(action, confirmed) => run(shown.id, action, confirmed)}
     />
   ) : (
-    <EmptyState title="Select a case" />
+    <LoadingState label="Loading the case…" />
   );
 
   const auditPanel = (
     <Card>
       <CardHeader>
         <CardTitle>Audit</CardTitle>
-        <CardDescription>Every action and every supervised-mode change, with its user</CardDescription>
+        <CardDescription>Every action and supervised-mode change of this session, with its user. The case timeline holds the server&apos;s record.</CardDescription>
       </CardHeader>
       <CardContent>
         {audit.length === 0 ? (
@@ -170,7 +195,7 @@ function Console({ actor }: { actor: string }) {
           type="button"
           role="switch"
           aria-checked={supervised}
-          onClick={() => run(() => api.setSupervised(!supervised))}
+          onClick={() => runSetting(!supervised)}
           className="inline-flex items-center gap-2 rounded-lg border px-2.5 py-1.5 text-sm hover:bg-accent"
         >
           <span
@@ -196,7 +221,7 @@ function Console({ actor }: { actor: string }) {
       {/* Three columns from 1024 px up; tabs below that (spec 08 AC-06). */}
       <div className="hidden gap-4 lg:grid lg:grid-cols-3">
         {inbox}
-        {detail}
+        {detailPanel}
         {auditPanel}
       </div>
       <div className="lg:hidden">
@@ -207,7 +232,7 @@ function Console({ actor }: { actor: string }) {
             <TabsTrigger value="audit">Audit</TabsTrigger>
           </TabsList>
           <TabsContent value="inbox">{inbox}</TabsContent>
-          <TabsContent value="case">{detail}</TabsContent>
+          <TabsContent value="case">{detailPanel}</TabsContent>
           <TabsContent value="audit">{auditPanel}</TabsContent>
         </Tabs>
       </div>
@@ -221,22 +246,26 @@ function CaseDetail({
   confirming,
   message,
   supervised,
-  onApprove,
-  onConfirmApprove,
-  onClose,
+  reason,
+  onReason,
+  onRun,
 }: {
-  c: CaseRecord;
+  c: ConsoleCase;
   busy: boolean;
-  confirming: boolean;
+  /** The approval waiting for its second click (supervised mode), if any. */
+  confirming: AnalystActionName | null;
   message: string | null;
   supervised: boolean;
-  onApprove: () => void;
-  onConfirmApprove: () => void;
-  onClose: () => void;
+  reason: string;
+  onReason: (reason: string) => void;
+  onRun: (action: AnalystActionName, confirmed?: boolean) => void;
 }) {
-  const status = caseStatus(c);
+  const status = c.status;
   const h = c.handoff;
-  const canApprove = status === "verification" || status === "review";
+  const actions = consoleActions(status, api.mode);
+  const needsReason = actions.some((a) => a.needsReason);
+  const canApprove = actions.some((a) => a.approval);
+  const label = (a: ConsoleAction) => (confirming === a.action ? "Confirm approval (supervised mode)" : a.label);
   return (
     <Card>
       <CardHeader>
@@ -248,8 +277,11 @@ function CaseDetail({
       <CardContent className="space-y-4 text-sm">
         <section aria-label="Handoff card" className="space-y-2">
           <h3 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Handoff card</h3>
+          {c.handoffEmitted === false ? (
+            <p className="text-muted-foreground">The agent has not written the handoff card for this case yet.</p>
+          ) : null}
           <p>
-            <b>Request:</b> {h.request}
+            <b>Request:</b> {h.request || "—"}
           </p>
           <p>
             <b>Deadline:</b> {formatDeadline(c.deadline)}
@@ -270,10 +302,10 @@ function CaseDetail({
               : "none taken"}
           </p>
           <p>
-            <b>Evidence:</b> {h.evidence.join("; ")}
+            <b>Evidence:</b> {h.evidence.join("; ") || "—"}
           </p>
           <p>
-            <b>Open questions:</b> {h.open_questions.join("; ")}
+            <b>Open questions:</b> {h.open_questions.join("; ") || "—"}
           </p>
           {h.copilot_proposal ? (
             <p>
@@ -281,27 +313,29 @@ function CaseDetail({
             </p>
           ) : null}
           <p className="text-xs text-muted-foreground">
-            Bank fraud score [simulated]: {h.score ?? "none"} · trace {h.trace_id}
+            Bank fraud score [simulated]: {h.score ?? "none"} · trace {h.trace_id || "—"}
           </p>
         </section>
 
         <section aria-label="Actions" className="space-y-2">
+          {needsReason ? (
+            <label className="block text-xs">
+              Reason (recorded with your user)
+              <Input value={reason} onChange={(e) => onReason(e.target.value)} placeholder="Why this decision" />
+            </label>
+          ) : null}
           <div className="flex flex-wrap gap-2">
-            {canApprove && !confirming ? (
-              <Button size="sm" disabled={busy} onClick={onApprove}>
-                Approve credit
+            {actions.map((a) => (
+              <Button
+                key={a.action}
+                size="sm"
+                variant={a.approval || a.action === "take" ? "default" : "outline"}
+                disabled={busy || (a.needsReason && !reason.trim())}
+                onClick={() => onRun(a.action, a.approval ? confirming === a.action : undefined)}
+              >
+                {label(a)}
               </Button>
-            ) : null}
-            {confirming ? (
-              <Button size="sm" disabled={busy} onClick={onConfirmApprove}>
-                Confirm approval (supervised mode)
-              </Button>
-            ) : null}
-            {status === "resolved" ? (
-              <Button size="sm" variant="outline" disabled={busy} onClick={onClose}>
-                Close case
-              </Button>
-            ) : null}
+            ))}
           </div>
           {supervised && canApprove ? <p className="text-xs text-muted-foreground">Supervised mode is on: approvals need a second click.</p> : null}
           {message ? <ErrorState title="Action refused" message={message} /> : null}
@@ -314,7 +348,7 @@ function CaseDetail({
               id: e.id,
               at: e.at,
               type: e.type,
-              badge: <StatusBadge status={e.status} />,
+              badge: e.status ? <StatusBadge status={e.status} /> : null,
               meta: `${e.actor}${e.reason ? ` · ${e.reason}` : ""}`,
             }))}
           />
