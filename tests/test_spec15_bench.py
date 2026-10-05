@@ -6,7 +6,7 @@ import re
 
 import boto3
 import pytest
-from botocore.exceptions import ClientError, ParamValidationError
+from botocore.exceptions import ClientError, ConnectionClosedError, ParamValidationError, ReadTimeoutError
 
 from eval.bench import core, gate, smoke
 
@@ -171,6 +171,57 @@ def test_ac_11_bedrock_request_forces_the_tool_with_the_schema_and_enough_tokens
     assert sent[0]["toolConfig"]["toolChoice"] == {"tool": {"name": smoke.TOOL_NAME}}
     assert sent[0]["toolConfig"]["tools"][0]["toolSpec"]["inputSchema"] == {"json": smoke.INTENT_SCHEMA}
     assert sent[0]["inferenceConfig"]["maxTokens"] >= 512
+
+
+def test_ac_11_temperature_zero_only_where_accepted_d016(monkeypatch):
+    """AC-11 / D-016 (spec 15 section 4.1): temperature 0 is sent; a model that rejects it is retried once with the
+    provider default and the setting is recorded per arm."""
+    def reply(request):
+        if "temperature" in request["inferenceConfig"] and "opus" in request["modelId"]:
+            raise client_error("ValidationException", "temperature is not supported for this model")
+        return TOOL_REPLY
+    provider, sent = stub_bedrock(monkeypatch, reply)
+    ok = smoke.smoke_arm("us.anthropic.claude-haiku-4-5-20251001-v1:0", provider)
+    assert ok["result"] == "pass" and ok["temperature"] == 0
+    assert sent[0]["inferenceConfig"]["temperature"] == 0
+    res = smoke.smoke_arm("us.anthropic.claude-opus-x", provider)
+    assert res["result"] == "pass" and res["temperature"] is None
+    assert "temperature" in sent[1]["inferenceConfig"] and "temperature" not in sent[2]["inferenceConfig"]
+    assert len(sent) == 3  # one retry, no ladder step
+
+
+def test_ac_11_temperature_cache_is_per_model_and_budget_counts_the_retry(monkeypatch):
+    """AC-11 / D-016: once a model rejected temperature it keeps getting the default, and others keep 0."""
+    def reply(request):
+        if "temperature" in request["inferenceConfig"] and "opus" in request["modelId"]:
+            raise client_error("ValidationException", "temperature is not supported for this model")
+        return TOOL_REPLY
+    provider, sent = stub_bedrock(monkeypatch, reply)
+    smoke.smoke_arm("us.anthropic.claude-opus-x", provider)
+    n = len(sent)
+    assert smoke.smoke_arm("us.anthropic.claude-haiku-4-5-20251001-v1:0", provider)["temperature"] == 0
+    assert len(sent) == n + 1 and sent[-1]["inferenceConfig"]["temperature"] == 0
+    assert smoke.smoke_arm("us.anthropic.claude-opus-x", provider)["temperature"] is None
+    assert len(sent) == n + 2 and "temperature" not in sent[-1]["inferenceConfig"]
+    seen = []
+    monkeypatch.setattr(smoke, "projected_spend", lambda arms, prices, calls, i, o: seen.append(calls) or 0.0)
+    smoke.run_smoke(ARMS, fake_provider)
+    assert seen == [len(smoke.LADDER) + 1]
+
+
+@pytest.mark.parametrize("exc", [
+    client_error("ThrottlingException", "Too many requests"),
+    client_error("AccessDeniedException", "no access"),
+    ReadTimeoutError(endpoint_url="https://bedrock-runtime"),
+    ConnectionClosedError(endpoint_url="https://bedrock-runtime"),
+])
+def test_ac_06_provider_errors_stay_unavailable_with_one_call(monkeypatch, exc):
+    """AC-06 / AC-11: errors without a temperature complaint (even without a response) are not retried."""
+    def reply(request):
+        raise exc
+    provider, sent = stub_bedrock(monkeypatch, reply)
+    res = smoke.smoke_arm("us.amazon.nova-micro-v1:0", provider)
+    assert res["result"] == "unavailable" and len(sent) == 1
 
 
 def test_ac_11_rejected_tool_choice_steps_down_the_ladder(monkeypatch):
