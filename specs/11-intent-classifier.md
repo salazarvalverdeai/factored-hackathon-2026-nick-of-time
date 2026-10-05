@@ -251,6 +251,9 @@ Fine-tuning; embeddings + LR (P2); Jev (benchmarked in spec 15); the agent's use
   AC-09 (coverage follow-ups in 11c, §8 "B0 coverage": person requests with articles or a bare person word, refused
   person requests, dispute nouns after a first-person want, "mil" amounts, PT ordinals before nouns · AC-08, AC-09,
   AC-10)
+  Task 11d (B0 injection, PT/ES): policy-override imperatives, "SISTEMA:" headers, "novas regras:", bank-staff
+  role-play, admin modes and requests for the fraud score or internal rules are flagged (found by INT1 on EV-0115);
+  ordinary complaints that mention policies or a job stay clean · AC-04
 - [ ] T3 — B1 training with calibration; τ on validation · AC-02, AC-07
 - [ ] T4 — B2 structured-output prompt (Haiku 4.5) · AC-02
 - [ ] T5 — injection detector, both arms · AC-04 (rules arm done in 11a, `nlu.injection`; LR arm and AC-04 numbers pending spec 09)
