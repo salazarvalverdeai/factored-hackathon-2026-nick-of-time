@@ -34,16 +34,31 @@ ACTION = {"none_of_these": {"type": "choose_option", "value": "none"}, "talk_to_
           "request_reevaluation": {"type": "request_reevaluation"}}
 REAUTH_HREF = "/login"          # [assumption] the web's sign-in route (apps/web/app/login)
 
-# §4.5 rows the graph reaches so far (T2); T3–T6 add theirs. At most 3 chips, a person always reachable except
-# right after connect_person.
+# §4.5 rows the graph reaches so far (T2, T3, T4, T6); T5 adds its own. At most 3 chips, a person always reachable
+# except right after connect_person.
 ROWS: dict[str, tuple[str, ...]] = {
     "greet": ("report_unrecognized", "report_duplicate", "check_case"),
     "ask_details": ("show_recent", "dont_remember_amount", "talk_to_person"),
+    "ask_options": ("none_of_these", "show_recent", "talk_to_person"),            # candidates shown as cards
+    "confirm": ("confirm_yes", "confirm_no", "talk_to_person"),
+    "case_active": ("view_case", "add_info", "request_call"),                     # AC-23: the existing case
+    "read_failed": ("show_recent", "talk_to_person", "check_case"),   # the first chip searches again
+    "receipt": ("view_case", "send_summary", "request_call"),                    # case opened, actions verified (T4)
+    "handoff": ("view_case", "add_info", "request_call"),
+    "escalate_unconfirmed": ("view_case", "add_info", "request_call"),           # escalate_unconfirmed_action, a case
+    # [assumption] escalate_unconfirmed_action with no verified case: no case link; the first chip asks for a call
+    "case_unconfirmed": ("talk_to_person", "report_unrecognized", "check_case"),
     "deny": ("report_unrecognized", "check_case", "talk_to_person"),
     "reauthenticate": ("reauthenticate", "talk_to_person"),
     "connect_person": ("report_another", "check_case", "report_duplicate"),     # no case: F-007 adds 2 text chips
     "connect_person_case": ("view_case", "report_another"),
     "connect_failed": ("talk_to_person", "check_case", "report_unrecognized"),     # the first chip retries the call
+    # answer_status (task 04e). case_active above is also the active-case row; AC-24's re-evaluation row is not used
+    # yet, so a finished case (or a status question with dispute words, F-010) offers to report another charge.
+    "case_done": ("view_case", "report_another", "request_call"),
+    "card_status": ("check_case", "report_unrecognized", "talk_to_person"),
+    "status_none": ("report_unrecognized", "report_duplicate", "talk_to_person"),
+    "status_failed": ("check_case", "talk_to_person", "report_unrecognized"),     # the first chip reads again
 }
 
 # What a typed (or pressed) text chip stands for when it was offered in the last reply (AC-32, proposed AC-33):
@@ -54,6 +69,26 @@ TEXT_CHIP_INTENT: dict[str, Optional[str]] = {
     "add_info": "status_inquiry",               # adds information to the active case (add_case_info, T6)
     "show_recent": None, "dont_remember_amount": None,
 }
+
+
+def amount_text(amount: float) -> str:
+    """The tool's amount as written in replies: two decimals when that is exact, else every digit it has (AC-25)."""
+    fixed = f"{amount:.2f}"
+    return fixed if float(fixed) == amount else repr(amount)
+
+
+def action_line(tool: str, state: str, language: str, verified_at: Optional[str] = None) -> str:
+    """An action in one of the four states of AC-18 (in_progress, requested, verified, not_confirmed); only "verified"
+    carries a time, the read_at of its post-condition read."""
+    label = text(f"status.action_label.{tool}", language)
+    return text(f"status.action_{state}", language, action_label=label,
+                **({"verified_at": verified_at} if state == "verified" else {}))
+
+
+def option_label(trx: dict[str, Any]) -> str:
+    """An option card from search_transaction facts only (spec 01 §6.4 `options`): amount · date · merchant."""
+    parts = [f"{trx['currency']} {amount_text(trx['amount'])}", str(trx["transaction_date"]), trx.get("merchant")]
+    return " · ".join(part for part in parts if part)
 
 
 def chip(chip_id: str, language: str, case_id: Optional[str] = None) -> Suggestion:

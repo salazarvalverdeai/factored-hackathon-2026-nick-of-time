@@ -15,13 +15,16 @@
 # - Optional facts: a template that needs a fact the tool did not return is not rendered (null merchant uses the
 #   *_no_merchant variants; a null deadline uses the deadline_unknown lines).
 # - Tasks T2-T7 of spec 04 extend this file (clarify, refuse, progress labels AC-17, duplicate case AC-23,
-#   re-evaluation AC-24, reversed charge); each extension is a contract change approved by the lead.
+#   re-evaluation AC-24, reversed charge); each extension is a contract change approved by the lead. Task 04b
+#   (T3) added clarify.pick_one, clarify.exhausted, clarify.read_failed and duplicate.case_exists; task 04e (T6)
+#   added status.no_cases, status.no_cards and status.case_done; task 04c (T4) added act.case_opened,
+#   act.case_not_confirmed, act.not_confirmed, act.decided_on_case and act.sign_in.
 # - Chips: `kind` is static here; the action payload ({type}, spec 01 §6.4) is set by the server code.
 # - Never a placeholder or text for the fraud score, policy ids, rule ids, zones or the transcript
 #   (notifications.never_send in policies.yaml).
 # - Never promise an outcome or a provisional credit: a person reviews and decides (CLAUDE.md rule 6).
 # - Dates are absolute (YYYY-MM-DD) and come from tools; the template never computes them.
-version: "0.2.0"
+version: "0.5.0"
 
 greet:
   # AC-15: first name from get_customer_profile, at most 3 capabilities, a person reviews what needs it.
@@ -170,6 +173,19 @@ status:
   read_failed:
     es: "No pude verificarlo ahora, así que prefiero no darte un estado que no confirmé. Intenta de nuevo en un momento."
     pt: "Não consegui verificar agora, então prefiro não informar uma situação que não confirmei. Tente novamente em instantes."
+  # Spec 04 task 04e (pending the lead): answer_status replies beyond the readings above.
+  no_cases:
+    # list_my_cases read no case for the session's customer.
+    es: "No tienes casos registrados (consultado el {read_at}). Si quieres reportar un cargo, cuéntame cuál es."
+    pt: "Você não tem casos registrados (consultado em {read_at}). Se quiser informar uma cobrança, me conte qual é."
+  no_cards:
+    # list_my_cards read no card for the session's customer.
+    es: "No encontré tarjetas a tu nombre."
+    pt: "Não encontrei cartões em seu nome."
+  case_done:
+    # AC-06 next step for a resolved or closed case (a person closes every case, CLAUDE.md rule 6). Promises nothing.
+    es: "Una persona ya revisó este caso. Si tienes dudas, puedes pedir que te llamen."
+    pt: "Uma pessoa já revisou este caso. Se tiver dúvidas, você pode pedir que liguem para você."
   # Four action states of AC-18; `verified` only after the post-condition read.
   action_in_progress:
     es: "{action_label}: en curso."
@@ -328,3 +344,53 @@ clarify:
   ask_what:
     es: "¿Qué cargo quieres reportar? Cuéntame el comercio, el monto y la fecha aproximada."
     pt: "Qual cobrança você quer informar? Me conte o estabelecimento, o valor e a data aproximada."
+  pick_one:
+    # Spec 04 task 04b (pending the lead): 1 to max_candidate_transactions candidates, shown as option cards with
+    # their amount, date and merchant from search_transaction. Nothing is done until the customer picks one.
+    es: "Elige abajo el cargo que quieres reportar."
+    pt: "Escolha abaixo a cobrança que você quer informar."
+  exhausted:
+    # Spec 04 task 04b (pending the lead): AC-13, rule 5b. No single charge after the clarification turns; a general
+    # call request follows in the same reply (connect.requested*). No case is opened without a charge.
+    es: "No pude identificar un solo cargo con estos datos."
+    pt: "Não consegui identificar uma única cobrança com esses dados."
+  read_failed:
+    # Spec 04 task 04b (pending the lead): search_transaction or the card read failed, so nothing is known about the
+    # charge. Says so, states nothing and blames no one; the chips retry the search or reach a person.
+    es: "No pude consultar tus cargos ahora, así que no hice ningún cambio. Intenta de nuevo en un momento."
+    pt: "Não consegui consultar suas cobranças agora, então não fiz nenhuma alteração. Tente novamente em instantes."
+
+act:
+  # Spec 04 task 04c (pending the lead): lines `verify` writes after the post-condition reads (AC-01, AC-04, AC-18).
+  case_opened:
+    # open_case verified by get_case: the case id, the V- id and read_at of that read; the stored deadlines follow
+    # with receipt.ruling_deadline / credit_deadline / deadline_unknown.
+    es: "Caso {case_id} abierto y verificado (verificación {verification_id}, {verified_at})."
+    pt: "Caso {case_id} aberto e verificado (verificação {verification_id}, {verified_at})."
+  case_not_confirmed:
+    # open_case got no answer, or get_case did not confirm it: no case id is given and nobody is said to review it;
+    # the first chip asks for a call. A turn that registers a call or asks to sign in uses act.not_confirmed instead.
+    es: "Apertura del caso: SIN CONFIRMAR. Pide que te llame una persona para revisarlo."
+    pt: "Abertura do caso: SEM CONFIRMAÇÃO. Peça que uma pessoa ligue para você para revisar."
+  not_confirmed:
+    # Any action not confirmed (or not tried) when no case is verified, so no review is promised; or the case itself
+    # on a turn that registers a call or asks to sign in. action_label is status.action_label.
+    es: "{action_label}: SIN CONFIRMAR."
+    pt: "{action_label}: SEM CONFIRMAÇÃO."
+  decided_on_case:
+    # open_case returned duplicate_of and get_case verified that case, so the block was not tried and the turn does
+    # not escalate (D-050): the person on that case decides it. case_id is get_case's.
+    es: "{action_label}: SIN CONFIRMAR. La persona a cargo del caso {case_id} decide el bloqueo."
+    pt: "{action_label}: SEM CONFIRMAÇÃO. A pessoa responsável pelo caso {case_id} decide o bloqueio."
+  sign_in:
+    # open_case answered SESSION_EXPIRED after an attempt with no answer, so the case may exist: the sign-in line of
+    # refuse.reauthenticate without "nothing was changed", which is not verified.
+    es: "Necesito que verifiques tu sesión de nuevo para continuar."
+    pt: "Preciso que você verifique sua sessão novamente para continuar."
+
+duplicate:
+  # Spec 04 task 04b (pending the lead): AC-23. The charge already has an active case (get_case); no second case is
+  # opened. The case's stored deadlines follow with status.ruling_deadline / credit_deadline / deadline_unknown.
+  case_exists:
+    es: "Este cargo ya está en tu caso {case_id}, que sigue abierto, así que no hace falta abrir otro."
+    pt: "Esta cobrança já está no seu caso {case_id}, que continua aberto, então não é preciso abrir outro."
