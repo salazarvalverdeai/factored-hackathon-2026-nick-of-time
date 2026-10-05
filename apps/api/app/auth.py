@@ -26,26 +26,36 @@ class CognitoVerifier:
 
     @classmethod
     def from_env(cls) -> Optional["CognitoVerifier"]:
-        """`COGNITO_ISSUER` (https://cognito-idp.<region>.amazonaws.com/<pool id>) and `COGNITO_CLIENT_ID`; None when
-        unset, so analyst routes answer 401 to everyone rather than trusting any token."""
-        issuer, client_id = os.getenv("COGNITO_ISSUER"), os.getenv("COGNITO_CLIENT_ID")
-        if not issuer or not client_id:
+        """`COGNITO_USER_POOL_ID` and `COGNITO_CLIENT_ID` (spec 01 §6.9); the issuer is derived from the pool id and
+        `AWS_REGION` (default us-east-2). None when unset, so analyst routes answer 401 to everyone."""
+        pool, client_id = os.getenv("COGNITO_USER_POOL_ID"), os.getenv("COGNITO_CLIENT_ID")
+        if not pool or not client_id:
             return None
-        return cls(issuer=issuer, client_id=client_id, fetch_jwks=_http_jwks)
+        region = os.getenv("AWS_REGION", "us-east-2")
+        return cls(issuer=f"https://cognito-idp.{region}.amazonaws.com/{pool}", client_id=client_id,
+                   fetch_jwks=_http_jwks)
 
-    def _keys(self) -> dict[str, Any]:
+    def _keys(self, refresh: bool = False) -> dict[str, Any]:
         stale = self._fetch is not None and time.monotonic() - self._loaded > self._ttl
-        if self._jwks is None or stale:
+        if self._jwks is None or stale or refresh:
             if self._fetch is None:
                 raise AuthError("no signing keys")
             self._jwks, self._loaded = self._fetch(f"{self.issuer}/.well-known/jwks.json"), time.monotonic()
         return self._jwks
 
+    def _key_for(self, kid: Any) -> Optional[dict[str, Any]]:
+        """The JWKS key of `kid`; an unknown kid refetches the set once (key rotation), then gives up."""
+        find = lambda jwks: next((k for k in jwks.get("keys", []) if k.get("kid") == kid), None)   # noqa: E731
+        found = find(self._keys())
+        if found is None and self._fetch is not None and time.monotonic() - self._loaded > 10:
+            found = find(self._keys(refresh=True))              # at most one refetch per 10 s: no fetch storm
+        return found
+
     def verify(self, token: str) -> str:
         """The analyst's `sub` from a valid token, else AuthError (never a pydantic or jwt error to the caller)."""
         try:
             header = jwt.get_unverified_header(token)
-            key = next((k for k in self._keys().get("keys", []) if k.get("kid") == header.get("kid")), None)
+            key = self._key_for(header.get("kid"))
             if key is None or header.get("alg") != "RS256":
                 raise AuthError("unknown signing key")
             claims = jwt.decode(token, jwt.algorithms.RSAAlgorithm.from_jwk(json.dumps(key)), algorithms=["RS256"],
@@ -57,7 +67,7 @@ class CognitoVerifier:
         # An id token carries `aud`, an access token `client_id`; either must be this app's.
         if self.client_id not in (claims.get("aud"), claims.get("client_id")):
             raise AuthError("another app's token")
-        if claims.get("token_use") not in (None, "id", "access"):
+        if claims.get("token_use") not in ("id", "access"):
             raise AuthError("not a Cognito token")
         sub = claims.get("sub")
         if not isinstance(sub, str) or not sub.strip():

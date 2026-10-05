@@ -21,11 +21,11 @@ nothing about a dispute: transitions go through `policy.transition`, deadlines w
 closes. `customer_id` and `mode` come only from the session row; the analyst's identity is the verified Cognito `sub`.
 
 ## 3. Acceptance criteria (EARS)
-AC-01 to AC-08 are copied from issue #7 with the same numbers. AC-09 to AC-11 are added by the owner. None is dropped or weakened.
+AC-01 to AC-08 are copied from issue #7 with the same numbers. AC-09 to AC-12 are added by the owner; AC-03 was amended by the lead (review of PR #111). None is dropped or weakened.
 
 - AC-01 — When a customer session is requested and the OTP verified, the session shall last 15 minutes; once expired, every protected route shall answer `SESSION_EXPIRED`. · [T] `tests/test_spec05_api.py`
 - AC-02 — A case's status shall be its last event in `case_events`; no row shall be updated or deleted. · [T]
-- AC-03 — When the analyst runs a valid action, the status shall change, an event with actor and reason shall be recorded, and the notification shall go out. · [T]
+- AC-03 — When the analyst runs a valid action, an event with actor and reason shall be recorded; when it changes the status (`take`, `resolve`, `reopen_case`), the customer notification shall go out. A status-keeping action (`approve_credit`, `approve_block`, `unblock_card`, `request_customer_info`, `mark_ambiguous`) records the event and does not notify (lead, D-034). · [T]
 - AC-04 — If the transition does not exist in `case_queue`, then the API shall answer 409 and change nothing. · [T]
 - AC-05 — The `/api` shall proxy runs to Platform injecting the `session_id` server-side; the LangSmith key shall never reach the browser. · [T]
 - AC-06 — While `supervised_mode` is on, the `/api` shall require human approval and record the switch. · [T]
@@ -34,15 +34,18 @@ AC-01 to AC-08 are copied from issue #7 with the same numbers. AC-09 to AC-11 ar
 - AC-09 — A customer route shall read only the session's own customer: another customer's case answers 403 and writes a `policy_denials` row, and no customer view carries score, zone, priority, handoff or policy ids (D-013). · [T]
 - AC-10 — An analyst action shall run once per `idempotency_key`; a replay returns the stored result and writes and notifies nothing, and a reason is required except for `take` and `approve_*`. · [T]
 - AC-11 — The api shall serve the channels of spec 13: a signed Telegram link (TTL 15 min) and webhook (secret header, 401 otherwise), e-mail sent only to a typed and confirmed address, and a failing channel shall leave the in-app notification and the case unaffected. · [T]
+- AC-12 — `POST /api/cases/{id}/reevaluation` shall move a resolved case back to `review` with `reevaluation_requested` (spec 03 AC-19), refuse an active case as `already_in_progress`, and open one related case for a closed case with deadlines derived by the clock from the new notice (never copied); repeating the request shall not open a second case. · [T]
 
 ## 8. Assumptions and open questions
-- `[assumption]` AC-03 and `approve_credit`: D-034 keeps the status on `approve_*`, `unblock_card`, `request_customer_info` and `mark_ambiguous`. Those actions record the event with actor and reason and return `new_status == previous_status`; only a status change (`take`, `resolve`, `reopen_case`) notifies, because `policies.yaml` `notifications.events` has templates only for `in_review` and `resolved`. A notification for the money approvals needs a template there (lead).
+- Decided (lead): AC-03 is amended as above; notifications go out on status changes only, and the customer text carries a fixed outcome label from `messages.yaml` `status.label`, never the analyst's free-text reason.
 - `[assumption]` `supervised_mode` (AC-06): the switch is a `settings_events` row with the analyst's actor, the current value is its latest row (default `approval.supervised_mode`), and every run's `configurable` carries it so the graph forces `human_required` on money actions (POL-SUPERVISED). The api itself approves nothing.
-- `[assumption]` Store accessors added for this spec (Freddy's package, flagged for review): `revise_session` (OTP verification and preferences; `mode`, `customer_id`, `run_id`, `expires_at` never change), `record_setting`/`get_setting`/`setting_history` over the existing `settings_events` table, and `list_cases(customer_id=None)` for the console, as `get_case` already reads it.
+- `[assumption]` Store accessors added for this spec (Freddy's package, flagged for review): `revise_session` (OTP verification and preferences; `mode`, `customer_id`, `run_id`, `expires_at` never change), `record_setting`/`get_setting`/`setting_history` over the existing `settings_events` table, and `list_all_cases(run_id)` for the console only (approved by the lead; `list_cases` stays per customer). `revise_session` reads and updates in one transaction.
 - `[assumption]` The graph writes its receipt and handoff card as the `receipt` of a `receipt_issued` and the `handoff` of a `handoff_emitted` event payload; the api shows what validates against the contract, else `receipt: null` / `handoff: {}`.
 - `[assumption]` Gold lookups (transaction, products, demo customers) go through `app/catalog.py`; only the fixture catalog exists until the data pipeline publishes a reader. A case whose transaction is not found answers `UNAVAILABLE`.
 - `[assumption]` Telegram and e-mail confirmation tokens are signed and stateless (`LINK_SIGNING_KEY`); single use comes from `store.once` and from the channel row order. Notification templates are the Spanish ones of `policies.yaml`.
 - `[assumption]` The Platform stream is normalized to `progress` items plus one final `turn` (the last `values`), and only the customer projection of the turn leaves the api.
+- `[assumption]` `POL-REEVAL-WINDOW`: `policies.yaml` has no `reevaluation.window_days` yet, so a resolved case is reopened by status alone; the window check lands when the lead adds the value (spec 02 `reevaluation_allowed`).
+- `/api/console/demo/reset` is not served by the live app until `demo_transactions` exist (spec 03 task 03b).
 - Open question: eval hooks (`/api/eval/*`) stay on the stub; the live app does not register them until spec 10 needs them on Postgres.
 
 ## 9. Out of scope

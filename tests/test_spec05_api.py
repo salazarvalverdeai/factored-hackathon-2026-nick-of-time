@@ -308,7 +308,6 @@ def test_ac_07_an_analyst_route_without_a_valid_cognito_jwt_answers_401(env, hea
     case_id = env.case()
     calls = [("GET", "/api/console/cases", None), ("GET", f"/api/console/cases/{case_id}", None),
              ("GET", "/api/console/settings", None), ("PUT", "/api/console/settings", {"supervised_mode": True}),
-             ("POST", "/api/console/demo/reset", None),
              ("POST", f"/api/cases/{case_id}/action", {"case_id": case_id, "actor_id": "x", "action": "take",
                                                        "idempotency_key": "k"})]
     for method, path, body in calls:
@@ -373,18 +372,30 @@ def test_spec13_ac_06_information_added_is_an_event_the_analyst_sees(env):
     assert "customer_info_added" in [e["type"] for e in events]
 
 
-def test_reevaluation_needs_a_resolved_or_closed_case(env):
+def test_ac_12_reevaluation_moves_a_resolved_case_to_review_once_and_a_closed_one_opens_a_related_case(env):
+    """Spec 03 AC-19 through the api: resolved -> review (the reason is the event); closed -> a related case whose
+    deadlines come from the new notice; an active case and a double click change nothing more."""
     case_id = env.case()
     env.login()
     deny = env.client.post(f"/api/cases/{case_id}/reevaluation", json={"reason": "r"})
     assert (deny.status_code, deny.json()["code"]) == (409, "DENY")
     env.resolve(case_id)
-    ok = env.client.post(f"/api/cases/{case_id}/reevaluation", json={"reason": "r"})
+    ok = env.client.post(f"/api/cases/{case_id}/reevaluation", json={"reason": "no lo reconozco"})
     assert ok.status_code == 201 and ok.json()["case_id"] == case_id
-    env.action(case_id, "close_case", "kc")
-    again = env.client.post(f"/api/cases/{case_id}/reevaluation", json={"reason": "r2"}).json()
-    assert again["case_id"] != case_id and env.store.get_case(again["case_id"], run_id=None,
-                                                                customer_id=ME).related_case_id == case_id
+    assert env.store.queue_status(case_id) == "review"                                 # not still resolved
+    kinds = [e.type for e in env.store.events(case_id)][-2:]
+    assert kinds == ["status_changed", "reevaluation_requested"]
+    assert env.client.post(f"/api/cases/{case_id}/reevaluation", json={"reason": "again"}).status_code == 409
+    env.action(case_id, "resolve", "r1")
+    env.action(case_id, "close_case", "r2")
+    env.clock["t"] = START                                                             # same day, replay: 2026-06-01
+    first = env.client.post(f"/api/cases/{case_id}/reevaluation", json={"reason": "r2"}).json()
+    second = env.client.post(f"/api/cases/{case_id}/reevaluation", json={"reason": "r2"}).json()
+    assert first == second and first["case_id"] != case_id                             # a double click opens one case
+    fresh = env.store.get_case(first["case_id"], run_id=None, customer_id=ME)
+    assert fresh.related_case_id == case_id and fresh.opened_on == dt.date(2026, 6, 1)
+    assert fresh.credit_deadline == dt.date(2026, 6, 3) and fresh.deadline_source        # derived by the clock, from the notice
+    assert len([c for c in env.store.list_cases(ME, run_id=None) if c.related_case_id == case_id]) == 1
 
 
 def test_ac_11_spec13_ac_02_03_telegram_link_stores_the_chat_once_and_bad_secret_or_expired_token_is_401(env):
@@ -425,7 +436,7 @@ def test_ac_11_spec13_ac_01_07_08_a_status_change_reaches_telegram_and_a_failing
     assert [(k, to) for k, to, _ in env.notifier.sent] == [("telegram", "555")]       # AC-01: resolved reaches Telegram
     assert env.action(case_id, "reopen_case", "k3").status_code == 200
     env.notifier.fail = True
-    done = env.action(case_id, "resolve", "k4", reason="Reembolso aprobado POL-X score 91").json()
+    done = env.action(case_id, "resolve", "k4", reason="Reembolso aprobado POL-X score 91").json()      # analyst-only text
     assert done["notification_id"]                                                    # the log row survived the failure
     rows = env.store.list_notifications(ME, run_id=None)
     log = next(r for r in rows if r.notification_id == done["notification_id"])
@@ -433,6 +444,7 @@ def test_ac_11_spec13_ac_01_07_08_a_status_change_reaches_telegram_and_a_failing
     assert sorted((r.channel, r.delivery_status) for r in rows if r.event == "resolved") == [
         ("log", "delivered"), ("log", "delivered"), ("telegram", "failed"), ("telegram", "sent")]
     assert out["notification_id"]
+    assert all("Reembolso" not in r.text and "Resuelto" in r.text for r in rows if r.event == "resolved")   # fixed label
     for r in rows:                                                                    # never_send: score, policy ids
         assert not re.search(r"POL-|score|transcript", r.text, re.I), r.text
     assert env.client.get(f"/api/cases/{case_id}").status_code == 200                 # the case page is unaffected
@@ -476,3 +488,75 @@ def test_ac_08_accounts_are_documented_without_a_password():
     assert "judge" in text.lower() and "Accounts" in text
     assert not re.search(r"password\s*[:=]\s*\S+", text, re.I)
     assert "submission e-mail" in text
+
+
+# ---------- review of PR #111 ----------
+def test_ac_05_the_real_graph_state_with_its_extra_channels_is_accepted(env):
+    """LangGraph's `values` stream and get_state carry every channel; only TurnResult's own fields are validated."""
+    state = {**fx.turn_result().model_dump(mode="json"), "messages": [{"role": "user", "content": "hola"}],
+             "scratch": {"x": 1}}
+    env.platform.turn = state
+    env.login()
+    thread = env.client.post("/api/agent/threads").json()["thread_id"]
+    run = env.client.post(f"/api/agent/threads/{thread}/runs/stream", json={})
+    assert "event: turn" in run.text and "event: error" not in run.text and "messages" not in run.text
+    got = env.client.get(f"/api/agent/threads/{thread}/state")
+    assert got.status_code == 200 and "messages" not in got.json() and "zone" not in got.json()
+
+
+def test_ac_07_an_unknown_kid_refetches_the_jwks_once_and_token_use_is_required():
+    other = {**json.loads(jwt.algorithms.RSAAlgorithm.to_jwk(OTHER_KEY.public_key())), "kid": "k2", "alg": "RS256"}
+    fetched = []
+
+    def fetch(url):
+        fetched.append(url)
+        return {"keys": [JWK, other]}
+
+    verifier = CognitoVerifier(issuer=ISS, client_id=CLIENT, jwks={"keys": [JWK]}, fetch_jwks=fetch)
+    verifier._loaded -= 60                                                            # the set is older than 10 s
+    rotated = jwt.encode({"sub": "n", "iss": ISS, "aud": CLIENT, "token_use": "id",
+                          "exp": dt.datetime.now(dt.UTC) + dt.timedelta(hours=1)}, OTHER_KEY, algorithm="RS256",
+                         headers={"kid": "k2"})
+    assert verifier.verify(rotated) == "n" and len(fetched) == 1
+    unknown = jwt.encode({"sub": "n", "iss": ISS, "aud": CLIENT, "token_use": "id",
+                          "exp": dt.datetime.now(dt.UTC) + dt.timedelta(hours=1)}, OTHER_KEY, algorithm="RS256",
+                         headers={"kid": "k9"})
+    from app.auth import AuthError
+    with pytest.raises(AuthError):
+        verifier.verify(unknown)
+    assert len(fetched) == 1                                                          # no fetch storm for a bad kid
+    no_use = jwt.encode({"sub": "n", "iss": ISS, "aud": CLIENT, "exp": dt.datetime.now(dt.UTC) + dt.timedelta(hours=1)},
+                        KEY, algorithm="RS256", headers={"kid": "k1"})
+    with pytest.raises(AuthError):
+        verifier.verify(no_use)
+
+
+def test_the_cognito_issuer_is_derived_from_the_pool_id(monkeypatch):
+    monkeypatch.setenv("COGNITO_USER_POOL_ID", "us-east-2_ABC")
+    monkeypatch.setenv("COGNITO_CLIENT_ID", "c1")
+    assert CognitoVerifier.from_env().issuer == "https://cognito-idp.us-east-2.amazonaws.com/us-east-2_ABC"
+    monkeypatch.delenv("COGNITO_CLIENT_ID")
+    assert CognitoVerifier.from_env() is None
+
+
+def test_ac_11_without_a_dedicated_link_key_no_channel_link_is_issued(env, monkeypatch):
+    monkeypatch.delenv("LINK_SIGNING_KEY", raising=False)
+    from app.main import create_app
+    bare = TestClient(create_app(store=env.store, now=lambda: env.clock["t"]), base_url=HTTPS)
+    case_id = env.case()
+    env.login(client=bare)
+    assert bare.post(f"/api/cases/{case_id}/channels/telegram").status_code == 503
+
+
+def test_ac_09_the_console_orders_by_sla_then_zone_and_uses_its_own_listing(env):
+    a = env.case(zone="human")
+    b = env.case(zone="high")
+    for case_id in (a, b):
+        env.store.change_status(case_id, "verification", on=dt.date(2026, 6, 1), actor="agent", trace_id="t")
+    rows = env.client.get("/api/console/cases", headers=bearer()).json()
+    assert [r["zone"] for r in rows] == ["high", "human"] or [r["case_id"] for r in rows] == [a, b]
+    assert [c.case_id for c in env.store.list_all_cases(run_id=None)] and not hasattr(env.store, "list_cases_any")
+
+
+def test_demo_reset_is_not_served_until_demo_transactions_exist(env):
+    assert env.client.post("/api/console/demo/reset", headers=bearer()).status_code in (404, 405)

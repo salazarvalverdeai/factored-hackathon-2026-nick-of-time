@@ -12,10 +12,10 @@ DATABASE_URL=postgresql://… uvicorn app.main:app --app-dir apps/api    # store
 | Variable | Used for |
 |---|---|
 | `DATABASE_URL` | Postgres of case state and audit (ADR 0010); selects the store-backed app |
-| `COGNITO_ISSUER`, `COGNITO_CLIENT_ID` | analyst JWT check (issuer `https://cognito-idp.<region>.amazonaws.com/<pool id>`); unset = every analyst route answers 401 |
-| `LANGGRAPH_URL`, `LANGSMITH_API_KEY`, `LANGGRAPH_ASSISTANT` | agent proxy; the key is sent only in the api's requests to Platform, never to the browser |
+| `COGNITO_USER_POOL_ID`, `COGNITO_CLIENT_ID`, `AWS_REGION` | analyst JWT check (issuer derived: `https://cognito-idp.<region>.amazonaws.com/<pool id>`, region default `us-east-2`); unset = every analyst route answers 401 |
+| `LANGGRAPH_API_URL`, `LANGSMITH_API_KEY`, `LANGGRAPH_ASSISTANT` (default `dispute_intake`) | agent proxy; the key is sent only in the api's requests to Platform, never to the browser |
 | `TELEGRAM_BOT_TOKEN`, `TELEGRAM_BOT_NAME`, `TELEGRAM_WEBHOOK_SECRET`, `RESEND_API_KEY`, `RESEND_WEBHOOK_SECRET`, `EMAIL_FROM`, `PUBLIC_URL` | channels (spec 13) |
-| `LINK_SIGNING_KEY` | signs the Telegram deep-link and e-mail confirmation tokens (falls back to the webhook secret) |
+| `LINK_SIGNING_KEY` | signs the Telegram deep-link and e-mail confirmation tokens; its own SSM secret, unset = no channel link is issued |
 | `DEFAULT_SESSION_MODE`, `DEMO_TODAY`, `SCORE_PROVIDER`, `OTP_FIXED` | demo and time-mode knobs (ADR 0020); `OTP_FIXED` pins the mock OTP |
 
 ## Accounts

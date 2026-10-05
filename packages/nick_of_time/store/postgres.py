@@ -100,7 +100,13 @@ class PostgresStore:
                           {"case_id": case_id, "run_id": run_id, "customer_id": customer_id})
         return _record(rows[0]) if rows else None
 
-    def list_cases(self, customer_id: Optional[str], *, run_id: Optional[str]) -> list[CaseRecord]:
+    def list_cases(self, customer_id: str, *, run_id: Optional[str]) -> list[CaseRecord]:
+        return self._listed(run_id, customer_id)
+
+    def list_all_cases(self, *, run_id: Optional[str]) -> list[CaseRecord]:
+        return self._listed(run_id, None)
+
+    def _listed(self, run_id: Optional[str], customer_id: Optional[str]) -> list[CaseRecord]:
         rows = self._rows(CASES + "order by coalesce(s.status, 'new') = 'closed', c.created_at desc, "
                           "c.case_id collate \"C\" desc",
                           {"run_id": run_id, "customer_id": customer_id})
@@ -356,13 +362,15 @@ class PostgresStore:
 
     def revise_session(self, session_id: str, *, verified_at: Optional[dt.datetime] = None,
                        language: Optional[str] = None, display_currency: Optional[str] = None) -> SessionRecord:
-        current = self.get_session(session_id)
-        if current is None:
-            raise StoreError(f"unknown session {session_id}")
         changes = {k: v for k, v in (("verified_at", verified_at), ("language", language),
                                      ("display_currency", display_currency)) if v is not None}
-        updated = parse(NewSession, {**current.model_dump(include=set(NewSession.model_fields)), **changes})
-        with self._tx():
+        with self._tx():                                    # read and update in one transaction (no lost update)
+            rows = self._rows(f"select {', '.join(SessionRecord.model_fields)} from sessions where session_id = %s "
+                              "for update", (check_key(session_id),))
+            if not rows:
+                raise StoreError(f"unknown session {session_id}")
+            current = SessionRecord(**rows[0])
+            updated = parse(NewSession, {**current.model_dump(include=set(NewSession.model_fields)), **changes})
             self._rows("update sessions set verified_at = %s, language = %s, display_currency = %s "
                        "where session_id = %s", (updated.verified_at, updated.language, updated.display_currency,
                                                  session_id))

@@ -69,8 +69,14 @@ class MemoryStore:
             return None
         return self._read(case)
 
-    def list_cases(self, customer_id: Optional[str], *, run_id: Optional[str]) -> list[CaseRecord]:
-        mine = [c for c in self._cases.values() if customer_id in (None, c.customer_id) and c.run_id == run_id]
+    def list_cases(self, customer_id: str, *, run_id: Optional[str]) -> list[CaseRecord]:
+        return self._listed(lambda c: c.customer_id == customer_id and c.run_id == run_id)
+
+    def list_all_cases(self, *, run_id: Optional[str]) -> list[CaseRecord]:
+        return self._listed(lambda c: c.run_id == run_id)
+
+    def _listed(self, keep: Callable[[CaseRecord], bool]) -> list[CaseRecord]:
+        mine = [c for c in self._cases.values() if keep(c)]
         mine.sort(key=lambda c: (self.queue_status(c.case_id) != "closed", c.created_at, c.case_id), reverse=True)
         return [self._read(c) for c in mine]
 

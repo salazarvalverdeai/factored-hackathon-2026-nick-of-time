@@ -18,7 +18,8 @@ import os
 import re
 import secrets
 import uuid
-from typing import Literal, Optional
+from collections import deque
+from typing import Any, Literal, Optional
 
 from fastapi import Body, Cookie, Depends, FastAPI, Header, Query, Request, Response
 from fastapi.exceptions import RequestValidationError
@@ -28,7 +29,7 @@ from app.auth import AuthError, CognitoVerifier
 from app.catalog import Catalog, FixtureCatalog
 from app.main import (COOKIE, SESSION_TTL, AckOut, ApiError, CallIn, CallOut, ConsoleCaseOut, EmailIn,
                       EmailOut, EventOut, HealthOut, InfoIn, NotificationOut, PrefsIn, PrefsOut, ReevalIn, ReevalOut,
-                      ResetOut, SessionIn, SessionOut, SettingsIn, SettingsOut, TelegramOut, ThreadOut, VerifyIn,
+                      SessionIn, SessionOut, SettingsIn, SettingsOut, TelegramOut, ThreadOut, VerifyIn,
                       VerifyOut, DemoCustomerOut, _is_analyst_path, today)
 from app.notify import ChannelFailed, HttpNotifier, Notifier, mask_chat, mask_email
 from app.platform import HttpPlatform, Platform, PlatformError
@@ -38,8 +39,10 @@ from nick_of_time.contracts import (AnalystActionIn, AnalystActionOut, CaseSumma
                                     TurnResult)
 from nick_of_time.policy import queue
 from nick_of_time.policy.calendars import CalendarNotCovered, add_business_days
+from nick_of_time.policy.clock import deadline
 from nick_of_time.policy.engine import Deny
 from nick_of_time.policy.model import load_policies
+from nick_of_time.receipt import messages
 from nick_of_time.store import CaseRecord, NewCase, Store, StoreError
 
 STATUS_LABEL = {"new": "Case opened", "verification": "Verifying the block", "review": "Under review by a person",
@@ -52,13 +55,21 @@ EVENT_LABEL = {"case_opened": "Case opened", "card_blocked": "Card blocked", "bl
                "email_confirmed": "E-mail confirmed"}
 NO_REASON_NEEDED = {"take", "approve_credit", "approve_block"}        # AnalystActionIn: reason required for the rest
 TEMPLATE_EVENT = {"take": "in_review", "reopen_case": "in_review", "resolve": "resolved"}   # status change -> template
-INTERNALS = re.compile(r"POL-[A-Z0-9-]+|G-[A-Z]+-\d{2}|score|transcript", re.I)               # policies.yaml never_send
+ZONE_ORDER = {"high": 0, "medium": 1, "human": 2}
 TELEGRAM_TTL, EMAIL_TTL = dt.timedelta(minutes=15), dt.timedelta(hours=24)
 
 
 class Denied(Exception):
     def __init__(self, verdict: Deny) -> None:
         self.verdict = verdict
+
+
+def turn_of(raw: Any) -> TurnResult:
+    """The graph's state as a TurnResult: LangGraph streams every channel (`messages`, …) and TurnResult forbids extras,
+    so only its own fields are kept before validating (the customer projection is taken after)."""
+    if not isinstance(raw, dict):
+        raise ValueError("not a graph state")
+    return TurnResult.model_validate({k: v for k, v in raw.items() if k in TurnResult.model_fields})
 
 
 def _now() -> dt.datetime:
@@ -78,17 +89,19 @@ class LinkTokens:
     `hex(case|exp|extra)` + `x` + HMAC: only [0-9a-fx], so it fits Telegram's `start` parameter. Single use is enforced
     by the store (`once` for Telegram, the channel row's `linked` -> `confirmed` order for e-mail)."""
 
-    def __init__(self, key: str) -> None:
-        self._key = key.encode()
+    def __init__(self, key: Optional[str]) -> None:
+        self._key = key.encode() if key else None
 
     def make(self, kind: str, case_id: str, expires: dt.datetime, extra: str = "") -> str:
+        if self._key is None:                       # not configured: no link can be issued, and none will validate
+            raise ApiError(503, "UNAVAILABLE", "Channel links are not configured")
         body = f"{kind}|{case_id}|{int(expires.timestamp())}|{extra}".encode().hex()
         return f"{body}x{self._sign(body)}"
 
     def read(self, kind: str, token: str, now: dt.datetime) -> Optional[tuple[str, str]]:
         """(case_id, extra) of a valid, unexpired token of `kind`, else None."""
         body, sep, sig = token.partition("x")
-        if not sep or not hmac.compare_digest(self._sign(body), sig):
+        if self._key is None or not sep or not hmac.compare_digest(self._sign(body), sig):
             return None
         try:
             got_kind, case_id, exp, extra = bytes.fromhex(body).decode().split("|", 3)
@@ -105,11 +118,10 @@ def create_live_app(store: Store, *, catalog: Optional[Catalog] = None, verifier
                     now=_now, link_key: Optional[str] = None) -> FastAPI:
     catalog = catalog or FixtureCatalog()
     policies = load_policies()
-    tokens = LinkTokens(link_key or os.getenv("LINK_SIGNING_KEY") or os.getenv("TELEGRAM_WEBHOOK_SECRET")
-                        or secrets.token_hex(16))
+    tokens = LinkTokens(link_key or os.getenv("LINK_SIGNING_KEY"))      # a dedicated key (SSM), never a shared secret
     app = FastAPI(title="Nick of Time api", docs_url="/api/docs", redoc_url=None, swagger_ui_oauth2_redirect_url=None,
                   openapi_url="/api/openapi.json")
-    app.state.store, app.state.runs, app.state.now = store, [], now
+    app.state.store, app.state.runs, app.state.now = store, deque(maxlen=200), now
     notifier = notifier or HttpNotifier.from_env()
 
     @app.exception_handler(ApiError)
@@ -233,19 +245,27 @@ def create_live_app(store: Store, *, catalog: Optional[Catalog] = None, verifier
                             "created_at": n.created_at} for n in notes])
 
     # ---------- notifications ----------
-    def notify(record: CaseRecord, event: str, *, outcome: str = "") -> Optional[str]:
-        """The in-app row always; Telegram / e-mail only on a confirmed channel the template lists (AC-01, AC-04).
-        A failing channel leaves its row `failed` and changes nothing else (AC-07). Returns the log row's id."""
+    def log_notice(record: CaseRecord, event: str) -> Optional[tuple[str, str]]:
+        """The in-app row (always, AC-01): (notification id, text). The outcome is a fixed label of `messages.yaml`
+        `status.label`, never the analyst's free text (AC-08, never_send). No external send happens here, so it can run
+        inside the action's transaction."""
         spec = policies.notifications["events"].get(event)
         if spec is None:
             return None
-        safe = "" if INTERNALS.search(outcome) else outcome                     # AC-08: never_send
-        text = spec["template"].format_map({"case_id": record.case_id, "outcome": safe or "—", "deadline": "—",
+        customer = catalog.customer(record.customer_id) or {}
+        label = messages()["status"]["label"]["resolved"][customer.get("language", "es")]
+        text = spec["template"].format_map({"case_id": record.case_id, "outcome": label, "deadline": "—",
                                            "product_last4": "••••"})
-        trace = _trace()
         log = store.add_notification(record.case_id, event=event, channel="log", masked_address=None, text=text,
-                                     trigger="auto", actor="system", trace_id=trace)
+                                     trigger="auto", actor="system", trace_id=_trace())
         store.add_delivery(log.notification_id, "delivered")
+        return log.notification_id, text
+
+    def deliver(record: CaseRecord, event: str, text: str) -> None:
+        """Telegram / e-mail on a confirmed channel the template lists (AC-01, AC-04), after the action committed. A
+        failing channel leaves its row `failed` and changes nothing else (AC-07)."""
+        spec = policies.notifications["events"][event]
+        trace = _trace()
         for ch in store.channels(record.customer_id):
             if ch.channel not in spec["channels"] or not ch.confirmed:
                 continue
@@ -263,7 +283,6 @@ def create_live_app(store: Store, *, catalog: Optional[Catalog] = None, verifier
                 row = store.add_notification(record.case_id, event=event, channel=ch.channel, masked_address=masked,
                                              text=text, trigger="auto", actor="system", trace_id=trace)
                 store.add_delivery(row.notification_id, "failed", {"error": str(error)})
-        return log.notification_id
 
     # ---------- public ----------
     @app.get("/api/health", response_model=HealthOut)
@@ -352,7 +371,7 @@ def create_live_app(store: Store, *, catalog: Optional[Catalog] = None, verifier
                     if event == "progress":
                         yield _sse("progress", ProgressItem.model_validate(data).model_dump(mode="json"))
                     elif event == "turn":       # only the customer projection leaves the api (D-013)
-                        yield _sse("turn", TurnResult.model_validate(data).for_customer().model_dump(mode="json"))
+                        yield _sse("turn", turn_of(data).for_customer().model_dump(mode="json"))
             except (PlatformError, ValueError):
                 yield _sse("error", {"code": "UNAVAILABLE", "message": "The agent is not available"})
 
@@ -366,7 +385,7 @@ def create_live_app(store: Store, *, catalog: Optional[Catalog] = None, verifier
             raw = need_platform().state(thread_id)
             if raw is None:
                 raise ApiError(404, "NOT_FOUND", "No turn yet")
-            return TurnResult.model_validate(raw).for_customer()
+            return turn_of(raw).for_customer()
         except (PlatformError, ValueError):
             raise ApiError(503, "UNAVAILABLE", "The agent is not available") from None
 
@@ -442,15 +461,34 @@ def create_live_app(store: Store, *, catalog: Optional[Catalog] = None, verifier
         status = store.queue_status(record.case_id)
         if status not in ("resolved", "closed"):
             raise ApiError(409, "DENY", "already_in_progress", "POL-REEVAL-WINDOW")
+        day = today(record.mode, record.country)
         if status == "resolved":
+            # [assumption] POL-REEVAL-WINDOW has no `window_days` in policies.yaml yet (lead), so only the status gates.
+            try:       # AC-19: the case goes back to review, with the customer's reason as the event
+                store.change_status(record.case_id, "review", on=day, actor="customer", trace_id=_trace(),
+                                    reason=body.reason)
+            except StoreError as error:
+                raise ApiError(409, "DENY", str(error)) from None
             return {"event_id": write_event(record, "reevaluation_requested", {"reason": body.reason}),
                     "case_id": record.case_id}
-        try:                     # a closed case is not reopened by the customer: a related case is opened (§6.3)
-            facts = record.model_dump(include=set(NewCase.model_fields))
-            fresh = store.create_case(
-                NewCase(**{**facts, "related_case_id": record.case_id, "trace_id": _trace(),
-                           "opened_on": today(record.mode, record.country)}),
-                actor="customer", action_id=ids.new_id("action"))
+        again = next((c for c in store.list_cases(record.customer_id, run_id=record.run_id)
+                      if c.related_case_id == record.case_id and store.queue_status(c.case_id) != "closed"), None)
+        if again is not None:                                     # a double click returns the case already opened
+            return {"event_id": store.events(again.case_id)[0].event_id, "case_id": again.case_id}
+        txn = catalog.transaction(record.transaction_id)
+        if txn is None:
+            raise ApiError(503, "UNAVAILABLE", "Transaction data unavailable")
+        # A closed case is not reopened by the customer: a related case is opened (§6.3) with the deadlines of the new
+        # notice, derived by the clock and never copied from the old case (the countdown would run backwards).
+        clock = deadline(record.country, record.product_type, day, charged_at=dt.date.fromisoformat(str(txn["date"])),
+                         policies=policies)
+        facts = record.model_dump(include=set(NewCase.model_fields)) | {
+            "related_case_id": record.case_id, "trace_id": _trace(), "opened_on": day,
+            "credit_deadline": clock.credit_deadline, "ruling_deadline": clock.ruling_deadline,
+            "deadline_source": clock.deadline_source, "deadline_source_url": clock.source_url,
+            "deadline_verified_on": clock.verified_on}
+        try:
+            fresh = store.create_case(NewCase(**facts), actor="customer", action_id=ids.new_id("action"))
         except StoreError as error:
             raise ApiError(409, "DENY", str(error)) from None
         return {"event_id": store.events(fresh.case_id)[0].event_id, "case_id": fresh.case_id}
@@ -533,9 +571,11 @@ def create_live_app(store: Store, *, catalog: Optional[Catalog] = None, verifier
     @app.get("/api/console/cases", response_model=list[CaseSummary])
     def console_cases(status: Optional[str] = None, zone: Optional[str] = None, country: Optional[str] = None,
                       _: str = Depends(analyst)):
-        rows = [summary(r) for r in store.list_cases(None, run_id=None)]
-        return [r for r in rows if status in (None, r.queue_status) and zone in (None, r.zone)
+        rows = [summary(r) for r in store.list_all_cases(run_id=None)]
+        rows = [r for r in rows if status in (None, r.queue_status) and zone in (None, r.zone)
                 and country in (None, r.country)]
+        far = dt.datetime.max.replace(tzinfo=dt.timezone.utc)                  # §6.2: SLA due first, then zone
+        return sorted(rows, key=lambda r: (r.sla_due_at or far, ZONE_ORDER[r.zone]))
 
     @app.get("/api/console/cases/{case_id}", response_model=ConsoleCaseOut)
     def console_case(case_id: str, _: str = Depends(analyst)):
@@ -560,6 +600,8 @@ def create_live_app(store: Store, *, catalog: Optional[Catalog] = None, verifier
         actor = f"analyst:{sub}"
         request = body.model_copy(update={"actor_id": sub})        # AC-07: the identity is the token's, not the body's
 
+        sends: list[tuple[str, str]] = []
+
         def write() -> dict:
             verdict = queue.transition(store.queue_status(case_id), body.action, actor, policies=policies)
             if isinstance(verdict, Deny):                          # AC-04: nothing is written
@@ -568,8 +610,9 @@ def create_live_app(store: Store, *, catalog: Optional[Catalog] = None, verifier
             out = store.record_analyst_action(request, new_status=new, on=today(record.mode, record.country),
                                               trace_id=_trace())
             event = TEMPLATE_EVENT.get(body.action) if new else None
-            note = notify(record, event, outcome=body.reason or "") if event else None
-            return out.model_copy(update={"notification_id": note}).model_dump(mode="json")
+            note = log_notice(record, event) if event else None
+            sends.append((event, note[1])) if note else None
+            return out.model_copy(update={"notification_id": note[0] if note else None}).model_dump(mode="json")
 
         try:
             result = store.once(body.idempotency_key, action=f"analyst:{body.action}", customer_id=None, run_id=None,
@@ -584,6 +627,9 @@ def create_live_app(store: Store, *, catalog: Optional[Catalog] = None, verifier
                            v.policy_id) from None
         except StoreError as error:
             raise ApiError(409, "DENY", str(error)) from None
+        if not result.replayed:
+            for event, text in sends:                              # after the transaction: a send never rolls it back
+                deliver(record, event, text)
         return result.result
 
     def _settings() -> dict:
@@ -599,16 +645,11 @@ def create_live_app(store: Store, *, catalog: Optional[Catalog] = None, verifier
         store.record_setting("supervised_mode", body.supervised_mode, actor=f"analyst:{sub}")   # AC-06: audited
         return _settings()
 
-    @app.post("/api/console/demo/reset", response_model=ResetOut)
-    def demo_reset(_: str = Depends(analyst)):
-        # Case state is append-only and gold is read-only: there is nothing the api may reset (ADR 0010).
-        return {"demo_transactions": 0, "sample_cases": 0}
-
     return app
 
 
 def from_env() -> FastAPI:
-    """The production wiring: Postgres from DATABASE_URL, Cognito from COGNITO_*, Platform from LANGGRAPH_URL."""
+    """The production wiring: Postgres from DATABASE_URL, Cognito from COGNITO_*, Platform from LANGGRAPH_API_URL."""
     from nick_of_time.store.postgres import PostgresStore
     return create_live_app(PostgresStore(os.environ["DATABASE_URL"]), verifier=CognitoVerifier.from_env(),
                            platform=HttpPlatform.from_env())

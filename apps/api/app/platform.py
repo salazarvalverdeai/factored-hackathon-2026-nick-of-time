@@ -34,7 +34,7 @@ class Platform(Protocol):
 
 
 class HttpPlatform:
-    def __init__(self, url: str, api_key: str, assistant_id: str = "agent",
+    def __init__(self, url: str, api_key: str, assistant_id: str = "dispute_intake",
                  transport: Optional[httpx.BaseTransport] = None) -> None:
         self.assistant_id = assistant_id
         self._client = httpx.Client(base_url=url.rstrip("/"), headers={"x-api-key": api_key}, timeout=60.0,
@@ -42,8 +42,8 @@ class HttpPlatform:
 
     @classmethod
     def from_env(cls) -> Optional["HttpPlatform"]:
-        url, key = os.getenv("LANGGRAPH_URL"), os.getenv("LANGSMITH_API_KEY")
-        return cls(url, key, os.getenv("LANGGRAPH_ASSISTANT", "agent")) if url and key else None
+        url, key = os.getenv("LANGGRAPH_API_URL"), os.getenv("LANGSMITH_API_KEY")
+        return cls(url, key, os.getenv("LANGGRAPH_ASSISTANT", "dispute_intake")) if url and key else None
 
     def _call(self, method: str, path: str, **kwargs: Any) -> httpx.Response:
         try:

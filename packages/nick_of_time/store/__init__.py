@@ -293,9 +293,12 @@ class Store(Protocol):
         """The case if it belongs to `run_id` (None = production) and to `customer_id` (None = analyst console),
         with the V- id of the latest `action_verified` of its `case_opened` action."""
 
-    def list_cases(self, customer_id: Optional[str], *, run_id: Optional[str]) -> list[CaseRecord]:
-        """The customer's cases in `run_id` (None = every customer's, the analyst console, as in `get_case`): active
-        (not closed) first, newest first within each group."""
+    def list_cases(self, customer_id: str, *, run_id: Optional[str]) -> list[CaseRecord]:
+        """The customer's cases in `run_id`: active (not closed) first, newest first within each group."""
+
+    def list_all_cases(self, *, run_id: Optional[str]) -> list[CaseRecord]:
+        """Spec 05: every customer's cases in `run_id`, in the order of `list_cases`. Only the analyst console calls it,
+        so a customer route can never widen its scope by passing no customer."""
 
     def append_event(self, case_id: str, type: EventType, *, actor: str, trace_id: str,
                      payload: Optional[dict[str, Any]] = None) -> CaseEvent:
