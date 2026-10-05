@@ -10,6 +10,7 @@ Served as `dispute_intake_next` (langgraph.json) until it replaces the echo grap
 """
 # No `from __future__ import annotations`: the state types must resolve when the server loads this file by path.
 import os
+import re
 import uuid
 from typing import Any, Optional, TypedDict
 
@@ -23,7 +24,9 @@ from contracts.tools import CUSTOMER_TOOLS, ToolError
 from nick_of_time import receipt as msg
 from nick_of_time.config import resolve, today
 from nick_of_time.contracts import TurnResult
+from nick_of_time.ids import new_id
 from nick_of_time.nlu import load_nlu
+from nick_of_time.nlu.text import fold
 from nick_of_time.policy import DecisionInput, PolicyEngine
 
 ENGINE, NLU = PolicyEngine.load(), load_nlu("B0")
@@ -34,6 +37,14 @@ DISPUTES = ("unrecognized_charge", "wrongful_charge")
 ACTION_INTENT = {"request_call": "human_request", "send_summary": "status_inquiry",
                  "request_reevaluation": "status_inquiry", "verify_now": "status_inquiry"}
 BRANCH = {"reauthenticate": "refuse", "deny": "refuse", "connect_person": "connect", "answer_status": "status"}
+# Another customer's data (spec 02 rule 2, POL-CROSS-CUSTOMER / G-SES-02), on folded text: a data word, then "of" a
+# third party. The graph sets cross_customer; the nlu injection rules stay as they are (spec 11).
+_DATA = (r"(?:saldo|cuentas?|contas?|tarjetas?|cartao|cartoes|transacc\w*|transac\w*|movimientos?|movimentos?|cargos?"
+         r"|compras?|extracto|extrato|datos|dados)")
+_THIRD = (r"(?:otr[oa]|outr[oa]) (?:cliente|persona|pessoa|usuari[oa]|titular)|cliente (?:(?:n[o°º]\.?|numero|#) ?)?\d{3,}"
+          r"|(?:mi|minha|meu) (?:esposa|esposo|marido|mujer|hij[oa]|filh[oa]|madre|padre|mama|papa|mae|pai|herman[oa]"
+          r"|irma|irmao|novi[oa]|namorad[oa]|pareja|amig[oa]|jefe|chefe|vecin[oa]|vizinh[oa])")
+CROSS_CUSTOMER = re.compile(rf"\b{_DATA}\b(?: \w+){{0,4}}? (?:de|del|da|do) (?:la |el |o |a )?(?:{_THIRD})\b")
 
 
 class InputState(TypedDict, total=False):   # spec 01 §6.4, as the echo graph
@@ -56,6 +67,7 @@ class Internal(TypedDict, total=False):     # spec 04 §4.1 fields outside TurnR
     greet_pending: bool
     slots: dict[str, Any]
     injection_flagged: bool
+    cross_customer: bool
     dispute_detected: bool
     active_case: Optional[bool]
     route: Optional[dict[str, Any]]         # rules 1–4 result; None = a dispute, go on
@@ -77,8 +89,10 @@ async def call(config: RunnableConfig, tool: str, **args: Any) -> BaseModel:
     tool's output model, or a ToolError for any failure (UNAVAILABLE for transport errors)."""
     settings = config["configurable"]
     try:
-        transport = settings.get("mcp_transport") or StreamableHttpTransport(   # tests pass the fake server here
-            os.environ["MCP_URL"], headers={"X-API-Key": os.environ.get("MCP_API_KEY", "")})
+        transport = settings.get("mcp_transport")   # tests pass a server object; a URL string is never honoured
+        if not transport or isinstance(transport, str):
+            transport = StreamableHttpTransport(os.environ["MCP_URL"],
+                                                headers={"X-API-Key": os.environ.get("MCP_API_KEY", "")})
         async with Client(transport, timeout=TIMEOUT_S) as client:
             result = await client.call_tool(tool, {"session_id": settings["session_id"], **args}, raise_on_error=False)
         if result.is_error:
@@ -126,7 +140,7 @@ def understand(state: State) -> dict[str, Any]:
     hint = state.get("language") or state.get("language_last")
     language = hint or profile.get("language") or "es"
     base = {"today": day.isoformat(), "language": language, "slots": {}, "injection_flagged": False,
-            "intent": None, "intent_confidence": None, "dispute_detected": False}
+            "cross_customer": False, "intent": None, "intent_confidence": None, "dispute_detected": False}
     pending = state.get("intent") if state.get("intent") in DISPUTES else "unrecognized_charge"
     if action:                              # a pressed action chip or button skips the classifier (AC-32)
         intent = ACTION_INTENT.get(action.get("type"), pending)
@@ -135,7 +149,8 @@ def understand(state: State) -> dict[str, Any]:
         return base
     reading = NLU.parse(text, hint, today=day)
     found = {"language": reading.language, "slots": reading.slots.model_dump(),
-             "injection_flagged": reading.injection_flagged}
+             "injection_flagged": reading.injection_flagged,
+             "cross_customer": bool(CROSS_CUSTOMER.search(fold(text)))}
     chip = msg.offered_text_chip(text, state.get("suggestions") or [])
     if chip:                                # typed label = pressed text chip: routed by the pending question (AC-33)
         intent = msg.TEXT_CHIP_INTENT[chip] or pending
@@ -157,10 +172,8 @@ async def route(state: State, config: RunnableConfig) -> dict[str, Any]:
     decision = ENGINE.screen(DecisionInput(
         session_state=state["session_state"], intent=state.get("intent") or "out_of_scope",
         intent_confidence=float(state.get("intent_confidence") or 0), dispute_detected=state["dispute_detected"],
-        injection_flagged=state["injection_flagged"],
-        # [assumption] another customer's id or data is flagged by the injection rules (G-IN-01, spec 11); a separate
-        # G-SES-02 detector, if any, comes with the tool-side check of spec 03.
-        cross_customer=False, supervised_mode=False, active_case=active))
+        injection_flagged=state["injection_flagged"], cross_customer=state["cross_customer"], supervised_mode=False,
+        active_case=active))
     if decision is None:
         return {"branch": "retrieve", "active_case": active}
     return {"branch": BRANCH[decision.decision], "route": decision.model_dump(mode="json"), "active_case": active,
@@ -180,10 +193,10 @@ async def connect(state: State, config: RunnableConfig) -> dict[str, Any]:
     """A general call request (spec 02 request_call, D-026): it stays "requested", as no read verifies it."""
     key = f"{state['session_id']}:none:request_call:{state['trace_id']}"
     out, language = await call(config, "request_call", idempotency_key=key), state["language"]
-    if isinstance(out, ToolError):          # never refuse (AC-28) and never claim it (AC-18)
-        label = msg.text("status.action_label.request_call", language)
-        return {"body": [msg.text("status.action_not_confirmed", language, action_label=label)],
-                "row": "connect_person"}
+    if isinstance(out, ToolError):          # never refuse (AC-28), never claim it (AC-18): say it failed, offer a retry
+        # [assumption] the graph's own id for an attempt the tool never accepted; no tool returned one
+        return {"body": [msg.text("connect.request_failed", language)], "row": "connect_failed",
+                "actions": [{"tool": "request_call", "action_id": new_id("action"), "state": "not_confirmed"}]}
     when = out.expected_contact_by
     body = (msg.text("connect.requested", language, expected_contact_by=when.isoformat()) if when
             else msg.text("connect.requested_no_window", language))

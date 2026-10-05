@@ -130,7 +130,10 @@ verification_id, read_at}], `case`, `receipt`, `handoff`, `reply`, `progress` [l
 session's date from `config.today(mode)`), `route` (the `screen()` result), `branch`, `body` and `row` (the reply lines
 and the §4.5 row of the turn), `greet_pending`, and `language_last` (the thread's language when a request sends
 `language: null`). Per-turn fields are cleared when a turn starts; the turn's `messages` and `action` are cleared when
-it ends.
+it ends. `injection_flagged` comes from the spec 11 classifier; `cross_customer` is set by `understand` in the graph
+(task 04a) from a small ES/PT pattern set in `apps/agent`: a data word (saldo, cuenta, tarjeta, transacciones,
+extrato…) "of" a third party (otro cliente, cliente + number, mi esposa / minha esposa…), so spec 02 rule 2 fires
+`POL-CROSS-CUSTOMER` (G-SES-02).
 
 ### 4.2 Nodes and edges
 ```
@@ -191,6 +194,7 @@ and opens nothing [D-039 default, pending the lead].
 | `answer_status` — resolved, within the re-evaluation window | action "Pedir reevaluación" · link "Ver mi caso" · action "Que me llame una persona" |
 | `connect_person` — with a case | link "Ver mi caso" · text "Reportar otro cargo" |
 | `connect_person` — no case | text "Reportar otro cargo" · text "¿Cómo va mi caso?" · text "Me cobraron dos veces" (F-007, so every reply ends with 2–3 chips) |
+| `connect_person` — `request_call` failed (`connect.request_failed`, action `not_confirmed`) | action "Hablar con una persona" (retries the call) · text "¿Cómo va mi caso?" · text "No reconozco un cargo" |
 | `deny` / out of scope | text "No reconozco un cargo" · text "¿Cómo va mi caso?" · action "Hablar con una persona" |
 | `reauthenticate` | link "Verificar de nuevo" · action "Hablar con una persona" (general contact path, AC-28) |
 

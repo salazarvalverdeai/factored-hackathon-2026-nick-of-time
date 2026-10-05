@@ -43,6 +43,7 @@ ROWS: dict[str, tuple[str, ...]] = {
     "reauthenticate": ("reauthenticate", "talk_to_person"),
     "connect_person": ("report_another", "check_case", "report_duplicate"),     # no case: F-007 adds 2 text chips
     "connect_person_case": ("view_case", "report_another"),
+    "connect_failed": ("talk_to_person", "check_case", "report_unrecognized"),     # the first chip retries the call
 }
 
 # What a typed (or pressed) text chip stands for when it was offered in the last reply (AC-32, proposed AC-33):

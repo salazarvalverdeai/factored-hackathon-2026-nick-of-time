@@ -91,6 +91,11 @@ connect:
     # D-008: expected_contact_by is null on the active-case path; no time is promised.
     es: "Registré tu solicitud en el caso {case_id}."
     pt: "Registrei seu pedido no caso {case_id}."
+  request_failed:
+    # Spec 04 task 04a (pending the lead): request_call answered an error, so nothing was registered and nobody
+    # reviews it. Says so, offers a retry (the talk_to_person chip) and the general contact path.
+    es: "No pude registrar tu solicitud de llamada. Puedes intentarlo de nuevo o usar el teléfono de atención que figura al reverso de tu tarjeta."
+    pt: "Não consegui registrar seu pedido de ligação. Você pode tentar novamente ou usar o telefone de atendimento que consta no verso do seu cartão."
   # No verified session: general path with no customer data. [assumption] the bank's contact details are
   # not in the repo, so the wording points to the number printed on the card.
   general_contact:
