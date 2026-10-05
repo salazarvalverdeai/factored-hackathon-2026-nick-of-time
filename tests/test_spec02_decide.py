@@ -211,9 +211,9 @@ def test_ac_12_the_first_terminal_rule_wins(winner, overrides):
 @pytest.mark.parametrize("amount, country", [(10.0, "MX"), (5000.01, "MX"), (10.0, "PE")])
 @pytest.mark.parametrize("supervised", [False, True])
 @pytest.mark.parametrize("score", [72.0, 40.0, 10.0, None])
-def test_ac_12_a_call_request_with_a_charge_adds_the_call_and_leaves_any_block_to_the_analyst(score, supervised, amount,
+def test_ac_19_a_call_request_with_a_charge_adds_the_call_and_leaves_any_block_to_the_analyst(score, supervised, amount,
                                                                                               country):
-    """D-020 and D-029: rule 3a is not terminal when the message also reports a charge. The case opened for it gets the
+    """AC-19, D-020 and D-029 (ADR 0024): rule 3a is not terminal when the message also reports a charge. The case opened for it gets the
     call and follows its zone like a confirmed dispute, except that nothing is blocked in that turn: where the plain
     dispute would block, the case waits in review with person_requested and the analyst decides after the call."""
     t = turn(intent="human_request", dispute_detected=True, score=score, supervised_mode=supervised, amount=amount,
@@ -264,8 +264,8 @@ D029 = {  # (zone, call request, confidence at τ) → decision, allowed actions
 
 @pytest.mark.parametrize("zone, call, at_tau", list(D029),
                          ids=[f"{z}-{'call' if c else 'dispute'}-{'at' if a else 'below'}-tau" for z, c, a in D029])
-def test_ac_12_d029_a_call_request_never_blocks_and_the_tools_re_check_agrees(zone, call, at_tau):
-    """D-029 (lead, 2026-10-04): a call request that reports a charge opens the case and registers the call, and in the
+def test_ac_19_a_call_request_never_blocks_and_the_tools_re_check_agrees(zone, call, at_tau):
+    """AC-19, D-029 (ADR 0024): a call request that reports a charge opens the case and registers the call, and in the
     high zone the analyst decides the block after the call (person_requested); medium and human do not change. Below τ
     only the call (D-031). The tool's re-check with call_requested withholds the same block."""
     t = turn(intent="human_request" if call else "unrecognized_charge", dispute_detected=True, score=SCORE_OF[zone],
@@ -281,7 +281,8 @@ def test_ac_12_d029_a_call_request_never_blocks_and_the_tools_re_check_agrees(zo
 
 @pytest.mark.parametrize("call", [False, True])
 @pytest.mark.parametrize("zone", ZONES)
-def test_ac_05_a_call_request_withholds_the_block_in_check_and_still_opens_the_case(zone, call):
+def test_ac_19_a_call_request_withholds_the_block_in_check_and_still_opens_the_case(zone, call):
+    """AC-19: the mode check comes first (over the gate the Deny cites POL-AMOUNT-GATE), then the call."""
     kw = dict(supervised_mode=False, call_requested=call, currency="USD", country="MX")
     block = ENGINE.check("block_card", zone, amount=10.0, **kw)
     if zone == "high" and not call:
@@ -296,11 +297,60 @@ def test_ac_05_a_call_request_withholds_the_block_in_check_and_still_opens_the_c
 
 
 @pytest.mark.parametrize("value", [None, 0, 1, "false", "true", "missing"])
-def test_ac_05_check_refuses_a_call_flag_that_is_not_a_bool(value):
-    """call_requested has no default: a flag read as None or left out is never "no call" (fail closed)."""
+def test_ac_19_check_refuses_a_call_flag_that_is_not_a_bool(value):
+    """AC-19: call_requested has no default: a flag read as None or left out is never "no call" (fail closed)."""
     kw = {} if value == "missing" else dict(call_requested=value)
     with pytest.raises(TypeError, match="call_requested"):
         ENGINE.check("block_card", "high", supervised_mode=False, amount=10.0, currency="USD", country="MX", **kw)
+
+
+IN_GATE = {"MX": ("MXN", 20_000.0), "CO": ("COP", 5_000_000.0), "AR": ("ARS", 400_000.0), "BR": ("BRL", 6_000.0)}
+
+
+def test_ac_19_every_confident_high_zone_call_request_defers_the_block_to_the_analyst():
+    """AC-19 property (PR #80 review F5): over every gated country, an auto-tier USD amount and a manual_check-tier
+    local amount, each card product (and gold label), the high-zone band, every deciding source (synthetic included),
+    an active case or not, a clarification turn, a confirmation and the confidence, the call path opens the case in
+    review with person_requested and no block, the tool's re-check denies the block, and without the call it blocks."""
+    cells = itertools.product(
+        [(country, cur, amount) for country, (local, high) in IN_GATE.items() for cur, amount in (("USD", 50.0),
+                                                                                                    (local, high))],
+        ["debit", "credit", "Tarjeta Débito", "Tarjeta Crédito"], [50.0, 72.0, 100.0],
+        ["dataset", "rules", "model", "synthetic"], [None, False, True], [0, 1], [None, True], [0.80, 1.0])
+    deferred = ("connect_person", "high", ["open_case"], "person_requested", "review", "opened_case",
+                ["POL-HUMAN-REQUEST", "POL-ZONE-HIGH", "POL-TICKET-ALWAYS"])
+    n = 0
+    for (country, cur, amount), product, score, source, active, turns, confirmed, confidence in cells:
+        facts = dict(country=country, currency=cur, amount=amount, product_type=product, score=score,
+                     score_source=source, active_case=active, clarification_turns=turns,
+                     customer_confirmed=confirmed, intent_confidence=confidence, dispute_detected=True)
+        d = ENGINE.decide(turn(intent="human_request", **facts))
+        assert (d.decision, d.zone, d.allowed_actions, d.handoff_reason, d.queue_status_after, d.request_call,
+                d.rule_ids) == deferred, facts
+        assert ENGINE.decide(turn(**facts)).decision == "block_and_open_case", facts
+        money = dict(supervised_mode=False, amount=amount, currency=cur, country=country)
+        assert ENGINE.check("block_card", "high", call_requested=True, **money) == Deny(
+            action="block_card", policy_id="POL-HUMAN-REQUEST", guardrail_id=None, rule_ids=["POL-HUMAN-REQUEST"],
+            policies_version=2), facts
+        assert isinstance(ENGINE.check("block_card", "high", call_requested=False, **money), Allow), facts
+        n += 1
+    assert n == 9216
+
+
+@pytest.mark.parametrize("intent", ["unrecognized_charge", "wrongful_charge"])
+@pytest.mark.parametrize("country, currency, amount", [("MX", "USD", 50.0), ("CO", "COP", 5_000_000.0),
+                                                       ("BR", "BRL", 6_000.0)])
+def test_ac_19_d042_a_later_turn_cannot_block_while_the_call_is_open(intent, country, currency, amount):
+    """AC-19, D-042 (ADR 0024): the hold lasts until the analyst acts. decide() reads no store, so a later plain-dispute
+    turn on the same high-zone transaction still allows the block; the block_card tool passes call_requested=True while
+    the case's call is open (spec 03 §8), and check() denies the block. Once the analyst acted, the flag is false."""
+    later = ENGINE.decide(turn(intent=intent, active_case=True, customer_confirmed=True, country=country,
+                               currency=currency, amount=amount))
+    assert (later.decision, later.zone, later.allowed_actions) == ("block_and_open_case", "high", BLOCK)
+    money = dict(supervised_mode=False, amount=amount, currency=currency, country=country)
+    held = ENGINE.check("block_card", later.zone, call_requested=True, **money)
+    assert isinstance(held, Deny) and held.policy_id == "POL-HUMAN-REQUEST"
+    assert isinstance(ENGINE.check("block_card", later.zone, call_requested=False, **money), Allow)
 
 
 @pytest.mark.parametrize("dispute", [dict(), dict(candidates=2), dict(intent_confidence=0.5), dict(score=40.0),
