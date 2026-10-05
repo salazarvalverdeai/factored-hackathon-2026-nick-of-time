@@ -76,9 +76,14 @@ AC-01 to AC-05 are copied from issue #9 with the same numbers. None is dropped o
 - [x] Task 1 — OTP picker, chat, receipt widget, trace panel · covers AC-01 to AC-04 · done when: browser walk-through passes
 - [x] Task 2 — mobile layout at 390 px · covers AC-05 · done when: no horizontal scroll
 - [x] Task 3 — confirm-first flow and session-only identity · covers AC-06 · done when: the two tests pass
-- [ ] Task 4 — call the live agent proxy (`/api/agent/...`, spec 05 M05) · covers AC-01 to AC-04 · done when: same flow on the public URL
-- [ ] Task 5 — demo-mode start screen (D-068, the contract in §8) · covers AC-01 · done when: a visitor opens a demo
+- [x] Task 4 — call the live agent proxy (`/api/agent/...`, spec 05 M05) · covers AC-01 to AC-04 · done when: same flow on the public URL (shipped with the live mode, PR #168; checked here against a local backend)
+- [x] Task 5 — demo-mode start screen (D-068, the contract in §8; `app/chat/demo-start.tsx`, `demo-tools.tsx`, tests in `lib/demo.test.ts` and `lib/live.test.ts`) · covers AC-01 · done when: a visitor opens a demo
   session by scenario and picks a recent transaction on the public URL
+
+**Task 5 notes.** The web never sends a `customer_id`; the session id (equal to the httpOnly cookie value) is kept in
+`sessionStorage` to address `/api/sessions/{id}/...`. Charge-chip text is local ES/PT copy built from tool-returned
+fields only (`lib/demo.ts`). Amounts use a dot decimal. The mock client has no demo flow (501): demo sessions need the
+live API. The persona draft goes into the composer, labeled "suggested", and is never sent on its own.
 
 **Closing checklist** (last PR): every AC has a passing test or check that cites it · status → Implemented · ADR for
 any decision taken · lessons added to `CLAUDE.md`.
