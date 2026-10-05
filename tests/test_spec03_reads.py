@@ -31,6 +31,7 @@ def _trx(n, customer, day, amount, currency="USD", merchant=None, status="Approv
     return {"transaction_id": f"TRX-{n:020d}", "product_id": f"PRD-{customer[4:16]}", "customer_id": customer,
             "transaction_date": dt.datetime(2026, 4, 30, 12, 30) + dt.timedelta(days=day), "amount": amount, "currency": currency,
             "amount_usd": amount_usd, "merchant_name": merchant, "transaction_status": status, "product_type": ptype,
+            "transaction_country": "Argentina" if customer == CARLA else "México",
             "fraud_score": score, "is_fraud": True}         # is_fraud planted: the loader must never select it
 
 
@@ -206,5 +207,10 @@ def test_ac_20_convert_amount_answers_null_without_a_verified_labeled_rate(gold_
     assert other("convert_amount", amount=1, currency="USD", to_currency="MXN").converted.currency == "MXN"
 
 
-def test_ac_08_a_live_session_search_is_unavailable_until_the_live_clock_lands(gold_dir):
-    assert Run(gold_dir)("search_transaction", S_LIVE, amount=69.44).code == "UNAVAILABLE"
+def test_ac_08_a_live_session_searches_up_to_the_real_date_in_the_customers_time_zone(gold_dir):
+    def search(utc_now, session=S_LIVE):
+        run = Run(gold_dir, utc_now=lambda: utc_now)
+        return _ids(run("search_transaction", session, amount=69.44, approx_date="2026-05-30", window_days=0))
+    assert search(dt.datetime(2026, 5, 30, 5, 59, tzinfo=dt.UTC)) == []    # 23:59 on 05-29 in Mexico City
+    assert search(dt.datetime(2026, 5, 30, 6, 0, tzinfo=dt.UTC)) == [1]    # 00:00 on 05-30: the charge's day
+    assert search(dt.datetime(2026, 5, 30, 5, 59, tzinfo=dt.UTC), S_ANA) == [1]   # replay keeps DEMO_TODAY
