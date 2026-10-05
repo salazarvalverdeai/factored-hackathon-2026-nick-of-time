@@ -125,8 +125,9 @@ the online auditor (spec 18) · any write to Postgres · the `/analytics` sectio
 
 ## 10. Plan, tasks and verification
 Implementation goes in `feat/14-…` branches once this spec is approved, after specs 09, 10 and 12 (P0).
-- [ ] T1 — bronze extractor with row-count and high-water checks, on the in-memory store · covers AC-01, AC-07
-- [ ] T2 — silver tables, contracts and the quality counts · covers AC-02, AC-11
+- [x] T1 — bronze extractor with row-count and high-water checks, on the in-memory store · covers AC-01, AC-07 ·
+      `data/ops/bronze.py`, [T] `tests/test_spec14_bronze_silver.py`
+- [x] T2 — silver tables, contracts and the quality counts · covers AC-02, AC-11 · `data/ops/silver.py`
 - [ ] T3 — gold `ops_kpis` and `feedback_cases`, manifest, `make ops` · covers AC-03, AC-04, AC-05, AC-08
 - [ ] T4 — `ops_kpis.json` export · covers AC-09
 - [ ] T5 — run against Postgres (after spec 05 is deployed); schedule documented · covers AC-01
