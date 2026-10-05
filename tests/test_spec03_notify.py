@@ -139,7 +139,9 @@ def test_d035_a_send_is_verified_only_while_its_latest_delivery_did_not_fail_or_
     assert run("list_my_notifications", action_id=opened).verification_id is None
     run.store.add_delivery(send.notification_id, "bounced")
     assert run("list_my_notifications", action_id=send.action_id).verification_id is None
-    failing = Run(sender=lambda *_: (_ for _ in ()).throw(TimeoutError()))
+    def timing_out(*_):
+        raise TimeoutError
+    failing = Run(sender=timing_out)
     failing.link()
     lost = failing("send_case_summary")
     [row] = failing.mine()
