@@ -151,6 +151,18 @@ create table if not exists customer_channels (                                  
   row_no bigint not null generated always as identity                -- insertion order: "latest" (T9)
 );
 
+create table if not exists call_requests (                           -- AO; a call asked for with no case (D-026)
+  event_id text primary key,                                         -- the E- id request_call returns
+  action_id text not null check (action_id ~ '^A-[0-9A-F]{12}$'),    -- used once (the store checks it)
+  customer_id text not null,
+  session_id text not null,
+  preferred_time text null,
+  expected_contact_by date null,                                     -- D-008: stored, never recomputed
+  run_id text null,
+  trace_id text not null,
+  created_at timestamptz not null default now()
+);
+
 create table if not exists link_tokens (                                           -- one-time
   token text primary key,
   case_id text not null,
@@ -208,6 +220,8 @@ create table if not exists settings_events (                                    
 create unique index if not exists case_events_action_id_once on case_events ((payload ->> 'action_id'))
   where type in ('case_opened', 'card_blocked', 'customer_info_added', 'call_requested', 'reevaluation_requested',
                  'notification_sent');
+-- A call request's action id is used once too (D-026).
+create unique index if not exists call_requests_action_id_once on call_requests (action_id);
 
 create or replace function forbid_append_only_change() returns trigger language plpgsql as $$
 begin
@@ -218,7 +232,7 @@ do $$
 declare t text;
 begin
   foreach t in array array['cases', 'case_events', 'product_overrides', 'notifications', 'notification_deliveries',
-                           'customer_channels', 'idempotency', 'policy_denials', 'llm_calls',
+                           'customer_channels', 'call_requests', 'idempotency', 'policy_denials', 'llm_calls',
                            'settings_events'] loop
     if not exists (select 1 from pg_trigger where tgrelid = to_regclass(t) and tgname = t || '_append_only') then
       execute format('create trigger %I before update or delete or truncate on %I '

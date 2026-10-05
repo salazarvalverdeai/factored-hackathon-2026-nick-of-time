@@ -25,7 +25,7 @@ from psycopg.types.json import Jsonb
 from nick_of_time import ids
 from nick_of_time.contracts import AnalystActionIn, AnalystActionOut, QueueStatus
 from nick_of_time.store import (CUSTOMER_VISIBLE, RESERVED_EVENTS, UNDELIVERED, VERIFIED_WITH, WRITE_EVENTS, WRITE_TOOL,
-                                CaseEvent, CaseRecord, Channel, DeliveryStatus, EventType, NewCase, Notification,
+                                CallRequest, CaseEvent, CaseRecord, Channel, DeliveryStatus, EventType, NewCase, Notification,
                                 NotVerified, ProductOverride, StoreError, VerifyingRead, _check_writer, _json,
                                 _utc_now, check_action_id, check_business_date, check_text, check_transition,
                                 insert_with_fresh_case_id)
@@ -269,6 +269,22 @@ class PostgresStore:
             "order by n.created_at desc, n.notification_id collate \"C\" desc",
             (customer_id, run_id))
         return [Notification(**r) for r in rows]
+
+    # ---------- call requests with no case (D-026) ----------
+    def add_call_request(self, **fields: Any) -> CallRequest:
+        row = parse(CallRequest, {**fields, "event_id": ids.new_id("event"), "created_at": self._now()})
+        with self._tx("call_requests:" + row.action_id):
+            self._check_new_action(row.action_id)
+            if self._rows("select 1 from call_requests where action_id = %s", (row.action_id,)):
+                raise StoreError(f"action {row.action_id} was already written; a write takes a fresh action id")
+            self._insert("call_requests", row.model_dump())
+        return row
+
+    def call_requests(self, customer_id: str, *, run_id: Optional[str]) -> list[CallRequest]:
+        rows = self._rows(f"select {', '.join(CallRequest.model_fields)} from call_requests where customer_id = %s "
+                          "and run_id is not distinct from %s order by created_at, event_id collate \"C\"",
+                          (check_key(customer_id), check_key(run_id)))
+        return [CallRequest(**r) for r in rows]
 
     # ---------- internals ----------
     @contextmanager

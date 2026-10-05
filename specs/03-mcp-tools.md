@@ -145,7 +145,7 @@ The analysts' actions never appear in this server.
 - D-026: `search_transaction` returns no `fraud_score` or `split`, because the zone comes only from `get_fraud_score`.
   A `request_call` without `case_id` writes no `case_events` row. It returns `case_id: null`, its `action_id` and an
   `event_id` (`E-`) that keys an append-only `call_requests` row. No customer read verifies it, so the agent reports it
-  only as `requested`, never as verified. Task 03d adds `call_requests` to spec 01 §6.5 and to §7 here.
+  only as `requested`, never as verified. Task 03d1 added `call_requests` to spec 01 §6.5 and to §7 here.
 - D-027: `synthetic` is a score source. `get_fraud_score` returns `source: "synthetic"` with the stored score of a
   live-mode `demo_transactions` row (`policies.yaml` `scoring.providers.synthetic`).
 
@@ -158,8 +158,9 @@ AC-21). From `products` (`apps/mcp/mcp_server/cards.py`, T4) only the card rows'
 abroad. Card transactions are loaded at startup into an in-memory table indexed by `customer_id` (≈ 516k rows). Reads
 and writes Postgres through `nick_of_time.store`: `sessions` (read), `demo_transactions` (read, `live` only), `cases`,
 `case_events`, `product_overrides`, `idempotency`, `policy_denials`, `notifications`, `notification_deliveries` (read),
-`customer_channels` (read). Takes the store's `serialize` lock (a Postgres transaction-level advisory lock) on
-`open_case:<run>:<customer>:<transaction>` around the duplicate check and the insert (AC-15, task 03c).
+`customer_channels` (read), `call_requests` (a call with no case, D-026). Takes the store's `serialize` lock (a
+Postgres transaction-level advisory lock) on `open_case:<run>:<customer>:<transaction>` around the duplicate check and
+the insert (AC-15, task 03c), and so does `request_reevaluation`'s related case (task 03d1).
 `contracts/policies.yaml` gains the rule `POL-ZONE-MISMATCH` (G-IN-02, AC-09; D-060: `version` stays 2, since the
 engine's behavior does not change).
 
@@ -250,8 +251,39 @@ Implementation goes in one `feat/03-*` branch per task (T1: `feat/03-mcp-server`
       turn (spec 09 EV-0118) leaves it `new` depends on who writes `handoff_emitted`, pending D-066; and
       `notifications.events.in_review` ("Un analista está revisando tu caso") is wrong for a case that opens in
       `review` with no analyst yet, a wording change recorded for spec 13
-- [ ] T6 — follow-up tools (`add_case_info`, `request_call`, `request_reevaluation`) · AC-17, AC-18, AC-19
-- [ ] T7 — `send_case_summary`, `list_my_notifications` · AC-21, AC-22
+- [x] T6 — follow-up tools (`add_case_info`, `request_call`, `request_reevaluation`) · AC-17, AC-18, AC-19 ·
+      `apps/mcp/mcp_server/followups.py` (`followups_handlers`, wired by name by T8), the store's `call_requests`
+      (D-026), `tests/test_spec03_followups.py` on both backends. "Active" means not closed for AC-15 and AC-17 (so a
+      resolved case takes information), and `new`, `verification` or `review` for AC-19's `already_in_progress`.
+      `[assumption]`s, pending lead decision D-062: a card number, CVV or password in any stored customer text
+      (`text`, `preferred_time`, `reason`) is denied with `POL-PII` (guardrail G-IN-04, policies.yaml) and nothing is
+      stored; the re-evaluation window is policies.yaml `reevaluation.window_days` per country (spec 02 FR-09; 30 for
+      MX, CO, AR, BR, PE and CL, the spec 02 §4.4 proposal; day 30 qualifies, day 31 is denied; a country not listed is
+      denied with `POL-DEFAULT-DENY`, since no window passed, and a call is still offered) until `reevaluation_allowed()` ships. Other `[assumption]`s: a call stays open until
+      `approve_block`, `resolve` or `close_case` (the D-042 hold end); a new `call_requested` on a `new` case also moves
+      it to `review` (`status_changed`, reason `call_requested`) in the same `once`, so a held case gets the review SLA
+      that spec 02 `_open()` sets (`queue_status_after: review`); a case in `verification` or `review`, a repeated
+      request and a call with no case move nothing (pending lead decision D-063); a closed case has no window, so any closed case
+      may open one related case; that related case copies the closed case's facts and zone, opens on today, goes to
+      `review`, keeps the reason in its `reevaluation_requested` and takes its deadline from gold with `abroad` derived
+      as `open_case` does from the card index `cards_of(gold)` (none without the charge); while a case of that
+      transaction is not closed, a new request answers `already_in_progress` with that case's `case_opened` (AC-15),
+      checked and written under `open_case`'s `serialize` key, so concurrent calls of either tool open one case; the result has `case_id` = the new case and
+      `related_case_id` = the closed one; a write on a closed case is `DENY POL-DEFAULT-DENY`
+- [x] T7 — `send_case_summary`, `list_my_notifications` · AC-21, AC-22 · `apps/mcp/mcp_server/notify.py`
+      (`notify_handlers`, wired by name by T8), `tests/test_spec03_notify.py` on both backends. The send is written
+      once per idempotency key (notification, `queued` delivery, `notification_sent`); the sender runs after that
+      write commits and only on a first call, never on a replay, and its result is one more delivery row: `sent` with
+      the provider's message id (`provider_event.provider_message_id`, so a later bounce can be matched, D-035) or
+      `failed`; a row that cannot be written then is logged and the notification stays `queued` for the api's
+      reconciler, and the tool still answers `requested` `[assumption]`. D-035 stays as decided: a `queued` or `sent` send verifies (`V-`); the agent says "sent" only from
+      `delivery_status` `sent` or `delivered`, never from the `V-` (spec 04, AC-26). `[assumption]`s: the summary is
+      the `receipt.*` lines whose facts the store and gold hold (title, charge, stored deadlines or `deadline_unknown`,
+      what the assistant did by the verified block, what a person does); no card or `V-` line, which spec 04's receipt
+      owns; the sender is injected (none: the notification stays `queued` for the api's notifier, spec 13); the store's
+      `summary_sends` backs the gate's 3-per-hour limit per session; an unconfirmed channel or the store limit is
+      `DENY POL-DEFAULT-DENY`; a `list_my_notifications` read with another tool's or another customer's `action_id`
+      is a plain read: it lists only the session customer's notifications, with `read_at` and no `action_id` or `V-`.
 - [ ] T8 — entry point, Dockerfile and compose service `mcp` · AC-02, AC-06, AC-12 · `apps/mcp/mcp_server/__main__.py`,
       `apps/mcp/Dockerfile`, `tests/test_spec03_entrypoint.py`. Done (task 03d2): `python -m mcp_server` reads
       `MCP_API_KEY` (deploy writes it from SSM `/nickoftime/prod/MCP_API_KEY`; under 32 characters the server refuses
