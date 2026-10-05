@@ -143,11 +143,11 @@ test, no code change.** A country without a verified entry falls back to `POL-CL
 
 | Country · product | `credit_deadline` | `ruling_deadline` | Legal basis | Official public source | Verified |
 |---|---|---|---|---|---|
-| MX · debit, charge within the **90 calendar days** before the notice | opened + **2 business days** (provisional credit) | opened + **45 calendar days** (180 if the charge was abroad) | Banxico Circular 3/2012, arts. 2, 19 Bis 3 fr. II and 19 Bis 4, as amended by Circular 14/2018 (in force since 2019-09-26) · ADR 0023 (proposed) | [Banxico, Circular 3/2012 compiled text](https://www.banxico.org.mx/marco-normativo/normativa-emitida-por-el-banco-de-mexico/circular-3-2012/%7B4E0281A4-7AD8-1462-BC79-7F2925F3171D%7D.pdf) · [DOF, Circular 14/2018](https://dof.gob.mx/nota_detalle.php?codigo=5539863&fecha=03/10/2018) | 2026-10-04 |
+| MX · debit, charge within the **90 calendar days** before the notice | opened + **2 business days** (provisional credit) | opened + **45 calendar days** (ruling; 180 if the charge was abroad) | Banxico Circular 3/2012, arts. 19 Bis 3 fr. II and 19 Bis 4, as amended by Circular 14/2018 (in force since 2019-09-26) | [Banxico, compiled text](https://www.banxico.org.mx/marco-normativo/normativa-emitida-por-el-banco-de-mexico/circular-3-2012/%7B4E0281A4-7AD8-1462-BC79-7F2925F3171D%7D.pdf) · [DOF, Circular 14/2018](https://dof.gob.mx/nota_detalle.php?codigo=5539863&fecha=03/10/2018) | 2026-10-04 |
 | MX · debit, older charge | — | opened + **45 calendar days** (180 if the charge was abroad) | LTOSF art. 23 fr. II (clarifications) | [Orden Jurídico Nacional, LTOSF](https://www.ordenjuridico.gob.mx/Documentos/Federal/pdf/wo46.pdf) | 2026-10-04 |
-| MX · credit, charge within the **90 calendar days** before the notice | opened + **2 business days** (provisional credit) | opened + **45 calendar days** (180 if the charge was abroad) | Banxico Circular 34/2010, numerals 3.4 b) and 3.6, as amended by Circular 13/2018 (in force since 2019-09-26) · ADR 0023 (proposed) | [Banxico, Circular 34/2010 compiled text](https://www.banxico.org.mx/marco-normativo/normativa-emitida-por-el-banco-de-mexico/circular-34-2010/%7B0C55B906-6DB4-6B88-FED0-67987E9FB3CC%7D.pdf) | 2026-10-04 |
+| MX · credit, charge within the **90 calendar days** before the notice | opened + **2 business days** (provisional credit) | opened + **45 calendar days** (ruling; 180 if the charge was abroad) | Banxico Circular 34/2010, numerals 3.4 b) and 3.6, as amended by Circular 13/2018 | [Banxico, compiled text](https://www.banxico.org.mx/marco-normativo/normativa-emitida-por-el-banco-de-mexico/circular-34-2010/%7B0C55B906-6DB4-6B88-FED0-67987E9FB3CC%7D.pdf) | 2026-10-04 |
 | MX · credit, older charge | — | opened + **45 calendar days** (180 if the charge was abroad) | LTOSF art. 23 fr. II | [Orden Jurídico Nacional, LTOSF](https://www.ordenjuridico.gob.mx/Documentos/Federal/pdf/wo46.pdf) | 2026-10-04 |
-| AR · any card | — (the item 2.3.5.1 reimbursement, due by the same date, applies only to a charge the bank itself generated; an analyst decides, never the receipt) | opened + **10 business days** (resolution, item 3.1.6) · ADR 0023 (proposed) | BCRA, Protección de los Usuarios de Servicios Financieros (texto ordenado al 2026-05-06) | [BCRA t-pusf](https://www.bcra.gob.ar/archivos/Pdfs/texord/t-pusf.pdf) | 2026-10-04 |
+| AR · any card | — (item 2.3.5.1's 10-day reimbursement lists charges the bank itself generates, not a third party's unrecognized charge) | opened + **10 business days** (resolution, item 3.1.6) | BCRA, Protección de los Usuarios de Servicios Financieros (texto ordenado al 2026-05-06) | [BCRA t-pusf](https://www.bcra.gob.ar/archivos/Pdfs/texord/t-pusf.pdf) | 2026-10-04 |
 | CO · any card | — | opened + **15 business days** | SFC: petitions to supervised entities | [SFC FAQ](https://www.superfinanciera.gov.co/preguntas-frecuentes/3/3-derechos-de-peticion-ante-entidades-vigiladas/) | 2026-10-04 |
 | BR · any card (PT demo only) | — | opened + **10 business days**, extendable once by an equal period | Resolução CMN 4.860/2020 (ouvidoria) | [BCB · Ouvidoria](https://www3.bcb.gov.br/sisorf_externo/manual/06-01-030-160.htm) | 2026-10-04 |
 | PE · any card | — | opened + **15 business days** (extendable only when a third party must rule) | Resolución SBS N.° 04036-2022 | [El Peruano](https://busquedas.elperuano.pe/normaslegales/aprueban-el-reglamento-de-gestion-de-reclamos-y-requerimient-resolucion-sbs-no-04036-2022-2138687-1) | 2026-10-04 |
@@ -157,13 +157,16 @@ test, no code change.** A country without a verified entry falls back to `POL-CL
 - "Opened" = `clock.today(mode, country)`: `DEMO_TODAY = 2026-06-01` in `replay`, the real date in the country's time
   zone in `live` (ADR 0020). Example: a MX debit notice on Monday 2026-06-01 about a charge on 2026-05-31 →
   credit by Wednesday 2026-06-03.
-- **MX window (ADR 0023, proposed):** the 48 h window of art. 19 Bis 3 fr. I and numeral 3.4 a) applies only to a
-  theft or loss notice, so it is not modeled; a claim of unrecognized charges (fr. II, numeral 3.4 b)) qualifies when
-  filed within 90 calendar days of the charge ("Días" are calendar days, Circular 3/2012 art. 2). Day 90 qualifies, the
-  45 days of Circular 34/2010 and LTOSF count as calendar days, and the rule covers both `unrecognized_charge` and
+- **MX and AR rows (ADR 0023, proposed; the article quotes are there):** the 48 h window of Circular 3/2012 art. 19
+  Bis 3 fr. I and Circular 34/2010 numeral 3.4 a) applies only to a theft or loss notice, so it is not modeled; a
+  claim of unrecognized charges (fr. II, numeral 3.4 b)) qualifies when filed within 90 calendar days of the charge
+  ("Días" are calendar days, Circular 3/2012 art. 2), on debit and credit alike. Day 90 qualifies, the 45 days of
+  Circular 34/2010 and LTOSF count as calendar days, and the rule covers both `unrecognized_charge` and
   `wrongful_charge` `[assumption]` — each the reading with the earlier deadline. The 48 h figure came from a
   [CONDUSEF press release of 2018-10-03](https://www.gob.mx/condusef/prensa/cargos-no-reconocidos-en-tarjeta-de-debito-se-restituiran-en-dos-dias-habiles-bancarios?idiom=es)
-  (checked 2026-10-04) that summarizes fr. I only; ADR 0023 quotes the articles.
+  (checked 2026-10-04) that summarizes fr. I only. AR promises only the resolution date (t-pusf 3.1.6); when an
+  analyst finds the charge is one the bank itself generated (the list in item 2.3.5.1), the reimbursement is due by
+  that same date, and the receipt never promises it.
 - **Coverage note:** the dataset only has MX, CO and AR customers, so PE, CL and BR are exercised by unit tests and
   fixtures; the demo runs on MX, CO and AR (BR in Portuguese with a fixture). The README states it.
 - **Every entry cites its official public source and the date it was verified** (ADR 0019); `policies.yaml` stores them as
@@ -273,9 +276,8 @@ fx.convert(amount=1250.0, from_currency="USD", to_currency="MXN") -> {amount, ra
 - **Q1 — medium zone:** follow `policies.yaml`: after the customer confirms, the case is opened and an analyst approves
   the block (safer at 79.6% precision `[data]`); `three_zone_flow.svg` is updated in spec 13.
 - **Q2 — CO:** 15 **business** days, labeled `[external, to verify]` until T3.
-- **Q3 — MX credit:** 45 **calendar** days (180 if the charge was abroad). **Amended by ADR 0023 (proposed):** a claim
-  of unrecognized charges filed within 90 calendar days of the charge also gets the provisional credit by business
-  day 2, as on debit (Banxico Circular 34/2010, numeral 3.4 b)); the 45/180-day ruling of numeral 3.6 applies to it.
+- **Q3 — MX credit:** 45 **calendar** days (180 if the charge was abroad). For a claim within 90 calendar days of the
+  charge, Circular 34/2010 numeral 3.4 b) also sets a provisional credit by business day 2 (ADR 0023, proposed).
 - **Q4 — non-card products:** `deny` with a polite abstention (rule 4).
 - **Q5 — supervised mode vs "the ticket is always opened":** supervised mode applies only to money actions (AC-15).
 - **Q6 — LATAM coverage:** data-driven clock table; PE and CL added with verified sources; any other country falls
