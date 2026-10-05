@@ -35,12 +35,14 @@ AC-01 to AC-06 come from issue #4 with the same numbers; AC-07 onward are added 
   zone shall be `human` with its own policy id (`POL-SCORE-NULL` / `POL-SCORE-LLM` / `POL-SCORE-SOURCE`), and the
   decision shall still open a case. · [T]
 - **AC-03** — When a MX debit or credit dispute is opened for a charge made within the 90 calendar days before the
-  notice (ADR 0023, proposed), `credit_deadline`
-  shall be the second business day after opening (opened 2026-06-01 → 2026-06-03) with its Banxico source; for an older
-  MX debit charge it shall be a ruling deadline instead; an AR dispute shall get +10 business days and a CO dispute +15 business days,
-  skipping weekends and the country's 2026 holidays; a PE dispute shall get +15 business days (SBS) and a CL dispute
-  a refund deadline of +10 business days (+15 for cash advances and ATM withdrawals) and +7 more for the part above
-  35 UF (Ley 20.009). · [T]
+  notice, `credit_deadline` shall be the second business day after opening (opened 2026-06-01 → 2026-06-03) and
+  `ruling_deadline` opening + 45 calendar days (+180 if the charge was abroad), with its Banxico source (Circular 3/2012
+  art. 19 Bis 3 fr. II for debit, Circular 34/2010 numeral 3.4 b) for credit; ADR 0023); for an older MX
+  charge it shall be the LTOSF art. 23 ruling deadline only; an AR dispute shall get a ruling deadline of +10 business
+  days and no credit deadline (BCRA t-pusf 3.1.6; ADR 0023) and a CO dispute +15 business days, skipping
+  weekends and the country's 2026 holidays; a PE dispute shall get +15 business days (SBS) and a CL dispute a refund
+  deadline of +10 business days (+15 for cash advances and ATM withdrawals) and +7 more for the part above 35 UF
+  (Ley 20.009). · [T]
 - **AC-04** — While `supervised_mode` is on, every money action (AC-15) shall have approval mode `human_required`. · [T]
 - **AC-05** — If no rule allows an action, then the engine shall deny it with `POL-DEFAULT-DENY`. · [T]
 - **AC-06** — The amount tier shall change only the approval mode, never a deadline. · [T]
@@ -276,7 +278,7 @@ fx.convert(amount=1250.0, from_currency="USD", to_currency="MXN") -> {amount, ra
   the block (safer at 79.6% precision `[data]`); `three_zone_flow.svg` is updated in spec 13.
 - **Q2 — CO:** 15 **business** days, labeled `[external, to verify]` until T3.
 - **Q3 — MX credit:** 45 **calendar** days (180 if the charge was abroad). For a claim within 90 calendar days of the
-  charge, Circular 34/2010 numeral 3.4 b) also sets a provisional credit by business day 2 (ADR 0023, proposed).
+  charge, Circular 34/2010 numeral 3.4 b) also sets a provisional credit by business day 2 (ADR 0023).
 - **Q4 — non-card products:** `deny` with a polite abstention (rule 4).
 - **Q5 — supervised mode vs "the ticket is always opened":** supervised mode applies only to money actions (AC-15).
 - **Q6 — LATAM coverage:** data-driven clock table; PE and CL added with verified sources; any other country falls
@@ -287,13 +289,13 @@ fx.convert(amount=1250.0, from_currency="USD", to_currency="MXN") -> {amount, ra
 - **Q7 — demo date:** ~~move `DEMO_TODAY` to 2026-06-01?~~ **Decided (lead, 2026-10-04):** two time modes (ADR 0020).
   `replay` uses `DEMO_TODAY = 2026-06-01` (Monday, the first day after the gold window), so every MX
   charge dated 2026-03-03 to 2026-05-31 (≤ 90 calendar days before) gets the business-day-2 credit, debit and credit
-  alike (ADR 0023, proposed, which replaces the earlier 48 h rationale); `live` uses the real date with labeled
+  alike (ADR 0023, which replaces the earlier 48 h rationale); `live` uses the real date with labeled
   synthetic transactions (in October every gold charge is more than 90 days old, so only these show the
   business-day-2 credit). The clock receives "today" from the mode (AC-16).
 - Assumption: MXN 18.0 per USD for the MX amount tiers (`[assumption]`, already in `policies.yaml`); it is never shown to
   a customer — customer-facing conversions use the official reference rate of §4.4.
 - Assumption: holiday lists are verified against official sources while implementing; each file cites its URL.
-- **T3 finding (2026-10-04; ADR 0023, proposed; default applied by D-028):** the official text of art. 19 Bis 3 (Banxico
+- **T3 finding (2026-10-04; ADR 0023; default applied by D-028):** the official text of art. 19 Bis 3 (Banxico
   compiled text through Circular 11/2026) ties the 48 h window to a **theft or loss** notice (fr. I); a claim of
   unrecognized charges is credited by business day 2 when filed within **90 calendar days** of the charge (fr. II;
   "Días" are calendar days, art. 2), and art. 19 Bis 4 sets the ruling at 45 days. CONDUSEF's 2018 press release
