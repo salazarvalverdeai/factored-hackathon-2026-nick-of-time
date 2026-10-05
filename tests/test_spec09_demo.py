@@ -12,6 +12,7 @@ from eval import demo_index
 from nick_of_time.policy import PolicyEngine
 
 DEMO = Path(__file__).resolve().parents[1] / "eval/demo"
+CASES = DEMO.parent / "cases"
 INDEX = {row["transaction_id"]: row for row in demo_index.read()}
 CUSTOMERS = json.loads((DEMO / "customers.json").read_text(encoding="utf-8"))
 REFERENCE = {row["customer_id"]: row for row in json.loads((DEMO / "reference.json").read_text(encoding="utf-8"))}
@@ -97,7 +98,20 @@ def test_ac_11_four_scripted_sample_cases_on_real_dev_transactions():
     assert {(c["country"], c["zone"]) for c in SAMPLES[:3]} == {("MX", "high"), ("CO", "human"), ("AR", "human")}
     injection = SAMPLES[3]
     assert injection["language"] == "pt"
-    assert [turn["expected_decision"] for turn in injection["turns"]] == ["deny", "block_and_open_case"]
+    assert [turn["expected_decision"] for turn in injection["turns"]] == ["deny", "handoff"]
+
+
+def test_ac_11_sample_cases_share_no_transaction_or_customer_with_the_agent_cases():
+    """AC-11, AC-07: a seeded sample case never sits on a transaction or a customer of an agent case (dev or held-out),
+    so a replay evaluation never meets a case the demo seeded."""
+    cases = [json.loads(line) for name in ("dev", "heldout")
+             for line in (CASES / f"{name}.jsonl").read_text(encoding="utf-8").splitlines() if line.strip()]
+    assert len(cases) == 100
+    transactions = {f["transaction_id"] for c in cases for f in c["initial_state"]["fixtures"]}
+    customers = {c["initial_state"]["customer_id"] for c in cases}
+    for case in SAMPLES:
+        assert case["transaction_id"] not in transactions, case["id"]
+        assert case["customer_id"] not in customers, case["id"]
 
 
 def test_ac_11_scripted_steps_follow_the_queue_and_the_analyst_contract():
@@ -122,7 +136,7 @@ def test_ac_11_scripted_steps_follow_the_queue_and_the_analyst_contract():
                 assert target in transitions[status], (case["id"], step["action"], status)
                 status = target
         assert status == case["final_queue_status"]
-    assert [c["final_queue_status"] for c in SAMPLES] == ["closed", "resolved", "review", "verification"]
+    assert [c["final_queue_status"] for c in SAMPLES] == ["closed", "resolved", "review", "review"]
     assert any(step["action"] == "request_reevaluation" for step in SAMPLES[2]["steps"])
     assert any(step["action"] == "request_customer_info" for step in SAMPLES[1]["steps"])
     assert any(step["action"] == "approve_credit" for step in SAMPLES[0]["steps"])
