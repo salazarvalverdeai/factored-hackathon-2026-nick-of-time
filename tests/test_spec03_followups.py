@@ -267,7 +267,7 @@ def test_ac_19_a_country_with_no_window_sends_nothing_back():
     run = Run()
     case_id = run.case("resolved", resolved_on=dt.date(2026, 5, 31), country="US")
     out = run("request_reevaluation", case_id=case_id, reason="No estoy de acuerdo")
-    assert (out.code, out.policy_id) == ("DENY", "POL-REEVAL-WINDOW")
+    assert (out.code, out.policy_id) == ("DENY", "POL-DEFAULT-DENY")       # no window, so none "passed" (D-062)
 
 
 # ---------- with #123's gold fixture: the card index and open_case ----------
@@ -298,29 +298,34 @@ def _sessions(run: Run) -> list[str]:
                                      expires_at=NOW + dt.timedelta(hours=1), mode="replay").session_id]
 
 
-def test_ac_15_concurrent_reevaluations_and_open_case_on_a_closed_case_open_one_case(gold_dir, backend):  # noqa: F811
+@pytest.mark.parametrize("second", ["request_reevaluation", "open_case"])
+def test_ac_15_concurrent_reevaluations_and_open_case_on_a_closed_case_open_one_case(gold_dir, backend,  # noqa: F811
+                                                                                     second):
     """Two connections, different keys: `request_reevaluation` takes `open_case`'s lock on the same key, so two
-    re-evaluations, or a re-evaluation and `open_case(related_case_id)`, leave one active case for the charge."""
+    re-evaluations, or a re-evaluation and `open_case(related_case_id)`, leave one active case for the charge. Each
+    pair runs in its own scratch schema (one test per pair), so neither sees the other's case."""
     postgres_only(backend)
     gold = Gold(gold_dir)
 
     def wired(run):
         return writes.writes_handlers(gold, POLICIES, run.store, now=lambda: NOW)
-    for second in ("request_reevaluation", "open_case"):
-        runs = [Run(gold=gold, extra=wired) for _ in range(2)]
-        closed = closed_abroad(runs[0], session_run=RUN)
-        sessions = [_sessions(r)[0] for r in runs]
-        calls = [lambda: runs[0]("request_reevaluation", session=sessions[0], case_id=closed, reason="Sigo")]
-        if second == "open_case":
-            calls.append(lambda: runs[1]("open_case", session=sessions[1], transaction_id=ABROAD_TRX, zone="high",
-                                         dispute_type="unrecognized_charge", related_case_id=closed))
-        else:
-            calls.append(lambda: runs[1]("request_reevaluation", session=sessions[1], case_id=closed, reason="Sigo"))
-        outs = at_once(calls)
-        assert all(not isinstance(o, (tools.ToolError, StoreError)) for o in outs), outs
-        active = [c for c in runs[0].store.list_cases(GOLD_ANA, run_id=RUN)
-                  if c.transaction_id == ABROAD_TRX and runs[0].store.queue_status(c.case_id) != "closed"]
-        assert len(active) == 1 and {o.case_id for o in outs} == {active[0].case_id}, second
+    runs = [Run(gold=gold, extra=wired) for _ in range(2)]
+    closed = closed_abroad(runs[0], session_run=RUN)
+    assert [c.case_id for c in runs[0].store.list_cases(GOLD_ANA, run_id=RUN)] == [closed]   # a fresh schema
+    sessions = [_sessions(r)[0] for r in runs]
+    calls = [lambda: runs[0]("request_reevaluation", session=sessions[0], case_id=closed, reason="Sigo")]
+    if second == "open_case":
+        calls.append(lambda: runs[1]("open_case", session=sessions[1], transaction_id=ABROAD_TRX, zone="high",
+                                     dispute_type="unrecognized_charge", related_case_id=closed))
+    else:
+        calls.append(lambda: runs[1]("request_reevaluation", session=sessions[1], case_id=closed, reason="Sigo"))
+    outs = at_once(calls)
+    assert all(not isinstance(o, (tools.ToolError, StoreError)) for o in outs), outs
+    active = [c for c in runs[0].store.list_cases(GOLD_ANA, run_id=RUN)
+              if c.transaction_id == ABROAD_TRX and runs[0].store.queue_status(c.case_id) != "closed"]
+    assert len(active) == 1 and {o.case_id for o in outs} == {active[0].case_id}
+    assert any(getattr(o, "outcome", None) == "related_case_opened" or getattr(o, "duplicate_of", 1) is None
+               for o in outs)                                              # one of the pair wrote the case
 
 
 @pytest.mark.parametrize("status, after", [("new", "review"), ("verification", "verification"),

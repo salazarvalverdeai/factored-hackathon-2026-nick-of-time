@@ -259,7 +259,7 @@ Implementation goes in one `feat/03-*` branch per task (T1: `feat/03-mcp-server`
       (`text`, `preferred_time`, `reason`) is denied with `POL-PII` (guardrail G-IN-04, policies.yaml) and nothing is
       stored; the re-evaluation window is policies.yaml `reevaluation.window_days` per country (spec 02 FR-09; 30 for
       MX, CO, AR, BR, PE and CL, the spec 02 §4.4 proposal; day 30 qualifies, day 31 is denied; a country not listed is
-      denied) until `reevaluation_allowed()` ships. Other `[assumption]`s: a call stays open until
+      denied with `POL-DEFAULT-DENY`, since no window passed, and a call is still offered) until `reevaluation_allowed()` ships. Other `[assumption]`s: a call stays open until
       `approve_block`, `resolve` or `close_case` (the D-042 hold end); a new `call_requested` on a `new` case also moves
       it to `review` (`status_changed`, reason `call_requested`) in the same `once`, so a held case gets the review SLA
       that spec 02 `_open()` sets (`queue_status_after: review`); a case in `verification` or `review`, a repeated

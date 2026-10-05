@@ -39,21 +39,25 @@ CLOSED = t.ToolError(code="DENY", policy_id="POL-DEFAULT-DENY",
                      message="This case is closed; a closed case takes no customer change.")
 OUT_OF_WINDOW = t.ToolError(code="DENY", policy_id="POL-REEVAL-WINDOW",
                             message="The re-evaluation window of this case has passed; a person can call instead.")
+# [assumption] D-062: a country with no window is denied by default, not as a window that passed; a call is offered.
+NO_WINDOW = t.ToolError(code="DENY", policy_id="POL-DEFAULT-DENY",
+                        message="This case cannot be re-evaluated here; a person can call instead.")
 HOLD_ENDS = frozenset({"approve_block", "resolve", "close_case"})   # D-042: the analyst actions that end an open call
 ACTIVE = ("new", "verification", "review")             # AC-19's "active"; AC-15 and AC-17 mean "not closed"
-Reevaluation = Callable[[str, dt.date, dt.date], bool]       # (country, resolved_on, today) -> allowed
+# (country, resolved_on, today) -> allowed; None: the country has no window at all
+Reevaluation = Callable[[str, dt.date, dt.date], Optional[bool]]
 TransactionCountry = Callable[[str, str], Optional[str]]     # (customer_id, transaction_id) -> gold transaction_country
 
 
 def policy_window(policies: Policies) -> Reevaluation:
     """The case country's `reevaluation.window_days` of policies.yaml ([assumption] D-062, until spec 02 T7's
     `reevaluation_allowed()`): day `window_days` after the resolution still qualifies; a country with no window, or a
-    policy with none, sends nothing back (the most conservative answer)."""
+    policy with none, has no window (None): nothing goes back, the most conservative answer."""
     windows = policies.reevaluation.window_days if policies.reevaluation else {}
 
-    def allowed(country: str, resolved_on: dt.date, on: dt.date) -> bool:
+    def allowed(country: str, resolved_on: dt.date, on: dt.date) -> Optional[bool]:
         days = windows.get(country)
-        return days is not None and (on - resolved_on).days <= days
+        return None if days is None else (on - resolved_on).days <= days
     return allowed
 
 
@@ -231,8 +235,9 @@ def followups_handlers(store: Store, policies: Policies, gold: Optional[Gold] = 
             on = business_day(call, case.country)
             if status == "resolved":
                 resolved = [e for e in events if e.type == "status_changed" and e.payload["to"] == "resolved"][-1]
-                if not reevaluation_allowed(case.country, dt.date.fromisoformat(resolved.payload["on"]), on):
-                    raise _Refused(OUT_OF_WINDOW)
+                verdict = reevaluation_allowed(case.country, dt.date.fromisoformat(resolved.payload["on"]), on)
+                if not verdict:
+                    raise _Refused(NO_WINDOW if verdict is None else OUT_OF_WINDOW)
                 event = reason(case.case_id)
                 store.change_status(case.case_id, "review", on=on, actor=ACTOR, trace_id=call.trace_id,
                                     reason="reevaluation_requested")
