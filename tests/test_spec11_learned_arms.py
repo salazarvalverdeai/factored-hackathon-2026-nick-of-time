@@ -55,11 +55,20 @@ def make_root(tmp_path, status="UNSEALED", manifest=True, test_reviewer="gianzk"
     return tmp_path
 
 
+PRICES = {"input_per_1m": 1.1, "output_per_1m": 5.5}
+
+
+def reply(intent: str) -> dict:
+    return {"intent": intent, "confidence": 0.97, "dispute_detected": intent in ev.DISPUTES, "slots": SLOTS}
+
+
 def oracle(split: str) -> llm.FakeClient:
-    """A scripted fake that answers each scored row with its gold intent (forced tool use, D-011)."""
-    script = [{"intent": r["intent"], "confidence": 0.97, "dispute_detected": r["intent"] in ev.DISPUTES, "slots": SLOTS}
-              for r in rows(split, 3 if split == "test" else 4) if r.get("intent")]
-    return llm.FakeClient(script=script, prices={"input_per_1m": 1.1, "output_per_1m": 5.5})
+    """A scripted fake that answers the preflight (first validation row) and then each scored row with its gold
+    intent (forced tool use, D-011)."""
+    preflight = next(r for r in rows("validation", 4) if r.get("intent"))
+    script = [reply(preflight["intent"])] + [reply(r["intent"]) for r in rows(split, 3 if split == "test" else 4)
+                                             if r.get("intent")]
+    return llm.FakeClient(script=script, prices=PRICES)
 
 
 def results(root):
@@ -93,10 +102,32 @@ def test_ac_02_b2_without_tool_input_is_a_missing_call_kept_in_the_denominator()
     nlu = B2NLU(llm.FakeClient(script=["texto sin herramienta"]))
     [p] = ev.run_arm(nlu, [{"text": "hola"}])
     assert p["intent"] is None and nlu.last is not None               # billed call kept for cost (D-022)
+    assert p["error"] == "no_tool"
 
 
-@pytest.mark.parametrize("provider, max_usd", [(None, 1.0), ("bedrock", 0.0)])
-def test_ac_02_b2_client_refuses_the_fake_provider_and_a_projected_overspend(monkeypatch, provider, max_usd):
+def test_ac_02_ac_03_b2_provider_error_is_not_billed_and_is_counted_apart_from_missing_tool_calls():
+    nlu = B2NLU(llm.FakeClient(script=[reply("human_request"), llm.ProviderUnavailable("throttled"),
+                                       "texto sin herramienta"], prices=PRICES))
+    texts = [{"text": "quiero una persona", "intent": "human_request", "language": "es", "slots": SLOTS}] * 3
+    preds = ev.run_arm(nlu, texts)
+    assert preds[0]["cost"] > 0 and preds[1]["cost"] == 0.0             # the throttled call does not re-bill call 1
+    assert [p.get("error") for p in preds] == [None, "provider", "no_tool"]
+    arm = ev.score_arm("B2", nlu, texts, preds, 0.5)
+    assert (arm["missing_tool_calls"], arm["provider_errors"]) == (1, 1)
+
+
+def test_ac_01_ac_02_b2_preflight_refuses_before_the_b1_file_or_test_is_touched(tmp_path, monkeypatch):
+    root = make_root(tmp_path, "SEALED", test_reviewer="rules-v1")
+    monkeypatch.setattr(ev, "protocol_tagged", lambda root: True)
+    monkeypatch.setattr(ev, "read_test", lambda root: pytest.fail("test.jsonl read before the B2 preflight"))
+    down = llm.FakeClient(script=[llm.ProviderUnavailable("throttled")], prices=PRICES)
+    with pytest.raises(ev.EvalError, match="preflight"):
+        ev.evaluate("test", ["B0", "B1", "B2"], root, client=down)
+    assert not results(root) and not (root / "models").exists()
+
+
+@pytest.mark.parametrize("provider, max_usd", [(None, 1.0), ("bedrock", 0.0), ("anthropic", 1.0)])
+def test_ac_02_b2_client_refuses_the_fake_provider_a_projected_overspend_and_no_price(monkeypatch, provider, max_usd):
     monkeypatch.delenv("LLM_PROVIDER", raising=False)
     if provider:
         monkeypatch.setenv("LLM_PROVIDER", provider)
@@ -134,7 +165,8 @@ def test_ac_01_dev_run_writes_only_the_ignored_runs_folder(tmp_path):
     assert data["run"] == ev.DEV_LABEL and data["protocol"]["status"] == "UNSEALED"
     assert data["tau"] is not None and data["llm"]["provider"] == "fake"
     b2 = next(a for a in data["arms"] if a["arm"] == "B2")
-    assert b2["by_language"]["pt"]["macro_f1"] == 1.0 and b2["missing_tool_calls"] == 0
+    assert b2["by_language"]["pt"]["macro_f1"] == 1.0 and (b2["missing_tool_calls"], b2["provider_errors"]) == (0, 0)
+    assert data["llm"]["preflight"]["cost_usd"] > 0
 
 
 @pytest.mark.parametrize("status, manifest, why", [("UNSEALED", True, "UNSEALED"), ("SEALED", False, "manifest")])

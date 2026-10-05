@@ -67,9 +67,10 @@ class B1NLU:
 
 
 class B2NLU:
-    """The LLM arm. `last` keeps the latest billed call (also on `NoStructuredOutput`) for latency and cost; a
-    provider error or a reply with no valid tool input propagates, and the evaluation scores it as a wrong prediction
-    (D-022). Slots outside the `Slots` contract are read as none [assumption]."""
+    """The LLM arm. `last` keeps this call's billed result (also on `NoStructuredOutput`) for latency and cost, and
+    is None when the provider gave no reply, so an error never bills the previous call again; a provider error or a
+    reply with no valid tool input propagates, and the evaluation scores it as a wrong prediction (D-022). Slots
+    outside the `Slots` contract are read as none [assumption]."""
     arm = "B2"
 
     def __init__(self, client: llm.LLMClient) -> None:
@@ -78,6 +79,7 @@ class B2NLU:
     def parse(self, text: str, language_hint: Optional[str] = None, *, today: date):
         from ..llm.steps import INTENT_SCHEMA, MAX_TOKENS, UNDERSTAND
         from . import NLUResult, Slots
+        self.last = None
         base = parse_rules(text, language_hint, today)
         user = json.dumps({"today": today.isoformat(), "message": text}, ensure_ascii=False)
         try:

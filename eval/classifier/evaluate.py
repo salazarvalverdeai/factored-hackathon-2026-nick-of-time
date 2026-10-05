@@ -132,7 +132,8 @@ def model_record(path: Path, root: Path) -> dict:
 
 
 def run_arm(nlu, rows: list[dict]) -> list[dict]:
-    """One reading per row; a provider error or no valid tool input is `intent=None` (wrong, D-022)."""
+    """One reading per row. A reply with no valid tool input (`no_tool`, D-022) and a provider error with no reply
+    (`provider`) are both `intent=None`, scored wrong and counted apart."""
     out = []
     for r in rows:
         t0 = time.perf_counter()
@@ -140,8 +141,9 @@ def run_arm(nlu, rows: list[dict]) -> list[dict]:
             res = nlu.parse(r["text"], today=TODAY)
             p = {"intent": res.intent, "confidence": res.confidence, "dispute": res.dispute_detected,
                  "slots": res.slots.model_dump()}
-        except llm.LLMError:
-            p = {"intent": None, "confidence": 0.0, "dispute": False, "slots": {}}
+        except llm.LLMError as exc:
+            p = {"intent": None, "confidence": 0.0, "dispute": False, "slots": {},
+                 "error": "no_tool" if isinstance(exc, llm.NoStructuredOutput) else "provider"}
         last = getattr(nlu, "last", None)
         p["ms"] = (time.perf_counter() - t0) * 1000
         p["cost"] = (last.cost_usd or 0.0) if last is not None else 0.0
@@ -243,7 +245,8 @@ def score_arm(arm: str, nlu, rows: list[dict], preds: list[dict], tau: float | N
             "mcnemar_p_vs_best": None,
             "human_request_answered_out_of_scope": sum(r["intent"] == "human_request" and p["intent"] == "out_of_scope"
                                                        for r, p in zip(rows, preds)),
-            "missing_tool_calls": sum(p["intent"] is None for p in preds),
+            "missing_tool_calls": sum(p.get("error") == "no_tool" for p in preds),     # replied, no valid tool input
+            "provider_errors": sum(p.get("error") == "provider" for p in preds),        # no reply at all
             "same_family_as_generator": hasattr(nlu, "client") and family(nlu.version) in authors,   # LLM arms only
             "by_language": langs}
 
@@ -276,7 +279,10 @@ def b2_client(max_usd: float, n: int, split: str):
     cfg = resolve("S1")
     if cfg.provider == "fake":
         raise EvalError("refused: B2 needs a real provider (LLM_PROVIDER=bedrock); the fake one only runs in tests")
-    prices = price(cfg)
+    try:
+        prices = price(cfg)
+    except ValueError as exc:                          # no price row (e.g. LLM_PROVIDER=anthropic): fail closed, D-058
+        raise EvalError(f"refused: {exc}") from exc
     if llm.cost_usd(prices, 900, 150) * n > max_usd:   # [assumption] about 900 tokens in and 150 out per message
         raise EvalError(f"refused: projected B2 spend on {split} above {max_usd} USD")
     return llm.make_client(cfg, prices=prices)
@@ -284,6 +290,27 @@ def b2_client(max_usd: float, n: int, split: str):
 
 def intents_only(rows: list[dict]) -> list[dict]:
     return [r for r in rows if r.get("label") != "injection" and r.get("intent")]
+
+
+def scored_size(split: str, root: Path, val: list[dict]) -> int:
+    """Rows B2 will be asked about, for the spend projection before any call: on test, the sealed file's line count
+    (an upper bound, injection rows included), so no test row is parsed before B1 is saved."""
+    if split != "test":
+        return len(val)
+    return sum(1 for x in sealed_blobs(root)["eval/classifier/test.jsonl"].splitlines() if x.strip())
+
+
+def preflight_b2(nlu, val: list[dict]) -> dict:
+    """One B2 call on the first validation sentence before anything is written (B1 file included): a provider that
+    gives no reply refuses the run here instead of after the one touch of test. A reply without a valid tool input
+    still passes (the provider answers; D-022 scores it later)."""
+    try:
+        nlu.parse(val[0]["text"], today=TODAY)
+    except llm.NoStructuredOutput:
+        pass
+    except llm.LLMError as exc:
+        raise EvalError(f"refused: the B2 preflight on one validation sentence got no reply ({exc}); nothing written") from exc
+    return {"row": val[0].get("id"), "cost_usd": round((nlu.last.cost_usd or 0.0) if nlu.last else 0.0, 6)}
 
 
 def evaluate(split: str, arms: list[str], root: Path = ROOT, client=None, max_usd: float = 1.0) -> Path:
@@ -295,6 +322,9 @@ def evaluate(split: str, arms: list[str], root: Path = ROOT, client=None, max_us
     val_preds = run_arm(b1, val)
     tau = choose_tau([p["confidence"] for p in val_preds], [r["intent"] == p["intent"] for r, p in zip(val, val_preds)])
     nlus = {"B0": load_nlu("B0"), "B1": b1}
+    if "B2" in arms:                                           # health before any write (B1 file included)
+        nlus["B2"] = B2NLU(client or b2_client(max_usd, scored_size(split, root, val), split))
+        preflight = preflight_b2(nlus["B2"], val)
     out_dir = (root / "apps/web/public/data") if split == "test" else root / "eval/.runs/classifier" / now().replace(":", "")
     model_dir = (root / "models") if split == "test" else out_dir
     model_dir.mkdir(parents=True, exist_ok=True)
@@ -302,11 +332,10 @@ def evaluate(split: str, arms: list[str], root: Path = ROOT, client=None, max_us
     if split == "test":
         data["test"] = read_test(root)
     scored = intents_only(data[split])
-    if "B2" in arms:
-        nlus["B2"] = B2NLU(client or b2_client(max_usd, len(scored), split))
     preds = {a: (val_preds if a == "B1" and split == "validation" else run_arm(nlus[a], scored)) for a in arms}
     if "B2" in preds and client is None and all(p["intent"] is None for p in preds["B2"]):
-        raise EvalError("refused: every B2 call failed (provider unavailable?); nothing written")
+        raise EvalError("refused: every B2 call failed (provider unavailable?); no result written, only the B1 file "
+                        "frozen before the scored split was read")
     report = [score_arm(a, nlus[a], scored, preds[a], tau) for a in arms]
     correct = {a: [r["intent"] == p["intent"] for r, p in zip(scored, preds[a])] for a in arms}
     chosen = choose(report, correct)
@@ -323,7 +352,8 @@ def evaluate(split: str, arms: list[str], root: Path = ROOT, client=None, max_us
     if "B2" in nlus:
         c = nlus["B2"].client
         payload["llm"] = {"provider": c.provider, "model": c.model, "tool_choice_mode": c.mode,
-                          "temperature": c.temperature, "cost_usd": round(sum(p["cost"] for p in preds["B2"]), 4)}
+                          "temperature": c.temperature, "cost_usd": round(sum(p["cost"] for p in preds["B2"]), 4),
+                          "preflight": preflight}
     if split == "test":
         payload["test_review"] = review_mode(data["test"])
         if payload["test_review"] == "rules-v1":

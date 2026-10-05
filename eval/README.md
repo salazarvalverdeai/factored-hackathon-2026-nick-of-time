@@ -246,9 +246,13 @@ AC-10).
 B1 (TF-IDF + logistic regression) is fit on train and calibrated on validation; τ is the lowest B1 threshold that keeps
 precision ≥ 0.95 on validation (AC-07). Every arm is reported at τ. B2 is the S1 model (Haiku 4.5) with the prompt
 and schema of the graph's `understand` step and forced tool use (D-011); a reply with no valid tool input is a wrong
-prediction (D-022). It is opt-in: `CLASSIFIER_ARMS=B0,B1,B2 LLM_PROVIDER=bedrock AWS_PROFILE=nickoftime`; it refuses
-the fake provider and, before any call, a projected spend above `--max-usd` (default 1 USD); `classifier.json` records
-its provider, model, toolChoice mode, temperature and measured cost.
+prediction (D-022). On validation it is opt-in (`CLASSIFIER_ARMS=B0,B1,B2`); `make classifier-test` always scores it.
+Both need `LLM_PROVIDER=bedrock AWS_PROFILE=nickoftime`. B2 refuses the fake provider, a provider without a price row
+(D-058) and, before any call, a projected spend above `--max-usd` (default 1 USD). Before anything is written (the B1
+file included) one preflight call on the first validation sentence must get a reply, so an unavailable provider
+refuses the run before test is touched. A reply with no valid tool input counts in `missing_tool_calls`; a provider
+error with no reply is also scored wrong but counts in `provider_errors`. `classifier.json` records its provider,
+model, toolChoice mode, temperature, measured cost and the preflight.
 
 - `make classifier`: **development run on validation**. Writes `.runs/classifier/<time>/classifier.json` and the B1
   file there (ignored by git), labeled "development run on validation"; never a result path of `PROTOCOL.md`. Before
