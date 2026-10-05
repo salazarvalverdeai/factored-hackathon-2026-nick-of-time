@@ -1,0 +1,8 @@
+{
+	auto_https off
+	admin off
+}
+
+:8001 {
+	respond "Nick of Time MCP: placeholder until spec 03 lands" 200
+}

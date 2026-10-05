@@ -82,11 +82,11 @@ Only the health route; the rest of `/api` belongs to spec 05.
 - Assumption `[assumption]`: internal ports are web 3000, api 8000, mcp 8001.
 - Assumption `[assumption]`: Actions secrets `AWS_DEPLOY_ROLE_ARN` and `EC2_INSTANCE_ID` are loaded by the lead; the
   region is `us-east-2`.
-- Open question (lead): the instance role needs `ssm:GetParameter*` on `/nickoftime/prod/*` (already in the inventory).
-  Does it also have `ssm:PutParameter` so `deploy.sh` can create `POSTGRES_PASSWORD` on first run? If not, the lead
-  creates that SecureString parameter. The agent must not invent the value.
-- Open question (lead): do specs 03 and 05 keep `apps/mcp/Dockerfile` and `apps/api/Dockerfile` as the build contexts?
-  Spec 01 must fix the folders; this spec follows whatever it decides.
+- **Decided (lead, 2026-10-05):** the instance role `nickoftime-ec2-role` has `ssm:GetParameter*` on
+  `/nickoftime/*` but not `ssm:PutParameter`, so the lead creates the `POSTGRES_PASSWORD` SecureString once (a random
+  value nobody types). `deploy.sh` only reads it.
+- **Decided (lead, 2026-10-05):** the build contexts are `apps/api/Dockerfile`, `apps/mcp/Dockerfile` (both on main)
+  and `apps/web/Dockerfile` (this PR). The `infra/*-placeholder` images are used only while a Dockerfile is missing.
 
 ## 9. Out of scope
 - Multi-instance or managed container services (ECS, RDS).

@@ -1,0 +1,183 @@
+{
+  "generated_at": "2026-10-05T01:26:10Z",
+  "git_sha": "d097095",
+  "source": "queries/pitch/*.csv [data] — full synthetic dataset, see queries/README.md",
+  "data": {
+    "share": {
+      "n_complaints": 67095,
+      "n_w3": 24431,
+      "pct_w3": 36.413,
+      "n_w3_full_months": 23761,
+      "n_full_months": 35,
+      "w3_per_month": 678.9
+    },
+    "contacts": [
+      {
+        "key": "fcr",
+        "label": "Resolved at first contact (FCR)",
+        "unit": "%",
+        "scale_max": 100,
+        "query": "p02",
+        "groups": [
+          {
+            "name": "Complaint contacts",
+            "value": 43.6,
+            "numerator": 51021,
+            "denominator": 117021,
+            "ci_low": 43.316,
+            "ci_high": 43.884
+          },
+          {
+            "name": "Whole bank",
+            "value": 76.648,
+            "numerator": 526030,
+            "denominator": 686296,
+            "ci_low": 76.547,
+            "ci_high": 76.748
+          }
+        ]
+      },
+      {
+        "key": "follow_up",
+        "label": "Requires follow-up",
+        "unit": "%",
+        "scale_max": 100,
+        "query": "p03",
+        "groups": [
+          {
+            "name": "Complaint contacts",
+            "value": 62.968,
+            "numerator": 73686,
+            "denominator": 117021,
+            "ci_low": 62.691,
+            "ci_high": 63.244
+          },
+          {
+            "name": "Whole bank",
+            "value": 34.832,
+            "numerator": 239054,
+            "denominator": 686296,
+            "ci_low": 34.72,
+            "ci_high": 34.945
+          }
+        ]
+      },
+      {
+        "key": "duration",
+        "label": "Median contact duration",
+        "unit": "min",
+        "scale_max": 10,
+        "query": "p04",
+        "groups": [
+          {
+            "name": "Complaint contacts",
+            "value": 7.183,
+            "denominator": 100727
+          },
+          {
+            "name": "Whole bank",
+            "value": 4.85,
+            "denominator": 590062
+          }
+        ]
+      }
+    ],
+    "thresholds": [
+      {
+        "threshold": 30,
+        "n_flagged": 2982,
+        "n_frauds_flagged": 2373,
+        "precision_pct": 79.58,
+        "recall_with_score_pct": 69.28,
+        "recall_all_frauds_pct": 54.98
+      },
+      {
+        "threshold": 50,
+        "n_flagged": 1670,
+        "n_frauds_flagged": 1670,
+        "precision_pct": 100,
+        "recall_with_score_pct": 48.76,
+        "recall_all_frauds_pct": 38.69
+      },
+      {
+        "threshold": 60,
+        "n_flagged": 1343,
+        "n_frauds_flagged": 1343,
+        "precision_pct": 100,
+        "recall_with_score_pct": 39.21,
+        "recall_all_frauds_pct": 31.12
+      },
+      {
+        "threshold": 70,
+        "n_flagged": 999,
+        "n_frauds_flagged": 999,
+        "precision_pct": 100,
+        "recall_with_score_pct": 29.17,
+        "recall_all_frauds_pct": 23.15
+      },
+      {
+        "threshold": 80,
+        "n_flagged": 673,
+        "n_frauds_flagged": 673,
+        "precision_pct": 100,
+        "recall_with_score_pct": 19.65,
+        "recall_all_frauds_pct": 15.59
+      },
+      {
+        "threshold": 90,
+        "n_flagged": 339,
+        "n_frauds_flagged": 339,
+        "precision_pct": 100,
+        "recall_with_score_pct": 9.9,
+        "recall_all_frauds_pct": 7.85
+      },
+      {
+        "threshold": 95,
+        "n_flagged": 178,
+        "n_frauds_flagged": 178,
+        "precision_pct": 100,
+        "recall_with_score_pct": 5.2,
+        "recall_all_frauds_pct": 4.12
+      }
+    ],
+    "frauds": {
+      "total": 4316,
+      "with_score": 3425,
+      "without_score": 891,
+      "zones": [
+        {
+          "key": "high",
+          "zone": "High zone",
+          "range": "score ≥ 50",
+          "action": "Block the card, verify, open the case",
+          "n": 1670,
+          "pct": 38.7
+        },
+        {
+          "key": "medium",
+          "zone": "Medium zone",
+          "range": "score 30–49",
+          "action": "The customer confirms; an analyst approves the block",
+          "n": 703,
+          "pct": 16.3
+        },
+        {
+          "key": "human",
+          "zone": "Human zone",
+          "range": "score < 30",
+          "action": "Open the case and hand off to an analyst",
+          "n": 1052,
+          "pct": 24.4
+        },
+        {
+          "key": "human_no_score",
+          "zone": "Human zone",
+          "range": "no score",
+          "action": "Open the case and hand off to an analyst",
+          "n": 891,
+          "pct": 20.6
+        }
+      ]
+    }
+  }
+}

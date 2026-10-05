@@ -1,0 +1,8 @@
+[
+  {"customer_id": "CLI-Y0L7FZFOF0AZ", "display_name": "Ana (MX · debit)", "country": "MX", "segment": "Plus", "scenario": "Unrecognized charge on one card", "language": "es"},
+  {"customer_id": "CLI-D5US5Q686CIL", "display_name": "Camilo (CO · credit)", "country": "CO", "segment": "Basic", "scenario": "Unrecognized charge on one card", "language": "es"},
+  {"customer_id": "CLI-S3L7P0DXIYV7", "display_name": "Sofía (MX · several cards)", "country": "MX", "segment": "Premium", "scenario": "Unrecognized charge among several recent ones", "language": "es"},
+  {"customer_id": "CLI-YSL35Q5OYTAJ", "display_name": "Bruno (AR · debit)", "country": "AR", "segment": "Basic", "scenario": "Unrecognized charge among several recent ones · Portuguese", "language": "pt"},
+  {"customer_id": "CLI-52TJRRO5YA9F", "display_name": "Valentina (CO · credit)", "country": "CO", "segment": "Basic", "scenario": "Unrecognized charge on one card", "language": "es"},
+  {"customer_id": "CLI-J5VPX6OQPPV2", "display_name": "Rafaela (AR · debit)", "country": "AR", "segment": "Premium", "scenario": "Unrecognized charge on one card · Portuguese", "language": "pt"}
+]

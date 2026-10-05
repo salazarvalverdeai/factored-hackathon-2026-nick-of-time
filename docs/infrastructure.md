@@ -16,11 +16,11 @@ up after judging (2026-10-16).
 | EC2 | `nickoftime-app` | t3.medium, Ubuntu 24.04, 30 GB encrypted, IMDSv2, **no SSH** (access through SSM), Docker + Compose, Elastic IP |
 | Instance role | `nickoftime-ec2-role` | Bedrock invoke, S3 and DynamoDB on `nickoftime-*`, SSM parameters under `/nickoftime/*`, SSM managed instance |
 | Security group | `nickoftime-web-sg` | Inbound 80 and 443 only |
-| S3 bucket | `nickoftime-gold-061039767206` | Private, versioned. Gold v1 at `gold/v1/` (verified against the manifest sha256, uploaded 2026-10-03); Postgres backups. `gold_eval` (labels) is **not** uploaded, so runtime roles cannot read `is_fraud` |
+| S3 bucket | `nickoftime-gold-061039767206` | Private, versioned. Gold v1 at `gold/v1/` (verified against the manifest sha256, uploaded 2026-10-03); Postgres backups. Labels (`is_fraud`) live apart in `labels/v1/` behind a deny-by-default bucket policy: read only by `nickoftime-admin` and `nickoftime-diego` (evaluation harness), write only by `nickoftime-admin`; the EC2 role, Platform and the deploy role are denied (verified with the IAM policy simulator) |
 | Bedrock | Claude Sonnet 4.6 · Sonnet 4.5 · Haiku 4.5 | Anthropic use-case form submitted 2026-10-03. Claude 5 family quota is 0 |
 | Budget | `nickoftime-hackathon` | 100 USD/month filtered by the project tag; alerts at 50% and 80% actual, 100% forecast. Bedrock usage is untagged and counted in the account-wide budget |
 | GitHub OIDC | provider `token.actions.githubusercontent.com` (account-wide, shared) | Deploy role `nickoftime-gha-deploy`: trusted only for this repo's `main`; may only run `AWS-RunShellScript` through SSM on `nickoftime-app` (validated with Access Analyzer) |
-| Cognito | user pool for analysts | Created in spec 05 |
+| Cognito | user pool `nickoftime-analysts` | Hosted domain `nickoftime-analysts.auth.us-east-2.amazoncognito.com`; app client `nickoftime-web` (public, authorization code + PKCE, callbacks `/login/callback` on the public URL and `localhost:3000`); admin-created users only (`freddy`, `gianmarco`, `diego`, `judge`); optional TOTP MFA; deletion protection on |
 
 ### IAM
 | Principal | Purpose | Access |
@@ -44,6 +44,30 @@ touch other projects' resources, create users or attach policies to themselves.
 DNS is managed at the registrar (A records to the Elastic IP). Before releasing the IP or stopping the instance, the
 records are removed to avoid dangling DNS.
 
+## Deploy (spec 06)
+A merge to `main` runs `.github/workflows/deploy.yml`: build `web`, `api`, `mcp` → push to GHCR (tag = commit SHA) →
+assume `nickoftime-gha-deploy` through OIDC → SSM Run Command runs `infra/deploy.sh <sha>` on `nickoftime-app`.
+The script pulls the new images before touching any container, runs the migration hook, brings the stack up, reloads
+Caddy and waits for `/api/health` to report the deployed SHA; if it does not, it restores the last good version and the
+workflow fails. Files: `infra/compose.yml`, `infra/caddy/Caddyfile`, `infra/deploy.sh`, `infra/backup.sh`. Until specs
+03 and 05 add their own `Dockerfile`, `mcp` and `api` are built from `infra/mcp-placeholder` and `infra/api-placeholder`.
+
+| Needed once | Where | Who |
+|---|---|---|
+| Actions secrets `AWS_DEPLOY_ROLE_ARN`, `EC2_INSTANCE_ID` | GitHub → Settings → Secrets | lead |
+| GHCR packages `web`, `api`, `mcp` set to public after the first build (or `GHCR_READ_TOKEN` in SSM) | GitHub → Packages | lead |
+| SSM `/nickoftime/prod/POSTGRES_PASSWORD` (`deploy.sh` creates it if the role may `PutParameter`) | SSM | lead |
+| First checkout on the instance (below) | EC2 through SSM | GianMarco |
+
+First checkout (run once through SSM Session Manager or `aws ssm send-command`; the repository is public):
+```bash
+sudo git clone https://github.com/salazarvalverdeai/factored-hackathon-2026-nick-of-time /opt/nickoftime
+```
+
+Manual rollback (the instance has no SSH; use SSM): `cd /opt/nickoftime && git checkout --detach <good-sha> &&
+bash infra/deploy.sh <good-sha>`. Backups land in `s3://nickoftime-gold-061039767206/backups/postgres/`; the restore
+command is at the top of `infra/backup.sh`.
+
 ## LangGraph Platform (LangSmith)
 Organization on the Plus tier, workspace `NickOfTime`, tracing project `nick-of-time`. The graph deploys from this
 repository (`langgraph.json`). Deployment secrets: AWS credentials of `svc-nickoftime-langgraph`, the MCP URL and its
@@ -55,6 +79,9 @@ API key.
 | MCP API key | SSM `/nickoftime/prod/MCP_API_KEY` (+ Platform deployment secret) |
 | Telegram bot token · webhook secret | SSM `/nickoftime/prod/TELEGRAM_BOT_TOKEN` · `/nickoftime/prod/TELEGRAM_WEBHOOK_SECRET` |
 | Resend API key | SSM `/nickoftime/prod/RESEND_API_KEY` |
+| Cognito ids (not secret) | SSM `/nickoftime/prod/COGNITO_USER_POOL_ID`, `COGNITO_CLIENT_ID`, `COGNITO_DOMAIN` |
+| Cognito temporary passwords (changed at first login) | SSM `/nickoftime/prod/cognito/initial-password/<user>` |
+| Cognito judge password (only in the submission e-mail) | SSM `/nickoftime/prod/cognito/judge-password` |
 | LangSmith API key | Local `.env` (never committed) and Platform |
 | AWS access for deploys | None stored: GitHub Actions assumes `nickoftime-gha-deploy` through OIDC |
 | Dataset credentials | Local AWS profile `factored-dataset` (read-only, provided by the organizers) |

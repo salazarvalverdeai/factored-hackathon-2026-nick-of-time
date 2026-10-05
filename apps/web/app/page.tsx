@@ -6,7 +6,7 @@ export default function Home() {
   return (
     <PageShell
       title="Nick of Time"
-      description="Dispute handling: customer chat, analyst console and the evidence behind them."
+      description="Verified action. Before the deadline."
     >
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {NAV.map((n) => (

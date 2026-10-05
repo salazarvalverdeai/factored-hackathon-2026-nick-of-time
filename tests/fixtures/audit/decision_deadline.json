@@ -1,0 +1,143 @@
+{
+  "decision": {
+    "inputs": {
+      "session_state": "verified",
+      "intent": "unrecognized_charge",
+      "intent_confidence": 0.95,
+      "dispute_detected": true,
+      "injection_flagged": false,
+      "cross_customer": false,
+      "supervised_mode": false,
+      "candidates": 1,
+      "score": 72.0,
+      "score_source": "dataset",
+      "amount": 1250.0,
+      "currency": "USD",
+      "country": "MX",
+      "product_type": "debit",
+      "customer_confirmed": true,
+      "active_case": false
+    },
+    "recorded": {
+      "decision": "block_and_open_case",
+      "zone": "high",
+      "approval_modes": {
+        "open_case": "auto",
+        "block_card": "manual_check",
+        "provisional_credit": "human_required",
+        "unblock_card": "human_required"
+      },
+      "allowed_actions": [
+        "open_case",
+        "block_card"
+      ],
+      "handoff_reason": null,
+      "request_call": null,
+      "queue_status_after": "verification",
+      "rule_ids": [
+        "POL-ZONE-HIGH",
+        "POL-TICKET-ALWAYS"
+      ],
+      "guardrail_ids": [],
+      "policies_version": 2
+    }
+  },
+  "deadlines": {
+    "MX": {
+      "case": {
+        "customer_id": "CLI-000001",
+        "transaction_id": "TRX-AAAAAAAAAAAAAAAAAAAA",
+        "product_id": "PRD-BBBBBBBBBBBB",
+        "country": "MX",
+        "product_type": "debit",
+        "zone": "high",
+        "dispute_type": "unrecognized_charge",
+        "opened_on": "2026-06-01",
+        "credit_deadline": "2026-06-03",
+        "ruling_deadline": "2026-07-16",
+        "deadline_source": "Banxico Circular 3/2012, arts. 19 Bis 3 and 19 Bis 4 (as amended by Circular 14/2018)",
+        "deadline_source_url": "https://www.banxico.org.mx/marco-normativo/normativa-emitida-por-el-banco-de-mexico/circular-3-2012/%7B4E0281A4-7AD8-1462-BC79-7F2925F3171D%7D.pdf",
+        "deadline_verified_on": "2026-10-04",
+        "related_case_id": null,
+        "mode": "replay",
+        "run_id": null,
+        "trace_id": "trace-1"
+      },
+      "transaction": {
+        "transaction_id": "TRX-AAAAAAAAAAAAAAAAAAAA",
+        "product_id": "PRD-BBBBBBBBBBBB",
+        "transaction_date": "2026-05-30",
+        "amount": 1250.0,
+        "currency": "USD",
+        "amount_usd": 1250.0,
+        "merchant": "ACME",
+        "transaction_status": "Approved",
+        "synthetic": false
+      }
+    },
+    "AR": {
+      "case": {
+        "customer_id": "CLI-000001",
+        "transaction_id": "TRX-AAAAAAAAAAAAAAAAAAAA",
+        "product_id": "PRD-BBBBBBBBBBBB",
+        "country": "AR",
+        "product_type": "debit",
+        "zone": "high",
+        "dispute_type": "unrecognized_charge",
+        "opened_on": "2026-06-01",
+        "credit_deadline": null,
+        "ruling_deadline": "2026-06-16",
+        "deadline_source": "BCRA, Protecci\u00f3n de los Usuarios de Servicios Financieros, item 3.1.6",
+        "deadline_source_url": "https://www.bcra.gob.ar/archivos/Pdfs/texord/t-pusf.pdf",
+        "deadline_verified_on": "2026-10-04",
+        "related_case_id": null,
+        "mode": "replay",
+        "run_id": null,
+        "trace_id": "trace-1"
+      },
+      "transaction": {
+        "transaction_id": "TRX-AAAAAAAAAAAAAAAAAAAA",
+        "product_id": "PRD-BBBBBBBBBBBB",
+        "transaction_date": "2026-05-28",
+        "amount": 1250.0,
+        "currency": "USD",
+        "amount_usd": 1250.0,
+        "merchant": "ACME",
+        "transaction_status": "Approved",
+        "synthetic": false
+      }
+    },
+    "ZZ": {
+      "case": {
+        "customer_id": "CLI-000001",
+        "transaction_id": "TRX-AAAAAAAAAAAAAAAAAAAA",
+        "product_id": "PRD-BBBBBBBBBBBB",
+        "country": "ZZ",
+        "product_type": "debit",
+        "zone": "high",
+        "dispute_type": "unrecognized_charge",
+        "opened_on": "2026-06-01",
+        "credit_deadline": null,
+        "ruling_deadline": null,
+        "deadline_source": null,
+        "deadline_source_url": null,
+        "deadline_verified_on": null,
+        "related_case_id": null,
+        "mode": "replay",
+        "run_id": null,
+        "trace_id": "trace-1"
+      },
+      "transaction": {
+        "transaction_id": "TRX-AAAAAAAAAAAAAAAAAAAA",
+        "product_id": "PRD-BBBBBBBBBBBB",
+        "transaction_date": "2026-05-28",
+        "amount": 1250.0,
+        "currency": "USD",
+        "amount_usd": 1250.0,
+        "merchant": "ACME",
+        "transaction_status": "Approved",
+        "synthetic": false
+      }
+    }
+  }
+}

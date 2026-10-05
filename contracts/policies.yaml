@@ -1,6 +1,31 @@
 # policies.yaml — policy engine outside the model. Version every change (git). The LLM never reads or edits this file.
-version: 1
+version: 2               # 2: rules, scoring.deciding_sources, approval.money_actions, amount_gate usd_rate (spec 02 FR-07)
 default: deny            # nothing runs unless a rule allows it
+
+rules:                   # stable ids every decision cites (spec 02 §4.1, AC-12); the engine refuses to start if one it emits is missing
+  POL-SESSION:           {text: "session expired or unverified -> reauthenticate, before any other rule", guardrail: G-SES-01}
+  POL-INJECTION:         {text: "input flagged by the injection detector (spec 11) -> deny", guardrail: G-IN-01}
+  POL-CROSS-CUSTOMER:    {text: "request targets another customer's data -> deny", guardrail: G-SES-02}
+  POL-HUMAN-REQUEST:     {text: "intent human_request -> connect_person with a call request; never refused. If it also reports a charge on one card transaction the customer did not reject, and the intent confidence is at least clarify.intent_confidence_min, the call goes on that transaction's case, opened as the zone decides: the high zone blocks unless the block needs a person; otherwise the case goes to review with the zone's handoff reason. Below that confidence, only the call"}
+  POL-STATUS:            {text: "intent status_inquiry -> answer_status; read-only, no case opened. If it also reports a charge and the customer has no active case, the turn goes on like a dispute (rules 4-9)"}
+  POL-OUT-OF-SCOPE:      {text: "intent out_of_scope with no reported charge, or the identified transaction's product is not a card -> deny (polite abstention)", guardrail: G-IN-04}
+  POL-CLARIFY:           {text: "intent confidence below clarify.intent_confidence_min, not exactly one candidate, or an out_of_scope intent that reports a charge -> ask", guardrail: G-IN-03}
+  POL-CLARIFY-EXHAUSTED: {text: "still unclear after clarify.max_clarification_turns -> handoff (clarification_exhausted)", guardrail: G-IN-03}
+  POL-SCORE-NULL:        {text: "no fraud score -> zone human; the case is still opened"}
+  POL-SCORE-LLM:         {text: "score from the llm provider -> zone human; an LLM score never decides a block"}
+  POL-SCORE-SOURCE:      {text: "score from a source not in scoring.deciding_sources -> zone human"}
+  POL-ZONE-HIGH:         {text: "score in zones.high -> block_and_open_case, or a handoff (connect_person on a call request) when the block needs a person"}
+  POL-ZONE-MEDIUM:       {text: "score in zones.medium -> confirm with the customer, then open the case and hand off proposing approve_block; a call request opens the case without asking; never a block"}
+  POL-ZONE-HUMAN:        {text: "score in zones.human -> open the case and hand off (zone_human); no block"}
+  POL-TICKET-ALWAYS:     {text: "open_case runs with mode auto in every zone; registering is not a money decision"}
+  POL-AMOUNT-GATE:       {text: "the amount tier made a money action's approval mode stricter; it never changes a deadline", guardrail: G-TOOL-02}
+  POL-AMOUNT-UNKNOWN:    {text: "no tier applies (country without a gate, amount missing, negative or not finite, other currency) -> human_required", guardrail: G-TOOL-02}
+  POL-SUPERVISED:        {text: "supervised_mode forced human_required on a money action", guardrail: G-TOOL-02}
+  POL-DEFAULT-DENY:      {text: "no rule allows the action -> deny", guardrail: G-POL-01}
+  POL-CLOCK-UNKNOWN:     {text: "no verified regulatory_clock entry for the country -> case opened, no deadline, routed to a person"}
+  POL-QUEUE-TRANSITION:  {text: "analyst transition not listed in case_queue.transitions -> deny", guardrail: G-POL-01}
+  POL-CLOSE-HUMAN:       {text: "close requested by a non-human actor -> deny", guardrail: G-POL-01}
+  POL-REEVAL-WINDOW:     {text: "re-evaluation requested after reevaluation.window_days -> deny; the agent offers a call", guardrail: G-POL-01}
 
 identity:
   session_ttl_minutes: 15
@@ -12,14 +37,16 @@ scope:
   cross_customer_request: deny_and_log    # "show me another customer's account" → DENY with policy_id
 
 scoring:                                 # where the fraud_score read by the zones comes from
-  provider: dataset                      # dataset | rules | model | llm
+  provider: dataset                      # dataset | rules | model | llm; live-mode synthetic transactions carry their own score (synthetic)
   providers:
     dataset: {note: "reads transactions.fraud_score from gold for preset transactions; demo default", version: "gold-v1"}
     rules:   {note: "heuristic: amount vs the customer's p95, channel, hour, different country; no training", version: "rules-v0"}
     model:   {note: "plan B: GBM/LR on transactions features against is_fraud, temporal held-out; only if Slack says the score is not available in real time", version: "model-v0"}
     llm:     {note: "demo illustration only; NEVER decides a block (zone forced to human when it is the source)", version: "llm-v0"}
+    synthetic: {note: "live mode only: the score generated with a labeled synthetic transaction in demo_transactions (ADR 0020); never in replay, eval or a pitch number; shown as [simulated] on the receipt, handoff and console", version: "synthetic-v0"}
   record_source_in_audit: true           # source and version go to the audit log and the handoff card
   null_score_zone: human
+  deciding_sources: [dataset, rules, model, synthetic]   # only these place a score in a zone; any other source → zone human (spec 02 rule 6)
 
 zones:                                   # on the score returned by scoring.provider (0–100). Thresholds: EDA Sep 26 [data]
   high:   {score_min: 50, score_max: 100, note: "precision 100%, recall 48.8% on frauds with a score (38.7% of all); property of the synthetic generator"}
@@ -31,14 +58,17 @@ amount_gate:                             # [assumption] pending Q-AMT calibratio
   # The stricter of approval.per_action and the amount tier wins (auto < manual_check < human_required).
   amount: transactions.amount            # local currency; USD transactions (MX is 100% USD in the dataset) are converted first
   tiers: {up_to_low: auto, up_to_high: manual_check, above_high: human_required}
-  by_country:                            # provisional values: low ≈ 1,000 USD, high ≈ 5,000 USD
-    MX: {currency: MXN, low: 18000, high: 90000}          # 18.0 MXN/USD [assumption]: the dataset has no MXN; confirm with Diego (Q-AMT)
-    CO: {currency: COP, low: 4000000, high: 20000000}     # 4,000 COP/USD, the dataset's fixed implied rate
-    AR: {currency: ARS, low: 350000, high: 1750000}       # 350 ARS/USD, the dataset's fixed implied rate
-    BR: {currency: BRL, low: 5500, high: 27500}           # 5.5 BRL/USD [assumption]: the dataset has no BR; confirm with Diego (Q-AMT)
+  # usd_rate only converts a USD amount for these thresholds; it is never shown to a customer (spec 02 §4.2).
+  # A country without an entry, a missing amount or a currency other than the entry's or USD → human_required [assumption].
+  by_country:                            # provisional values: low ≈ 1,000 USD, high ≈ 5,000 USD; usd_rate converts USD amounts
+    MX: {currency: MXN, usd_rate: 18.0, low: 18000, high: 90000}        # 18.0 MXN/USD [assumption]: the dataset has no MXN; confirm with Diego (Q-AMT)
+    CO: {currency: COP, usd_rate: 4000, low: 4000000, high: 20000000}   # 4,000 COP/USD [data]: queries/policy/implied_usd_rate.sql
+    AR: {currency: ARS, usd_rate: 350, low: 350000, high: 1750000}      # 350 ARS/USD [data]: queries/policy/implied_usd_rate.sql
+    BR: {currency: BRL, usd_rate: 5.5, low: 5500, high: 27500}          # 5.5 BRL/USD [assumption]: the dataset has no BR; confirm with Diego (Q-AMT)
 
 approval:                                # approval mode per action: auto | human_required | manual_check
-  supervised_mode: false                 # global switch in the console; true forces human_required everywhere; every change is audited
+  supervised_mode: false                 # global switch in the console; true forces human_required on money actions; every change is audited
+  money_actions: [block_card, unblock_card, provisional_credit]   # amount tiers and supervised_mode apply only to these (spec 02 AC-15)
   per_action:
     open_case:          {high: auto, medium: auto, human: auto}                                 # logging a case is not a money decision
     block_card:         {high: manual_check, medium: human_required, human: human_required}     # high: runs and verifies now; the case stays in 'verification' until an analyst closes it
@@ -48,60 +78,108 @@ approval:                                # approval mode per action: auto | huma
   close: human_only                        # no case is closed without a person, automatic ones included
 
 actions:
-  ticket:             {zones: [high, medium, human], verify: get_case_status}         # always; the mode comes from approval.per_action.open_case
+  ticket:             {zones: [high, medium, human], verify: get_case}       # always; the mode comes from approval.per_action.open_case
   block_card:         {zones: [high, medium], verify: get_product_status, expect: Blocked, medium_requires: customer_confirmation}
   provisional_credit: {zones: [], decided_by: human, note: "country obligation; never the model"}
 
 actors:                                  # two tool sets that never cross; every call is audited with its actor
-  customer: {via: mcp, tools: [search_transaction, get_fraud_score, compute_deadline, block_card, open_case, get_product_status, get_case_status]}
-  analyst:  {via: api, tools: [list_cases, get_case, approve_credit, approve_block, unblock_card, request_customer_info, mark_ambiguous, close_case, reopen_case, supervised_mode], executed_by: human_only, copilot: proposes_only}
+  customer: {via: mcp, tools: [get_customer_profile, search_transaction, get_fraud_score, compute_deadline, open_case,
+                               block_card, get_product_status, list_my_cards, get_case, list_my_cases, add_case_info,
+                               request_call, request_reevaluation, convert_amount, send_case_summary, list_my_notifications]}
+  analyst:  {via: api, tools: [list_cases, get_console_case, approve_credit, approve_block, unblock_card, request_customer_info, mark_ambiguous, close_case, reopen_case, supervised_mode], executed_by: human_only, copilot: proposes_only}
 
 clarify:
   intent_confidence_min: 0.80            # below this, ask; τ is set on validation
   max_candidate_transactions: 3          # more candidates → ask for amount/date; if it persists → human
   max_clarification_turns: 2
 
+contact:                                 # callback promise for request_call (D-008); the tool computes the date, never the LLM
+  # [assumption] no external source exists for this bank-side SLA; conservative: the next business day.
+  # Counted from clock.today(mode, country) on spec 02's business-day calendar; absent or null means no date is promised.
+  callback_within_business_days: 1
+
 handoff:
-  triggers: [zone_human, amount_over_case_gate, identity_unverified, clarification_exhausted, tool_failure, language_low_confidence]
+  triggers: [zone_human, zone_medium, supervised_mode, amount_over_case_gate, identity_unverified, clarification_exhausted, tool_failure, language_low_confidence]
   payload_schema: contracts/handoff.schema.json
   never_include_raw_transcript: true
 
-regulatory_clock:                        # [external] business days per the country's banking calendar; amount_gate never changes these
+regulatory_clock:                        # [external] spec 02 §4.3; amount_gate never changes these. ADR 0019: every entry has source_url + verified_on
+  # Per country and product (debit | credit | any), the first entry whose `when_charged_within` holds (or that has none) wins;
+  # a country or product with no entry gets no deadline (POL-CLOCK-UNKNOWN). Terms count from the notice date
+  # (clock.today); business days skip weekends and packages/nick_of_time/policy/holidays/{cc}_{year}.yaml.
+  # MX (ADR 0023, proposed): a claim of unrecognized charges filed within 90 calendar days of the charge is credited by
+  # business day 2 after the notice, debit and credit alike; the 48 h window of the same articles is for theft or loss
+  # notices. The bank may skip the credit only with a ruling in that term proving two-factor authentication (evidence
+  # proxy: handoff auth_evidence). No amount cap. [assumption] day 90 still qualifies.
   MX:
     debit:
-      # Source: Banxico Circular 3/2012, art. 19 Bis 3 (reviewed Mon Sep 28). See also CONDUSEF:
-      # https://www.gob.mx/condusef/articulos/cargos-no-reconocidos?idiom=es
-      # Provisional credit by business day 2 with no amount cap. The only exemption is a ruling within that term
-      # proving two-factor authentication; without a ruling, the credit becomes final.
-      source: "Banxico Circular 3/2012, art. 19 Bis 3"
-      provisional_credit_business_days: 2
-      amount_cap: none
-      exemption: two_factor_authentication_ruling   # evidence proxy: handoff auth_evidence, derived from transactions.channel
-      without_ruling: credit_becomes_final
+      # Circular 3/2012 (compiled text through Circular 11/2026): art. 19 Bis 3 fr. II (90 Días; "Días" are calendar days,
+      # art. 2) and art. 19 Bis 4 (ruling within 45 Días of the notice, 180 Días abroad).
+      - when_charged_within: {days: 90}
+        credit: {days: 2, calendar: business}
+        ruling: {days: 45, calendar: calendar}
+        ruling_abroad: {days: 180, calendar: calendar}
+        source: "Banxico Circular 3/2012, arts. 19 Bis 3 and 19 Bis 4 (as amended by Circular 14/2018)"
+        source_url: https://www.banxico.org.mx/marco-normativo/normativa-emitida-por-el-banco-de-mexico/circular-3-2012/%7B4E0281A4-7AD8-1462-BC79-7F2925F3171D%7D.pdf
+        verified_on: 2026-10-04
+      # LTOSF art. 23 fr. II (text in force, last reform DOF 2024-01-24): ruling within 45 days ("días": art. 23 does not define them,
+      # counted as calendar days [assumption], the earlier date), 180 calendar days for operations abroad; claim within 90 calendar days of the statement
+      # cut-off or the operation (fr. I; the cut-off date is not in the data, so the ruling is always given).
+      - &ltosf_23
+        ruling: {days: 45, calendar: calendar}
+        ruling_abroad: {days: 180, calendar: calendar}
+        source: "LTOSF art. 23"
+        source_url: https://www.ordenjuridico.gob.mx/Documentos/Federal/pdf/wo46.pdf
+        verified_on: 2026-10-04
     credit:
-      # Source: LTOSF art. 23 (clarifications on credit products). The customer has 90 days to claim; ruling within
-      # 45 days (180 if the charge was abroad); while pending, no payment of the claimed amount and no credit bureau
-      # reporting. CONDUSEF maximum amounts for art. 23: pending.
-      source: "LTOSF art. 23"
-      customer_claim_days: 90
-      ruling_days: 45
-      ruling_days_abroad: 180
-      while_pending: {no_payment_of_claimed_amount: true, no_credit_bureau_reporting: true}
+      # Circular 34/2010 (compiled text through Circular 13/2018): numeral 3.4 b) (90 días naturales) and numeral 3.6
+      # (ruling within 45 "días" of the notice, counted as calendar days [assumption: the numeral does not define them];
+      # 180 días naturales abroad).
+      - when_charged_within: {days: 90}
+        credit: {days: 2, calendar: business}
+        ruling: {days: 45, calendar: calendar}
+        ruling_abroad: {days: 180, calendar: calendar}
+        source: "Banxico Circular 34/2010, numerals 3.4 and 3.6 (as amended by Circular 13/2018)"
+        source_url: https://www.banxico.org.mx/marco-normativo/normativa-emitida-por-el-banco-de-mexico/circular-34-2010/%7B0C55B906-6DB4-6B88-FED0-67987E9FB3CC%7D.pdf
+        verified_on: 2026-10-04
+      - *ltosf_23                        # while pending: no payment of the claimed amount, no credit bureau reporting (fr. I, V)
   AR:
-    # Source: BCRA — resolve and reimburse within 10 business days. https://www.bcra.gob.ar/archivos/Pdfs/texord/t-pusf.pdf
-    source: "BCRA"
-    resolve_and_reimburse_business_days: 10
+    any:
+      # Texto ordenado al 2026-05-06 (Com. "A" 8433), item 3.1.6: resolve every complaint within 10 business days. No credit
+      # date: the 10-business-day reimbursement of item 2.3.5.1 lists charges the bank itself generates, not a third
+      # party's charge the customer does not recognize.
+      - ruling: {days: 10, calendar: business}
+        source: "BCRA, Protección de los Usuarios de Servicios Financieros, item 3.1.6"
+        source_url: https://www.bcra.gob.ar/archivos/Pdfs/texord/t-pusf.pdf
+        verified_on: 2026-10-04
   CO:
-    # Source: SFC — answer within 15 days [not re-verified].
-    # https://www.superfinanciera.gov.co/preguntas-frecuentes/3/3-derechos-de-peticion-ante-entidades-vigiladas/
-    source: "SFC"
-    response_days: 15
+    any:
+      # SFC: answer within 15 days (Ley 1755 de 2015, art. 14; its parágrafo allows one extension, up to double, when the
+      # customer is told before it expires); days in a law are business days (Ley 4 de 1913, art. 62), counted Monday to
+      # Friday [assumption]. https://www.funcionpublica.gov.co/eva/gestornormativo/norma.php?i=65334 · ...norma.php?i=8426
+      # Not modeled (P1): the e-commerce payment reversal of Ley 1480 de 2011, art. 51 [external, to verify].
+      - ruling: {days: 15, calendar: business}
+        extendable_once: true
+        source: "SFC; Ley 1755 de 2015, art. 14"
+        source_url: https://www.superfinanciera.gov.co/preguntas-frecuentes/3/3-derechos-de-peticion-ante-entidades-vigiladas/
+        verified_on: 2026-10-04
   BR:
-    # Source: Resolução CMN 4.860 (2020), ombudsman (ouvidoria) within 10 business days [not re-verified].
-    # Portuguese demo only; the dataset has no BR.
-    source: "Resolução CMN 4.860 (2020)"
-    ombudsman_business_days: 10
-    extension_once: true
+    any:
+      # Ouvidoria answer within 10 dias úteis, extendable once by an equal period (art. 6, § 2). Portuguese demo only.
+      # [to verify] whether the SAC term of Decreto 11.034/2022, art. 13 (7 calendar days, first level) reaches banks.
+      - ruling: {days: 10, calendar: business}
+        extendable_once: true
+        source: "Resolução CMN 4.860/2020, art. 6, § 2"
+        source_url: https://www.bcb.gov.br/estabilidadefinanceira/exibenormativo?tipo=Resolu%C3%A7%C3%A3o%20CMN&numero=4860
+        verified_on: 2026-10-04
+
+countries:                               # spec 02 §4.4 (FR-09): IANA time zone of clock.today(live); T7 adds currency and fx
+  MX: {time_zone: America/Mexico_City}
+  CO: {time_zone: America/Bogota}
+  AR: {time_zone: America/Argentina/Buenos_Aires}
+  BR: {time_zone: America/Sao_Paulo}
+  PE: {time_zone: America/Lima}
+  CL: {time_zone: America/Santiago}
 
 reliability:
   tool_retries: 2
@@ -126,7 +204,7 @@ case_queue:                              # analyst queue; a case's status is its
   deadline_sla:                                   # provisional_credit is always human_required, so a person must act before the MX debit deadline
     mx_debit:
       applies_to: {country: MX, product: debit}
-      deadline: regulatory_clock.MX.debit.provisional_credit_business_days
+      deadline: regulatory_clock.MX.debit[0].credit           # 2 business days (clock.deadline)
       raise_priority_on_business_day: 1
       alert_before_business_day: 2
 
@@ -150,7 +228,7 @@ guardrails:                              # each lives in code; every DENY cites 
   - {id: G-TOOL-02, layer: tools, name: "controlled writes", impl: "approval mode per action; idempotency key; mandatory post-condition; credit never auto", test: tool_failure}
   - {id: G-POL-01, layer: policy, name: "default deny and logging", impl: "versioned policies.yaml; every denial is a row in policy_denials", test: all}
   - {id: G-OUT-01, layer: output, name: "grounding", impl: "every number, date, ID or status in the answer exists in a tool result or in the policy; otherwise it is dropped and logged", test: missing_data}
-  - {id: G-OUT-02, layer: output, name: "verified only", impl: "'blocked' only when get_product_status == Blocked; 'case #' only when get_case_status == Open", test: tool_failure}
+  - {id: G-OUT-02, layer: output, name: "verified only", impl: "'blocked' only when get_product_status == Blocked; 'case #' only when get_case returns the case_id with read_at", test: tool_failure}
   - {id: G-OUT-03, layer: output, name: "leaks of other customers' data and secrets", impl: "output filter rejects IDs/amounts that are not from the session; never YAML or keys", test: unauthorized_access}
   - {id: G-OUT-04, layer: output, name: "tone and abstention", impl: "no promises of money or deadlines the policy did not give; explicit abstention", test: missing_data}
   - {id: G-OPS-01, layer: operations, name: "budget and retries", impl: "token cap per conversation and per day, checked before calling; 2 retries; 800 ms timeout", test: cap}

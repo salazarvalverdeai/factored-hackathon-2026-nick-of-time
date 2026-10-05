@@ -1,0 +1,17 @@
+# [external] Mexico 2026 bank holidays (spec 02 §4.3, ADR 0019): the days credit institutions close (art. 1, fr. I-VIII).
+# "Día Hábil Bancario" in Banxico Circular 3/2012 refers to these closures. Weekends (fr. IX) are skipped by the clock.
+source: "CNBV, disposiciones que señalan los días del año 2026 en que las entidades financieras deberán cerrar sus puertas (DOF 2025-12-10), art. 1"
+source_url: https://dof.gob.mx/nota_detalle.php?codigo=5775684&fecha=10/12/2025
+verified_on: 2026-10-04
+holidays:
+  2026-01-01: New Year's Day
+  2026-02-02: Constitution Day (first Monday of February)
+  2026-03-16: Benito Juárez's birthday (third Monday of March)
+  2026-04-02: Holy Thursday
+  2026-04-03: Good Friday
+  2026-05-01: Labor Day
+  2026-09-16: Independence Day
+  2026-11-02: Day of the Dead
+  2026-11-16: Revolution Day (third Monday of November)
+  2026-12-12: Bank Employee Day (a Saturday)
+  2026-12-25: Christmas

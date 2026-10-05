@@ -37,7 +37,7 @@ Spec (what) ──► Plan (how) ──► Tasks ──► Implement
 6. **Plan.** On `feat/05-…`, the AI proposes the plan and tasks (section 10). **Gate 2:** the human reviews it before
    any code.
 7. **Implement** in small PRs that cite the criteria they cover. Status: **In progress**.
-8. **Review + CI.** **Gate 3:** one approval and green CI → squash merge.
+8. **Review + CI.** **Gate 3:** green CI and a passed final review → squash merge. Changes to `contracts/` also need the lead's OK.
 9. **Close.** The last PR carries the closing checklist: every AC has a passing test that cites it · status
    **Implemented** · ADR for any decision taken · lessons added to `CLAUDE.md`. `Closes #N` closes the issue.
 10. **Release.** The lead tags the milestone; `CHANGELOG.md` and `STATUS.md` are updated.
@@ -58,7 +58,7 @@ reviewable in 15 minutes; if not, split it.
   the public URL · **[D]** a file or document in the repo.
 - Tests for spec NN live in `tests/test_specNN_<topic>.py` (or the app's own test folder) and cite the criterion in the
   test name or docstring (`test_ac_03_blocks_once_per_idempotency_key`). **A criterion without evidence is unfinished
-  work.**
+  work.** CI fails an Implemented spec when a non-P1 [T] criterion has no citing test.
 - No coverage percentage target. Every criterion has a test or a check, and every fixed bug brings its test.
 
 ## 4. Architecture Decision Records
@@ -69,8 +69,10 @@ reviewable in 15 minutes; if not, split it.
   consequences, confidence level). A simple decision can be a one-sentence Y-statement.
 - One file per decision, `docs/adr/NNNN-short-title.md`, numbered globally. If two PRs take the same number, the one
   merged second renumbers on rebase.
-- States: **Proposed → Accepted**, or **Superseded by NNNN**. Accepted ADRs are never edited or deleted; a new ADR
-  supersedes them. Written by the feature owner, approved by the lead. *If it is not in the log, it was not decided.*
+- States: **Proposed → Accepted**, or **Superseded by NNNN**. **Amended by NNNN** marks a partial change where the
+  decision still stands: the accepted ADR gets only that header line. Accepted ADRs are never edited or deleted; a
+  new ADR supersedes or amends them. Written by the feature owner, approved by the lead. *If it is not in the log, it
+  was not decided.*
 
 ## 5. Git
 - **GitHub Flow.** `main` is always deployable. Short-lived branches (under a day) from `main`; `main` only changes
@@ -112,7 +114,7 @@ reviewable in 15 minutes; if not, split it.
 
 - **Review time:** under 1 hour during the sprint; under 30 minutes when the PR unblocks someone. An AI review
   (`/code-review`) is a useful first pass; the approval is human.
-- **The author merges** after approval and green CI. Squash only; the branch is deleted on merge.
+- **The lead merges** after green CI and a passed final review; `contracts/` needs the lead's OK. Squash only. Do not pass `--delete-branch`: the repo deletes the branch itself and retargets stacked PRs.
 - **Hotfix:** if the public URL is down or the deadline is under 6 hours away, the lead may merge with the `hotfix`
   label and the review happens within 2 hours after.
 - **`main` is protected:** pull request required, one approval, code-owner review, required CI checks, linear history,
@@ -128,9 +130,11 @@ reviewable in 15 minutes; if not, split it.
 - `/api/health` reports the app version, git SHA, gold version, `policies.yaml` version and the Platform revision.
 
 ## 8. Continuous integration
-Every PR runs: pytest (offline, fixtures only), the web app's lint and build, and a secret scan. CI never calls a
-real LLM (the `fake` provider) and never reads the real gold (a small fixture). Target: under 5 minutes. The
-end-to-end harness against the real LLM runs manually (`eval/`), and a smoke test runs after every deploy.
+Every PR runs: pytest (offline, fixtures only), the web app's lint and build, and a secret scan. It also runs `ruff` and the AC-coverage job (`scripts/ci/ac_coverage.py`). PRs that touch
+`apps/web/` also run the **Playwright** end-to-end and accessibility suite against the mock API (desktop and 390 px
+mobile); its screenshots count as [U] evidence. CI never calls a real LLM (the `fake` provider) and never reads the real
+gold (a small fixture). Target: under 5 minutes per job. The evaluation harness against the real LLM runs manually
+(`eval/`), and a Playwright smoke runs after every deploy. Details: [`docs/testing.md`](docs/testing.md).
 
 ## 9. Definitions
 - **Feature:** a unit of user-visible value with one owner and one spec (`specs/NN-slug.md`).
@@ -138,8 +142,8 @@ end-to-end harness against the real LLM runs manually (`eval/`), and a smoke tes
 - **Done:** closing checklist complete · CI green · if it runs in production, deployed and verified on the public URL ·
   no secrets · listed in the changelog when released.
 - **Priorities:** **P0** no submission without it · **P1** adds points · **P2** only if time allows.
-- **Sizes:** **S** under 1 h · **M** 1–2 h · **L** 2–4 h (senior engineer with an AI assistant).
-- **Freeze:** Sunday 2026-10-04 20:00 — after that only `fix/` and `docs/` branches.
+- **Sizes:** **S** small, one focused · **M** medium, few files · **L** large, split if you can. No hours (D-004).
+- **Freeze:** when v0.4.0 is on the public URL — after that only `fix/` and `docs/` branches.
 
 ## 10. Team rules
 - **Contracts first.** Nobody codes against something that is not in `contracts/` or in an approved spec.
@@ -147,6 +151,8 @@ end-to-end harness against the real LLM runs manually (`eval/`), and a smoke tes
 - **The harness belongs to everyone:** each person adds evaluation cases for their own area.
 - **Every figure carries a label** (`[data]`, `[external]`, `[assumption]`, `[simulated]`, `[projected]`) and a query or
   link. Nothing enters the pitch without one.
+- **Regulatory and external figures cite an official public source and a verification date** (`source_url`,
+  `verified_on`), never memory or a secondary summary ([ADR 0019](docs/adr/0019-official-sources-for-regulatory-figures.md)).
 - With scope frozen, nothing new enters until what is functional is closed.
 
 ## 11. Language
