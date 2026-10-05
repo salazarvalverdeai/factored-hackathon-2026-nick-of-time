@@ -37,10 +37,15 @@ jobs:
       - name: Pick build context
         id: ctx
         run: |
-          if [ -f "apps/${{ matrix.service }}/Dockerfile" ]; then
-            echo "context=apps/${{ matrix.service }}" >> "$GITHUB_OUTPUT"
+          # api and mcp copy packages/ and contracts/, so they build from the repo root; web builds from apps/web.
+          SVC="${{ matrix.service }}"
+          if [ -f "apps/$SVC/Dockerfile" ]; then
+            if [ "$SVC" = "web" ]; then CTX="apps/web"; else CTX="."; fi
+            echo "context=$CTX" >> "$GITHUB_OUTPUT"
+            echo "file=apps/$SVC/Dockerfile" >> "$GITHUB_OUTPUT"
           else
-            echo "context=infra/${{ matrix.service }}-placeholder" >> "$GITHUB_OUTPUT"
+            echo "context=infra/$SVC-placeholder" >> "$GITHUB_OUTPUT"
+            echo "file=infra/$SVC-placeholder/Dockerfile" >> "$GITHUB_OUTPUT"
           fi
 
       - uses: docker/setup-buildx-action@v3
@@ -54,6 +59,7 @@ jobs:
       - uses: docker/build-push-action@v6
         with:
           context: ${{ steps.ctx.outputs.context }}
+          file: ${{ steps.ctx.outputs.file }}
           push: true
           tags: |
             ${{ env.IMAGE_REPO }}/${{ matrix.service }}:${{ github.sha }}

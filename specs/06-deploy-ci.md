@@ -49,10 +49,13 @@ hosts, no AWS keys in workflows, rollback and backup present, health payload sha
   The script updates the checkout in `/opt/nickoftime` to the deployed SHA and runs `infra/deploy.sh <sha>`.
 - FR-04 — `infra/deploy.sh`: load secrets from SSM `/nickoftime/prod/*` into a `0600` env file → pull the new images
   **before touching any container** → run the migration hook → `docker compose up -d` → reload Caddy → health check
-  with retries → record the SHA as last good, or roll back (AC-02, AC-07).
+  with retries → record the SHA as last good, or roll back (AC-02, AC-07). Migration hook contract: if the api image
+  ships an executable `/app/migrate.sh` (spec 05: `alembic upgrade head`), `deploy.sh` runs it once with the stack's
+  `DATABASE_URL` before `up`; an image without it skips the step.
 - FR-05 — `infra/compose.yml`: caddy (80/443, certificate volume), web, api, mcp, postgres (named volume, healthcheck).
   Only caddy publishes ports.
-- FR-06 — `infra/Caddyfile`: `nickoftime.salazarvalverdeai.com` serves `/api/*` → api and everything else → web (same
+- FR-06 — `infra/caddy/Caddyfile` (mounted as a directory, so a `git checkout` that replaces the file is picked up):
+  `nickoftime.salazarvalverdeai.com` serves `/api/*` → api and everything else → web (same
   origin, no CORS); `mcp.nickoftime.salazarvalverdeai.com` → mcp (AC-05).
 - FR-07 — `infra/backup.sh` runs `pg_dump`, compresses it and copies it to `s3://nickoftime-gold-061039767206/backups/postgres/`;
   `deploy.sh` installs a daily cron entry for it (AC-04).
@@ -72,7 +75,7 @@ Only the health route; the rest of `/api` belongs to spec 05.
 
 | Method | Path | Request | Response | Status codes |
 |---|---|---|---|---|
-| GET | /api/health | — | `{status, service, version, git_sha, gold_version, policies_version, platform_revision}` | 200 |
+| GET | /api/health | — | the payload of spec 01 §6.2 (it owns the route); the placeholder serves only the AC-06 subset | 200 |
 
 ## 8. Assumptions and open questions
 - Assumption `[assumption]`: the repository and its GHCR packages are public, so the instance pulls images without a
@@ -85,6 +88,11 @@ Only the health route; the rest of `/api` belongs to spec 05.
 - **Decided (lead, 2026-10-05):** the instance role `nickoftime-ec2-role` has `ssm:GetParameter*` on
   `/nickoftime/*` but not `ssm:PutParameter`, so the lead creates the `POSTGRES_PASSWORD` SecureString once (a random
   value nobody types). `deploy.sh` only reads it.
+- **Build context (lead, 2026-10-05):** `api` and `mcp` build from the repository root with `file: apps/<svc>/Dockerfile`,
+  because they copy `packages/nick_of_time` and `contracts/`; `web` builds from `apps/web`.
+- Open (task 03d, with spec 03): how gold reaches the containers. Spec 01 lists `GOLD_PATH` / `GOLD_S3_URI`, but compose
+  has no gold volume yet and `GOLD_VERSION` is not set. Proposed: `deploy.sh` runs `aws s3 sync gold/v1/` into a
+  read-only volume mounted in `mcp` and sets `GOLD_VERSION` from the manifest. The stub images do not read gold.
 - **Decided (lead, 2026-10-05):** the build contexts are `apps/api/Dockerfile`, `apps/mcp/Dockerfile` (both on main)
   and `apps/web/Dockerfile` (this PR). The `infra/*-placeholder` images are used only while a Dockerfile is missing.
 
@@ -95,7 +103,7 @@ Only the health route; the rest of `/api` belongs to spec 05.
 - The real API and MCP servers (specs 05 and 03).
 
 ## 10. Plan, tasks and verification
-- [ ] T1 — `infra/compose.yml` and `infra/Caddyfile` · covers FR-05, FR-06, AC-04, AC-05 · done when: `docker compose config`
+- [ ] T1 — `infra/compose.yml` and `infra/caddy/Caddyfile` · covers FR-05, FR-06, AC-04, AC-05 · done when: `docker compose config`
   passes and the static test finds the five services, the volume and both hosts
 - [ ] T2 — web and api placeholder images, health payload · covers FR-08, AC-06 · done when: the health test passes
 - [ ] T3 — `infra/deploy.sh` with pull-first, migration hook, health check and rollback · covers FR-04, AC-02, AC-07 ·
