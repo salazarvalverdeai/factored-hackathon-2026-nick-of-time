@@ -24,17 +24,17 @@ create table cases (                                                 -- AO, inse
   transaction_id text not null,
   product_id text not null,
   country text not null,
-  product_type text not null,
-  zone text not null,
-  dispute_type text not null,
+  product_type text not null check (product_type in ('debit', 'credit')),
+  zone text not null check (zone in ('high', 'medium', 'human')),
+  dispute_type text not null check (dispute_type in ('unrecognized_charge', 'wrongful_charge')),
   opened_on date not null,                                           -- business date (D-023)
   credit_deadline date null,                                         -- stored once, never recomputed
   ruling_deadline date null,
   deadline_source text null check (deadline_source <> ''),
-  deadline_source_url text null check (deadline_source_url is null or deadline_source_url like 'https://%'),
+  deadline_source_url text null check (deadline_source_url is null or deadline_source_url like 'https://_%'),
   deadline_verified_on date null,                                    -- [assumption] D-014
   related_case_id text null,
-  mode text not null,
+  mode text not null check (mode in ('replay', 'live')),
   run_id text null,
   trace_id text not null,
   created_at timestamptz not null default now(),
@@ -79,20 +79,29 @@ create table case_events (                                           -- AO
     'status_changed', 'handoff_emitted', 'assigned', 'analyst_action', 'customer_info_added', 'call_requested',
     'reevaluation_requested', 'related_case_opened', 'notification_sent', 'receipt_issued', 'telegram_linked',
     'email_confirmed')),
-  actor text not null,
+  actor text not null check (actor in ('agent', 'customer', 'system')
+                             or (actor like 'analyst:%' and trim(substr(actor, 9)) <> '')),
   payload jsonb not null default '{}',
   customer_visible boolean not null,
   trace_id text not null,
   created_at timestamptz not null default now(),
-  unique (case_id, seq)
+  unique (case_id, seq),
+  -- the store's rules as rows (D-025): a write always carries its action id (a summary send only on request), a
+  -- status change always names its status, and visibility follows the §6.5 ✓ list
+  check (type not in ('case_opened', 'card_blocked', 'customer_info_added', 'call_requested', 'reevaluation_requested')
+         or (payload ->> 'action_id') is not null),
+  check (type <> 'status_changed'
+         or coalesce(payload ->> 'to', '') in ('verification', 'review', 'resolved', 'closed')),
+  check (customer_visible = (type not in ('action_verified', 'handoff_emitted', 'analyst_action')))
 );
 
 create table product_overrides (                                     -- AO; status = latest row of the same run_id
   override_id text primary key,                                      -- the action_id of the write (D-025)
   product_id text not null,
-  status text not null,
+  status text not null check (status in ('Active', 'Blocked', 'Closed', 'Suspended')),
   case_id text not null,
-  actor text not null,
+  actor text not null check (actor in ('agent', 'customer', 'system')
+                             or (actor like 'analyst:%' and trim(substr(actor, 9)) <> '')),
   run_id text null,
   created_at timestamptz not null default now()
 );
@@ -147,7 +156,8 @@ create table policy_denials (                                        -- AO
   denial_id text primary key,
   trace_id text not null,
   session_id text null,                                              -- null for api and analyst denials (D-023)
-  actor text not null check (actor in ('agent', 'customer') or actor like 'analyst:_%'),
+  actor text not null check (actor in ('agent', 'customer')
+                             or (actor like 'analyst:%' and trim(substr(actor, 9)) <> '')),
   policy_id text not null,
   guardrail_id text not null,                                        -- a rule-only denial cites G-POL-01
   detail jsonb not null,

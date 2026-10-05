@@ -16,7 +16,8 @@ import duckdb
 import pytest
 
 from data.pipeline import contracts as gold
-from nick_of_time.store import CUSTOMER_VISIBLE, WRITE_EVENTS, EventType
+from nick_of_time.store import (CUSTOMER_VISIBLE, TRANSITIONS, WRITE_EVENTS, EventType, NewCase,
+                                ProductOverride)
 
 ROOT = Path(__file__).resolve().parents[1]
 SQL = (ROOT / "packages/nick_of_time/store/schema.sql").read_text()
@@ -31,12 +32,12 @@ UNTYPED = {"created_at": "TIMESTAMP WITH TIME ZONE", "generated_at": "TIMESTAMP 
 
 CASE = ("insert into cases (case_id, customer_id, transaction_id, product_id, country, product_type, zone, "
         "dispute_type, opened_on, credit_deadline, ruling_deadline, deadline_source, deadline_source_url, "
-        "deadline_verified_on, mode, trace_id) values ('{id}', 'CLI-1', 'TRX-1', 'PRD-1', 'MX', 'debit', 'high', "
-        "'unrecognized_charge', '2026-06-01', {dates}, {source}, 'replay', 't')")
+        "deadline_verified_on, mode, trace_id) values ('{id}', 'CLI-1', 'TRX-1', 'PRD-1', 'MX', '{product}', "
+        "'{zone}', '{dispute}', '2026-06-01', {dates}, {source}, '{mode}', 't')")
 CREDIT, RULING, NO_DATES = "'2026-06-03', null", "null, '2026-07-01'", "null, null"
-EVENT = ("insert into case_events (event_id, case_id, seq, type, actor, payload, customer_visible, trace_id) "
-         "values ('{id}', '{case}', {seq}, '{type}', 'agent', '{payload}', true, 't')")
 ACTION = '{{"action_id": "A-00000000000{n}"}}'
+OVERRIDE = ("insert into product_overrides (override_id, product_id, status, case_id, actor) "
+            "values ('{id}', 'PRD-1', '{status}', 'K-000001', '{actor}')")
 NOTIFICATION = ("insert into notifications (notification_id, case_id, customer_id, event, channel, text, trigger) "
                 "values ('{id}', 'K-000001', 'CLI-1', 'case_opened', '{channel}', 'Abrimos tu caso.', '{trigger}')")
 DELIVERY = ("insert into notification_deliveries (delivery_id, notification_id, status) "
@@ -44,27 +45,63 @@ DELIVERY = ("insert into notification_deliveries (delivery_id, notification_id, 
 DENIAL = ("insert into policy_denials (denial_id, trace_id, actor, policy_id, guardrail_id, detail) "
           "values ('{id}', 't', '{actor}', 'POL-QUEUE-TRANSITION', 'G-POL-01', '{{}}')")
 SOURCE = "'Banxico', 'https://www.banxico.org.mx/', '2026-10-04'"
-GOOD = [CASE.format(id="K-000001", dates=CREDIT, source=SOURCE),
-        CASE.format(id="K-000010", dates=RULING, source=SOURCE),                # a ruling date alone, with provenance
-        CASE.format(id="K-000011", dates=NO_DATES, source="null, null, null"),  # no legal date, no provenance
-        EVENT.format(id="E-1", case="K-000001", seq=1, type="case_opened", payload=ACTION.format(n=1)),
-        EVENT.format(id="E-5", case="K-000001", seq=2, type="action_verified", payload=ACTION.format(n=1)),
-        EVENT.format(id="E-6", case="K-000001", seq=3, type="handoff_emitted", payload="{}"),
+
+
+def case(id: str, dates: str = CREDIT, source: str = SOURCE, product: str = "debit", zone: str = "high",
+         dispute: str = "unrecognized_charge", mode: str = "replay") -> str:
+    return CASE.format(id=id, dates=dates, source=source, product=product, zone=zone, dispute=dispute, mode=mode)
+
+
+def event(id: str, case: str, seq: int, type: str, payload: str = "{}", actor: str = "agent",
+          visible: bool | None = None) -> str:
+    visible = type in CUSTOMER_VISIBLE if visible is None else visible
+    return ("insert into case_events (event_id, case_id, seq, type, actor, payload, customer_visible, trace_id) "
+            f"values ('{id}', '{case}', {seq}, '{type}', '{actor}', '{payload}', {str(visible).lower()}, 't')")
+
+
+GOOD = [case("K-000001"),
+        case("K-000010", dates=RULING),                                        # a ruling date alone, with provenance
+        case("K-000011", dates=NO_DATES, source="null, null, null", product="credit", zone="human",
+             dispute="wrongful_charge", mode="live"),                         # no legal date, no provenance
+        event("E-1", "K-000001", 1, "case_opened", ACTION.format(n=1)),
+        event("E-5", "K-000001", 2, "action_verified", ACTION.format(n=1)),
+        event("E-6", "K-000001", 3, "handoff_emitted"),
+        event("E-10", "K-000001", 4, "status_changed", '{"from": "new", "to": "review"}', actor="analyst:sub-1"),
+        event("E-11", "K-000001", 5, "notification_sent", '{"notification_id": "N-1"}', actor="system"),
         NOTIFICATION.format(id="N-1", channel="log", trigger="auto"),
+        OVERRIDE.format(id="A-000000000009", status="Blocked", actor="agent"),
         DENIAL.format(id="P-0", actor="analyst:sub-1")]                   # no session: an analyst-side denial
-BAD = [EVENT.format(id="E-2", case="K-000001", seq=1, type="handoff_emitted", payload="{}"),  # duplicate seq
-       EVENT.format(id="E-3", case="K-999999", seq=1, type="case_opened", payload="{}"),     # no such case
-       EVENT.format(id="E-4", case="K-000001", seq=9, type="case_closed", payload="{}"),     # not a §6.5 type
-       EVENT.format(id="E-7", case="K-000011", seq=0, type="handoff_emitted", payload="{}"),  # seq starts at 1
+BAD = [event("E-2", "K-000001", 1, "handoff_emitted"),                       # duplicate (case_id, seq)
+       event("E-3", "K-999999", 1, "case_opened", ACTION.format(n=2)),       # no such case
+       event("E-4", "K-000001", 9, "case_closed"),                           # not a §6.5 type
+       event("E-7", "K-000011", 0, "handoff_emitted"),                       # seq starts at 1
+       # the store's rules as rows: a write without its action id, a status change without a known status, an actor
+       # outside agent|customer|system|analyst:<sub>, visibility off the ✓ list
+       event("E-12", "K-000011", 1, "customer_info_added", '{"text": "x"}'),
+       event("E-13", "K-000011", 1, "status_changed", '{"from": "new"}'),
+       event("E-14", "K-000011", 1, "status_changed", '{"from": "new", "to": "archived"}'),
+       event("E-15", "K-000011", 1, "handoff_emitted", actor="analyst:"),
+       event("E-16", "K-000011", 1, "handoff_emitted", actor="analyst: "),
+       event("E-17", "K-000011", 1, "handoff_emitted", actor="bot"),
+       event("E-18", "K-000011", 1, "action_verified", ACTION.format(n=3), visible=True),
+       event("E-19", "K-000011", 1, "receipt_issued", visible=False),
        # D-014: a legal date travels with its source, an https URL and verified_on; none is ever empty or http
-       CASE.format(id="K-000002", dates=CREDIT, source="null, null, null"),
-       CASE.format(id="K-000003", dates=CREDIT, source="'Banxico', 'http://www.banxico.org.mx/', '2026-10-04'"),
-       CASE.format(id="K-000004", dates=CREDIT, source="'Banxico', 'https://www.banxico.org.mx/', null"),
-       CASE.format(id="K-000005", dates=CREDIT, source="'Banxico', null, '2026-10-04'"),
-       CASE.format(id="K-000006", dates=CREDIT, source="null, 'https://www.banxico.org.mx/', '2026-10-04'"),
-       CASE.format(id="K-000007", dates=RULING, source="null, null, null"),
-       CASE.format(id="K-000008", dates=NO_DATES, source="'', null, null"),
-       CASE.format(id="K-000009", dates=NO_DATES, source="null, 'http://www.banxico.org.mx/', null"),
+       case("K-000002", source="null, null, null"),
+       case("K-000003", source="'Banxico', 'http://www.banxico.org.mx/', '2026-10-04'"),
+       case("K-000004", source="'Banxico', 'https://www.banxico.org.mx/', null"),
+       case("K-000005", source="'Banxico', null, '2026-10-04'"),
+       case("K-000006", source="null, 'https://www.banxico.org.mx/', '2026-10-04'"),
+       case("K-000007", dates=RULING, source="null, null, null"),
+       case("K-000008", dates=NO_DATES, source="'', null, null"),
+       case("K-000009", dates=NO_DATES, source="null, 'http://www.banxico.org.mx/', null"),
+       case("K-000012", source="'Banxico', 'https://', '2026-10-04'"),         # a URL with no host
+       # the NewCase Literals
+       case("K-000013", mode="demo"), case("K-000014", zone="low"), case("K-000015", product="prepaid"),
+       case("K-000016", dispute="other"),
+       OVERRIDE.format(id="A-00000000000A", status="Gone", actor="agent"),
+       OVERRIDE.format(id="A-00000000000B", status="Blocked", actor="analyst:"),
+       DENIAL.format(id="P-3", actor="analyst: "),
+       DENIAL.format(id="P-4", actor="system"),                                  # the denial actors are a closed list
        "insert into sessions (session_id, otp_hash, expires_at, language, mode) "
        "values ('S-1', 'h', now(), 'es', 'demo')",
        DELIVERY.format(id="D-1", n="N-404", status="sent"),                      # no such notification
@@ -76,9 +113,8 @@ BAD = [EVENT.format(id="E-2", case="K-000001", seq=1, type="handoff_emitted", pa
        DENIAL.format(id="P-1", actor="bot"),
        DENIAL.format(id="P-2", actor="analyst:")]                                # an analyst with no sub
 # Postgres only (DuckDB has no partial index): a write's action id cannot come back in another write (D-025).
-BAD_ON_POSTGRES = [EVENT.format(id="E-8", case="K-000001", seq=4, type="card_blocked", payload=ACTION.format(n=1)),
-                   EVENT.format(id="E-9", case="K-000010", seq=1, type="customer_info_added",
-                                payload=ACTION.format(n=1))]
+BAD_ON_POSTGRES = [event("E-8", "K-000001", 6, "card_blocked", ACTION.format(n=1)),
+                   event("E-9", "K-000010", 1, "customer_info_added", ACTION.format(n=1))]
 
 
 def spec_table() -> dict[str, dict]:
@@ -160,6 +196,25 @@ def test_ac_01_append_only_tables_refuse_update_delete_and_truncate():
     assert "before update or delete or truncate on %I '\n" in POSTGRES_ONLY
     assert "'for each statement execute function forbid_append_only_change()', t || '_append_only', t)" in POSTGRES_ONLY
     assert "raise exception '% is append-only: % is not allowed', tg_table_name, tg_op;" in POSTGRES_ONLY
+
+
+def sql_list(pattern: str) -> set[str]:
+    return set(re.findall(r"'(\w+)'", re.search(pattern, TABLES_SQL, re.S).group(1)))
+
+
+def test_d025_schema_vocabularies_match_the_store_models():
+    """Each SQL list is the model's own: the always-write types, the status targets of case_queue.transitions, the
+    hidden events, the override statuses and the NewCase Literals."""
+    assert sql_list(r"check \(type not in \((.*?)\)\s+or \(payload ->> 'action_id'\) is not null\)") == \
+        WRITE_EVENTS - {"notification_sent"}                                  # a summary send only on request
+    targets = {to for allowed in TRANSITIONS.values() for to in allowed}
+    assert sql_list(r"coalesce\(payload ->> 'to', ''\) in \((.*?)\)\)") == targets
+    assert sql_list(r"customer_visible = \(type not in \((.*?)\)\)\)") == set(get_args(EventType)) - CUSTOMER_VISIBLE
+    assert sql_list(r"status text not null check \(status in \((.*?)\)\),\n  case_id") == \
+        set(get_args(ProductOverride.model_fields["status"].annotation))
+    for column in ("mode", "zone", "product_type", "dispute_type"):
+        literal = NewCase.model_fields[column].annotation
+        assert sql_list(rf"\n  {column} text not null check \({column} in \((.*?)\)\)") == set(get_args(literal))
 
 
 def test_d025_an_action_id_is_unique_over_the_store_write_events():
