@@ -1,7 +1,7 @@
 """Spec 04 — contracts/messages.yaml (offline, no network).
 
 These tests support AC-06, AC-10, AC-11, AC-15, AC-16, AC-18, AC-19, AC-21, AC-25, AC-26, AC-28, AC-29, AC-31,
-AC-32, AC-03, AC-11 by checking the contract file only; the behavior itself is tested in T2-T6.
+AC-32 by checking the contract file only; the behavior itself is tested in T2-T6.
 """
 import re
 from pathlib import Path
@@ -100,7 +100,8 @@ def test_adr_0016_every_placeholder_is_allowed_and_documented_in_header():
         assert name in header, name
 
 
-@pytest.mark.parametrize("top", ["greet", "plan", "connect", "suggest", "status", "receipt", "notify", "refuse", "clarify", "cancel"])
+@pytest.mark.parametrize(
+    "top", ["greet", "plan", "connect", "suggest", "status", "receipt", "notify", "refuse", "clarify"])
 def test_ac_15_ac_16_ac_29_ac_26_spec_names_top_level_keys(top):
     assert top in load()
 
@@ -238,12 +239,31 @@ def test_rule_6_no_promise_of_outcome_or_credit():
         assert not PROMISE.search(leaf["es"] + " " + leaf["pt"]), key
 
 
-def test_ac_03_ac_11_refuse_clarify_cancel_exist_without_placeholders_or_promises():
-    """MSG2: the texts the web mock held locally. Each one asks or declines; none states an action."""
+ACTION_CLAIM = re.compile(r"bloque[eé]|bloquei|\babr[ií]\b|registr[eé]\b|registrei|envi[eé]\b|enviei|\bcre[eé]\b|"
+                          r"criei|cancel[eé]\b|cancelei", re.I)
+REFUSAL_REASON = re.compile(r"regla|regra|norma|segurid|seguran|guardrail|inyecci|inje[cç]|porque|pois|ya que|"
+                            r"j[aá] que", re.I)
+
+
+def test_ac_11_msg2_refuse_clarify_declined_state_no_action_time_or_reason():
+    """MSG2: each text asks or declines; none states an action or a time; the refusal gives no reason.
+    The refuse behavior (DENY, guardrail id, policy_denials) is tested in T2."""
     data = load()
-    for group, key in (("refuse", "deny"), ("clarify", "ask_what"), ("cancel", "not_confirmed")):
+    for group, key in (("refuse", "deny"), ("clarify", "ask_what"), ("plan", "declined")):
         for lang in ("es", "pt"):
-            assert not PLACEHOLDER.search(data[group][key][lang]), (group, lang)
-            assert "48" not in data[group][key][lang], (group, lang)
+            t = data[group][key][lang]
+            assert not PLACEHOLDER.search(t), (group, lang)
+            assert not TIME_WORDS.search(t), (group, lang)  # \d also rejects "48 horas" (ADR 0023)
+            assert not ACTION_CLAIM.search(t), (group, lang)
     for lang in ("es", "pt"):
-        assert not re.search(r"bloque[eé]|bloquei|abr[ií]|abri", data["cancel"]["not_confirmed"][lang], re.I)
+        assert not REFUSAL_REASON.search(data["refuse"]["deny"][lang]), lang
+
+
+def test_adr_0023_no_template_promises_48_hours():
+    assert not re.search(r"48\s*(h\b|hora)", text(), re.I)
+
+
+@pytest.mark.parametrize("bad", ["Bloqueé tu tarjeta", "Ya abrí un caso", "registré tu caso", "em 2 dias úteis",
+                                 "te llamará pronto", "una regla de seguridad lo impide"])
+def test_ac_11_msg2_guard_regexes_catch_known_violations(bad):
+    assert ACTION_CLAIM.search(bad) or TIME_WORDS.search(bad) or REFUSAL_REASON.search(bad)
