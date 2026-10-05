@@ -24,9 +24,12 @@ _PERSON = r"(?:persona|humano|agente|asesor|ejecutivo|operador|atendente|pessoa|
 _INTENT_RULES: list[tuple[str, list[str]]] = [
     ("human_request", [
         # "comuni-" needs a person after it: "me comunico con ustedes por un cargo" is an opener, not a request
-        r"\b(?:hablar|conversar|comuni\w*|pas\w*|falar|passar) (?:\w+ ){0,2}(?:con|com|para|a) "
-        r"(?:un |una |um |uma |o |a )?" + _PERSON,
-        r"\b(?:quiero|necesito|quero|preciso|prefiero|prefiro) (?:(?!si |se )\w+ ){0,3}(?:un |una |um |uma |o |a )?" + _PERSON,
+        r"\b(?:hablar|conversar|comuni\w*|pas\w*|falar|passar) (?:\w+ ){0,2}(?:con|com|para|pra|pro|a) "
+        r"(?:un |una |um |uma |o |a |el |la )?" + _PERSON,
+        r"\b(?:quiero|necesito|quero|preciso|prefiero|prefiro) (?:(?!si |se )\w+ ){0,3}"
+        r"(?:un |una |um |uma |o |a |el |la )?" + _PERSON,
+        # a message that is only the person word ("Supervisor", "Un asesor", "Humano por favor", "Atendente, por favor")
+        r"^(?:un |una |um |uma |o |a |el |la )?" + _PERSON + r"(?: humano| real)?(?:,? por favor)?[.!? ]*$",
         r"\b(?:atienda|atiende|atenda|atendid[oa] por) (?:\w+ )?" + _PERSON,
         r"\b(?:atencion|atendimento) (?:humana|humano|personal)\b",
     ]),
@@ -54,8 +57,16 @@ _INTENT_RULES: list[tuple[str, list[str]]] = [
         r"\b(?:raro|extrano|sospechos\w*|suspeit\w*|estranh\w*|fraud\w*|indebid\w*|no autorizad\w*|nao autorizad\w*)\b",
         r"\b(?:fraude|fraudulent\w*|clonaron|clonaram|clonado|robaron mi tarjeta|roubaram meu cartao)\b",
         r"\b(?:disputar|desconocer|contestar|impugnar|reportar|informar|reclamar) (?:\w+ ){0,2}"
-        r"(?:cargo|compra|cobro|cobranca|debito|transacao|movimiento)\b",
+        r"(?:cargo|compra|cobro|cobranca|debito|transacao|transaccion|movimiento|consumo)\b",
         r"\b(?:no es mi[oa]|nao e (?:meu|minha))\b",
+        r"\b(?:no son mi[oa]s|nao sao (?:meus|minhas))\b",
+        r"\b(?:alguien|alguem) (?:uso|usou|ha usado|esta usando) (?:mi|meu) (?:tarjeta|cartao)\b",
+        # a dispute noun counts only after an opening verb and an article ("quiero abrir una disputa por un cargo");
+        # "como va mi disputa del cargo" or "quiero ver el reclamo del cargo" stay status questions
+        r"\b(?:abrir|presentar|registrar|hacer|levantar|iniciar|fazer|pedir|solicitar|quiero|quero|necesito|preciso|"
+        r"gostaria) (?:(?!ver |saber |consultar |revisar |checar |conferir |acompanhar )\w+ ){0,2}"
+        r"(?:un|una|um|uma|o|el|a|la) (?:disputa|reclamo|reclamacao|contestacao|aclaracion|contracargo|chargeback|estorno)"
+        r" (?:\w+ ){0,2}(?:cargo|compra|cobro|cobranca|debito|transacao|transaccion|movimiento|consumo)\b",
     ]),
 ]
 _COMPILED = [(intent, [re.compile(p) for p in pats]) for intent, pats in _INTENT_RULES]
@@ -93,7 +104,15 @@ _AMOUNT_CUE = re.compile(rf"\b(?:cargo|compra|cobro|cobranca|monto|importe|valor
 _DATE_NOISE = re.compile(r"\d{4}-\d{2}-\d{2}|\d{1,2}/\d{1,2}/\d{4}|\d{1,2} de [a-zç]+(?: de \d{4})?", re.I)
 _MERCHANT = re.compile(r"\b(?:en|em|de|do|da)\s+((?:[A-ZÁÉÍÓÚÑÃÕÇ][\w&'.-]*)(?:\s+[A-ZÁÉÍÓÚÑÃÕÇ][\w&'.-]*){0,3})(?![\w$])")
 _THOUSANDS = re.compile(r"(\d+(?:[.,]\d{1,2})?) ?mil\b(?! ?(?:millon|milhao))")
-_MIL_COMPOUND = re.compile(r"\d[.,]\d{3}(?:[.,]\d+)? ?mil\b|\bmil (?:e|y) \d")   # "2,500 mil", "15 mil e 500": unsafe
+# "2,500 mil", "15 mil e 500", "3 mil 200", "7 mil quinientos": a second figure after "mil" is unsafe
+_MIL_COMPOUND = re.compile(r"\d[.,]\d{3}(?:[.,]\d+)? ?mil\b|\bmil,? (?:(?:e|y) )?(?:\d|cien|cem|"
+                           r"\w*(?:cient|quinient|zent|cent|hent)\w*|(?:vein|trein|cuaren|cincuen|sesen|seten|ochen|noven|vint|"
+                           r"trinta|quarent|cinquent|sessent|setent|oitent|novent)\w*)")
+# "dos mil pesos", "mil reais": number words 1-10 (and a bare "mil" before a currency word) become digits first
+_WORD_NUM = {"un": 1, "uno": 1, "um": 1, "dos": 2, "dois": 2, "duas": 2, "tres": 3, "cuatro": 4, "quatro": 4, "cinco": 5,
+             "seis": 6, "siete": 7, "sete": 7, "ocho": 8, "oito": 8, "nueve": 9, "nove": 9, "diez": 10, "dez": 10}
+_WORD_MIL = re.compile(r"\b(" + "|".join(_WORD_NUM) + r") mil\b")
+_BARE_MIL = re.compile(r"(?<![\w-])(?<!\d )mil(?= ?(?:pesos?|reais|real|dolares|dolar|usd|brl|mxn|ars|cop|eur)\b|\$)")
 _MILLIONS = re.compile(r"\d+(?:[.,]\d+)? ?(?:millon|millones|milhao|milhoes)\b")
 _NOT_MERCHANT = {"Hola", "Oi", "Ola", "Mexico", "Brasil", "Argentina", "Colombia", "Ayer", "Ontem"}
 
@@ -120,6 +139,8 @@ def _amount(text: str) -> tuple[Optional[str], Optional[str]]:
     if _MIL_COMPOUND.search(t):
         return None, None                                    # never guess a multiplier: no amount beats a wrong one
     t = _MILLIONS.sub(" ", t)
+    t = _WORD_MIL.sub(lambda m: f"{_WORD_NUM[m[1]]} mil", t)
+    t = _BARE_MIL.sub("1 mil", t)                            # [assumption] a bare "mil pesos" is 1000
     t = _THOUSANDS.sub(lambda m: format((Decimal(_to_decimal(m[1]) or "0") * 1000).normalize(), "f"), t)
     for pattern, num_idx, cur_idx in ((_AMOUNT_BEFORE, 2, 1), (_AMOUNT_AFTER, 1, 2)):
         if m := pattern.search(t):
@@ -148,7 +169,10 @@ def classify_intent(text: str) -> tuple[str, float, bool]:
     """(intent, confidence, dispute_detected). The confidence is fixed: 0.9 for a match (above the policy floor
     `clarify.intent_confidence_min`), 0.5 for no match."""
     t = fold(text)
-    hits = {intent for intent, patterns in _COMPILED if any(p.search(t) for p in patterns)}
+    # a negated person request ("no quiero hablar con un asesor") is no request; other intents ignore negation
+    hits = {intent for intent, patterns in _COMPILED
+            if any(not (intent == "human_request" and _NEGATED.search(t[:m.start()]))
+                   for p in patterns for m in p.finditer(t))}
     if any(not _NEGATED.search(t[:m.start()]) for m in _CALL.finditer(t)):
         hits.add("human_request")
     dispute = bool(hits & {"wrongful_charge", "unrecognized_charge"})

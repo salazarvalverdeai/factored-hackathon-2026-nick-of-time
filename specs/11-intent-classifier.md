@@ -170,7 +170,8 @@ Fine-tuning; embeddings + LR (P2); Jev (benchmarked in spec 15); the agent's use
       (partly done: protocol written, with the rules of specs 15 and 17; review and seal pending, manual step M02;
       the AC-06 [C] split check is skipped until spec 09 delivers `eval/classifier/`)
 - [x] T2 — B0 rules + date parser (`nick_of_time.nlu`; `dispute_detected` in §6, intent order and D-020 in §8) · AC-08,
-  AC-09
+  AC-09 (coverage follow-ups in 11c: person requests with articles or a bare person word, negated person requests,
+  dispute nouns after an opening verb, "mil" amounts, PT ordinals before nouns · AC-08, AC-09, AC-10)
 - [ ] T3 — B1 training with calibration; τ on validation · AC-02, AC-07
 - [ ] T4 — B2 structured-output prompt (Haiku 4.5) · AC-02
 - [ ] T5 — injection detector, both arms · AC-04 (rules arm done in 11a, `nlu.injection`; LR arm and AC-04 numbers pending spec 09)
