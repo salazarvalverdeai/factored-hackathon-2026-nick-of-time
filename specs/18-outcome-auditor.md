@@ -212,7 +212,7 @@ tools for the third line (internal audit).
       AC-10, AC-11 (`nick_of_time/audit/judge.py`, `tests/test_spec18_judge.py`; the fallback is `None`, the timeout and
       the per-case cost cap are `[assumption]` defaults, see §4.2 and §5; the `AnalystDecision` record matches only the
       first decisive action and leaves persistence to the store owner, see T5)
-- [ ] T5 [P0] — second-opinion panel in the console (with @gianzk) · AC-09. The api gives the judge its own client and
+- [ ] T5 [P0] — second-opinion panel in the console (with @gianzk) · AC-09. The api gives the judge its own client from `judge.judge_client` and
       owns persistence: it calls `judge.record_decision` with the case's earlier analyst actions as `prior_actions` (only
       the first decisive action is matched, §4.2) and stores `matched_second_opinion` in the `analyst_action` payload,
       the opinion in `second_opinions`, and one `llm_calls` row per billed call (`on_call` result not `None`) · AC-10

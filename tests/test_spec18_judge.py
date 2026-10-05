@@ -303,3 +303,14 @@ def test_ac_11_judge_client_read_timeout_does_not_exceed_its_timeout(monkeypatch
     assert c.read_timeout_s <= TIMEOUT_S and seen["cfg"].read_timeout <= TIMEOUT_S
     assert seen["cfg"].retries["total_max_attempts"] == 1
     assert judge_client(ArmConfig("S1", "fake", "m"), timeout_s=4).read_timeout_s == 4
+
+
+def test_ac_11_non_positive_read_timeout_is_rejected():
+    for bad in (0, -1):
+        with pytest.raises(ValueError):
+            FakeClient(read_timeout_s=bad)
+
+
+def test_ac_11_max_attempts_below_one_is_rejected():
+    with pytest.raises(ValueError):
+        FakeClient(max_attempts=0)

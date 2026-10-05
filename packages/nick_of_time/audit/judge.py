@@ -151,7 +151,7 @@ def opinion(handoff: dict, transcript: Iterable[str], evidence: Iterable[Any], *
 
     `on_call(result, reason)` runs once whatever happens, so the caller can log an `llm_calls` row for every path:
     "ok"; "budget" (skipped before calling, result None, or billed over the cap); "timeout" (None); "error" (the billed
-    result when there is one). Give the judge its own client: temperature 0 is set for the call and restored after, which
+    result when there is one). Give the judge its own client (`judge_client`): temperature 0 is set for the call and restored after, which
     is not thread-safe on a shared client (spec 18 section 4.2).
     """
     res: Optional[LLMResult] = None
