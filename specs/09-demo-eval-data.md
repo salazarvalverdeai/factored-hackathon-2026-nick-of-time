@@ -232,7 +232,9 @@ holds by construction. Model-generated sentences are `[simulated]`.
 - **Q4 (@salazarvalverdeai) — split function** of §7.1 (md5-based): OK for `Transaction.split`?
 - **Q5 (@salazarvalverdeai) — PT cases.** The dataset has no BR customers. Default: PT cases use real MX, CO and AR
   customers with a Portuguese message and keep their real country; no case is labeled `BR`.
-- **Q6 (all) — second labeler** for AC-06 (20 cases, about 20 minutes): who?
+- **Q6 (all) — second labeler** for AC-06 (20 cases, about 20 minutes). **Decided (lead, 2026-10-05):** the lead is the
+  second labeler; the sample is the 20 dev cases, because the lead develops the agent and must not read the held-out
+  before the seal. Tooling: `eval/second_label.py`.
 - **Q7 — paraphrase model.** **Decided by ADR 0025 (lead, 2026-10-05):** each split's generator writes its own seeds
   and paraphrases; results of a candidate of the same family as the generator of the split being scored are flagged
   (spec 11 §8), and the Llama and Gemma arms already fail the structured-output smoke test (F-013).
