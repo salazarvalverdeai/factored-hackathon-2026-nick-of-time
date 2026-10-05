@@ -101,6 +101,7 @@ class Internal(TypedDict, total=False):     # spec 04 §4.1 fields outside TurnR
     greet_pending: bool
     slots: dict[str, Any]
     injection_flagged: bool
+    other_language: bool                    # G-IN-03: a clear non-ES/PT sentence, answered by rule in route
     cross_customer: bool
     dispute_detected: bool
     active_case: Optional[bool]
@@ -198,7 +199,7 @@ async def understand(state: State, config: RunnableConfig) -> dict[str, Any]:
     hint = state.get("language") or state.get("language_last")
     language = hint or profile.get("language") or "es"
     base = {"today": day.isoformat(), "language": language, "slots": {}, "injection_flagged": False,
-            "cross_customer": False, "intent": None, "intent_confidence": None, "dispute_detected": False}
+            "cross_customer": False, "other_language": False, "intent": None, "intent_confidence": None, "dispute_detected": False}
     pending = state.get("intent") if state.get("intent") in DISPUTES else "unrecognized_charge"
     if action:                              # a pressed action chip or button skips the classifier (AC-32)
         kind, value = action.get("type"), action.get("value")
@@ -213,7 +214,7 @@ async def understand(state: State, config: RunnableConfig) -> dict[str, Any]:
         return {**base, "intent": pending, "intent_confidence": 1.0, "dispute_detected": True, "answer": {"confirm": said}}
     reading = NLU.parse(text, hint, today=day)
     found = {"language": reading.language, "slots": reading.slots.model_dump(),
-             "injection_flagged": reading.injection_flagged,
+             "injection_flagged": reading.injection_flagged, "other_language": reading.other_language,
              "cross_customer": bool(CROSS_CUSTOMER.search(fold(text))) and not OWN_OR_DISPUTE.search(fold(text))}
     chip = msg.offered_text_chip(text, state.get("suggestions") or [])
     if chip:                                # typed label = pressed text chip: routed by the pending question (AC-33)
@@ -221,7 +222,7 @@ async def understand(state: State, config: RunnableConfig) -> dict[str, Any]:
         return {**base, **found, "intent": intent, "intent_confidence": 1.0, "dispute_detected": intent in DISPUTES}
     heard, extra = (None, {})
     if reading.confidence < TAU and state["session_state"] == "verified" and not (
-            found["injection_flagged"] or found["cross_customer"]):
+            found["other_language"] or found["injection_flagged"] or found["cross_customer"]):
         heard, extra = await arms.understand(state, config, text, day.isoformat(), TAU)
     if heard:                               # D-020: dispute words the rules saw still count
         heard["dispute_detected"] = heard["dispute_detected"] or reading.dispute_detected
@@ -237,6 +238,10 @@ async def route(state: State, config: RunnableConfig) -> dict[str, Any]:
     verified = state["session_state"] == "verified"
     if state.get("intent") is None and verified:
         return {"branch": "respond"}        # nothing to understand: the greeting, or a prompt to tell us more
+    if state.get("other_language") and verified and not (state["injection_flagged"] or state["cross_customer"]):
+        # G-IN-03 [assumption]: by rule, no LLM, no case; the session language plus English once, the usual chips
+        return {"branch": "respond", "body": [msg.text("refuse.other_language", state["language"])],
+                "row": "other_language", "guardrails_triggered": ["G-IN-03"]}
     active = None
     if state.get("intent") == "status_inquiry" and state.get("dispute_detected") and verified:
         cases = await call(config, "list_my_cases")   # rule 3b needs to know whether a case is active

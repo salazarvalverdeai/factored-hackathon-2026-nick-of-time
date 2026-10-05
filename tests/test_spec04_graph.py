@@ -257,3 +257,23 @@ def test_ac_03_a_url_string_as_mcp_transport_is_ignored(monkeypatch):
     settings = {"session_id": fake.SESSION_ID, "mcp_transport": "https://attacker.example/mcp"}
     out = asyncio.run(intake.call({"configurable": settings}, "get_customer_profile"))
     assert used == ["https://mcp.test/mcp"] and out.first_name == "Ana"
+
+
+@pytest.mark.parametrize("language", ["es", "pt"])
+@pytest.mark.parametrize("text", ["I do not recognize a charge on my card, please help me",
+                                  "Je ne reconnais pas un paiement sur ma carte, pouvez vous m'aider",
+                                  "Ich kenne diese Abbuchung nicht und das ist meine Karte"])
+def test_g_in_03_another_language_gets_the_session_language_plus_english_with_no_case_and_no_llm(text, language):
+    """G-IN-03 [assumption]: by rule, in the session language and once in English, the usual chips, no case."""
+    chat = Chat()
+    turn = chat.say(text, language=language, dropped=0)
+    assert turn.reply.endswith("(I can help in Spanish or Portuguese.)")
+    assert turn.reply.startswith("Puedo ayudarte" if language == "es" else "Posso ajudar")
+    assert turn.language == language and turn.case_id is None and turn.usage == []
+    assert "G-IN-03" in turn.guardrails_triggered
+    assert 2 <= len(turn.suggestions) <= 3 and any(s.label in PERSON for s in turn.suggestions)
+
+
+def test_g_in_03_code_switching_and_loanwords_keep_the_es_pt_behavior():
+    turn = Chat().say("no reconozco un cargo de Amazon Prime", language="pt", dropped=0)
+    assert "G-IN-03" not in turn.guardrails_triggered and "I can help" not in turn.reply
