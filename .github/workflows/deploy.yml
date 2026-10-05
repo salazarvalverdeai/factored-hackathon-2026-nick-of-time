@@ -80,13 +80,13 @@ jobs:
     steps:
       - uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Deploy ${{ github.sha }} through SSM
         env:
           SHA: ${{ github.sha }}
-          INSTANCE_ID: ${{ secrets.EC2_INSTANCE_ID }}
+          INSTANCE_ID: ${{ vars.EC2_INSTANCE_ID }}
         run: |
           set -euo pipefail
           PARAMS="$(jq -n --arg sha "$SHA" '{commands: [

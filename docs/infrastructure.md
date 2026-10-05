@@ -54,7 +54,7 @@ workflow fails. Files: `infra/compose.yml`, `infra/caddy/Caddyfile`, `infra/depl
 
 | Needed once | Where | Who |
 |---|---|---|
-| Actions secrets `AWS_DEPLOY_ROLE_ARN`, `EC2_INSTANCE_ID` | GitHub → Settings → Secrets | lead |
+| Actions variables `AWS_DEPLOY_ROLE_ARN`, `EC2_INSTANCE_ID`, `AWS_REGION` (not secret: a role ARN and an instance id) | GitHub → Settings → Variables | lead |
 | GHCR packages `web`, `api`, `mcp` set to public after the first build (or `GHCR_READ_TOKEN` in SSM) | GitHub → Packages | lead |
 | SSM `/nickoftime/prod/POSTGRES_PASSWORD` (`deploy.sh` creates it if the role may `PutParameter`) | SSM | lead |
 | First checkout on the instance (below) | EC2 through SSM | GianMarco |

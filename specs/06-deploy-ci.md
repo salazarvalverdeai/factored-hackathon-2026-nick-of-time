@@ -83,7 +83,7 @@ Only the health route; the rest of `/api` belongs to spec 05.
 - Assumption `[assumption]`: the instance keeps a git checkout in `/opt/nickoftime` (public repo, `git fetch` works); the
   first checkout is done once by the owner through SSM.
 - Assumption `[assumption]`: internal ports are web 3000, api 8000, mcp 8001.
-- Assumption `[assumption]`: Actions secrets `AWS_DEPLOY_ROLE_ARN` and `EC2_INSTANCE_ID` are loaded by the lead; the
+- Actions **variables** (not secrets: neither value is sensitive) `AWS_DEPLOY_ROLE_ARN` and `EC2_INSTANCE_ID` are loaded by the lead; the
   region is `us-east-2`.
 - **Decided (lead, 2026-10-05):** the instance role `nickoftime-ec2-role` has `ssm:GetParameter*` on
   `/nickoftime/*` but not `ssm:PutParameter`, so the lead creates the `POSTGRES_PASSWORD` SecureString once (a random
