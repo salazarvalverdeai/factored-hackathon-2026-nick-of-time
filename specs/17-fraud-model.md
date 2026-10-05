@@ -202,9 +202,11 @@ r = model.score(transaction)     # {score: 0..100, version, top_features: [..3]}
 P1 only: `GetFraudScoreOut` adds `model_score` and `model_version` (spec 03, minor change).
 
 ## 7. Data model touched
-Reads gold `transactions_enriched` and `gold_eval/transaction_labels` (windows of ADR 0022). Writes
-`models/fraud-*.joblib`, `eval/results/fraud_benchmark.csv`, `apps/web/public/data/fraud_benchmark.json` and the
-versioned queries under `queries/fraud/`.
+Reads gold `transactions_enriched` and `gold_eval/transaction_labels` (windows of ADR 0022; `--eval` must be under
+`data/gold_eval/`). Writes `models/fraud-*.joblib`, `eval/results/fraud_models_frozen.json` (the committed sha256 of
+each frozen model file and of the screen record, T4), `eval/results/fraud-test/` (the run-once marker
+`fraud-test.start.json`, `fraud_benchmark.csv`, or `aborted.json` when the run stops after the claim),
+`apps/web/public/data/fraud_benchmark.json` and the versioned queries under `queries/fraud/`.
 
 ### 7.1 Web export shape (`fraud_benchmark.json`, answers spec 12 Q1)
 `apps/web/public/data/fraud_benchmark.json` is `{generated_at, git_sha, source, data}` (spec 01 §6.2); `data` is
@@ -234,14 +236,20 @@ below, written once by T4 after the test window is scored. `protocol` comes from
   ]
 }
 ```
-- `label` is `[data]` (gold v1; test labels read once, ADR 0022). `protocol` adds `fraud_split_hash` (spec 17 T1, hex
-  string). `windows` are ISO months of ADR 0022, with the test window's transaction and fraud counts. `machine` is
-  the one machine that measured every arm (§5). `chosen_arm` is the arm of §4.4 or `S-bank` when none passes (rule 5).
-- `arms[]` (AC-03): `arm` is the scikit-learn class, `S-bank` or `stacked`; `passes_rule` is the bool of §4.4.
+- `label` is `[data]` (gold v1; test labels read once, ADR 0022). `run_kind` is `"test window, scored once"` or
+  `"development run on validation"`, and `scored_window` is `test` or `validation`. `protocol` adds `fraud_split_hash`
+  (spec 17 T1, hex string); on the test window it is the dict of `seal_guard.check_seal` (status, sha256, tag,
+  commit, head, test_review, `inputs.fraud_split`). `windows` are ISO months of ADR 0022, with the test window's
+  transaction and fraud counts. `machine` is the one machine that measured every arm (§5). `chosen_arm` is the arm of
+  §4.4 or `S-bank` when none passes (rule 5); the rule-4 tie-break ranks `no-labels` (IsolationForest) and
+  `probabilistic` (GaussianNB) with linear, which PROTOCOL §3.3 does not rank `[assumption]`.
+- `arms[]` (AC-03): `arm` is the scikit-learn class, `S-bank` or `stacked`; `passes_rule` is the bool of §4.4, judged
+  on `subsets.all` only (rules 1-3, D-022); the `stacked` arm adds `stacked_on` (the base arm's key, D-017a).
 - `cost` (AC-04): seconds, milliseconds, transactions per second and megabytes.
 - `subsets.all` and `subsets.card` (AC-04: every metric on both): `pr_auc` with its 95% bootstrap interval, `brier`, the
   recalls at the bank's precision levels and `recall_no_score_at_1pct` (the 1% alert budget is `[assumption]`) as
-  rate objects, and the breakdowns by score band (`none`, `<30`, `30-49`, `>=50`), country and segment, each with
+  rate objects, `recall_at_1pct` (overall recall at the 1% window budget, the base of the rule-1 floor, D-017b) as a
+  rate object, and the breakdowns by score band (`none`, `<30`, `30-49`, `>=50`), country and segment, each with
   `n_fraud`. Slices below 20 frauds are shown and not enforced (D-017c).
 
 ## 8. Decisions (gate 1, lead, 2026-10-04)
@@ -286,11 +294,19 @@ retraining (ADR 0021, P2).
       by PR #60 (open; task PROT2; D-017a–e, D-022), and §4.4 rules 1–2 copied back from PROTOCOL §3.3
 - [x] T3c [P0] — signal search beyond §4.2 on train and validation (`scripts/ml/fraud_signal_search.py`, D-015): no
       candidate passes, the feature list is unchanged · AC-02, AC-05
-- [ ] T4 [P0] — test-window evaluation, report, `fraud_benchmark.json` for `/evaluation` · AC-04. Code ready
-      (17c, `scripts/ml/fraud_report.py`; `--window test` refuses while PROTOCOL is UNSEALED, on a model file that is
-      not the screen's recorded hash, and a second time; the test labels are read once through
-      `fraud_split.read_test_labels`); `--window validation` is a development run to `eval/.runs/` (git-ignored). The
-      test window is not scored yet: it waits for the seal
+- [ ] T4 [P0] — test-window evaluation, report, `fraud_benchmark.json` for `/evaluation` · AC-04, AC-05. Code ready
+      (17c, `scripts/ml/fraud_report.py`), not run. `--window test`, in this order: computes the split hash (no
+      label); `seal_guard.check_seal(inputs={"fraud_split": hash})`; refuses `--out`, an existing
+      `fraud_benchmark.json` or a non-empty `eval/results/fraud-test/`; refuses unless every pre-registered arm
+      (PROTOCOL §3.4) has a model file whose sha256 equals both the screen record and the hash committed in
+      `eval/results/fraud_models_frozen.json` (written once by `--freeze` from the existing screen record, no re-fit);
+      then `seal_guard.claim_run("fraud-test")`, which refuses a second run from any folder or checkout that sees the
+      marker under `eval/results/`. Only then does it read the test labels, once, through
+      `fraud_split.read_test_labels`, and it stops unless the window holds the pre-registered 211 frauds (75 on cards).
+      A stop after the claim writes `eval/results/fraud-test/aborted.json` (exit 3) and the window is not scored
+      again. `--eval` outside `data/gold_eval/` is refused on either window; `peak_mb` writes its sample to a temporary
+      folder. `--window validation` is a development run to `eval/.runs/` (git-ignored)
+      (`tests/test_spec17_report.py`)
 - [ ] T5 [P1] — `model_score` in `get_fraud_score` and the handoff card; inventory entry · AC-07, AC-08
 
 ## 11. Sources
