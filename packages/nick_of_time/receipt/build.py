@@ -12,7 +12,7 @@ import json
 import re
 from typing import Any, Iterable, Optional
 
-from nick_of_time.audit.checks import check_grounding
+from nick_of_time.audit.checks import check_grounding, check_privacy
 from nick_of_time.contracts import load_schema
 from nick_of_time.receipt import amount_text, text
 
@@ -57,6 +57,25 @@ def bad(value: Any, facts: list[Any], policy: Iterable[str] = ()) -> bool:
     """True when `value` states an id, date, time or number that no tool result (or policy fact) states."""
     doc = value if isinstance(value, dict) else {"_": STEP.sub("", value) if isinstance(value, str) else value}
     return check_grounding(facts, handoff=doc, policy_facts=list(policy)).status == "finding" or untimed(doc, facts)
+
+
+POLICY_ID = re.compile(r"\bPOL-[A-Z0-9]+(?:-[A-Z0-9]+)*")
+# [assumption] internal names: snake_case (tool, decision, event and queue names) and guardrail ids; none is customer copy
+INTERNAL = re.compile(r"\b[a-z]+(?:_[a-z0-9]+)+\b|\bG-[A-Z]+-\d+\b")
+SCORE_WORD = re.compile(r"(?i)score|puntaje|puntuaci[oó]n|pontua[cç][aã]o|riesgo|risco|fraud|probabilidad|[íi]ndice")
+
+
+def never_send(text: str, template: str = "", *, score: Any = None, transcript: Iterable[str] = ()) -> list[str]:
+    """What a reworded line leaks that `notifications.never_send` forbids (spec 04 §4.3, D-056 follow-up): a policy id
+    of any shape, an internal name or a score word the template line did not have (a source URL may hold one), the
+    score's value or a customer utterance of at least 20 characters. [] when clean."""
+    internal = set(INTERNAL.findall(text)) - set(INTERNAL.findall(template))
+    hits = ["policy_id"] * bool(POLICY_ID.search(text)) + ["internal_name"] * bool(internal)
+    if (score is not None and check_privacy({"reply": text}, score=float(score)).status == "finding") or (
+            SCORE_WORD.search(text) and not SCORE_WORD.search(template)):
+        hits.append("score")
+    said = [t.casefold() for t in transcript if len(t) >= 20]
+    return hits + ["transcript"] * any(re.search(rf"(?<!\w){re.escape(t)}(?!\w)", text.casefold()) for t in said)
 
 
 def nullable(prop: dict[str, Any]) -> bool:
