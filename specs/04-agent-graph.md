@@ -300,11 +300,10 @@ messages.
       AC-29, AC-30, AC-31, AC-32 (task 04d; tests `tests/test_spec04_respond.py`). Done: AC-05, AC-20, AC-21, AC-22
       (no template claims an assignment), AC-29, AC-30; AC-31 and AC-32 were done in T2. Also finishes AC-01 (the
       receipt with a date) and the handoff cards of AC-11 and AC-12, plus D-043 and D-030. AC-26 (send by channel) is
-      P1 (D-001) and open. Open follow-ups: `add_case_info` for the "Agregar información" chip (AC-06, T6); the
-      empty-card reading time now that contract 1.4.0 gives `list_my_cards` a top-level `read_at`; the receipt row
-      swaps "Enviarme el comprobante" for "¿Cómo va mi caso?" until AC-26; the `verify` lines show `verified_at` as
-      `YYYY-MM-DD HH:MM UTC` (D-051). These three go in a separate follow-up PR (they change
-      `tests/test_spec04_act.py`). `case_url`: when the public host is configured, build it only from `get_case`'s
+      P1 (D-001) and open. Open follow-up: `add_case_info` for the "Agregar información" chip (AC-06, T6). Done in task 04d2: `status.no_cards`
+      shows the listing's `read_at` (contract 1.4.0); the receipt row offers `check_case` ("¿Cómo va mi caso?") instead of
+      "Enviarme el comprobante" until AC-26 exists; the `verify` lines show `read_at` as `YYYY-MM-DD HH:MM UTC` (D-051).
+      `case_url`: when the public host is configured, build it only from `get_case`'s
       `case_id` and pass it through the gate.
       Status grounding (D-056, pending the lead): nothing fills `FinalState.status_replies` yet, so before T7 (S1/S2)
       either the api emits `status_replies` from the `status` turns or the gate matches the status label against the

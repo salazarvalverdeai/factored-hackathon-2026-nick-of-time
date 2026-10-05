@@ -83,6 +83,15 @@ def test_ac_19_a_card_question_reads_the_cards_with_the_reading_time():
     assert "Bloquear" not in " ".join(labels(turn))      # AC-30: never offer a block
 
 
+def test_ac_19_no_cards_states_the_listing_reading_time_in_both_languages():
+    """Contract 1.4.0: list_my_cards.read_at is top level, so an empty listing still says when it was read."""
+    empty = {"cards": [], "read_at": "2026-06-01T15:04:11Z"}
+    es = Chat(mcp_transport=server(list_my_cards=empty)).say("estado de mi tarjeta", language="es")
+    pt = Chat(mcp_transport=server(list_my_cards=empty)).say("status do meu cartão", language="pt")
+    assert es.reply.splitlines()[-1] == "No encontré tarjetas a tu nombre (consultado el 2026-06-01 15:04 UTC)."
+    assert pt.reply.splitlines()[-1] == "Não encontrei cartões em seu nome (consultado em 2026-06-01 15:04 UTC)."
+
+
 @pytest.mark.parametrize("text, down", [("¿Cómo va mi caso?", "list_my_cases"), ("¿Cómo va mi caso?", "get_case"),
                                         ("estado de mi tarjeta", "list_my_cards")])
 def test_ac_19_a_failed_read_says_it_could_not_verify_and_states_no_status(text, down):
