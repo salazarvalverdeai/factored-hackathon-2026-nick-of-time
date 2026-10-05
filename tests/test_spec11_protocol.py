@@ -55,6 +55,17 @@ SPEC17_RULE = """
 5. If no arm passes, the bank's score stays alone and the benchmark is reported as is.
 """
 SPEC15_GATE_RULE = '"Not documented" fails a production criterion.'
+# Intro pointer for lead decisions a spec may not record yet; it stays true once #66 copies them into spec 17. The
+# D-022 date is the placeholder until the lead confirms D-022 in chat; at M02 it becomes that local date, then hash.
+INTRO_D022 = (
+    "**Decided by the lead and binding here whether or not the cited spec records them yet:** the 20-fraud slice "
+    "floor (D-017c, spec 17) and the 3-point share tolerance (D-017e, spec 11), on 2026-10-04; the three D-022 "
+    "rules, on {date}: a missing tool call counts as a wrong B1 prediction (spec 15), injection rows sit outside "
+    "the test minimums and the intent metrics (spec 11), and rules 1-2 are judged on all products with country "
+    "as `customer_country` (spec 17)."
+)
+D022_PLACEHOLDER = "`<date set at M02>`"
+NOT_FILLED = {"pending", "tbd", "n/a", "-", ""}
 
 
 def _norm(text: str) -> str:
@@ -95,6 +106,28 @@ def _spec15_block(start: str, stop: str) -> str:
     spec = SPEC15.read_text()
     i = spec.index(start)
     return spec[i + len(start): spec.index(stop, i)]
+
+
+def _d022_date(protocol: str) -> str:
+    """The D-022 date of the intro pointer in the normalized protocol; the rest of the sentence must match."""
+    head, tail = INTRO_D022.split("{date}")
+    m = re.search(re.escape(head) + r"(.+?)" + re.escape(tail), protocol)
+    assert m, "intro pointer for lead decisions (D-017c, D-017e, D-022) missing or changed"
+    return m.group(1)
+
+
+def _check_d022_date(date: str, sealed: bool) -> None:
+    """Unsealed: the placeholder or a date. Sealed: a real YYYY-MM-DD date, never the placeholder."""
+    if date == D022_PLACEHOLDER and not sealed:
+        return
+    assert date != D022_PLACEHOLDER, "sealed but the D-022 date is still the placeholder"
+    assert re.fullmatch(r"\d{4}-\d{2}-\d{2}", date), "the D-022 date must be YYYY-MM-DD"
+    datetime.date.fromisoformat(date)  # raises on an impossible date
+
+
+def _is_sealed() -> bool:
+    _, block = _split_seal(PROTOCOL.read_bytes())
+    return _field(block, "Status") == "SEALED"
 
 
 def _split_files(root=ROOT):
@@ -162,11 +195,8 @@ def _split_rows(files) -> dict:
     return rows
 
 
-def test_ac_06_split_files_by_author_when_spec09_delivers():
-    files = _split_files()
-    if not files:
-        pytest.skip("eval/classifier not delivered yet (spec 09); layout is an [assumption]")
-    rows = _split_rows(files)
+def _check_split_rows(rows: dict) -> None:
+    """AC-06: by author, shares, test minimums without injection rows (D-022); AC-04: injection rows reach test."""
     test = [r for r in rows["test"] if r.get("label") != "injection"]  # injection rows count only for AC-04 (D-022)
     assert test, "empty test split"
     authors = {s: {r["author"] for r in v} for s, v in rows.items()}
@@ -180,15 +210,54 @@ def test_ac_06_split_files_by_author_when_spec09_delivers():
         assert len(sub) >= 100, lang
         for intent in INTENTS:
             assert sum(r["intent"] == intent for r in sub) >= 20, (lang, intent)
+    # AC-04 scores the injection detector on the test split, so injection rows must be there, not only in train
+    assert any(r.get("label") == "injection" for r in rows["test"]), "no `label: injection` row in the test split"
 
 
-def test_ac_04_injection_rows_reach_the_test_split_when_spec09_delivers():
-    """AC-04 scores the injection detector on the test split, so injection rows must be there, not only in train."""
+def test_ac_04_ac_06_split_files_when_spec09_delivers():
     files = _split_files()
     if not files:
-        pytest.skip("TODO(spec 09): activates when eval/classifier is delivered; layout is an [assumption]")
-    rows = _split_rows(files)
-    assert any(r.get("label") == "injection" for r in rows["test"]), "no `label: injection` row in the test split"
+        pytest.skip("TODO(spec 09): activates when eval/classifier has a split file; layout is an [assumption]")
+    _check_split_rows(_split_rows(files))
+
+
+def _synthetic_rows() -> dict:
+    """A split that passes: 250 legit test rows (25 per intent per language), 600 train, 150 validation, by author."""
+    rows = {"train": [], "validation": [], "test": []}
+    for lang in LANGS:
+        for intent in INTENTS:
+            rows["test"] += [{"author": f"t{k % 5}", "language": lang, "intent": intent} for k in range(25)]
+    rows["train"] = [{"author": f"r{k % 20}", "language": "es", "intent": INTENTS[k % 5]} for k in range(600)]
+    rows["validation"] = [{"author": f"v{k % 5}", "language": "pt", "intent": INTENTS[k % 5]} for k in range(150)]
+    rows["test"].append({"author": "i1", "language": "es", "intent": "out_of_scope", "label": "injection"})
+    return rows
+
+
+def test_ac_04_ac_06_check_split_rows_accepts_a_valid_split():
+    _check_split_rows(_synthetic_rows())
+
+
+def _no_injection_in_test(rows):
+    rows["train"].append(rows["test"].pop())  # the only injection row moves to train
+
+
+def _injection_fills_a_minimum(rows):
+    legit = [r for r in rows["test"] if (r["language"], r["intent"]) == ("es", "wrongful_charge")]
+    for r in legit[:6]:  # 19 legit rows left, below the minimum of 20
+        rows["test"].remove(r)
+    rows["test"] += [{"author": "i1", "language": "es", "intent": "wrongful_charge", "label": "injection"}] * 6
+
+
+def _author_in_two_splits(rows):
+    rows["validation"][0]["author"] = "t0"
+
+
+@pytest.mark.parametrize("mutate", [_no_injection_in_test, _injection_fills_a_minimum, _author_in_two_splits])
+def test_ac_04_ac_06_check_split_rows_rejects_bad_splits(mutate):
+    rows = _synthetic_rows()
+    mutate(rows)
+    with pytest.raises(AssertionError):
+        _check_split_rows(rows)
 
 
 def test_spec15_ac_07_and_spec17_ac_06_rules_present():
@@ -204,13 +273,14 @@ def test_spec15_ac_07_and_spec17_ac_06_rules_present():
         assert _norm(criterion) in protocol, criterion
     # D-012: ES/PT quality is a production-only criterion
     assert "| ES/PT quality measured on our data | — (the benchmark measures it) | yes |" in protocol
-    assert "ES/PT quality is a production-only criterion (D-012" in protocol
+    assert "ES/PT quality is a production-only criterion (D-012, decided by the lead on 2026-10-04)" in protocol
     assert "spec 15 §4.5" in protocol
     assert "never used to choose" in protocol
     assert "best supervised arm + the bank's score" in protocol
     assert "scoring p95 per transaction" in protocol
     # D-011 and D-016: no blanket temperature 0 in the protocol, and spec 15 §4.1 and §8 say the same
     assert "temperature 0" not in protocol.lower(), "D-016: no blanket temperature 0 for every arm"
+    assert protocol.lower().count("temperature") == 1, "D-016: temperature only in the D-016 bullet"
     assert "recorded per arm (`tool_choice_mode`) and reused in B1" in protocol
     for needle in (
         "**Temperature (D-016, decided by the lead on 2026-10-04):** 0 where the model accepts it, otherwise the "
@@ -219,7 +289,11 @@ def test_spec15_ac_07_and_spec17_ac_06_rules_present():
     ):
         assert needle in protocol, needle
     spec15_41 = _norm(_spec15_block("### 4.1", "### 4.2"))
-    assert "Temperature is 0 where the model accepts it, otherwise the provider default" in spec15_41
+    assert _norm(
+        "Temperature is 0 where the model accepts it, otherwise the provider default, and the value used is "
+        "recorded per arm (D-016); with `tool_choice_mode` (D-011, below), these are the only request settings "
+        "that may differ between arms."
+    ) in spec15_41, "spec 15 §4.1 D-016 sentence missing or changed"
     assert "temperature 0" not in spec15_41.lower(), "D-016: spec 15 §4.1 still says temperature 0"
     assert _norm(
         "- **D-016 — temperature (lead, 2026-10-04):** 0 where the model accepts it, otherwise the provider default; "
@@ -248,7 +322,9 @@ def test_ac_01_every_assumption_threshold_keeps_its_label():
         "at an alert budget of 1% of those transactions (AC-04) `[assumption]` (D-017d)",
         "within 3 points of 60/15/25 `[assumption]`",
         "`label: injection`",
-        "spec 11 does not say",
+        "`[assumption, spec 11 does not say; confirmed at M02]`",
+        "The [C] check of the split runs on the spec 09 files; `tests/test_spec11_protocol.py` skips it while "
+        "`eval/classifier` has no split file.",
         "The injection sentences live **inside the split files**",
         "top-level files whose names start with `train`, `validation` and `test`",
         "each row with `author`, `language` and `intent`",
@@ -268,16 +344,12 @@ def test_ac_01_every_assumption_threshold_keeps_its_label():
         "`[assumption]` (D-022)",
         "Rules 1-2 are judged on all products; the card subset is reported with its CI and does not gate "
         "`[assumption]` (D-022); country is `customer_country`",
-        # intro pointer for decisions a spec may not record yet (stays true once #66 copies them into spec 17)
-        "**Decided by the lead and binding here whether or not the cited spec records them yet:** the 20-fraud "
-        "slice floor (D-017c, spec 17) and the 3-point share tolerance (D-017e, spec 11), on 2026-10-04; the three "
-        "D-022 rules, on 2026-10-05: a missing tool call counts as a wrong B1 prediction (spec 15), injection rows "
-        "sit outside the test minimums and the intent metrics (spec 11), and rules 1-2 are judged on all products "
-        "with country as `customer_country` (spec 17).",
         "(D-017e, decided by the lead on 2026-10-04)",
     ):
         assert needle in protocol, needle
+    _d022_date(protocol)  # the intro pointer, with its date checked by test_ac_01_d022_date_is_set_once_sealed
     assert "the same tolerance `tests/test_spec11_protocol.py` checks" in protocol
+    assert f"within {round(SHARE_TOLERANCE * 100)} points of 60/15/25" in protocol, "SHARE_TOLERANCE != hashed text"
     assert "label missing in the spec; to be added to specs 11, 15 and 17 by the lead" in protocol
     assert "aggregate counts computed by the lead on 2026-10-04" in protocol
 
@@ -313,7 +385,7 @@ def test_ac_01_every_result_path_of_the_seal_procedure_blocks_unsealed(tmp_path,
 def _check_sealed_references(block: str, heldout: Path) -> None:
     """SEALED needs a name and date, 64-hex references, and one valid hash in eval/heldout.sha256 that matches."""
     for name in ("Sealed by", "Sealed on"):
-        assert _field(block, name).lower() != "pending", f"sealed but {name} is pending"
+        assert _field(block, name).lower() not in NOT_FILLED, f"sealed but {name} is not filled"
     sealed_on = _field(block, "Sealed on")
     assert re.fullmatch(r"\d{4}-\d{2}-\d{2}", sealed_on), "Sealed on must be a YYYY-MM-DD date"
     datetime.date.fromisoformat(sealed_on)  # raises on an impossible date such as 2026-13-01
@@ -334,7 +406,7 @@ def _sealed_block(held=H1, fraud=H2, by="Diego", on="2026-10-05"):
 
 @pytest.mark.parametrize("held,fraud,file_text", [
     ("TBD", H2, None), (H1, "n/a", None), ("A" * 64, H2, None), (H1, "b" * 63, None),
-    ("Pending", H2, None), (H1, H2, "abc\n"), (H1, H2, f"{H1}\n{H2}\n"),
+    ("Pending", H2, None), (H1, H2, "abc\n"), (H1, H2, f"{H1}\n{H2}\n"), (H1, H2, f"{H2}\n"),
 ])
 def test_ac_01_sealed_rejects_bad_reference_states(tmp_path, held, fraud, file_text):
     heldout = tmp_path / "heldout.sha256"
@@ -345,12 +417,38 @@ def test_ac_01_sealed_rejects_bad_reference_states(tmp_path, held, fraud, file_t
 
 
 @pytest.mark.parametrize("by,on", [
-    ("Pending", "2026-10-05"), ("PENDING", "2026-10-05"), ("Diego", "Pending"), ("Diego", "TBD"),
+    ("Pending", "2026-10-05"), ("PENDING", "2026-10-05"), ("TBD", "2026-10-05"), ("tbd", "2026-10-05"),
+    ("N/A", "2026-10-05"), ("-", "2026-10-05"), ("", "2026-10-05"), ("Diego", "Pending"), ("Diego", "TBD"),
     ("Diego", "2026-10-5"), ("Diego", "05/10/2026"), ("Diego", "2026-13-01"),
 ])
 def test_ac_01_sealed_rejects_bad_name_or_date(tmp_path, by, on):
     with pytest.raises((AssertionError, ValueError)):
         _check_sealed_references(_sealed_block(by=by, on=on), tmp_path / "missing.sha256")
+
+
+def test_ac_01_d022_date_is_set_once_sealed():
+    """The intro's D-022 date stays the placeholder only while UNSEALED; M02 sets the lead's local date first."""
+    _check_d022_date(_d022_date(_norm(_text())), sealed=_is_sealed())
+
+
+@pytest.mark.parametrize("date,sealed,ok", [
+    (D022_PLACEHOLDER, False, True), ("2026-10-05", False, True), ("2026-10-05", True, True),
+    (D022_PLACEHOLDER, True, False), ("2026-10-5", True, False), ("pending", True, False),
+    ("2026-02-30", True, False), ("TBD", False, False),
+])
+def test_ac_01_check_d022_date(date, sealed, ok):
+    if ok:
+        _check_d022_date(date, sealed)
+    else:
+        with pytest.raises((AssertionError, ValueError)):
+            _check_d022_date(date, sealed)
+
+
+def test_ac_01_d022_date_reads_the_intro_sentence():
+    sentence = INTRO_D022.format(date="2026-10-05")
+    assert _d022_date(_norm(f"x {sentence} y")) == "2026-10-05"
+    with pytest.raises(AssertionError):
+        _d022_date(_norm(sentence.replace("on all products", "on the card subset")))
 
 
 def test_ac_01_sealed_accepts_valid_references(tmp_path):

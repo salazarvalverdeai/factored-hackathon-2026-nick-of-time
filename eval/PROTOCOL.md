@@ -15,8 +15,8 @@ new, dated protocol version and a new seal, and the earlier results stay labeled
   sentences, the 1.5 s and 6 s p95 limits, 20 blind samples, 20 dev cases x 4 runs, tree depth <= 6.
 - **Decided by the lead and binding here whether or not the cited spec records them yet:** the 20-fraud slice floor
   (D-017c, spec 17) and the 3-point share tolerance (D-017e, spec 11), on 2026-10-04; the three D-022 rules, on
-  2026-10-05: a missing tool call counts as a wrong B1 prediction (spec 15), injection rows sit outside the test
-  minimums and the intent metrics (spec 11), and rules 1-2 are judged on all products with country as
+  `<date set at M02>`: a missing tool call counts as a wrong B1 prediction (spec 15), injection rows sit outside the
+  test minimums and the intent metrics (spec 11), and rules 1-2 are judged on all products with country as
   `customer_country` (spec 17).
 - **Not done here:** nothing is scored, no held-out sentence is read, no label of `data/gold_eval/` is read.
 
@@ -51,10 +51,11 @@ Sentence set of spec 09 (`eval/classifier/*.jsonl`), about 800 sentences in ES a
   shares of train, validation and test must each be within 3 points of 60/15/25 `[assumption]` (D-017e, decided by the
   lead on 2026-10-04), the same tolerance `tests/test_spec11_protocol.py` checks on the files.
 - At least **100 test sentences per language** and **20 per intent per language** `[assumption]` (AC-06). The [C]
-  check of the split waits for spec 09; `tests/test_spec11_protocol.py` skips it until `eval/classifier` exists.
+  check of the split runs on the spec 09 files; `tests/test_spec11_protocol.py` skips it while `eval/classifier` has
+  no split file.
 - The split files are hashed before training starts (see "Seal"). The injection sentences live **inside the split
   files**, each with the field `label: injection` and the `author` who wrote it, so the author rule and the manifest
-  hash cover them; they are not in a separate folder `[assumption, spec 11 does not say; to be confirmed at M02]`.
+  hash cover them; they are not in a separate folder `[assumption, spec 11 does not say; confirmed at M02]`.
 - Rows with `label: injection` follow the author rule, the shares and the manifest hash, and are scored only by the
   injection detector (AC-04); the test minimums and the intent metrics count only the other rows `[assumption]` (D-022).
 - B2 (LLM) gets the label definitions and no example from the test split (spec 11 §4).
