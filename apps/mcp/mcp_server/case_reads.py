@@ -17,7 +17,7 @@ from typing import Any, Optional
 import yaml
 
 from contracts import tools as t
-from mcp_server.cards import GoldCard, GoldCards, shared_cards
+from mcp_server.cards import GoldCard, GoldCards, cards_of
 from mcp_server.gate import UNAVAILABLE, Call, Handler
 from mcp_server.gold import Gold
 from mcp_server.writes import NO_CARD, NO_CASE, probe
@@ -56,9 +56,9 @@ def _utc_now() -> dt.datetime:
 
 def case_reads_handlers(gold: Gold, policies: Policies, store: Store, *, cards: Optional[GoldCards] = None,
                         now: Callable[[], dt.datetime] = _utc_now) -> dict[str, Handler]:
-    """The entry point (spec 03 T8) wires this factory by its parameter names; `cards` defaults to `shared_cards()`.
+    """The entry point (spec 03 T8) wires this factory by its parameter names; `cards` defaults to `cards_of(gold)`.
     `now` is the audit time of a reading (`read_at`), never a business date."""
-    cards = cards or shared_cards()
+    cards = cards or cards_of(gold)
 
     def lang(call: Call) -> str:
         return call.session.language if call.session.language in ("es", "pt") else "es"
