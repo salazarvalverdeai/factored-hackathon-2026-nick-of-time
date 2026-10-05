@@ -12,7 +12,7 @@ import pytest
 from jsonschema import Draft202012Validator, FormatChecker
 
 from eval import demo_index
-from eval.derive_expected import CASES, expected_for, read_jsonl
+from eval.derive_expected import CASES, expected_for, heldout_sha256, read_jsonl
 from nick_of_time.policy import PolicyEngine
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -48,8 +48,25 @@ def outcome(expected: dict) -> tuple:
             final.get("handoff_emitted"), expected["receipt"]["issued"])
 
 
-def test_ac_03_the_dev_set_exists():
-    assert "dev" in SETS
+def test_ac_03_both_sets_exist_with_the_held_out_language_mix():
+    """AC-03: 20 dev and 80 held-out cases; the held-out has 50 ES and 30 PT, every country and segment in both."""
+    assert (len(SETS["dev"]), len(SETS["heldout"])) == (20, 80)
+    held = SETS["heldout"]
+    assert Counter(item["language"] for item in held) == {"es": 50, "pt": 30}
+    for language in ("es", "pt"):
+        mine = [item for item in held if item["language"] == language]
+        assert {item["country"] for item in mine} == {"MX", "CO", "AR"}
+        assert {item["segment"] for item in mine} == {"Premium", "Plus", "Basic", "Student"}
+    scored = Counter(item["expected"]["zone"] for item in held if item["type"] in ("normal", "tool_failure")
+                     and item["expected"].get("zone") in ("high", "medium"))
+    assert scored == {"high": 7, "medium": 8}                 # every real high-zone held-out transaction is used
+
+
+def test_ac_05_heldout_hash_file_is_the_sha256_of_the_case_file():
+    """AC-05: eval/heldout.sha256 holds one 64-hex token, the sha256 of eval/cases/heldout.jsonl (§7.7)."""
+    sealed = (ROOT / "eval/heldout.sha256").read_text(encoding="ascii")
+    assert re.fullmatch(r"[0-9a-f]{64}\n", sealed) and sealed.strip() == heldout_sha256()
+    assert b"\r" not in (CASES / "heldout.jsonl").read_bytes()   # the hash must not depend on the checkout
 
 
 @each_set
@@ -161,6 +178,11 @@ def test_ac_09_only_the_messages_are_team_written(name):
      ("reauthenticate", "Active", False, None, False, False)),
     (case("tool_failure", tool_faults=["block_card"]), "unrecognized_charge",
      ("escalate_unconfirmed_action", "Active", True, "review", True, True)),
+    (case("tool_failure", score=12.0, tool_faults=["open_case"]), "unrecognized_charge",
+     ("escalate_unconfirmed_action", "Active", False, None, True, False)),
+    (case("tool_failure", tool_faults=["open_case"]), "unrecognized_charge",
+     ("escalate_unconfirmed_action", "Active", False, None, True, False)),
+    (case("late_arrival", fixtures=0), "unrecognized_charge", ("ask", "Active", False, None, False, False)),
 ])
 def test_ac_09_engine_reproduces_the_rows_of_the_expected_table(built, intent, expected):
     """AC-09: expected_for() gives the rows of spec 09 §7.5 from the record and the policy engine."""
