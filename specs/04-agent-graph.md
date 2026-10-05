@@ -139,7 +139,7 @@ greet ─► understand ─► identity ─► route ─┬─► retrieve ─�
 | `act` | `open_case` (dedupe, related case), then `block_card` when allowed; idempotency key `session:transaction:action:run` | MCP |
 | `verify` | Post-conditions; 2 retries, 800 ms timeout; failure → `not_confirmed` + escalation | `get_product_status` · `get_case` |
 | `status` | Re-reads cards, cases or notifications and answers with the reading time | `list_my_cards` · `get_case` · `list_my_cases` · `list_my_notifications` |
-| `connect` | Registers a call request on the active case (or a general one) and says the call request is registered (the expected contact window is pending lead decision D-008); without a verified session, the bank's general contact path with no data | `request_call` · `messages.yaml connect.*` |
+| `connect` | Registers a call request on the active case (or a general one) and says the call request is registered and when to expect the call, using `expected_contact_by` from `request_call` (D-008); when it is `null`, the reply promises no time; without a verified session, the bank's general contact path with no data | `request_call` · `messages.yaml connect.*` |
 | `clarify` | Options (≤ 3 candidates) or a request for amount/date; counts turns | templates; LLM wording in S1/S2 |
 | `refuse` | DENY or re-authenticate with no data and a way forward | templates |
 | `respond` | Receipt and handoff from verified facts; reply from templates (S1/S2 may reword, then the grounding check runs); suggestion chips from §4.5 | `nick_of_time.receipt` · `send_case_summary` · `request_call` · `request_reevaluation` · `add_case_info` · `messages.yaml suggest.*` |
@@ -206,6 +206,7 @@ None directly: the graph reads and writes only through the MCP tools (spec 03 v1
 - **Q4 — reversed charges:** the agent says the charge was already reversed and opens no case.
 - **Q5 — suggestion chips** (lead requirement): mandatory in the agent and the web; chosen by rules (§4.5), never by the
   LLM, so a chip never offers something the policy would deny.
+- **D-008 (lead, 2026-10-04):** `request_call` returns `expected_contact_by`; `connect` says when to expect the call.
 - Assumptions: the p95 ≤ 6 s and ≤ 0.02 USD per case targets are confirmed or corrected by the benchmark (spec 15).
 
 ## 9. Out of scope
@@ -221,6 +222,14 @@ messages.
       AC-29, AC-30, AC-31, AC-32
 - [ ] T6 — `status` and `connect` nodes and the returning-customer path · AC-06, AC-19, AC-24, AC-28
 - [ ] T7 — progress stream; S1/S2 wiring (Bedrock, structured output); usage; graceful degradation to S0 · AC-14, AC-17
+- [ ] T7a — Shared LLM client `nick_of_time.llm` (`fake`, `bedrock`, `anthropic`) and `nick_of_time.config.resolve(arm)`:
+      forced tool use with the tool → any → auto ladder (D-011), temperature 0 or provider default recorded per arm
+      (D-016), usage, latency and cost from a price table, `ProviderUnavailable` for provider errors (graph degrades to
+      S0, section 5), `NoStructuredOutput` when the accepted mode returns no or schema-invalid input (caller decides;
+      it carries the billed call's usage); timeouts connect 2 s, read 15 s, 2 attempts in total (Bedrock
+      `total_max_attempts`) and 15 s, 1 retry (Anthropic) `[assumption]`; Anthropic is
+      an operator switch (`LLM_PROVIDER=anthropic`), not a runtime failover; a per-task arm config (spec 15 section
+      4.2) is planned for spec 15 T6 · supports AC-14; tests `tests/test_spec04_llm.py` (lead decision D-003)
 - [ ] T8 — Platform deployment; `/agent` content · AC-07, AC-08
 - [x] T-MSG — `contracts/messages.yaml`: ES/PT templates for greet, plan, connect, suggestion chips, status labels,
       receipt and notify (placeholders `{name}`, tool facts only). Supports AC-06, AC-10, AC-11, AC-15, AC-16, AC-18,

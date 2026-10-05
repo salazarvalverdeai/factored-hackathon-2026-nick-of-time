@@ -90,6 +90,14 @@
           "verification_id": {
             "type": "string"
           }
+        },
+        "if": {
+          "required": ["verified"],
+          "properties": {"verified": {"const": true}}
+        },
+        "then": {
+          "required": ["verification_id"],
+          "properties": {"verification_id": {"pattern": "^V-[0-9A-F]{12}$"}}
         }
       }
     },
@@ -98,7 +106,7 @@
       "items": {
         "type": "string"
       },
-      "description": "IDs: T-, P-, A-, V-, R-, K-"
+      "description": "IDs: TRX-, PRD-, CLI- (gold ids, unchanged), A-, V-, RC-, K-"
     },
     "open_questions": {
       "type": "array",
@@ -131,6 +139,12 @@
         "country",
         "deadline_source"
       ],
+      "if": {
+        "anyOf": [{"required": ["credit_deadline"]}, {"required": ["ruling_deadline"]}]
+      },
+      "then": {
+        "required": ["source_url", "verified_on"]
+      },
       "properties": {
         "country": {
           "type": "string"
@@ -148,6 +162,14 @@
         },
         "deadline_source": {
           "type": "string"
+        },
+        "source_url": {
+          "type": "string",
+          "pattern": "^https://\\S+$"
+        },
+        "verified_on": {
+          "type": "string",
+          "format": "date"
         }
       }
     },
