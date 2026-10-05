@@ -81,6 +81,15 @@ def test_post_seal_command_refuses_the_test_split_while_unsealed(monkeypatch, tm
     assert cli.main(["--split", "test"]) == 2 and "UNSEALED" in capsys.readouterr().err
 
 
+def test_post_seal_command_refuses_a_sealed_protocol_without_the_lead_tag(monkeypatch, capsys):
+    """SEALED is not enough: the lead's `protocol-v1` tag must sit on the merged sealing commit."""
+    assert cli.protocol_tagged("no-such-tag-15b") is False
+    monkeypatch.setattr(cli, "protocol_seal", lambda: {"status": "SEALED", "sha256": "a" * 64})
+    monkeypatch.setattr(cli, "protocol_tagged", lambda: False)
+    monkeypatch.setattr(b1, "run", lambda *a, **k: pytest.fail("no model may run"))
+    assert cli.main(["--split", "test"]) == 2 and "protocol-v1" in capsys.readouterr().err
+
+
 def test_dev_run_writes_only_git_ignored_files_labeled_as_development(monkeypatch, tmp_path):
     """A validation run never writes a result path of the seal guard; its export carries the §7.1 keys."""
     monkeypatch.setattr(cli, "ROOT", tmp_path)

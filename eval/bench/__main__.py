@@ -5,7 +5,7 @@
     ... [--provider bedrock|fake] [--arms a,b] [--dry-run]  # --dry-run prints the [projected] spend and stops
 
 Only the test split writes the result files of spec 15 §4.5 (eval/results/, benchmark.json, the SVG), and it refuses
-to run while eval/PROTOCOL.md is not SEALED. Every other run goes to eval/.runs/bench/, labeled a development run, so
+to run unless eval/PROTOCOL.md is SEALED and tagged `protocol-v1` on the merged sealing commit. Every other run goes to eval/.runs/bench/, labeled a development run, so
 no result path of the seal guard exists before the seal.
 """
 from __future__ import annotations
@@ -13,6 +13,7 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+import subprocess
 import sys
 from datetime import date
 from pathlib import Path
@@ -21,6 +22,7 @@ from eval.bench import b1, chart, core, gate, report
 from eval.harness.report import git_sha, now, protocol_seal
 
 ROOT = b1.ROOT
+PROTOCOL_TAG = "protocol-v1"            # set by the lead on the merged sealing commit (eval/PROTOCOL.md "Seal")
 DEV_LABEL = "development run on validation — not the pre-registered test result"
 OFFICIAL = {"csv": "eval/results/bench_b1.csv", "items": "eval/results/bench_b1_items.jsonl",
             "gate": "eval/results/bench_gate.csv", "table": "eval/results/bench_b1.md",
@@ -30,6 +32,15 @@ CSV_FIELDS = ["arm", "status", "reason", "model_id", "version", "prompt_hash", "
               "run_date", "accuracy", "accuracy_ci_low", "accuracy_ci_high", "macro_f1_es", "macro_f1_pt",
               "dispute_recall", "human_request_recall", "slot_accuracy", "missing_tool_calls", "p50_ms", "p95_ms",
               "cost_per_1000_usd", "meets_bar", "pareto", "mcnemar_p_vs_best", "same_family_as_generator"]
+
+
+def protocol_tagged(tag: str = PROTOCOL_TAG) -> bool:
+    """The seal is final only once the lead tags it: `protocol-v1` must exist, be an ancestor of HEAD (the merged
+    sealing commit) and carry the same eval/PROTOCOL.md as HEAD."""
+    def ok(*cmd: str) -> bool:
+        return subprocess.run(["git", *cmd], cwd=ROOT, capture_output=True).returncode == 0
+    return (ok("rev-parse", "--verify", "--quiet", f"refs/tags/{tag}") and ok("merge-base", "--is-ancestor", tag, "HEAD")
+            and ok("diff", "--quiet", tag, "HEAD", "--", "eval/PROTOCOL.md"))
 
 
 def vendor(model_id: str | None) -> str | None:
@@ -90,9 +101,11 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--dry-run", action="store_true")
     args = ap.parse_args(argv)
     seal, official = protocol_seal(), args.split == "test"
-    if official and (seal["status"] != "SEALED" or args.limit or args.arms or args.provider != "bedrock"):
+    if official and (seal["status"] != "SEALED" or args.limit or args.arms or args.provider != "bedrock"
+                     or not protocol_tagged()):
         print(f"refused: the test split runs once, whole, on Bedrock, after the seal (eval/PROTOCOL.md is "
-              f"{seal['status']})", file=sys.stderr)
+              f"{seal['status']}; tag {PROTOCOL_TAG} on the merged sealing commit: "
+              f"{'yes' if protocol_tagged() else 'no'})", file=sys.stderr)
         return 2
     arms, prices = core.load_arms(), core.load_prices()
     if args.arms:

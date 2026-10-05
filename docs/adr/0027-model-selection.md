@@ -13,7 +13,8 @@
   worse than the best (paired McNemar, p ≥ 0.05); then the cheapest arm (a tie goes to the lower p95); then the
   production gate (§4.5). If no LLM arm beats B0 with significance, B0 stays.
 - The B1 screen is decided once, on the frozen **test** split, after the seal (PROTOCOL §0.2). Validation may be used
-  only to fix prompts (§2.1). `make bench` refuses to run while the protocol is UNSEALED and is the only command that
+  only to fix prompts (§2.1). `make bench` refuses to run unless the protocol is SEALED and the lead's `protocol-v1`
+  tag is on the merged sealing commit with the same `eval/PROTOCOL.md`. It is the only command that
   writes `eval/results/bench_*`, `benchmark.json` and `docs/assets/benchmark_cost_quality.svg`.
 
 ## Decision (draft)
