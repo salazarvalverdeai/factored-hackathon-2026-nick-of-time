@@ -17,7 +17,6 @@ PROTOCOL = ROOT / "eval/PROTOCOL.md"
 HELDOUT_HASH = ROOT / "eval/heldout.sha256"
 HELDOUT_CASES = ROOT / "eval/cases/heldout.jsonl"
 WEB_SUMMARY = ROOT / "apps/web/public/data/evaluation_summary.json"
-HELDOUT_RUN = ROOT / "eval/results/HELDOUT_RUN.json"         # spec 10 T7: written when the one held-out run starts
 SMALL_CELL = 5                                               # §4.1: a cell with fewer cases is flagged
 
 
@@ -57,29 +56,6 @@ def check_heldout(cases: Path, protocol: Path = PROTOCOL, hash_file: Path = HELD
         raise HarnessError(f"{cases.name} is not the sealed held-out: its sha256 differs from eval/heldout.sha256")
 
 
-def require_protocol_tag(tag: str = "protocol-v1") -> None:
-    """The seal counts only when the lead has tagged the sealing commit and that commit is in this checkout's history;
-    a SEALED string in the file is not enough."""
-    def git(*args: str) -> int:
-        return subprocess.run(["git", *args], cwd=ROOT, capture_output=True).returncode
-    if git("rev-parse", "-q", "--verify", f"refs/tags/{tag}^{{commit}}") != 0:
-        raise HarnessError(f"git tag {tag} is missing: the protocol is sealed only when the lead tags the sealing commit")
-    if git("merge-base", "--is-ancestor", f"{tag}^{{commit}}", "HEAD") != 0:
-        raise HarnessError(f"git tag {tag} is not an ancestor of HEAD: update this checkout to the sealed main")
-
-
-def claim_heldout_run(arms: list[str], cases: Path, marker: Path = HELDOUT_RUN) -> None:
-    """T7: the held-out is run ONCE (ADR 0007). Call after check_heldout, so nothing is written while UNSEALED. The
-    marker stays after a failed or partial run on purpose: a second look at the held-out is a decision for the lead,
-    who deletes it by hand."""
-    if marker.exists():
-        raise HarnessError(f"the held-out already ran or started ({marker.name}); it runs once. The lead may delete "
-                           f"{marker} to allow one new run")
-    marker.parent.mkdir(parents=True, exist_ok=True)
-    marker.write_text(json.dumps({"started_at": now(), "arms": arms, "harness_git_sha": git_sha(),
-                                  "cases_sha256": sha256_of(cases)}, indent=2) + "\n", encoding="utf-8")
-
-
 def check_heldout_cases(cases: list[dict[str, Any]], protocol: Optional[Path] = None,
                         hash_file: Optional[Path] = None, sealed_cases: Optional[Path] = None) -> None:
     """AC-07 for callers of run_set (spec 15 FR-06): a case of the held-out set runs only under check_heldout, and
@@ -114,9 +90,12 @@ def _arms(records: list[dict[str, Any]]) -> dict[str, list[dict[str, Any]]]:
             for arm in dict.fromkeys(record["arm"] for record in records)}
 
 
-def meta(records: list[dict[str, Any]], cases: Path, started_at: str, protocol: Path = PROTOCOL) -> dict[str, Any]:
+def meta(records: list[dict[str, Any]], cases: Path, started_at: str, protocol: Path = PROTOCOL,
+         guard: Optional[dict[str, Any]] = None) -> dict[str, Any]:
+    """`protocol` is the seal status and hash; a one-time run passes the dict of seal_guard.check_seal instead (its
+    status, sha256, tag, commits and checked inputs), which also reaches the web summary."""
     return {"label": "[simulated]", "harness_git_sha": git_sha(), "cases_file": cases.name,
-            "cases_sha256": sha256_of(cases), "protocol": protocol_seal(protocol), "started_at": started_at,
+            "cases_sha256": sha256_of(cases), "protocol": guard or protocol_seal(protocol), "started_at": started_at,
             "ended_at": now(), "runs": len(records),
             "failed_runs": sum(1 for record in records if record["status"] == "failed"),
             "arms": {arm: _run_meta(mine) for arm, mine in _arms(records).items()}}

@@ -3,7 +3,8 @@
     python -m eval.harness run --set dev --arms S0,S1 [--runs 4] [--api URL] [--out DIR] [--cases FILE] [--web FILE]
     python -m eval.harness report DIR [--web FILE]      # recompute the summary from runs.jsonl, no system call
 
-The held-out runs only after eval/PROTOCOL.md is SEALED (AC-07); its summary is also written for the web page.
+The held-out (`make eval-heldout`) runs once, only after the seal, on S0,S1,S2 x 4 (AC-07, T7): see
+eval/harness/heldout.py. Its summary is also written for the web page.
 """
 from __future__ import annotations
 
@@ -13,7 +14,7 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
-from eval.harness import Api, HarnessError, metrics, report, run_set, write_outputs
+from eval.harness import Api, HarnessError, heldout, metrics, report, run_set, write_outputs
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -46,11 +47,11 @@ def main(argv: list[str] | None = None, api: Api | None = None) -> int:
     run.add_argument("--arms", required=True, help="comma-separated arms, e.g. S0,S1")
     run.add_argument("--runs", type=int, default=4)
     run.add_argument("--api", default="http://localhost:8000", help="base URL of an api with EVAL_MODE=true")
-    run.add_argument("--out", type=Path, help="output folder; default eval/.runs/<utc time>-dev or "
-                                              "eval/results/<date>-heldout")
+    run.add_argument("--out", type=Path, help="output folder of a dev run; default eval/.runs/<utc time>-dev "
+                                              "(the held-out always writes eval/results/<date>-heldout)")
     run.add_argument("--cases", type=Path, help="case file; default eval/cases/<set>.jsonl")
-    run.add_argument("--web", type=Path, help="also write the web summary here; default for the held-out: "
-                                              "apps/web/public/data/evaluation_summary.json")
+    run.add_argument("--web", type=Path, help="also write the web summary of a dev run here (the held-out "
+                                              "always writes apps/web/public/data/evaluation_summary.json)")
     run.add_argument("--workers", type=int, default=4)
     again = commands.add_parser("report", help="recompute the summary of a finished run")
     again.add_argument("out", type=Path)
@@ -66,17 +67,13 @@ def main(argv: list[str] | None = None, api: Api | None = None) -> int:
             report.write_reports(records, args.out, run_meta, args.web)
             _headline(records, len({record["case_id"] for record in records}), run_meta)
             return 0
-        heldout = args.set_name == "heldout"
+        if args.set_name == "heldout":                       # T7: once, guarded, pinned (eval/harness/heldout.py)
+            return heldout.run(args, api=api)
         path = args.cases or ROOT / "eval/cases" / f"{args.set_name}.jsonl"
-        if heldout:
-            report.check_heldout(path)
-            report.require_protocol_tag()
-            report.claim_heldout_run([arm for arm in args.arms.split(",") if arm], path)
         cases = [case for case in _read_cases(path) if case["set"] == args.set_name]
         started, today = report.now(), datetime.now(timezone.utc)
-        out = args.out or (ROOT / "eval/results" / f"{today:%Y-%m-%d}-heldout" if heldout
-                           else ROOT / "eval/.runs" / f"{today:%Y%m%dT%H%M%SZ}-dev")
-        if (out / "runs.jsonl").exists():                    # a committed held-out result is never replaced silently
+        out = args.out or ROOT / "eval/.runs" / f"{today:%Y%m%dT%H%M%SZ}-dev"
+        if (out / "runs.jsonl").exists():                    # a finished run is never replaced silently
             raise HarnessError(f"{out} already holds a run; pass another --out or move it first")
         records = run_set(cases, [arm for arm in args.arms.split(",") if arm], args.runs, api=api,
                           api_url=args.api, workers=args.workers)
@@ -85,7 +82,7 @@ def main(argv: list[str] | None = None, api: Api | None = None) -> int:
         return 2
     write_outputs(records, out)
     run_meta = report.meta(records, path, started)
-    report.write_reports(records, out, run_meta, args.web or (report.WEB_SUMMARY if heldout else None))
+    report.write_reports(records, out, run_meta, args.web)
     _headline(records, len(cases), run_meta)
     print(f"wrote runs.jsonl, summary.csv, meta.json and evaluation_summary.json in {out}")
     return 0

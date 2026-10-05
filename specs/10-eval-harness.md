@@ -131,7 +131,8 @@ The harness is a client of spec 01; it adds no route.
 | GET | `/api/eval/final-state/{session_id}` | — | `FinalState` |
 
 Command line: `python -m eval.harness run --set dev|heldout --arms S0,S1[,S2] [--runs 4] [--api URL] [--out DIR]
-[--cases FILE]` (run with `PYTHONPATH=packages`; `--cases` points at another case file, such as the examples) and
+[--cases FILE]` (run with `PYTHONPATH=packages`; `--cases` points at another case file, such as the examples; the
+held-out takes only `--arms S0,S1,S2 --runs 4`, see T7) and
 `python -m eval.harness report DIR`. `make eval` runs the dev set on S0 and S1 against the local stack
 (`EVAL_API`, `EVAL_ARMS`, `EVAL_RUNS`, `EVAL_CASES` override it); `make eval-stub` serves the api stub with
 `EVAL_MODE=true` and the `fake` provider for an offline run; `make eval-local` serves the real stack instead (T6:
@@ -155,9 +156,14 @@ Reads `eval/cases/*.jsonl` (spec 09), `eval/heldout.sha256`, `eval/PROTOCOL.md` 
   field of `run_meta` changed between runs of one arm, the arm also gets `drift`: each changed field with the values
   seen, in order, and the command prints a warning.
 
-Held-out results go to `eval/results/<date>-heldout/` and are committed; a second held-out run on the same day needs
-another `--out`. Dev and stub runs go to `eval/.runs/` (git-ignored): `eval/PROTOCOL.md` treats any file under
-`eval/results/` as a result, so nothing is written there before the seal.
+Held-out results go to `eval/results/<date>-heldout/` and are committed. The held-out runs **once**
+(`eval/harness/heldout.py`, T7): `--arms S0,S1,S2 --runs 4` only, no `--cases`, `--out` or `--web`, and the
+`seal_guard.claim_run` marker `heldout.start.json` anywhere under `eval/results/` (working tree, HEAD or origin/main)
+refuses any second run, whatever the folder or the day. Its `meta.json` adds: `protocol` = the dict of
+`seal_guard.check_seal` (status, sha256, tag, commit, head, test_review, checked inputs; it also reaches the web
+summary), `run_status` (`complete` | `aborted`), `error`, `arms_pinned`, `runs_per_case`, `model_map` (the S1 map and
+its label), `projected_cost` (`[projected]`) and `preflight` (the health and `run_meta` seen on the dev case). Dev and
+stub runs go to `eval/.runs/` (git-ignored): `eval/PROTOCOL.md` treats any file under `eval/results/` as a result.
 
 ### 7.2 `apps/web/public/data/evaluation_summary.json`
 `{generated_at, git_sha, source, data}` (spec 01 §6.2), with `data`:
@@ -222,10 +228,21 @@ Implementation goes in `feat/10-…` branches once this spec is approved. T1–T
       (PR #164 description; `[simulated]`, dev set, not the final result): 160 runs, 0 failed, every seeded session
       `replay` (AC-06); pass^4 9/20 on both arms, safe automated resolution 0/12, unsafe outcomes 0/80 per arm; S1
       spent 0.037 USD. Outputs stay in `eval/.runs/` (git-ignored)
-- [ ] T7 — held-out run on S0, S1 and S2 after M02; results committed under `eval/results/` · covers AC-03. Command
-      ready, not run: `make eval-heldout` (on the stack of `make eval-local`) refuses while PROTOCOL is UNSEALED (AC-07)
-      and a second time (`eval/results/HELDOUT_RUN.json`, written when the run starts; the lead deletes it to allow
-      another); it writes `eval/results/<date>-heldout/` and the web `evaluation_summary.json`
+- [ ] T7 — held-out run on S0, S1 and S2 after M02; results committed under `eval/results/` · covers AC-03, AC-07,
+      AC-09, AC-11. Command ready, not run: `make eval-heldout` (on the stack of `make eval-local`, real models), in
+      this order: (1) arms and runs pinned to S0,S1,S2 × 4; (2) `seal_guard.check_seal(inputs={"agent_heldout"})`;
+      (3) the S1 model map from `eval/results/model_map.json` (written by spec 15 B2/T6,
+      `{label, source, arms: {S1: {provider, model_fast}, S2: {provider, model_graph}}}`), else the default Haiku 4.5
+      map labeled `[assumption]` (lead decision D-080 pending); (4) the out folder is empty; (5) it prints the projected
+      cost, S1 ≈ 0.15 USD and S2 ≈ 0.45 USD `[projected]` (the dev run's 0.037 USD for S1 on 20 cases × 4 runs
+      `[simulated]`, scaled to 80 cases; Sonnet 4.6 at 3× the Haiku 4.5 token price, `eval/bench/prices.yaml`
+      `[external]`); (6) a preflight on one **dev** case per arm that consumes nothing: api health ok, `today.replay`
+      = DEMO_TODAY 2026-06-01, a `replay` session, and each arm's `run_meta` with the expected provider and model (the
+      `fake` provider is refused); (7) `seal_guard.claim_run("heldout")`; only then is the held-out file read. Each run
+      is appended to `runs.jsonl` as it finishes. A set that stops after the claim keeps its runs, `meta.json` says
+      `run_status: "aborted"`, no web summary is written and the exit is 3 (lead decision D-079 pending; this is the
+      default). If every run failed, the exit is 1 and the web summary is not written
+      (`tests/test_spec10_heldout_once.py`)
 
 Tests live in `tests/test_spec10_*.py` and cite their criterion.
 
