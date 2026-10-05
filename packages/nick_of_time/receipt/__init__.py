@@ -30,7 +30,8 @@ def text(key: str, language: str, **facts: Any) -> str:
 
 # Server-side payload of each action chip (spec 01 §6.4) and route of each link chip.
 ACTION = {"none_of_these": {"type": "choose_option", "value": "none"}, "talk_to_person": {"type": "request_call"},
-          "confirm_yes": {"type": "confirm", "value": "yes"}, "confirm_no": {"type": "confirm", "value": "no"},
+          "confirm_yes": {"type": "confirm", "value": "yes"}, "confirm_charge": {"type": "confirm", "value": "yes"},
+          "confirm_no": {"type": "confirm", "value": "no"},
           "send_summary": {"type": "send_summary"}, "request_call": {"type": "request_call"},
           "request_reevaluation": {"type": "request_reevaluation"}}
 REAUTH_HREF = "/login"          # [assumption] the web's sign-in route (apps/web/app/login)
@@ -42,6 +43,8 @@ ROWS: dict[str, tuple[str, ...]] = {
     "ask_details": ("show_recent", "dont_remember_amount", "talk_to_person"),
     "ask_options": ("none_of_these", "show_recent", "talk_to_person"),            # candidates shown as cards
     "confirm": ("confirm_yes", "confirm_no", "talk_to_person"),
+    "confirm_charge": ("confirm_charge", "confirm_no", "talk_to_person"),    # D-067: one charge the customer did not name
+    "confirm_call": ("confirm_charge", "confirm_no"),          # D-067: the same card after a general call request
     "case_active": ("view_case", "add_info", "request_call"),                     # AC-23: the existing case
     "read_failed": ("show_recent", "talk_to_person", "check_case"),   # the first chip searches again
     "receipt": ("view_case", "check_case", "request_call"),   # case opened, verified; send_summary waits for AC-26 (P1)
@@ -49,6 +52,7 @@ ROWS: dict[str, tuple[str, ...]] = {
     "escalate_unconfirmed": ("view_case", "add_info", "request_call"),           # escalate_unconfirmed_action, a case
     # [assumption] escalate_unconfirmed_action with no verified case: no case link; the first chip asks for a call
     "case_unconfirmed": ("talk_to_person", "report_unrecognized", "check_case"),
+    "other_language": ("report_unrecognized", "check_case", "talk_to_person"),    # G-IN-03: not ES/PT, a person stays
     "deny": ("report_unrecognized", "check_case", "talk_to_person"),
     "reauthenticate": ("reauthenticate", "talk_to_person"),
     "reauthenticate_case": ("reauthenticate", "view_case", "talk_to_person"),   # a case verified before it expired
@@ -104,7 +108,7 @@ def chip(chip_id: str, language: str, case_id: Optional[str] = None) -> Suggesti
 
 NEEDS_CASE = {"view_case", "send_summary", "add_info", "request_reevaluation"}   # chips about a case the turn read
 PERSON = {"talk_to_person", "request_call"}
-CALL_OPEN = {"connect_person", "connect_person_case", "block_held"}   # rows where a call is already registered
+CALL_OPEN = {"connect_person", "connect_person_case", "block_held", "confirm_call"}   # rows where a call is already registered
 
 
 def suggestions(row: str, language: str, case_id: Optional[str] = None) -> list[Suggestion]:
