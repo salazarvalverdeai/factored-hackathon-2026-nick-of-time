@@ -1,12 +1,16 @@
 """`config.resolve(arm)`: arm -> provider, model and options (spec 01 sections 6.8-6.9, spec 04 section 4.4), and
-`config.today(mode)`: the session's "today" (ADR 0020)."""
+`config.today(mode)`: the session's "today" (ADR 0020), and `config.price(cfg)`: an LLM arm's price row (D-058)."""
 from __future__ import annotations
 
 import datetime as dt
 import os
 from dataclasses import dataclass
+from functools import lru_cache
+from pathlib import Path
 from typing import Mapping, Optional
 from zoneinfo import ZoneInfo
+
+import yaml
 
 HAIKU = "us.anthropic.claude-haiku-4-5-20251001-v1:0"   # spec 15 section 4.1, incumbent
 SONNET = "us.anthropic.claude-sonnet-4-6"
@@ -45,6 +49,43 @@ def resolve(arm: str, env: Mapping[str, str] | None = None, extra: Mapping[str, 
     if extra and arm in extra:
         return ArmConfig(arm, provider, **{"model": None, **extra[arm]})
     raise ValueError(f"unknown arm {arm!r}")
+
+
+def bench_dir() -> Path:
+    """eval/bench (arms.yaml model ids, prices.yaml), found next to the importable `contracts` package as
+    nick_of_time.contracts finds contracts/: the Platform image copies packages/ apart from the repo root."""
+    import contracts.tools
+    return Path(contracts.tools.__file__).resolve().parent.parent / "eval" / "bench"
+
+
+@lru_cache(maxsize=1)
+def _price_rows() -> dict[str, dict]:
+    """Bedrock price rows by model id: arms.yaml gives each arm's model id, prices.yaml its USD per 1M tokens."""
+    arms = yaml.safe_load((bench_dir() / "arms.yaml").read_text())["arms"]
+    prices = yaml.safe_load((bench_dir() / "prices.yaml").read_text())["prices"]
+    return {a["model_id"]: prices[a["id"]] for a in arms if a.get("model_id") and a["id"] in prices}
+
+
+def price(cfg: ArmConfig) -> dict | None:
+    """The {"input_per_1m", "output_per_1m"} row of an LLM arm's model, None for S0. Every `llm_calls` row needs a cost
+    (spec 01 section 6.5), so an LLM arm without a price raises ValueError (D-058): the graph runs that turn as S0.
+    [assumption] `anthropic` has no row yet: prices.yaml holds the Bedrock regional prices, and API prices differ."""
+    if not cfg.uses_llm:
+        return None
+    row = None if cfg.provider == "anthropic" else _price_rows().get(cfg.model)
+    if row is None:
+        raise ValueError(f"arm {cfg.arm}: no price for {cfg.provider} model {cfg.model!r} (D-058: fail closed)")
+    return {"input_per_1m": row["input_per_1m"], "output_per_1m": row["output_per_1m"]}
+
+
+def check_prices(env: Mapping[str, str] | None = None) -> None:
+    """D-058: with `LLM_PROVIDER=bedrock` (production), arms S1 and S2 must have a price, else ValueError. CI calls it
+    so a missing default price fails the build; the graph only logs it at load and runs those turns as S0, so S0 and
+    the echo graph on the same server stay up. Other providers are checked per turn the same way [assumption]."""
+    env = os.environ if env is None else env
+    if env.get("LLM_PROVIDER") == "bedrock":
+        for arm in ("S1", "S2"):
+            price(resolve(arm, env))
 
 
 DEMO_TODAY = "2026-06-01"       # replay "today" when DEMO_TODAY is unset (ADR 0020, spec 01 section 6.8)

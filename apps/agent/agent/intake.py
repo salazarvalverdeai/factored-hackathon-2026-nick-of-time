@@ -4,17 +4,20 @@ identity → greet → understand → route. `route` runs spec 02 rules 1–4 (`
 refuse, connect_person → connect, answer_status → status, a dispute → retrieve → decide. `decide` runs
 `engine.decide()` on tool facts only and the graph follows its result: ask → clarify, deny → refuse, a case to open
 (or confirm) → plan, a call with no case to open → connect. `plan` states the numbered steps; in confirm it stops
-there, otherwise act runs the writes decide() allowed and verify reads each post-condition (T4). understand uses the
-B0 rules arm in every arm (the S1/S2 LLM path lands in T7, so no arm calls an LLM yet). `status` re-reads cards or
+there, otherwise act runs the writes decide() allowed and verify reads each post-condition (T4). understand reads with
+the B0 rules arm first in every arm. `status` re-reads cards or
 cases in every turn that asks (AC-19) and `connect` registers the call where the decision says, on the active case or
 a general one (AC-28; task 04e). `respond` builds the receipt and the handoff card from tool results, and the
-grounding gate drops any fact no tool returned (G-OUT-01, task 04d). Tools are reached only through MCP
+grounding gate drops any fact no tool returned (G-OUT-01, task 04d). S1/S2 (task 04f, `nick_of_time.llm.steps`):
+`understand` asks the LLM below τ in a verified session, and the reply stays template text (rewording waits for spec
+15's `word` gate); any LLM failure runs the step as S0, and the run returns its usage and denials (AC-14). Tools are reached only through MCP
 with the session of the run config (constitution #3); "today" comes from `config.today(mode)` (AC-27, ADR 0020).
 Served as `dispute_intake` in langgraph.json (D-048 applied); the echo graph stays as `dispute_intake_echo`.
 """
 # No `from __future__ import annotations`: the state types must resolve when the server loads this file by path.
 import asyncio
 import json
+import logging
 import os
 import re
 import uuid
@@ -29,7 +32,8 @@ from pydantic import BaseModel
 
 from contracts.tools import CUSTOMER_TOOLS, VERIFIED_WITH, ToolError
 from nick_of_time import receipt as msg
-from nick_of_time.config import resolve, today
+from nick_of_time.config import check_prices, resolve, today
+from nick_of_time.llm import steps as arms
 from nick_of_time.contracts import TurnResult
 from nick_of_time.ids import new_id
 from nick_of_time.receipt import build
@@ -38,9 +42,14 @@ from nick_of_time.nlu.text import fold
 from nick_of_time.policy import DecisionInput, PolicyDecision, PolicyEngine
 
 ENGINE, NLU = PolicyEngine.load(), load_nlu("B0")
+try:    # D-058: logged, not raised, so S0 and the echo graph on the same server stay up; that turn runs as S0
+    check_prices()
+except ValueError as err:
+    logging.getLogger(__name__).error("%s: S1/S2 turns run as S0 until a price is configured", err)
 TIMEOUT_S = ENGINE.policies.reliability["tool_timeout_ms"] / 1000
 RETRIES = ENGINE.policies.reliability["tool_retries"]
 MAX_OPTIONS = ENGINE.policies.clarify.max_candidate_transactions
+TAU = ENGINE.policies.clarify.intent_confidence_min   # τ (spec 11 AC-07): the LLM is asked only below it
 DISPUTES = ("unrecognized_charge", "wrongful_charge")
 CLOSED = ("resolved", "closed")             # queue states of a case that is no longer active
 # [assumption] until T3–T6: a press of these actions reads as this intent; confirm and choose_option keep the pending
@@ -114,6 +123,9 @@ class Internal(TypedDict, total=False):     # spec 04 §4.1 fields outside TurnR
     unconfirmed: list[str]                  # tools whose action ended not_confirmed this turn, for the trace
     readings: dict[str, Any]                # verify's post-condition reads by write tool (task 04d)
     seen: Annotated[list, keep]             # the other tool results of the turn the reply states, for grounding
+    llm_spent_usd: float                    # the conversation's LLM spend, for the G-OPS-01 cap (task 04f)
+    llm_notes: dict[str, str]               # LLM step → "S1: ok" or "S1 -> S0: <reason>", for the trace
+    llm_alerts: list[str]                   # guardrails the LLM step triggered (G-OPS-01)
 
 State = TypedDict("State", {**InputState.__annotations__, **OutputState.__annotations__, **Internal.__annotations__},
                   total=False)
@@ -121,7 +133,7 @@ State = TypedDict("State", {**InputState.__annotations__, **OutputState.__annota
 RESET = {"decision": None, "zone": None, "case_id": None, "actions": [], "denials": [], "guardrails_triggered": [],
          "body": [], "row": None, "route": None, "active_case": None, "greet_pending": False, "plan": [], "options": [],
          "answer": None, "decision_record": None, "path": [], "read_failed": None, "writes": {},
-         "unconfirmed": [], "readings": {}, "seen": None}
+         "unconfirmed": [], "readings": {}, "seen": None, "usage": [], "llm_notes": {}, "llm_alerts": []}
 
 
 async def call(config: RunnableConfig, tool: str, **args: Any) -> BaseModel:
@@ -169,8 +181,10 @@ async def greet(state: State, config: RunnableConfig) -> dict[str, Any]:
     return {"profile": profile.model_dump(mode="json"), "greet_pending": True}
 
 
-def understand(state: State) -> dict[str, Any]:
-    """Language, injection flag, intent and slots with the B0 rules arm; dates against the session's today."""
+async def understand(state: State, config: RunnableConfig) -> dict[str, Any]:
+    """Language, injection flag, intent and slots with the B0 rules arm; dates against the session's today. Below τ,
+    S1/S2 ask the LLM for intent and slots, only in a verified session and never for a flagged or cross-customer
+    message; if it fails, B0 stands."""
     profile = state.get("profile") or {}
     day = today(state["mode"], profile.get("country"))
     texts = [m.get("content", "") for m in state.get("messages") or [] if m.get("role", "user") == "user"]
@@ -201,8 +215,17 @@ def understand(state: State) -> dict[str, Any]:
     if chip:                                # typed label = pressed text chip: routed by the pending question (AC-33)
         intent = msg.TEXT_CHIP_INTENT[chip] or pending
         return {**base, **found, "intent": intent, "intent_confidence": 1.0, "dispute_detected": intent in DISPUTES}
+    heard, extra = (None, {})
+    if reading.confidence < TAU and state["session_state"] == "verified" and not (
+            found["injection_flagged"] or found["cross_customer"]):
+        heard, extra = await arms.understand(state, config, text, day.isoformat(), TAU)
+    if heard:                               # D-020: dispute words the rules saw still count
+        heard["dispute_detected"] = heard["dispute_detected"] or reading.dispute_detected
+        if heard["intent"] == "human_request" and reading.intent != "human_request":
+            heard["intent"] = reading.intent    # D-065 [assumption]: no call on an LLM-only reading; the turn asks
+
     return {**base, **found, "intent": reading.intent, "intent_confidence": reading.confidence,
-            "dispute_detected": reading.dispute_detected}
+            "dispute_detected": reading.dispute_detected, **(heard or {}), **extra}
 
 
 async def route(state: State, config: RunnableConfig) -> dict[str, Any]:
@@ -655,7 +678,8 @@ def status_unread(tool: str, language: str) -> dict[str, Any]:
 
 
 def respond(state: State) -> dict[str, Any]:
-    """The TurnResult from templates and §4.5 chips; clears the turn's input so the next turn starts clean."""
+    """The TurnResult from templates and §4.5 chips, in every arm (no LLM wording until spec 15's `word` gate), with the
+    run's usage and denials (AC-14); clears the turn's input so the next turn starts clean."""
     language, profile, lines = state["language"], state.get("profile") or {}, []
     if state.get("greet_pending"):          # AC-15: name from the tool, three capabilities, a person reviews
         lines = [msg.text("greet.hello", language, first_name=profile["first_name"])] + [
@@ -669,7 +693,8 @@ def respond(state: State) -> dict[str, Any]:
     kept = [line for line in lines + body if not build.bad(line, facts)]
     receipt, handoff, dropped = papers(state, facts)
     dropped += len(lines) + len(body) - len(kept)
-    alerts = [build.ALERT] * bool(dropped)
+    alerts = [build.ALERT] * bool(dropped) + [a for a in state.get("llm_alerts") or []
+                                              if a not in (state.get("guardrails_triggered") or [])]
     turn = TurnResult(
         # [assumption] nothing left to say: the line that states nothing it could not verify
         reply="\n".join(kept) or msg.text("status.read_failed", language), language=language,
@@ -678,10 +703,11 @@ def respond(state: State) -> dict[str, Any]:
         plan=state.get("plan") or [], options=state.get("options") or [],
         actions=state.get("actions") or [], suggestions=msg.suggestions(row, language, state.get("case_id")),
         guardrails_triggered=[*(state.get("guardrails_triggered") or []), *alerts], denials=state.get("denials") or [],
-        mode=state["mode"], trace_id=state["trace_id"],
-        trace=[step(n, record, state.get("read_failed"), state.get("unconfirmed"), dropped) for n in nodes])
+        mode=state["mode"], trace_id=state["trace_id"], usage=state.get("usage") or [],
+        trace=[step(n, record, state.get("read_failed"), state.get("unconfirmed"), dropped, state.get("llm_notes"))
+               for n in nodes])
     return {**turn.model_dump(mode="json"), "messages": [], "action": None, "greet_pending": False,
-            "language_last": language}
+            "language_last": language, "llm_spent_usd": state.get("llm_spent_usd") or 0.0}
 
 
 def tool_facts(state: State) -> list[Any]:
@@ -706,13 +732,15 @@ def papers(state: State, facts: list[Any]) -> tuple[Optional[dict[str, Any]], Op
         "guardrails": state.get("guardrails_triggered") or []}, facts)
 
 
-def step(node: str, record: dict[str, Any], read_failed: Optional[str],
-         unconfirmed: Optional[list[str]] = None, dropped: int = 0) -> dict[str, Any]:
+def step(node: str, record: dict[str, Any], read_failed: Optional[str], unconfirmed: Optional[list[str]] = None,
+         dropped: int = 0, notes: Optional[dict[str, str]] = None) -> dict[str, Any]:
     """A trace step: the decision record on the node that decided (D-046); a failed read as not_confirmed on the node
-    that tried it (retrieve or status), the actions verify could not confirm on verify, and on respond how many facts
-    the grounding gate dropped (G-OUT-01)."""
+    that tried it (retrieve or status), the actions verify could not confirm on verify, on respond how many facts
+    the grounding gate dropped (G-OUT-01), and on understand its LLM arm, or its fall back to S0 as an error (§5)."""
     if node == "respond" and dropped:
         return {"node": node, "status": "error", "ms": 0, "detail": f"G-OUT-01: {dropped} ungrounded fact(s) dropped"}
+    if llm := (notes or {}).get(node):      # understand only
+        return {"node": node, "status": "error" if "-> S0" in llm else "ok", "ms": 0, "detail": llm}
     if node in ("retrieve", "status") and read_failed:
         return {"node": node, "status": "error", "ms": 0, "detail": f"{read_failed}: not_confirmed"}
     if node == "verify" and unconfirmed:
