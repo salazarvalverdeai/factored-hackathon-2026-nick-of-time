@@ -17,6 +17,8 @@ class ArmConfig:
     model: str | None
     temperature: float | None = 0
     tool_choice: str = "tool"   # first rung of the D-011 ladder
+    read_timeout_s: float | None = None   # optional pass-through to the client (spec 18 section 5); None = default
+    max_attempts: int | None = None
 
     @property
     def uses_llm(self) -> bool:

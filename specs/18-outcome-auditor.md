@@ -154,6 +154,8 @@ comes from the policy engine, not from an LLM, so the judge does not grade its o
 - Judge: at most one call per case in review; cost under 0.01 USD per case `[assumption]`, estimated before the call
   and the call is skipped when over budget or when the client has no prices; input capped at about 12k tokens; timeout
   10 s because G-OPS-01's 800 ms would always expire on a model call (D-037) `[assumption]`; the customer never sees it.
+  `judge_client` builds the judge's client with read timeout = that timeout and one attempt, so an abandoned call ends
+  soon after (the LLM client takes `read_timeout_s` and `max_attempts`, defaults unchanged).
   The cap reserves 700 output tokens, so it implies a **Haiku-class judge**, and AC-12's choice must respect it: at the
   `eval/bench/prices.yaml` prices `[external]`, Sonnet 4.6 (16.5 USD per 1M output tokens) can never fit, and Haiku 4.5
   (1.1 in, 5.5 out) fits up to about 5.6k estimated input tokens, so the cost cap binds before the 12k input cap.

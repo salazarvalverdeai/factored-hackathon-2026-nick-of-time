@@ -19,7 +19,7 @@ from pydantic import BaseModel, Field
 from nick_of_time.audit.checks import _UNGROUNDED_KEYS, Finding, _scalars, _tokens
 from nick_of_time.contracts import AnalystActionIn, load_schema
 from nick_of_time.ids import GOLD_PATTERN, PREFIX
-from nick_of_time.llm import LLMClient, LLMResult, NoStructuredOutput, cost_usd
+from nick_of_time.llm import LLMClient, LLMResult, NoStructuredOutput, cost_usd, make_client
 
 Verdict = Literal["agree", "disagree", "uncertain"]
 MAX_REASONS, MAX_QUESTIONS = 5, 3
@@ -136,6 +136,12 @@ def _grounded(item: dict, valid_ids: set[str], facts: set[str]) -> Optional[Cite
     if any(m not in valid_ids for m in _IDISH.findall(text)):   # an id-shaped token must be exactly an evidence id
         return None
     return Cited(text=text, evidence_ids=ids)
+
+
+def judge_client(cfg, *, prices: Optional[dict] = None, timeout_s: float = TIMEOUT_S, **kw) -> LLMClient:
+    """The judge's own client: read timeout = `timeout_s` and one attempt, so a call that `opinion` abandoned at
+    `timeout_s` does not keep its thread busy much longer (spec 18 section 5). `kw` goes to `make_client`."""
+    return make_client(cfg, prices=prices, **{"read_timeout_s": timeout_s, "max_attempts": 1, **kw})
 
 
 def opinion(handoff: dict, transcript: Iterable[str], evidence: Iterable[Any], *, client: LLMClient,
