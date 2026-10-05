@@ -214,7 +214,15 @@ def _is_analyst_path(path: str) -> bool:
     return path.startswith("/api/console") or path.endswith("/action")
 
 
-def create_app(eval_mode: Optional[bool] = None) -> FastAPI:
+def create_app(eval_mode: Optional[bool] = None, store: Any = None, **deps: Any) -> FastAPI:
+    """The fixture stub of spec 01, or, with a `store` (or DATABASE_URL set), the store-backed api of spec 05
+    (`app.live`); `deps` are its optional seams (catalog, verifier, platform, notifier, now, link_key)."""
+    if store is not None:
+        from app.live import create_live_app
+        return create_live_app(store, **deps)
+    if os.getenv("DATABASE_URL"):
+        from app.live import from_env
+        return from_env()
     eval_on = os.getenv("EVAL_MODE", "").lower() == "true" if eval_mode is None else eval_mode
     app = FastAPI(title="Nick of Time api (stub)", docs_url="/api/docs", redoc_url=None, swagger_ui_oauth2_redirect_url=None, openapi_url="/api/openapi.json")
     app.state.sessions = {}            # session_id -> dict(customer_id, country, mode, verified, expires_at, arm, prefs)

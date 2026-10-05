@@ -27,7 +27,7 @@ from nick_of_time.contracts import AnalystActionIn, AnalystActionOut, QueueStatu
 from nick_of_time.store import (CUSTOMER_VISIBLE, RESERVED_EVENTS, UNDELIVERED, VERIFIED_WITH, WRITE_EVENTS, WRITE_TOOL,
                                 CaseEvent, CaseRecord, Channel, DeliveryStatus, EventType, NewCase, Notification,
                                 NotVerified, ProductOverride, StoreError, VerifyingRead, _check_writer, _json,
-                                _utc_now, check_action_id, check_business_date, check_text, check_transition,
+                                _utc_now, check_action_id, check_actor, check_business_date, check_text, check_transition,
                                 insert_with_fresh_case_id)
 from nick_of_time.store.accounts import (CHANNEL_CASE_EVENT, CHANNEL_ID, DENIAL_ID, ChannelEvent, CustomerChannel,
                                          LinkedChannel, NewDenial, NewSession, Once, PolicyDenial,
@@ -100,7 +100,7 @@ class PostgresStore:
                           {"case_id": case_id, "run_id": run_id, "customer_id": customer_id})
         return _record(rows[0]) if rows else None
 
-    def list_cases(self, customer_id: str, *, run_id: Optional[str]) -> list[CaseRecord]:
+    def list_cases(self, customer_id: Optional[str], *, run_id: Optional[str]) -> list[CaseRecord]:
         rows = self._rows(CASES + "order by coalesce(s.status, 'new') = 'closed', c.created_at desc, "
                           "c.case_id collate \"C\" desc",
                           {"run_id": run_id, "customer_id": customer_id})
@@ -353,6 +353,36 @@ class PostgresStore:
         rows = self._rows(f"select {', '.join(SessionRecord.model_fields)} from sessions where session_id = %s",
                           (check_key(session_id),))
         return SessionRecord(**rows[0]) if rows else None
+
+    def revise_session(self, session_id: str, *, verified_at: Optional[dt.datetime] = None,
+                       language: Optional[str] = None, display_currency: Optional[str] = None) -> SessionRecord:
+        current = self.get_session(session_id)
+        if current is None:
+            raise StoreError(f"unknown session {session_id}")
+        changes = {k: v for k, v in (("verified_at", verified_at), ("language", language),
+                                     ("display_currency", display_currency)) if v is not None}
+        updated = parse(NewSession, {**current.model_dump(include=set(NewSession.model_fields)), **changes})
+        with self._tx():
+            self._rows("update sessions set verified_at = %s, language = %s, display_currency = %s "
+                       "where session_id = %s", (updated.verified_at, updated.language, updated.display_currency,
+                                                 session_id))
+        return SessionRecord(**updated.model_dump(), session_id=current.session_id, created_at=current.created_at)
+
+    def record_setting(self, key: str, value: Any, *, actor: str) -> dict[str, Any]:
+        check_key(key), check_text(actor), check_actor(actor)
+        row = {"event_id": ids.new_id("event"), "key": key, "value": _json(value), "actor": actor,
+               "created_at": self._now()}
+        self._insert("settings_events", {**row, "value": Jsonb(row["value"])})
+        return row
+
+    def get_setting(self, key: str) -> Optional[Any]:
+        rows = self._rows("select value from settings_events where key = %s order by row_no desc limit 1",
+                          (check_key(key),))
+        return rows[0]["value"] if rows else None
+
+    def setting_history(self, key: str) -> list[dict[str, Any]]:
+        return self._rows("select event_id, key, value, actor, created_at from settings_events where key = %s "
+                          "order by row_no", (check_key(key),))
 
     def summary_sends(self, session_id: str, *, since: dt.datetime) -> int:
         session = self.get_session(session_id)

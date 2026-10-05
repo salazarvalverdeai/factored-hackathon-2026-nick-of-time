@@ -43,7 +43,8 @@ def test_ac_07_a_session_is_stored_under_a_store_id_and_keeps_its_mode_and_run()
     assert store.get_session("S-" + "x" * 16) is None
     for interface in (Store, type(store)):                                   # the protocol and this backend
         assert [n for n in dir(interface) if "session" in n and not n.startswith("_")] == ["create_session",
-                                                                                          "get_session"]
+                                                                                          "get_session",
+                                                                                          "revise_session"]
 
 
 def test_ac_07_the_eval_seed_sessions_none_and_expired_are_stored_as_given():
