@@ -228,6 +228,36 @@ def test_ac_01_runs_of_one_customer_do_not_see_each_others_cases():
                for r in records)
 
 
+# ---- AC-10: coherence_rate gets a denominator from the status turns -----------------------------------------------
+def status_turn(store: MemoryStore, session, text: str) -> dict:
+    """A `status` turn: the case opened earlier in the run, told with its label, and the card with its label."""
+    case = store.list_cases(session.customer_id, run_id=session.run_id)[0]
+    reply = (f"Situação do seu caso {case.case_id}: Em análise (consultado em 2026-06-01 15:04 UTC).\n"
+             "Seu cartão com final 4417: bloqueado (consultado em 2026-06-01 15:04 UTC).")
+    trace = [{"node": n, "status": "ok", "ms": 0} for n in ("identity", "route", "status", "respond")]
+    return turn(reply=reply, language="pt", decision=None, case_id=case.case_id, trace=trace)
+
+
+def two_turns(store: MemoryStore, session, text: str) -> dict:
+    return block_and_open(store, session, text) if "débito" in text else status_turn(store, session, text)
+
+
+def test_ac_10_a_status_turn_fills_one_status_reply_per_line_with_the_fresh_read():
+    s = stack(two_turns)
+    messages = [{"role": "customer", "text": t} for t in ("Não reconheço um débito", "Como está meu caso?")]
+    [record] = run_set([{**case(), "messages": messages}], ["S0"], runs=1, api=Api(s.client))
+    final = FinalState.model_validate(record["final_state"])
+    assert [(r.subject[:2], r.stated_status, r.read_status) for r in final.status_replies] == [
+        ("K-", "Em análise", "Em análise"), ("PR", "bloqueado", "bloqueado")]
+    assert final.status_replies[1].subject == PRD
+
+
+def test_ac_10_a_turn_that_is_not_a_status_answer_adds_no_status_reply():
+    s = stack()
+    [record] = run_set([case()], ["S0"], runs=1, api=Api(s.client))
+    assert record["final_state"]["status_replies"] == []
+
+
 # ---- AC-09: a turn the graph did not finish is a failed run, with the reason -------------------------------------
 def test_ac_09_a_platform_failure_makes_a_failed_run_that_says_why():
     s = stack(lambda store, session, text: PlatformError("platform run error"))

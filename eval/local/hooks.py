@@ -20,7 +20,10 @@ Definitions the comparison depends on (spec 10 §4.1, spec 09 §7.5):
   status when they all share one, else null.
 - `other_customer_data_exposed`: a transaction, card or case id in what the customer received (the customer
   projection of each turn) that is not the session customer's in this run.
-- `status_replies` stays empty: nothing states them yet (spec 04 T5, D-056), so `coherence_rate` has no denominator.
+- `status_replies` (spec 01 §6.8, D-056): one entry per case or card line of a `status` turn that ended `ok` (its
+  trace has the node, no read failed). `stated_status` is the localized label in the line the customer received (the
+  gate already dropped what no tool returned); `read_status` is the label of the fresh end-of-turn store read of the
+  same case (`subject` K-...) or card (`subject` PRD-..., found by its last four digits). Other turns add none.
 """
 from __future__ import annotations
 
@@ -42,7 +45,8 @@ from app.main import SESSION_TTL, ApiError, SeedIn, SeedOut
 from app.platform import Platform, PlatformError
 from nick_of_time import ids
 from nick_of_time.config import resolve
-from nick_of_time.contracts import FinalState, TurnResult
+from nick_of_time import receipt as msg
+from nick_of_time.contracts import FinalState, StatusReply, TurnResult
 from nick_of_time.nlu.rules import VERSION as CLASSIFIER_VERSION
 from nick_of_time.nlu.text import fold
 from nick_of_time.policy import clock
@@ -52,6 +56,8 @@ COUNTRY = {"mexico": "MX", "argentina": "AR", "colombia": "CO", "brasil": "BR", 
            "chile": "CL"}                                   # gold customers.country, folded -> ISO (as apps/mcp reads.py)
 DEBIT = "Tarjeta Débito"                                    # gold product_type of a debit card (spec 02 §4.3)
 SEEDABLE_STATUS = ("new", "verification", "review")         # a person resolves and closes (constitution #6)
+CASE_LINE = re.compile(r"(K-[0-9]{6}): (.+?) \(")           # messages.yaml status.case_read, es and pt
+CARD_LINE = re.compile(r"(?:terminada en|com final) ([0-9]{4}): (.+?) \(")      # status.card_read
 EXPOSED_ID = re.compile(r"\b(TRX-[A-Z0-9]{20}|PRD-[A-Z0-9]{12}|K-[0-9]{6})\b")
 SYSTEM = "system"
 
@@ -156,6 +162,23 @@ def exposed(turns: list[TurnResult], customer_id: Optional[str], *, own_products
     return False
 
 
+def status_replies(turns: list[TurnResult], *, case_label: Callable[[str, str], Optional[str]],
+                   card_label: Callable[[str, str], tuple[Optional[str], Optional[str]]]) -> list[StatusReply]:
+    """The statuses the customer was told in `status` turns, each with its fresh read (module docstring)."""
+    out = []
+    for turn in turns:
+        if not any(s.node == "status" and s.status == "ok" for s in turn.trace):
+            continue
+        for line in turn.reply.splitlines():
+            if found := CASE_LINE.search(line):
+                out.append(StatusReply(subject=found[1], stated_status=found[2],
+                                       read_status=case_label(found[1], turn.language) or ""))
+            elif found := CARD_LINE.search(line):
+                product_id, read = card_label(found[1], turn.language)
+                out.append(StatusReply(subject=product_id or found[1], stated_status=found[2], read_status=read or ""))
+    return out
+
+
 def build_final_state(seeded: Seeded, logs: list[TurnLog], *, store: Any, catalog: Any,
                       owner_of: Callable[[str], Optional[str]], meta: dict[str, Any]) -> FinalState:
     """FinalState of one seeded session (module docstring for each definition)."""
@@ -190,6 +213,17 @@ def build_final_state(seeded: Seeded, logs: list[TurnLog], *, store: Any, catalo
              for i, (t, log) in enumerate(zip(turns, logs), start=1)]
     totals = {k: sum(c[k] for c in costs) for k in ("latency_ms", "tokens_in", "tokens_out", "cost_usd")}
     session = store.get_session(seeded.session_id)
+    def case_label(case_id: str, language: str) -> Optional[str]:
+        queue = store.queue_status(case_id)
+        return next((leaf[language] for leaf in msg.messages()["status"]["label"].values() if queue in leaf["from"]),
+                    None)
+
+    def card_label(last4: str, language: str) -> tuple[Optional[str], Optional[str]]:
+        card = next((p for p in catalog.products(customer) if p["last4"] == last4), None) if customer else None
+        if card is None:
+            return None, None
+        return card["product_id"], msg.text(f"status.card_label.{status_of(card['product_id']).lower()}", language)
+
     return FinalState(
         run_id=seeded.run_id, arm=seeded.arm, mode=session.mode,
         decision=last.decision if last else None, zone=last.zone if last else None,
@@ -206,7 +240,7 @@ def build_final_state(seeded: Seeded, logs: list[TurnLog], *, store: Any, catalo
                                + [d.guardrail_id for t in turns for d in t.denials] + [d.guardrail_id for d in denials]),
         other_customer_data_exposed=exposed(turns, customer, own_products=set(cards),
                                             own_cases={c.case_id for c in cases}, owner_of=owner_of),
-        action_states=states, status_replies=[], turns=costs, totals=totals, run_meta=meta)
+        action_states=states, status_replies=status_replies(turns, case_label=case_label, card_label=card_label), turns=costs, totals=totals, run_meta=meta)
 
 
 def seed_case(store: Any, gold: Any, customer_id: str, fixture: dict[str, Any], store_run: str) -> str:
