@@ -118,7 +118,7 @@ rule 2), and only a live synthetic score decides as `[simulated]` (spec 02 D-027
 | Closed case | Never reopened by the customer; a new case with `related_case_id`; its deadline runs from the new notice `[assumption, verify per country in spec 02 T3]` | Registered automatically; decided by a person |
 | Customer wants to close or reopen a case | Not allowed: closing and reopening are analyst actions in the api | — |
 
-**Common rules:** API key middleware (every route but `/health`, which returns no data, answers 401 without a valid
+**Common rules:** API key middleware (every route but `/health`, which returns no customer data and no secret, answers 401 without a valid
 `X-API-Key`; an `MCP_API_KEY` under 32 characters refuses to start); session check first (AC-02); fault check second
 (AC-05); then per-session limits of 30 calls/min, 5 writes/min (W and N tools) and 3 notifications/hour (D-041),
 counting admitted calls only `[assumption]` (G-TOOL-01, G-OPS-01); then strict Pydantic validation (`extra="forbid"`),
@@ -212,11 +212,22 @@ Implementation goes in one `feat/03-*` branch per task (T1: `feat/03-mcp-server`
       gold v1 · AC-04, AC-13, AC-16
 - [ ] T6 — follow-up tools (`add_case_info`, `request_call`, `request_reevaluation`) · AC-17, AC-18, AC-19
 - [ ] T7 — `send_case_summary`, `list_my_notifications` · AC-21, AC-22
-- [ ] T8 — entry point (`MCP_API_KEY` from SSM, one uvicorn worker) over the in-memory store (the Postgres backend
-      and its `sessions` and `policy_denials` accessors are task 01g's; the gate's `SessionRow` and `DenialRow` move to
-      those accessors once 01g part 2, PR #87, merges), Dockerfile and compose service `mcp`; tests
-      `tests/test_spec03_*.py` against a gold fixture. The `tools/list` descriptions (today `<name> (spec 03 §6)`) are
-      set here from what spec 04 binds for the agent (owner: spec 04 / T8)
+- [ ] T8 — entry point, Dockerfile and compose service `mcp` · AC-02, AC-06, AC-12 · `apps/mcp/mcp_server/__main__.py`,
+      `apps/mcp/Dockerfile`, `tests/test_spec03_entrypoint.py`. Done (task 03d2): `python -m mcp_server` reads
+      `MCP_API_KEY` (deploy writes it from SSM `/nickoftime/prod/MCP_API_KEY`; under 32 characters the server refuses
+      to start, and the key is never logged), `DATABASE_URL` → `PostgresStore` (the in-memory store only with
+      `MCP_DEV_MEMORY_STORE=1`), `GOLD_PATH` (gold v1 mounted read-only at `/gold/v1`, spec 06 FR-09) and
+      `GOLD_VERSION` (else `v<version>` from the gold manifest); one uvicorn worker, because the rate limiter counts in
+      one process. The gate reads `sessions` and writes `policy_denials` through the store's accessors (task 01g). The
+      read handlers (T2, T3) are wired here; the modules of T4–T7 (`writes`, `case_reads`, `followups`, `notify`) are
+      imported when present and either fill `server.HANDLERS` on import or define `<name>_handlers(...)` factories
+      whose parameters are named `gold`, `policies`, `store`, `channels` or `guardrails` `[assumption]`. An absent
+      module is skipped (its tools answer `UNAVAILABLE`); a present one that fails to import, a factory missing a
+      dependency or failing, or an unknown tool name stops startup (fail closed), so a deploy's health wait fails
+      instead of shipping it. `/health` adds the gold and policies versions, the store backend, the handler count and
+      the loaded and absent module names, never customer data or a secret. The image runs the real
+      server; `infra/compose.dev.yml` keeps `mcp_server.fake` for local work. Open: the `tools/list` descriptions
+      (today `<name> (spec 03 §6)`), set from what spec 04 binds for the agent (owner: spec 04 / T8)
 
 **Closing checklist:** every AC has a passing test or check that cites it · status → Implemented · lessons to `CLAUDE.md`.
 
