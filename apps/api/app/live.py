@@ -19,6 +19,7 @@ import re
 import secrets
 import uuid
 from collections import deque
+from decimal import Decimal
 from typing import Any, Literal, Optional
 from zoneinfo import ZoneInfo
 
@@ -26,17 +27,17 @@ from fastapi import Body, Cookie, Depends, FastAPI, Header, Query, Request, Resp
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse, RedirectResponse, StreamingResponse
 
-from app import demo
+from app import demo, persona
 from app.auth import AuthError, CognitoVerifier
 from app.catalog import Catalog, FixtureCatalog, catalog_from_env
 from app.main import (COOKIE, SESSION_TTL, AckOut, ApiError, CallIn, CallOut, ConsoleCaseOut, EmailIn,
                       EmailOut, EventOut, HealthOut, InfoIn, NotificationOut, PrefsIn, PrefsOut, ReevalIn, ReevalOut,
-                      RecentTransactionOut, ScenarioOut, SessionIn, SessionOut, SettingsIn, SettingsOut,
+                      PersonaIn, PersonaOut, RecentTransactionOut, ScenarioOut, SessionIn, SessionOut, SettingsIn, SettingsOut,
                       SyntheticChargeIn, SyntheticChargeOut, TelegramOut,
                       ThreadOut, VerifyIn, VerifyOut, DemoCustomerOut, TIME_ZONES, _is_analyst_path, today)
 from app.notify import ChannelFailed, HttpNotifier, Notifier, mask_chat, mask_email
 from app.platform import HttpPlatform, Platform, PlatformError
-from nick_of_time import CONTRACT_VERSION, ids
+from nick_of_time import CONTRACT_VERSION, ids, llm
 from nick_of_time.contracts import (AnalystActionIn, AnalystActionOut, CaseSummary, CaseView, CustomerCaseSummary,
                                     CustomerCaseView, CustomerReceipt, CustomerTurn, ProductView, ProgressItem,
                                     TurnResult)
@@ -118,7 +119,7 @@ class LinkTokens:
 
 def create_live_app(store: Store, *, catalog: Optional[Catalog] = None, verifier: Optional[CognitoVerifier] = None,
                     platform: Optional[Platform] = None, notifier: Optional[Notifier] = None,
-                    now=_now, link_key: Optional[str] = None) -> FastAPI:
+                    now=_now, link_key: Optional[str] = None, persona_llm: Optional[llm.LLMClient] = None) -> FastAPI:
     catalog = catalog or FixtureCatalog()
     policies = load_policies()
     tokens = LinkTokens(link_key or os.getenv("LINK_SIGNING_KEY"))      # a dedicated key (SSM), never a shared secret
@@ -126,6 +127,7 @@ def create_live_app(store: Store, *, catalog: Optional[Catalog] = None, verifier
                   openapi_url="/api/openapi.json")
     app.state.store, app.state.runs, app.state.now = store, deque(maxlen=200), now
     app.state.charges = {}                          # session id -> its last synthetic charge (AC-19)
+    app.state.personas, app.state.persona_spend = {}, {}   # LLM openings per session, persona spend per UTC day (AC-20)
     notifier = notifier or HttpNotifier.from_env()
 
     @app.exception_handler(ApiError)
@@ -452,11 +454,49 @@ def create_live_app(store: Store, *, catalog: Optional[Catalog] = None, verifier
         only the session in the cookie, and no score or label (D-013, constitution #7)."""
         if session_id != s["session_id"]:
             raise ApiError(404, "NOT_FOUND", "Unknown session")
+        return recent(s, limit)
+
+    def recent(s: dict, limit: int) -> list[dict]:
         last4 = {p["product_id"]: p["last4"] for p in catalog.products(s["customer_id"])}
         rows = [*run_charges(s["customer_id"], s["run_id"], s["mode"]),        # dated today: the newest
                 *catalog.recent_transactions(s["customer_id"], today(s["mode"], s["country"]), limit)][:limit]
         return [{**{k: v for k, v in t.items() if k != "product_id"}, "last4": last4.get(t["product_id"])}
                 for t in rows]
+
+    @app.post("/api/demo/persona", response_model=PersonaOut)
+    def demo_persona(body: PersonaIn, s: dict = Depends(session)):
+        """Demo type D (AC-20): a suggested opening in the session language about one of the session's recent charges,
+        written by S1 (Haiku 4.5) in the character's voice, else the fixed template; billed calls go to llm_calls."""
+        if not is_demo_run(s["run_id"]):
+            raise ApiError(403, "DENY", "Personas exist only in a demo session")
+        try:
+            name = demo.clean_name(body.display_name) or store.get_session(s["session_id"]).display_name
+        except ValueError as error:
+            raise ApiError(422, "INVALID", str(error)) from None
+        charge = next((t for t in recent(s, 20) if body.transaction_id in (None, t["transaction_id"])), None)
+        if charge is None:
+            raise ApiError(404, "NOT_FOUND", "No such transaction in this session")
+        language, now, message = s["language"], app.state.now(), None
+        if not hasattr(app.state, "persona_llm"):
+            app.state.persona_llm = persona_llm or persona.default_client()
+        client, user = app.state.persona_llm, persona.payload(language, body.character, name, charge)
+        cost, used = (persona.estimate(client, user) if client else None), app.state.personas.get(s["session_id"], 0)
+        # G-OPS-01: the day's spend (the abuse guard's store sum once #148 is on main, else this process's) and cap
+        day = store.llm_spend_since(now.replace(hour=0, minute=0, second=0, microsecond=0)) \
+            if hasattr(store, "llm_spend_since") else app.state.persona_spend.get(now.date(), 0.0)
+        if cost is not None and used < persona.SESSION_CAP and float(day) + cost <= float(
+                os.getenv("DAILY_LLM_CAP_USD") or 5.0):
+            app.state.personas[s["session_id"]] = used + 1
+            message, result = persona.generate(client, user)
+            if result is not None:
+                spent = result.cost_usd or 0.0
+                app.state.persona_spend[now.date()] = app.state.persona_spend.get(now.date(), 0.0) + spent
+                store.add_llm_call(trace_id=_trace(), provider=result.provider, model=result.model,
+                                   tokens_in=result.tokens_in, tokens_out=result.tokens_out,
+                                   latency_ms=result.latency_ms, cost_usd=Decimal(str(spent)), run_id=s["run_id"])
+        return {"message": message or persona.template(language, name, charge), "language": language,
+                "source": "llm" if message else "template", "character": body.character,
+                "transaction_id": charge["transaction_id"], "synthetic": bool(charge.get("synthetic"))}
 
     @app.post("/api/sessions/{session_id}/synthetic-charge", status_code=201, response_model=SyntheticChargeOut)
     def synthetic_charge(session_id: str, body: SyntheticChargeIn, s: dict = Depends(session)):
