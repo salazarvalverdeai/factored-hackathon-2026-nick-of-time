@@ -2,8 +2,8 @@
 
 - **Feature:** three pages where a judge sees the results, the business numbers and the data quality without reading
   code. `/evaluation` is P0; `/analytics` and `/data` are P1.
-- **Status:** Draft
-- **Owner:** @vldiego · **Priority:** P0 / P1 · **Size:** M
+- **Status:** In progress
+- **Owner:** @vldiego (follow-ups from 2026-10-05: @salazarvalverdeai) · **Priority:** P0 / P1 · **Size:** M
 - **Challenge dimension:** Data Analytics
 - **Depends on:** 16 (web foundation), 10, 11, 15, 17 (result files), 14 (operational KPIs, P1) · **Enables:** E1
   (pitch) · **ADRs:** 0007, 0014, 0015
@@ -30,7 +30,8 @@ comment). AC-04 onward are added by this spec. Evidence: [T] test · [C] command
   `[data]` for spec 17), with a link to
   `eval/PROTOCOL.md`. · [U]
 - **AC-02 (P1)** — `/analytics` shall show the pitch numbers with their `[data]` label and source, plus the
-  operational KPIs of spec 14. · [U] (pitch numbers done in PR #72; the KPIs wait for spec 14)
+  operational KPIs of spec 14. · [U] (pitch numbers done in PR #72; the KPIs wait for spec 14, deferred until after
+  the submission)
 - **AC-03 (P1)** — `/data` shall show the medallion, the quality report, the manifest versions and the late-arrival
   fixture result. · [U]
 - **AC-04** — While a result file of §7.1 does not exist, its section shall show "Results pending" with what is
@@ -102,8 +103,9 @@ checks re-run between `delivery_1` and `delivery_2` of the fixture). Built by a 
 - Assumption: results from a development run may be shown only under the notice of AC-05. `[assumption]`
 
 ## 9. Out of scope
-Power BI · computing any metric in the browser (the pages only display) · the operational lakehouse (spec 14) · the
-landing page and the slides (E1) · P2: auditor findings and judge–analyst agreement.
+Power BI · computing any metric in the browser (the pages only display) · the operational lakehouse (spec 14) and,
+while it is deferred (lead, 2026-10-05), its KPIs on `/analytics` (T6) · the landing page and the slides (E1) · P2:
+auditor findings and judge–analyst agreement.
 
 ## 10. Plan, tasks and verification
 Implementation goes in `feat/12-…` branches once this spec is approved.

@@ -2,8 +2,10 @@
 
 - **Feature:** the system learns from its own operation: the records of the cases it handles go bronze → silver → gold
   and produce the daily KPIs of `/analytics` and the analysts' decisions as labels for the next evaluation set.
-- **Status:** Draft
-- **Owner:** @vldiego · **Priority:** P1 (Databricks: P2) · **Size:** M–L
+- **Status:** Approved — **deferred until after the submission** (lead, 2026-10-05): nobody can build it before the
+  deadline, and no P0 criterion depends on it
+- **Owner:** @vldiego (follow-ups from 2026-10-05: @salazarvalverdeai) · **Priority:** P1 (Databricks: P2) ·
+  **Size:** M–L
 - **Challenge dimension:** Data Engineering, Data Analytics
 - **Depends on:** 05 (operational tables in Postgres; `schema.sql` is in `main`), the existing pipeline
   (`data/pipeline/`), gold v1 · **Enables:** 12 (`/analytics`, AC-02) · **ADRs:** 0004, 0010, 0018, 0020, 0021

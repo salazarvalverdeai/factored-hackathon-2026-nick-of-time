@@ -2,8 +2,8 @@
 
 - **Feature:** one command that runs a case set against one or more system arms, compares the **final state** with the
   expected one, and reports the challenge metrics with their denominators.
-- **Status:** Draft
-- **Owner:** @vldiego · **Priority:** P0 · **Size:** M
+- **Status:** In progress
+- **Owner:** @vldiego (follow-ups from 2026-10-05: @salazarvalverdeai) · **Priority:** P0 · **Size:** M
 - **Challenge dimension:** Machine Learning, Data Analytics
 - **Depends on:** 01 (eval hooks and `FinalState`, in `main`), 09 (cases), then 04 (graph) · **Enables:** 12
   (`/evaluation`), 15 (B2 runs on this harness), 18 (shared checks) · **ADRs:** 0007, 0015, 0020, 0021
