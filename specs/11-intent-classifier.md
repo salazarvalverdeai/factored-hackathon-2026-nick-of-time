@@ -115,8 +115,21 @@ the normal approximation to the binomial and a 2,000-resample bootstrap on 5 bal
 ```python
 nlu = load_nlu(arm="B1", path="models/intent-b1-v1.joblib")   # arm from the run config
 r = nlu.parse(text, language_hint=None, today=clock.today(mode))   # mode from the session (ADR 0020)
-# r: intent, confidence, slots {amount, currency, date, merchant}, language, injection_flagged, arm, version
+# r: intent, confidence, slots {amount, currency, date, merchant}, language, injection_flagged, dispute_detected,
+#    arm, version
 ```
+`dispute_detected` is required (no default): it is true when the message carries dispute words, even if
+`human_request` or `status_inquiry` wins. How each arm sets it:
+- **B0:** any `unrecognized_charge` or `wrongful_charge` rule fires, explicit dispute verbs included ("disputar un
+  cargo", "contestar uma compra", "no es mío").
+- **B1 and B3:** the predicted intent is a dispute, OR the B0 dispute rules fire (B1 is single-label).
+- **B2:** the LLM returns it in the structured output, next to the intent.
+
+`status_inquiry` wins over a dispute only when the dispute words are absent, or come with a past "already reported"
+form and no "another charge" (otro cargo, outra compra). Past forms: ES reporté, reclamé, registré, denuncié, read
+before accent folding because the noun "reporte" and the command "registre" differ only by the accent; an unaccented
+form only after ya, lo or la; había/tinha + participle; PT reportei, reclamei, registrei, denunciei. What the graph
+does with the flag is decision D-020 (§8).
 
 ## 7. Data model touched
 Reads the sentence set of spec 09 (`eval/classifier/*.jsonl`). Writes `models/intent-*.joblib`, `models/injection-*.joblib`,
@@ -129,6 +142,23 @@ Reads the sentence set of spec 09 (`eval/classifier/*.jsonl`). Writes `models/in
 - **Q2 — B3 cascade:** **Decided (lead, 2026-10-04):** P1 as a separate B1 arm; it is what S1 runs, so B2 measures it.
 - **Q3 — τ rule:** **Decided (lead, 2026-10-04):** precision ≥ 0.95 on accepted messages, chosen on validation.
 - **Q4 — intent set:** **Decided (lead, 2026-10-04):** five intents. Spec 09 (Diego) relabels and adds sentences.
+- **Intent order (B0) `[assumption]`:** `human_request` > `status_inquiry` > `wrongful_charge` > `unrecognized_charge`
+  > `out_of_scope`, with the status rule of §6.
+- **D-020 — what `dispute_detected` triggers** (defaults applied, pending the lead's confirmation). Specs 02, 04 and
+  09 adopt it in their own tasks; this spec does not edit them.
+  - (a) `status_inquiry` with `dispute_detected`: answer the status first (`list_my_cases`). If no case is active, run
+    the dispute path in the same turn; otherwise answer the status and offer the "Reportar otro cargo" chip.
+  - (b) `human_request` with `dispute_detected`: `request_call` first (a person is never blocked, AC-10), then the
+    dispute path with `open_case` only (POL-TICKET-ALWAYS, mode `auto`, no block in that turn). If the transaction is
+    not identified in that turn, the call stays a general request and the dispute continues on the next turn.
+  - (c) Spec 02: the engine input (`DecisionInput`, spec 02 §6) gains `dispute_detected: bool`, and rule 3a
+    (`POL-HUMAN-REQUEST`) stops being terminal when it is true, so rules 5–9 still run. Task 02a implements it.
+  - (d) Spec 09 labels "also a dispute" on `human_request` and `status_inquiry` sentences, so the AC-03 report gives
+    the recall of `dispute_detected` per language (Diego), before `eval/PROTOCOL.md` is sealed.
+- **B0 confidence `[assumption]`:** fixed at 0.9 for a match and 0.5 for none, so it stays above
+  `clarify.intent_confidence_min` (0.80) on a match. Being constant, ECE and coverage at τ say nothing for B0; the T6
+  report states it.
+- **Currency `[assumption]`:** a bare "$" or "pesos" leaves `currency` null; the country comes from the session.
 - Assumption: spec 09 delivers about 800 sentences (ES and PT, with author ids) written by the team and paraphrased
   with an LLM whose name is recorded; results from a candidate of the same family as the generator are flagged.
 
@@ -139,10 +169,11 @@ Fine-tuning; embeddings + LR (P2); Jev (benchmarked in spec 15); the agent's use
 - [ ] T1 — `eval/PROTOCOL.md` with the floors and rule of §4.1; review by Diego; seal · AC-01, AC-06
       (partly done: protocol written, with the rules of specs 15 and 17; review and seal pending, manual step M02;
       the AC-06 [C] split check is skipped until spec 09 delivers `eval/classifier/`)
-- [ ] T2 — B0 rules + date parser · AC-08, AC-09
+- [x] T2 — B0 rules + date parser (`nick_of_time.nlu`; `dispute_detected` in §6, intent order and D-020 in §8) · AC-08,
+  AC-09
 - [ ] T3 — B1 training with calibration; τ on validation · AC-02, AC-07
 - [ ] T4 — B2 structured-output prompt (Haiku 4.5) · AC-02
-- [ ] T5 — injection detector, both arms · AC-04
+- [ ] T5 — injection detector, both arms · AC-04 (rules arm done in 11a, `nlu.injection`; LR arm and AC-04 numbers pending spec 09)
 - [ ] T6 — evaluation script, report, export, ADR "model selection" (with spec 15) · AC-03, AC-05
 
 ## 11. Sources
