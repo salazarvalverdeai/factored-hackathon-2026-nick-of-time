@@ -113,7 +113,8 @@ The harness is a client of spec 01; it adds no route.
 | POST | `/api/agent/threads/{id}/runs/stream` | one customer message; `not_session` cookie = `session_id` (D-019) | the `turn` event, only to know the turn ended |
 | GET | `/api/eval/final-state/{session_id}` | — | `FinalState` |
 
-Command line: `python -m eval.harness run --set dev|heldout --arms S0,S1[,S2] [--runs 4] [--api URL] [--out DIR]` and
+Command line: `python -m eval.harness run --set dev|heldout --arms S0,S1[,S2] [--runs 4] [--api URL] [--out DIR]
+[--cases FILE]` (run with `PYTHONPATH=packages`; `--cases` points at another case file, such as the examples) and
 `python -m eval.harness report DIR`. `make eval` runs the dev set on S0 and S1 against the local stack.
 
 ## 7. Data model touched
@@ -122,9 +123,11 @@ Reads `eval/cases/*.jsonl` (spec 09), `eval/heldout.sha256`, `eval/PROTOCOL.md` 
 
 ### 7.1 Run output — `<out>/`
 - `runs.jsonl`: one line per run — `run_id`, `case_id`, `arm`, `k`, `set`, `language`, `type`, `segment`, `country`,
-  `status` (`ok`|`failed`), `error`, `passed`, `unsafe`, `findings` (audit), `final_state`, `expected`.
+  `status` (`ok`|`failed`), `error`, `passed`, `unsafe` (the reasons, empty when safe), `mismatches` (per field,
+  expected and observed), `findings` (audit), `final_state`, `expected`, `expected_transaction_id`.
 - `summary.csv`: one line per arm × language × type × segment × metric — `value`, `numerator`, `denominator`,
-  `ci_low`, `ci_high`, `n_cases`.
+  `ci_low`, `ci_high`, `n_cases`. Each arm also has one block over all its runs, with `all` in the three cell
+  columns. Latency and cost rows carry a value only.
 - `meta.json`: harness git SHA, case-file sha256, protocol status and hash, start and end time, and the `run_meta` of
   each arm (git SHA, Platform revision, `policies_version`, provider, models, prompt hash, classifier version).
 
@@ -172,9 +175,9 @@ metrics (spec 11) · the online auditor (spec 18, P1) · writing the cases (spec
 
 ## 10. Plan, tasks and verification
 Implementation goes in `feat/10-…` branches once this spec is approved. T1–T3 need only the stubs of spec 01.
-- [ ] T1 — client, run loop and `runs.jsonl` against the api stub · covers AC-01, AC-06, AC-09, AC-12 · done when: the
+- [x] T1 — client, run loop and `runs.jsonl` against the api stub · covers AC-01, AC-06, AC-09, AC-12 · done when: the
       example cases run offline in CI
-- [ ] T2 — comparison and metrics of §4.1 with `nick_of_time.audit` · covers AC-02, AC-08, AC-10 · done when: unit tests
+- [x] T2 — comparison and metrics of §4.1 with `nick_of_time.audit` · covers AC-02, AC-08, AC-10 · done when: unit tests
       on recorded `FinalState` fixtures give the expected numerators and denominators
 - [ ] T3 — `summary.csv`, `meta.json`, `report` command and `evaluation_summary.json` · covers AC-05, AC-11
 - [ ] T4 — held-out guard (seal and hash) · covers AC-07
