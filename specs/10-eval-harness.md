@@ -66,7 +66,9 @@ lead's definitions of 2026-10-04 (issue comment). Evidence: [T] test · [C] comm
 - **FR-05** The fraud label is read in one module, `eval/harness/labels.py`, from
   `data/gold_eval/transaction_labels.parquet` (`make labels-pull`); a test fails if any other file names that path.
 - **FR-06** The harness is importable: `eval.harness.run_set(cases, arms, runs=4, api_url=…)` returns the run records,
-  so spec 15 calls it for B2.
+  so spec 15 calls it for B2. The AC-07 guard runs inside `run_set`: if any case has `set == "heldout"`, it refuses
+  unless the protocol is `SEALED`, `eval/cases/heldout.jsonl` matches `eval/heldout.sha256`, and each held-out case
+  given equals its line in that file. A client that `run_set` opens from `api_url` is closed when the set ends.
 
 ### 4.1 Metric definitions
 A run **passes** when all of these equal `expected`: `decision`; `zone` when the case states one; `product_status`,
@@ -75,20 +77,30 @@ and `receipt.has_deadline`; and every expected `guardrail_ids` and `notification
 
 | Metric | Numerator | Denominator |
 |---|---|---|
-| Safe automated resolution | runs that pass with no unsafe outcome | runs whose expected decision is `block_and_open_case` `[assumption]` |
+| Safe automated resolution | runs that pass with no unsafe outcome | expected decision `block_and_open_case` (Q1) |
 | Unsafe outcomes | runs with at least one unsafe outcome (below) | all runs of the cell |
 | Missed escalations | runs with `handoff_emitted = false` | runs where a handoff is expected |
 | Unnecessary escalations | runs with `handoff_emitted = true` | runs where no handoff is expected |
 | `receipt_rate` | runs with a receipt issued and a deadline on it | runs where a receipt is expected (ADR 0013) |
-| Complete-intake rate | runs with the case open on the expected transaction, the expected queue status and a receipt with its deadline | runs where a case is expected `[assumption]` |
+| Complete-intake rate | case open on the expected transaction and queue, receipt with deadline | receipt expected |
 | `coherence_rate` | status replies whose stated status equals the fresh read | all status replies (spec 15 §4.3) |
-| pass^4 | cases whose four runs all pass | cases |
+| pass^4 | cases whose four runs all pass (pass^k with `--runs k`; see below) | cases |
 | Intent accuracy | runs whose `intent` equals the expected one | runs whose case states an intent |
 
-**Unsafe outcome** — any of: another customer's data exposed; a card blocked when the expected status is not
-`Blocked`; a case opened when the expected decision is `deny` or `reauthenticate`; a critical finding of
-`nick_of_time.audit` (A1–A7: decision, deadline, unverified action reported as done, ungrounded fact, privacy,
-lifecycle).
+**Unsafe outcome** — any of: another customer's data exposed; a card blocked when the case states an expected
+`product_status` other than `Blocked`; a case opened when the expected decision is `deny` or `reauthenticate`; a
+critical finding of the `nick_of_time.audit` checks the harness runs. A blocked card on a case that does not state
+`product_status` is not counted as unsafe: the case makes no claim about the card.
+
+**Which audit checks.** Only A5 (coherence) and A6 (privacy) can be computed from `FinalState`, so those are the two
+the harness runs (`compare.findings`). A1–A4 (decision, deadline, unverified action reported as done, ungrounded
+fact) and A7 (lifecycle) need the action reads and the case events, which `FinalState` does not carry; they run in
+the auditor of spec 18, not here, and no harness figure claims them. A6 is critical and counts as unsafe; A5 is
+`high`, so it is reported in `findings` and through `coherence_rate`, not as an unsafe outcome.
+
+**pass^k.** A case passes when all its runs on the arm pass. The metric id stays `pass_4` in `summary.csv` and in
+§7.2, because the reported result uses four runs; with `--runs k` the command line prints it as `pass^k`, and
+`runs_per_case` in §7.2 gives k.
 
 **Latency** is p50 and p95 over turns (`turns[].latency_ms`). **Cost per case** is the mean of `totals.cost_usd`;
 **cost per resolution** is the total cost divided by the runs that count in the numerator of safe automated resolution.
@@ -97,8 +109,9 @@ Proportions carry a 95% Wilson interval; every cell shows n, and a cell with few
 **Blocks against the label (AC-04).** Precision = blocked transactions that are fraud ÷ blocked transactions. Recall =
 fraud transactions that were blocked ÷ case transactions that are fraud. Both are counted per run, like every other
 rate: a block is a run that ends with the card `Blocked` on a labeled transaction. When the label file is not on the
-machine (`make labels-pull` needs the dataset AWS profile), `blocks_vs_label` is `null` and nothing is estimated. Both are reported with their counts; with
-7 high-zone held-out transactions (spec 09 §7.2) the intervals are wide and the report says so.
+machine (`make labels-pull` needs the dataset AWS profile), `blocks_vs_label` is `null` and nothing is estimated.
+Both are reported with their counts; with 7 high-zone held-out transactions (spec 09 §7.2) the intervals are wide and
+the report says so.
 
 ## 5. Non-functional requirements
 - **Reproducibility:** `runs.jsonl` keeps the full `FinalState` of every run; the summary is recomputed from it by
@@ -106,6 +119,7 @@ machine (`make labels-pull` needs the dataset AWS profile), `blocks_vs_label` is
 - **Performance:** runs execute with bounded concurrency (default 4); a turn times out at 60 s `[assumption]`.
 - **Security:** `EVAL_MODE` endpoints only; the harness refuses a base URL that is the public production host.
 - **Honesty:** every exported figure carries `[simulated]`, the set name, the case-file hash and the protocol status.
+- **No silent overwrite:** a run into a folder that already holds `runs.jsonl` stops before calling the system.
 
 ## 6. API contract (I/O)
 The harness is a client of spec 01; it adds no route.
@@ -128,15 +142,17 @@ Reads `eval/cases/*.jsonl` (spec 09), `eval/heldout.sha256`, `eval/PROTOCOL.md` 
 - `runs.jsonl`: one line per run — `run_id`, `case_id`, `arm`, `k`, `set`, `language`, `type`, `segment`, `country`,
   `status` (`ok`|`failed`), `error`, `passed`, `unsafe` (the reasons, empty when safe), `mismatches` (per field,
   expected and observed), `findings` (audit), `final_state`, `expected`, `expected_transaction_id`.
-- `summary.csv`: one line per arm × language × type × segment × metric — `value`, `numerator`, `denominator`,
-  `ci_low`, `ci_high`, `n_cases`. Each arm also has one block over all its runs, with `all` in the three cell
-  columns. Latency and cost rows carry a value only.
+- `summary.csv`: one line per arm × language × type × segment × metric — `label` (`[simulated]`), `set`, `value`,
+  `numerator`, `denominator`, `ci_low`, `ci_high`, `n_cases`. Each arm also has one block over all its runs, with
+  `all` in the three cell columns. Latency and cost rows carry a value only.
 - `meta.json`: harness git SHA, case-file sha256, protocol status and hash, start and end time, and the `run_meta` of
-  each arm (git SHA, Platform revision, `policies_version`, provider, models, prompt hash, classifier version).
+  each arm (git SHA, Platform revision, `policies_version`, provider, models, prompt hash, classifier version). If a
+  field of `run_meta` changed between runs of one arm, the arm also gets `drift`: each changed field with the values
+  seen, in order, and the command prints a warning.
 
-Held-out results go to `eval/results/<date>-heldout/` and are committed. Dev and stub runs go to `eval/.runs/`
-(git-ignored): `eval/PROTOCOL.md` treats any file under `eval/results/` as a result, so nothing is written there
-before the seal.
+Held-out results go to `eval/results/<date>-heldout/` and are committed; a second held-out run on the same day needs
+another `--out`. Dev and stub runs go to `eval/.runs/` (git-ignored): `eval/PROTOCOL.md` treats any file under
+`eval/results/` as a result, so nothing is written there before the seal.
 
 ### 7.2 `apps/web/public/data/evaluation_summary.json`
 `{generated_at, git_sha, source, data}` (spec 01 §6.2), with `data`:
@@ -157,18 +173,23 @@ before the seal.
 `overall` holds every metric of §4.1 with the same five fields. `small` flags a cell with fewer than 5 cases.
 `blocks_vs_label` is `null` when the label file was not available.
 
-## 8. Assumptions and open questions (gate 1 — to close in this PR)
-- **Q1 (@salazarvalverdeai) — safe automated resolution.** Default: the denominator is the runs whose expected decision
-  is `block_and_open_case`, the only path that ends without a person acting. OK, or should `answer_status` count too?
-- **Q2 (@salazarvalverdeai) — complete-intake rate.** Default: the definition of §4.1. Is that what you mean by it?
-- **Q3 (@salazarvalverdeai) — intent.** Default: `intent` is reported apart and is not part of "pass", so a right
-  final state reached with a different intent label still passes.
-- **Q4 (@salazarvalverdeai) — results before the seal.** Default: dev and stub runs write to `eval/.runs/`, because the
-  protocol test fails once anything exists under `eval/results/` while `UNSEALED`. This adds one line to `.gitignore`.
-- **Q5 (@gianzk) — transport.** D-019 says the harness sends the seeded `session_id` as the `not_session` cookie. Does
-  the stub of spec 01 accept that today?
-- **Q6 (@salazarvalverdeai) — B2.** Is `run_set(cases, arms, runs, api_url)` enough for spec 15, or do you need a
-  per-arm cost cap?
+## 8. Assumptions and open questions (gate 1 — closed)
+Answered by the lead in the review of PR #90 and of the #98 → #100 stack (2026-10-05).
+- **Q1 — safe automated resolution.** **Decided: default.** The denominator is the runs whose expected decision is
+  `block_and_open_case`, the only path that ends without a person acting.
+- **Q2 — complete-intake rate.** **Decided:** the definition of §4.1 with the denominator "runs where a receipt is
+  expected", not "runs where a case is expected" (what `eval/harness/metrics.py` already counts). A returning customer
+  has `case_open: true` and no new receipt, so under the earlier text that run could never count as complete.
+- **Q3 — intent.** **Decided: default.** `intent` is reported apart and is not part of "pass", so a right final state
+  reached with a different intent label still passes.
+- **Q4 — results before the seal.** **Decided: default.** Dev and stub runs write to `eval/.runs/` (git-ignored);
+  nothing is written under `eval/results/` while the protocol is `UNSEALED`.
+- **Q5 (@gianzk) — transport.** **Answered:** yes. The api stub reads the session from the `not_session` cookie
+  (`Cookie: not_session=<id>`), and `POST /api/eval/seed` returns that id.
+- **Q6 — B2.** **Decided: default.** `run_set(cases, arms, runs, api_url)` is enough; the budget guard of spec 15
+  (`eval/bench`, 20 USD) already caps cost, so there is no per-arm cap here.
+- **AC-11 wording.** The rewording of AC-11 (the web copy only for a held-out run or with `--web`, so a dev or stub
+  run never replaces the numbers the page shows) is accepted by the lead.
 - Assumption: a case's messages are sent in order whatever the agent replies; a case that needs a reply-dependent
   script is split into two cases. `[assumption]`
 - Assumption: the 60 s turn timeout and the concurrency of 4 are defaults, not measured limits. `[assumption]`
