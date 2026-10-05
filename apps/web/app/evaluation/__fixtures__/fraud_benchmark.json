@@ -1,0 +1,202 @@
+{
+  "generated_at": "2026-10-05T12:00:00Z",
+  "git_sha": "0000000",
+  "source": "SAMPLE FOR TESTS ONLY — invented values in the shape of spec 17 §7.1; never shown on the site",
+  "data": {
+    "label": "[data]",
+    "protocol": {
+      "status": "UNSEALED",
+      "sha256": null,
+      "fraud_split_hash": null
+    },
+    "windows": {
+      "train": {
+        "from": "2025-06",
+        "to": "2026-01"
+      },
+      "validation": {
+        "from": "2026-02",
+        "to": "2026-03"
+      },
+      "test": {
+        "from": "2026-04",
+        "to": "2026-05",
+        "transactions": 120000,
+        "frauds": 340
+      }
+    },
+    "machine": {
+      "cpu": "sample",
+      "memory_gb": 16
+    },
+    "chosen_arm": "S-bank",
+    "arms": [
+      {
+        "arm": "S-bank",
+        "family": "rule",
+        "version": "v0",
+        "passes_rule": null,
+        "cost": {
+          "train_seconds": 12.5,
+          "score_p95_ms": 0.8,
+          "throughput_per_s": 5000,
+          "model_mb": 1.2,
+          "peak_memory_mb": 300
+        },
+        "subsets": {
+          "all": {
+            "pr_auc": 0.42,
+            "pr_auc_ci": [
+              0.36,
+              0.48
+            ],
+            "brier": 0.012,
+            "recall_at_bank_precision": {
+              "0.80": {
+                "value": 0.39,
+                "numerator": 39,
+                "denominator": 100,
+                "ci_low": 0.3002,
+                "ci_high": 0.488
+              },
+              "0.95": {
+                "value": 0.29,
+                "numerator": 29,
+                "denominator": 100,
+                "ci_low": 0.2101,
+                "ci_high": 0.3854
+              }
+            },
+            "recall_no_score_at_1pct": {
+              "value": 0.3,
+              "numerator": 12,
+              "denominator": 40,
+              "ci_low": 0.1807,
+              "ci_high": 0.4543
+            },
+            "by_score_band": [],
+            "by_country": [],
+            "by_segment": []
+          },
+          "card": {
+            "pr_auc": 0.4,
+            "pr_auc_ci": [
+              0.34,
+              0.46
+            ],
+            "brier": 0.012,
+            "recall_at_bank_precision": {
+              "0.80": {
+                "value": 0.34,
+                "numerator": 34,
+                "denominator": 100,
+                "ci_low": 0.2546,
+                "ci_high": 0.4372
+              },
+              "0.95": {
+                "value": 0.24,
+                "numerator": 24,
+                "denominator": 100,
+                "ci_low": 0.1669,
+                "ci_high": 0.3323
+              }
+            },
+            "recall_no_score_at_1pct": {
+              "value": 0.3,
+              "numerator": 12,
+              "denominator": 40,
+              "ci_low": 0.1807,
+              "ci_high": 0.4543
+            },
+            "by_score_band": [],
+            "by_country": [],
+            "by_segment": []
+          }
+        }
+      },
+      {
+        "arm": "HistGradientBoostingClassifier",
+        "family": "ensemble",
+        "version": "v0",
+        "passes_rule": false,
+        "cost": {
+          "train_seconds": 12.5,
+          "score_p95_ms": 0.8,
+          "throughput_per_s": 5000,
+          "model_mb": 1.2,
+          "peak_memory_mb": 300
+        },
+        "subsets": {
+          "all": {
+            "pr_auc": 0.37,
+            "pr_auc_ci": [
+              0.31,
+              0.43
+            ],
+            "brier": 0.012,
+            "recall_at_bank_precision": {
+              "0.80": {
+                "value": 0.35,
+                "numerator": 35,
+                "denominator": 100,
+                "ci_low": 0.2636,
+                "ci_high": 0.4475
+              },
+              "0.95": {
+                "value": 0.25,
+                "numerator": 25,
+                "denominator": 100,
+                "ci_low": 0.1755,
+                "ci_high": 0.343
+              }
+            },
+            "recall_no_score_at_1pct": {
+              "value": 0.3,
+              "numerator": 12,
+              "denominator": 40,
+              "ci_low": 0.1807,
+              "ci_high": 0.4543
+            },
+            "by_score_band": [],
+            "by_country": [],
+            "by_segment": []
+          },
+          "card": {
+            "pr_auc": 0.35,
+            "pr_auc_ci": [
+              0.29,
+              0.41
+            ],
+            "brier": 0.012,
+            "recall_at_bank_precision": {
+              "0.80": {
+                "value": 0.3,
+                "numerator": 30,
+                "denominator": 100,
+                "ci_low": 0.2189,
+                "ci_high": 0.3959
+              },
+              "0.95": {
+                "value": 0.2,
+                "numerator": 20,
+                "denominator": 100,
+                "ci_low": 0.1334,
+                "ci_high": 0.2888
+              }
+            },
+            "recall_no_score_at_1pct": {
+              "value": 0.3,
+              "numerator": 12,
+              "denominator": 40,
+              "ci_low": 0.1807,
+              "ci_high": 0.4543
+            },
+            "by_score_band": [],
+            "by_country": [],
+            "by_segment": []
+          }
+        }
+      }
+    ]
+  }
+}
