@@ -1,4 +1,4 @@
-"""Voice input (spec 05 AC-21, lead decision D-072, ADR 0028): `POST /api/voice/transcribe` turns a short clip into text.
+"""Voice input (spec 05 AC-21, lead decision D-072, ADR 0029): `POST /api/voice/transcribe` turns a short clip into text.
 
 The route only transcribes: it returns {text, language} and the web sends that text through the normal chat path, so
 the LLM understands and the rules decide exactly as for typed text; it never calls the agent. The clip is the raw

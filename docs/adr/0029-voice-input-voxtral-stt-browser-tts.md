@@ -1,4 +1,4 @@
-# 0028. Voice: Bedrock Voxtral speech-to-text on the api and the browser's text-to-speech
+# 0029. Voice: Bedrock Voxtral speech-to-text on the api and the browser's text-to-speech
 
 - **Status:** Accepted (lead decision D-072, 2026-10-05)
 - **Date:** 2026-10-05

@@ -644,3 +644,61 @@ def test_ac_04_recheck_changes_only_checks_and_reports_cross_split(tmp_path):
     # the committed drafts carry the hints a fresh recheck writes (apart from the planted rows)
     for s in ("train", "validation"):
         assert [r["checks"] for r in after[s][1:]] == [r["checks"] for r in drafts[s][1:]], s
+
+
+# --- ADR 0028: the test split decided by fixed rules -----------------------------------------------------------------
+
+def _row(**over):
+    base = {"id": "T-1", "text": "No reconozco un cargo de 1,250 MXN en Amazon con mi tarjeta de débito",
+            "slots": {"amount": "1250", "currency": "MXN", "date": None, "merchant": "Amazon"},
+            "card": "mi tarjeta de débito", "checks": []}
+    return {**base, **over}
+
+
+@pytest.mark.parametrize("hint", list(review.RULE_DROP) + ["near_duplicate:T-0:0.93", "duplicate:T-0"])
+def test_ac_04_rules_drop_rows_whose_text_contradicts_their_labels(hint):
+    """AC-04 (ADR 0028): a row with a contradicting hint is dropped, whatever its suffix."""
+    assert review.rule_decision(_row(checks=[hint])) == {"decision": "drop"}
+
+
+def test_ac_04_rules_keep_a_clean_row_and_its_card_wording():
+    """AC-04 (ADR 0028): a clean row is kept as written; the card wording is never rewritten into a type."""
+    assert review.rule_decision(_row()) == {"decision": "keep"}
+    assert review.rule_decision(_row(card="meu cartão", text="Não reconheço 1.250 no Amazon no meu cartão")) == {
+        "decision": "keep"}
+
+
+def test_ac_04_rules_null_what_the_text_does_not_carry_and_set_also_dispute():
+    """AC-04 (ADR 0028): missing slots or card wording become null; also_dispute follows the text."""
+    assert review.rule_decision(_row(checks=["date_missing", "card_missing"])) == {
+        "decision": "fix", "fixed_date": "null", "fixed_card": "null"}
+    assert review.rule_decision(_row(text="No reconozco un cargo en Amazon")) == {
+        "decision": "fix", "fixed_amount": "null", "fixed_currency": "null"}
+    assert review.rule_decision(_row(text="No reconozco un cargo de 1,250 MXN")) == {
+        "decision": "fix", "fixed_merchant": "null"}
+    assert review.rule_decision(_row(checks=["dispute_missing"]))["fixed_also_dispute"] == "false"
+    assert review.rule_decision(_row(checks=["unplanned_dispute"]))["fixed_also_dispute"] == "true"
+
+
+def test_ac_04_rule_review_decides_test_only_and_only_when_allowed(drafted, tmp_path):
+    """AC-04 (ADR 0028): auto-review signs every test row rules-v1; promote takes it only for test, with the flag,
+    and reports it; rules-v1 on train is refused even with the flag."""
+    root = _copy_drafts(drafted, tmp_path)
+    _decide(root)
+    path = review.auto_review(root, "test", force=True)
+    rows = _read_csv(path)
+    assert {r["reviewer"] for r in rows} == {review.RULE_REVIEWER} and all(r["decision"] for r in rows)
+    for r in rows:                                           # the fake drafts repeat one filler, so keep them all here
+        r["decision"] = "keep"
+    _write_csv(path, rows)
+    with pytest.raises(review.ReviewError, match="allow-rule-review"):
+        review.promote(root, dry_run=True)
+    result = review.promote(root, dry_run=True, allow_rule_review=True)
+    assert result["test_review"].startswith("rules-v1") and result["written"] is False
+    train = review.export(root, "train", force=True)
+    signed = _read_csv(train)
+    for r in signed:
+        r["decision"], r["reviewer"] = "keep", review.RULE_REVIEWER
+    _write_csv(train, signed)
+    with pytest.raises(review.ReviewError, match="decides test only"):
+        review.promote(root, dry_run=True, allow_rule_review=True)
