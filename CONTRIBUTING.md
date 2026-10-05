@@ -69,8 +69,10 @@ reviewable in 15 minutes; if not, split it.
   consequences, confidence level). A simple decision can be a one-sentence Y-statement.
 - One file per decision, `docs/adr/NNNN-short-title.md`, numbered globally. If two PRs take the same number, the one
   merged second renumbers on rebase.
-- States: **Proposed → Accepted**, or **Superseded by NNNN**. Accepted ADRs are never edited or deleted; a new ADR
-  supersedes them. Written by the feature owner, approved by the lead. *If it is not in the log, it was not decided.*
+- States: **Proposed → Accepted**, or **Superseded by NNNN**. **Amended by NNNN** marks a partial change where the
+  decision still stands: the accepted ADR gets only that header line. Accepted ADRs are never edited or deleted; a
+  new ADR supersedes or amends them. Written by the feature owner, approved by the lead. *If it is not in the log, it
+  was not decided.*
 
 ## 5. Git
 - **GitHub Flow.** `main` is always deployable. Short-lived branches (under a day) from `main`; `main` only changes

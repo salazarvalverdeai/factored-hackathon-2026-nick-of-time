@@ -1,6 +1,7 @@
 # NNNN. [Decision title]
 
 - **Status:** Proposed | Accepted | Superseded by [NNNN](NNNN-….md)
+- **Amended by:** [NNNN](NNNN-….md) — optional: a later ADR changes part of this one and the decision still stands
 - **Date:** YYYY-MM-DD
 - **Deciders:** [names] · **Owner:** [@github-user]
 - **Related:** specs [NN] · ADRs [NNNN]
