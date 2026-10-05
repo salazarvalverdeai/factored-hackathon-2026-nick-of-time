@@ -15,7 +15,7 @@ npm run lint && npm test && npm run build     # what CI runs
 | `/` | 16 | home: lockup, the problem in numbers (labeled, linked), how it works, "Evaluate in 3 minutes"; hero visual and OG image slots for the lead |
 | `/chat` | 07 | working on mock data: demo customer + OTP, ES/PT chat, verified receipt, trace |
 | `/case/[id]` | 13 | working on mock data: timeline, countdown, call request, notifications, Telegram/e-mail |
-| `/login`, `/console` | 08 | working on mock data: analyst login, inbox, handoff card, approve, audit, supervised mode |
+| `/login`, `/console` | 08 | working on mock data: analyst login, KPI strip, inbox with SLA lights, Closed tab, handoff card, approve, audit, supervised mode |
 | `/evaluation`, `/analytics`, `/data` | 12 | shells, content owned by Diego |
 | `/agent` | 04 | architecture, graph nodes, policy ids, tools, guardrails and model inventory, generated from the repo (`npm run sync:agent`) |
 
