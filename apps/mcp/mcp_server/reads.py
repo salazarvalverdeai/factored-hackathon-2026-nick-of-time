@@ -29,7 +29,8 @@ Converter = Callable[[float, str, str], Optional[dict[str, Any]]]   # spec 02 §
 
 def no_verified_rate(amount: float, from_currency: str, to_currency: str) -> None:
     """[assumption] the default until spec 02 T7 ships fx.convert with official rates: no verified rate, so nothing is
-    converted (ADR 0019). The amount_gate rates are never shown to a customer (spec 02 §4.2), so they are not used."""
+    converted (ADR 0019). The amount_gate rates serve only search matching and the internal amount_usd fill; they are
+    never shown to a customer (spec 02 §4.2), so convert_amount never uses them."""
     return None
 
 
@@ -71,6 +72,7 @@ def read_handlers(gold: Gold, policies: Policies, *, channels: Optional[Callable
                                        display_currency=display_currency(call, country), channels=listed)
 
     def usd(trx: GoldTransaction) -> Optional[float]:
+        """Internal: for matching and `Transaction.amount_usd`, which is never rendered to the customer (spec 03 §6)."""
         if trx.currency == "USD":
             return trx.amount
         if trx.amount_usd is not None:
@@ -127,7 +129,8 @@ def read_handlers(gold: Gold, policies: Policies, *, channels: Optional[Callable
                 return UNAVAILABLE
             to = display_currency(call, found[1])
         result = convert(args.amount, args.currency, to)
-        if not result or not str(result.get("rate_source") or "").strip():
+        if (not result or not str(result.get("rate_source") or "").strip()
+                or result.get("currency", to) != to):        # never relabel a result in another currency
             return t.ConvertAmountOut(converted=None)       # AC-20: no verified, labeled rate → nothing converted
         return t.ConvertAmountOut(converted=t.ConvertedAmount.model_validate({**result, "currency": to}))
 

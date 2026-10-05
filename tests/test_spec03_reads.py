@@ -39,7 +39,8 @@ TRX = [_trx(1, ANA, 30, 69.44, merchant="Tienda Don José"), _trx(2, BRUNO, 30, 
        _trx(5, ANA, 28, 69.44, status="Reversed"), _trx(6, ANA, 27, 69.44, ptype="Cuenta Ahorro"),
        _trx(7, ANA, 33, 500.0, merchant="Farmacia Salud"), _trx(8, ANA, 25, 69.10, merchant="Uber"),
        _trx(9, ANA, 26, 70.80, merchant="Uber"), _trx(10, ANA, 24, 69.44, status="Pending", merchant="Uber"),
-       _trx(11, ANA, 1, 11.11), _trx(12, CARLA, 30, 35000.0, "ARS", "Super Ahorro")]
+       _trx(11, ANA, 1, 11.11), _trx(12, CARLA, 30, 35000.0, "ARS", "Super Ahorro"),
+       _trx(13, ANA, 23, 69.44, merchant="Uber")]
 
 
 @pytest.fixture(scope="module")
@@ -61,21 +62,26 @@ def gold_dir(tmp_path_factory):
 
 
 class Run:
-    def __init__(self, gold_dir, **kwargs):
+    def __init__(self, gold_dir, denials=None, **kwargs):
         def row(sid, customer, **extra):
             return gate.SessionRow(**{"session_id": sid, "customer_id": customer, "verified_at": NOW, "language": "es",
                                       "mode": "replay", "expires_at": NOW + dt.timedelta(minutes=15), **extra})
         sessions = {S_ANA: row(S_ANA, ANA), S_BRUNO: row(S_BRUNO, BRUNO, display_currency="USD"),
                     S_CARLA: row(S_CARLA, CARLA), S_LIVE: row(S_LIVE, ANA, mode="live")}
-        self.denials = []
-        handlers = reads.read_handlers(Gold(gold_dir / "gold"), load_policies(), **kwargs)
-        self.gate = gate.Gate(sessions, handlers, denials=self.denials.append, audit=lambda _: None, now=lambda: NOW)
+        self.denials, policies = [], load_policies()
+        handlers = reads.read_handlers(Gold(gold_dir / "gold"), policies, **kwargs)
+        guardrails = {rule_id: rule.guardrail for rule_id, rule in policies.rules.items() if rule.guardrail}
+        self.gate = gate.Gate(sessions, handlers, denials=denials or self.denials.append, audit=lambda _: None,
+                              now=lambda: NOW, guardrails=guardrails)
 
-    def __call__(self, tool, session=S_ANA, **args):
+    def raw(self, tool, session=S_ANA, **args):
         async def go():
             async with Client(server.build_server(self.gate)) as client:
                 return await client.call_tool(tool, {"session_id": session, **args}, raise_on_error=False)
-        result = asyncio.run(go())
+        return asyncio.run(go())
+
+    def __call__(self, tool, session=S_ANA, **args):
+        result = self.raw(tool, session, **args)
         model = tools.ToolError if result.is_error else tools.CUSTOMER_TOOLS[tool][1]
         return model.model_validate(result.structured_content)
 
@@ -97,7 +103,18 @@ def test_ac_01_another_customers_transaction_is_not_found_and_logged_never_leake
     probe = run("get_fraud_score", transaction_id=TRX[1]["transaction_id"])               # Bruno's, from Ana
     unknown = run("get_fraud_score", transaction_id="TRX-" + "9" * 20)
     assert probe == unknown == tools.ToolError(code="NOT_FOUND", message=reads.NOT_FOUND.message)
-    assert [(d.policy_id, d.session_id) for d in run.denials] == [("POL-CROSS-CUSTOMER", S_ANA)]
+    assert [(d.policy_id, d.guardrail_id, d.session_id) for d in run.denials] == [
+        ("POL-CROSS-CUSTOMER", "G-SES-02", S_ANA)]
+
+
+def test_ac_01_a_failing_denial_sink_still_gives_a_probe_the_unknown_ids_answer(gold_dir):
+    def broken(row):
+        raise OSError("policy_denials is down")
+    run = Run(gold_dir, denials=broken)                  # UNAVAILABLE here would reveal that the id exists
+    probe, unknown = (run.raw("get_fraud_score", transaction_id=trx) for trx in (TRX[1]["transaction_id"],
+                                                                                 "TRX-" + "9" * 20))
+    assert probe.is_error and probe.structured_content == unknown.structured_content
+    assert probe.content[0].text == unknown.content[0].text and "NOT_FOUND" in probe.content[0].text
 
 
 def test_ac_01_the_score_comes_from_gold_as_dataset_never_synthetic_in_replay(gold_dir):
@@ -121,7 +138,8 @@ def test_ac_07_pesos_match_a_usd_charge_through_the_policy_rate_within_2_percent
 def test_ac_08_cards_approved_or_pending_in_the_window_never_after_today_at_most_4_ranked(gold_dir):
     run = Run(gold_dir)
     out = run("search_transaction", amount=69.44, approx_date="2026-05-28", window_days=7)
-    assert _ids(out) == [1, 10, 8, 9]                    # gap, then date distance; 4/5/6 excluded, 7 > today
+    assert _ids(out) == [1, 10, 13, 8]                   # gap, then date distance; 9 is the 5th, cut by the cap;
+    #                                                      4/5/6 excluded, 7 after today
     assert {c.transaction_status for c in out.candidates} == {"Approved", "Pending"}
     assert _ids(run("search_transaction", approx_date="2026-06-02", window_days=1)) == []   # 7 is after today
     assert _ids(run("search_transaction", amount=11.11)) == []             # no date: the last 30 days only
@@ -183,6 +201,9 @@ def test_ac_20_convert_amount_answers_null_without_a_verified_labeled_rate(gold_
     assert seen == [(69.44, "USD", "MXN")]               # to_currency None: the display currency
     unlabeled = Run(gold_dir, convert=lambda *a: {**fx(*a), "rate_source": " "})
     assert unlabeled("convert_amount", amount=1, currency="USD", to_currency="COP").converted is None
+    other = Run(gold_dir, convert=lambda *a: {**fx(*a), "currency": "MXN"})      # asked COP, got MXN: not relabeled
+    assert other("convert_amount", amount=1, currency="USD", to_currency="COP").converted is None
+    assert other("convert_amount", amount=1, currency="USD", to_currency="MXN").converted.currency == "MXN"
 
 
 def test_ac_08_a_live_session_search_is_unavailable_until_the_live_clock_lands(gold_dir):

@@ -151,9 +151,10 @@ def _failed(what: str, tool: str, error: Exception, trace_id: str) -> None:
 class Gate:
     def __init__(self, sessions: Sessions, handlers: Mapping[str, Handler], *, denials: Callable[[DenialRow], None],
                  audit: Callable[[dict[str, Any]], None] = stdout_audit, limiter: Optional[RateLimiter] = None,
-                 now: Callable[[], dt.datetime] = _utc_now) -> None:
+                 now: Callable[[], dt.datetime] = _utc_now, guardrails: Optional[Mapping[str, str]] = None) -> None:
+        """`guardrails`: rule id → its guardrail (policies.yaml `rules.<id>.guardrail`), cited by a probe's denial."""
         self._sessions, self._handlers, self._denials, self._audit = sessions, handlers, denials, audit
-        self._limiter, self._now = limiter or RateLimiter(), now
+        self._limiter, self._now, self._guardrails = limiter or RateLimiter(), now, dict(guardrails or {})
 
     def call(self, tool: str, arguments: dict[str, Any], trace_id: str) -> Union[BaseModel, ToolError]:
         started, raw = time.perf_counter(), arguments.get("session_id")
@@ -208,8 +209,13 @@ class Gate:
             return self._deny(Deny(result.policy_id or DEFAULT_DENY, "G-POL-01", result.message, {}), session, trace_id,
                               tool)
         if isinstance(result, ToolError) and result.code == "NOT_FOUND" and result.policy_id:
-            # a refusal answered as not found (a cross-customer probe): logged as a denial, its policy id never shown
-            self._deny(Deny(result.policy_id, "G-POL-01", result.message, {}), session, trace_id, tool)
+            # a refusal answered as not found (a cross-customer probe, D-052 pending): logged as a denial with its
+            # rule's guardrail, its policy id never shown; best-effort, since UNAVAILABLE here would be an oracle
+            try:
+                self._deny(Deny(result.policy_id, self._guardrails.get(result.policy_id, "G-POL-01"), result.message,
+                                {}), session, trace_id, tool)
+            except Exception as error:
+                _failed("denial of", tool, error, trace_id)
             return result.model_copy(update={"policy_id": None})
         if not isinstance(result, (model_out, ToolError)):
             raise TypeError(f"{tool} returned {type(result).__name__}, not {model_out.__name__}")
