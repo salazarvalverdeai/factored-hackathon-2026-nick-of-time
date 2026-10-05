@@ -21,7 +21,7 @@ nothing about a dispute: transitions go through `policy.transition`, deadlines w
 closes. `customer_id` and `mode` come only from the session row; the analyst's identity is the verified Cognito `sub`.
 
 ## 3. Acceptance criteria (EARS)
-AC-01 to AC-08 are copied from issue #7 with the same numbers. AC-09 to AC-12 are added by the owner; AC-03 was amended by the lead (review of PR #111). None is dropped or weakened.
+AC-01 to AC-08 are copied from issue #7 with the same numbers. AC-09 to AC-13 are added by the owner; AC-03 was amended by the lead (review of PR #111). None is dropped or weakened.
 
 - AC-01 — When a customer session is requested and the OTP verified, the session shall last 15 minutes; once expired, every protected route shall answer `SESSION_EXPIRED`. · [T] `tests/test_spec05_api.py`
 - AC-02 — A case's status shall be its last event in `case_events`; no row shall be updated or deleted. · [T]
@@ -35,6 +35,7 @@ AC-01 to AC-08 are copied from issue #7 with the same numbers. AC-09 to AC-12 ar
 - AC-10 — An analyst action shall run once per `idempotency_key`; a replay returns the stored result and writes and notifies nothing, and a reason is required except for `take` and `approve_*`. · [T]
 - AC-11 — The api shall serve the channels of spec 13: a signed Telegram link (TTL 15 min) and webhook (secret header, 401 otherwise), e-mail sent only to a typed and confirmed address, and a failing channel shall leave the in-app notification and the case unaffected. · [T]
 - AC-12 — `POST /api/cases/{id}/reevaluation` shall move a resolved case back to `review` with `reevaluation_requested` (spec 03 AC-19), refuse an active case as `already_in_progress`, and open one related case for a closed case with deadlines derived by the clock from the new notice (never copied); repeating the request shall not open a second case. · [T]
+- AC-13 — The api image shall ship an executable `/app/migrate.sh` (`alembic upgrade head`, baseline = `store/schema.sql`) for the deploy's migration hook (spec 06 FR-04). · [T] `tests/test_spec05_migrations.py` (offline `--sql`; the live run is Task 7)
 
 ## 8. Assumptions and open questions
 - Decided (lead): AC-03 is amended as above; notifications go out on status changes only, and the customer text carries a fixed outcome label from `messages.yaml` `status.label`, never the analyst's free-text reason.
