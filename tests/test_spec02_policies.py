@@ -57,7 +57,7 @@ def test_ac_02_the_deciding_sources_are_pinned_and_never_llm():
 def test_ac_12_the_frozen_policies_still_serialize_as_the_file():
     """§5 observability: model_dump_json works on the frozen model and, without defaults, gives back the YAML."""
     policies = load_policies()
-    assert json.loads(policies.model_dump_json(exclude_unset=True)) == RAW
+    assert json.loads(policies.model_dump_json(exclude_unset=True)) == json.loads(json.dumps(RAW, default=str))
     assert Policies.model_validate_json(policies.model_dump_json()) == policies
     assert isinstance(policies.model_dump()["approval"]["per_action"], dict)
 
