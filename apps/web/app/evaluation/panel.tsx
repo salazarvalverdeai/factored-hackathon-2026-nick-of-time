@@ -1,13 +1,13 @@
 // As-is vs with Nick of Time (spec 12 AC-10). Every cell carries its label; nothing here is invented.
-import { rateText, type EvaluationData, type Insight } from "@/lib/evaluation";
-import { asIsRows, panelState, WITH_US_ARM, type PitchContacts } from "@/lib/panel";
+import { rateText, type BenchmarkData, type EvaluationData, type Insight } from "@/lib/evaluation";
+import { asIsRows, panelState, type PitchContacts } from "@/lib/panel";
 
 const pct = (v: number) => `${(v * 100).toFixed(1)}%`;
 const fmt = (n: number) => n.toLocaleString("en-US");
 
-export function AsIsPanel({ contacts, source, generatedAt, summary }: { contacts: PitchContacts; source: string; generatedAt: string; summary: Insight<EvaluationData> | null }) {
+export function AsIsPanel({ contacts, source, generatedAt, summary, benchmark = null }: { contacts: PitchContacts; source: string; generatedAt: string; summary: Insight<EvaluationData> | null; benchmark?: BenchmarkData | null }) {
   const rows = asIsRows(contacts);
-  const state = panelState(summary, contacts);
+  const state = panelState(summary, contacts, benchmark);
   return (
     <section aria-label="As-is vs with Nick of Time" data-slot="as-is-panel" className="rounded-lg border bg-card p-5 text-card-foreground">
       <h2 className="text-base font-semibold">As-is vs with Nick of Time</h2>
@@ -19,7 +19,7 @@ export function AsIsPanel({ contacts, source, generatedAt, summary }: { contacts
               <th className="border-b py-1.5 pr-4 font-normal">Measure</th>
               <th className="border-b py-1.5 pr-4 font-normal">Complaint contacts today <span className="font-mono">[data]</span></th>
               <th className="border-b py-1.5 pr-4 font-normal">Whole bank today <span className="font-mono">[data]</span></th>
-              <th className="border-b py-1.5 font-normal">With Nick of Time ({WITH_US_ARM}) <span className="font-mono">[simulated]</span></th>
+              <th className="border-b py-1.5 font-normal">With Nick of Time{state.kind === "ready" ? ` (${state.note ?? `arm ${state.arm}`})` : ""} <span className="font-mono">[simulated]</span></th>
             </tr>
           </thead>
           <tbody>
@@ -42,17 +42,18 @@ export function AsIsPanel({ contacts, source, generatedAt, summary }: { contacts
         </p>
         {state.kind === "ready" && state.projection ? (
           <p className="mt-1">
-            About <span className="font-semibold tabular-nums">{fmt(state.projection.contacts)}</span> of the {fmt(state.projection.volume)} complaint contacts
-            would be resolved at first contact instead of needing a follow-up. Assumption: the {WITH_US_ARM} safe automated resolution of{" "}
-            {pct(state.projection.fcrWithUs)} (simulated, scripted cases) held on the bank&apos;s complaint contacts, against today&apos;s{" "}
-            {pct(state.projection.fcrAsIs)}. Savings in money are not projected: the repo has no cost per contact.
+            Between <span className="font-semibold tabular-nums">{fmt(state.projection.low)}</span> and{" "}
+            <span className="font-semibold tabular-nums">{fmt(state.projection.high)}</span> more of the {fmt(state.projection.volume)} complaint contacts of the
+            full synthetic dataset resolved at first contact (95% CI of the rate; today&apos;s first-contact resolution is {pct(state.projection.fcrAsIs)}).
+            Computed on the share of contacts that end in an automatic block and case (n = {state.n} runs); applied to all complaints as an upper-bound
+            illustration <span className="font-mono text-xs">[projected]</span>. Savings in money are not projected: the repo has no cost per contact.
           </p>
         ) : (
           <p className="mt-1 text-muted-foreground">Results pending{state.kind === "pending" ? `: ${state.reason}` : ""} No number and no projection until then.</p>
         )}
       </div>
       <p className="mt-4 font-mono text-xs text-muted-foreground">
-        [data] {source} · generated {generatedAt.slice(0, 10)}
+        {source} · generated {generatedAt.slice(0, 10)}
       </p>
     </section>
   );

@@ -48,11 +48,12 @@ comment). AC-04 onward are added by this spec. Evidence: [T] test · [C] command
 - **AC-09** — The pages shall render in the dark and the light theme and at 390 px without the page scrolling
   sideways. · [U]
 - **AC-10** — `/evaluation` shall show an "as-is vs with Nick of Time" panel: the bank's FCR, follow-up share and
-  contact duration `[data]` from `pitch_numbers.json`, the S1 safe automated resolution `[simulated]` from
-  `evaluation_summary.json`, and the complaint contacts that would be resolved at first contact `[projected]`
-  (`(S1 rate - today's FCR) x complaint contacts`, assumption stated on the panel, no money figure). While that file
-  does not exist or its run is not the sealed held-out (AC-05), the WITH US column shall read "results pending" with
-  no number and no projection. · [T] `apps/web/lib/panel.test.ts`
+  contact duration `[data]` from `pitch_numbers.json`, the safe automated resolution `[simulated]` of the arm running
+  the model chosen in `benchmark.json` (else S1, noted "lean-rule result pending"), and the complaint contacts
+  resolved at first contact `[projected]` as a range from the 95% CI of that rate (rate measured only on the
+  automatic block-and-case runs, n shown; applied to all complaints as an upper-bound illustration; no money
+  figure). While `evaluation_summary.json` does not exist or its run is not the sealed held-out (AC-05), the WITH US
+  column shall read "results pending" with no number and no projection. · [T] `apps/web/lib/panel.test.ts`
 
 ## 7. Data model touched
 Reads only static files under `apps/web/public/data/`; creates `data_quality.json` and the page files under

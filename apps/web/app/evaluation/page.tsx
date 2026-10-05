@@ -36,16 +36,17 @@ export default function Page() {
   return (
     <PageShell title="Evaluation" description="Does the system work, and how do we know? Final state of scripted cases, never the reply text.">
       <p className="mb-4 rounded-lg border border-dashed px-4 py-3 text-sm text-muted-foreground">
-        Every figure on this page is <span className="font-mono">[simulated]</span> (the fraud model, <span className="font-mono">[data]</span>): real customers and transactions
-        of the synthetic dataset with team-written messages, run through the system and compared with the outcome the
-        policy engine expects. The rules were written down before any result existed:{" "}
+        Figures are labeled per section: <span className="font-mono">[data]</span> for the bank&apos;s figures and the fraud model,{" "}
+        <span className="font-mono">[simulated]</span> for the harness, benchmark and classifier (real customers and transactions of the synthetic dataset
+        with team-written messages, run through the system and compared with the outcome the policy engine expects) and{" "}
+        <span className="font-mono">[projected]</span> for the as-is panel&apos;s projection. The rules were written down before any result existed:{" "}
         <a className="underline underline-offset-2" href={PROTOCOL_URL}>
           evaluation protocol
         </a>
         .
       </p>
       <div className="space-y-4">
-        <AsIsPanel contacts={pitch.data.contacts as PitchContacts} source={pitch.source} generatedAt={pitch.generated_at} summary={summary.file} />
+        <AsIsPanel contacts={pitch.data.contacts as PitchContacts} source={pitch.source} generatedAt={pitch.generated_at} summary={summary.file} benchmark={benchmark.file?.data ?? null} />
         {summary.file ? <EvaluationResults file={summary.file} /> : <Pending {...summary.missing!} />}
         {/* spec 12 §7.3 order: benchmark (5), classifier (6), fraud model (7). */}
         {benchmark.file ? <BenchmarkSection file={benchmark.file} /> : <Pending {...benchmark.missing!} />}
