@@ -12,7 +12,7 @@ npm run lint && npm test && npm run build     # what CI runs
 ## Page map
 | Route | Spec | State |
 |---|---|---|
-| `/` | 16 | home with links |
+| `/` | 16 | home: lockup, the problem in numbers (labeled, linked), how it works, "Evaluate in 3 minutes"; hero visual and OG image slots for the lead |
 | `/chat` | 07 | working on mock data: demo customer + OTP, ES/PT chat, verified receipt, trace |
 | `/case/[id]` | 13 | working on mock data: timeline, countdown, call request, notifications, Telegram/e-mail |
 | `/login`, `/console` | 08 | working on mock data: analyst login, inbox, handoff card, approve, audit, supervised mode |
@@ -35,6 +35,7 @@ npm run lint && npm test && npm run build     # what CI runs
 | Case status | `StatusBadge` (`new · verification · review · resolved · closed`) | `components/badges.tsx` |
 | Case history | `Timeline` (a case's status is its last event) | `components/timeline.tsx` |
 | Chart | `BarChartCard` (Recharts); `source` is **required** and carries the figure label | `components/chart.tsx` |
+| Animated figure (sparingly) | `NumberTicker` (Magic UI): renders the final value without JavaScript, animates once below the fold, never with reduced motion | `components/ui/number-ticker.tsx` |
 | States | `LoadingState`, `EmptyState`, `ErrorState`, `DenyState` | `components/states.tsx` |
 
 ## Fetching data
