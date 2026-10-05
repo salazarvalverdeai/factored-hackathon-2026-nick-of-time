@@ -282,7 +282,8 @@ Implementation goes in one `feat/03-*` branch per task (T1: `feat/03-mcp-server`
       what the assistant did by the verified block, what a person does); no card or `V-` line, which spec 04's receipt
       owns; the sender is injected (none: the notification stays `queued` for the api's notifier, spec 13); the store's
       `summary_sends` backs the gate's 3-per-hour limit per session; an unconfirmed channel or the store limit is
-      `DENY POL-DEFAULT-DENY`; a read with another tool's or another customer's `action_id` is plain
+      `DENY POL-DEFAULT-DENY`; a `list_my_notifications` read with another tool's or another customer's `action_id`
+      is a plain read: it lists only the session customer's notifications, with `read_at` and no `action_id` or `V-`.
 - [ ] T8 — entry point, Dockerfile and compose service `mcp` · AC-02, AC-06, AC-12 · `apps/mcp/mcp_server/__main__.py`,
       `apps/mcp/Dockerfile`, `tests/test_spec03_entrypoint.py`. Done (task 03d2): `python -m mcp_server` reads
       `MCP_API_KEY` (deploy writes it from SSM `/nickoftime/prod/MCP_API_KEY`; under 32 characters the server refuses
