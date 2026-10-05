@@ -201,8 +201,9 @@ tools for the third line (internal audit).
 
 ## 10. Plan, tasks and verification
 - [ ] T1 [P0] — `nick_of_time.audit` with A1–A7 as pure functions + tests on recorded fixtures · AC-01
-      (A3–A7 done, task 18a: `tests/test_spec18_audit_a3_a7.py`, A3 on D-025's `action_verified`; A1–A2 remain,
-      task 18b)
+      (A3–A7 done, task 18a: `tests/test_spec18_audit_a3_a7.py`, A3 on D-025's `action_verified`; A1–A2 done, task
+      18b: `audit/rederive.py`, `tests/test_spec18_a1_a2.py`. A2 takes the stored `Deadline` plus the recorded clock
+      inputs `abroad`, `charged_at`, `noticed_at`; a case missing the MX charge date is a finding)
       Note: AC-01 names A1–A10, but P0 is A1–A7 (§4.3, T1); A8–A10 are outside P0, pending the lead.
 - [ ] T2 [P0] — harness uses the library for its final-state checks (with @vldiego) · AC-02
 - [ ] T3 [P1] — api background task, `audit_findings`, critical flag and acknowledgment · AC-03, AC-04, AC-05

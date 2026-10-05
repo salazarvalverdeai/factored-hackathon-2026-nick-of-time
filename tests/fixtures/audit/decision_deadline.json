@@ -1,0 +1,108 @@
+{
+  "decision": {
+    "inputs": {
+      "session_state": "verified",
+      "intent": "unrecognized_charge",
+      "intent_confidence": 0.95,
+      "dispute_detected": true,
+      "injection_flagged": false,
+      "cross_customer": false,
+      "supervised_mode": false,
+      "candidates": 1,
+      "score": 72.0,
+      "score_source": "dataset",
+      "amount": 1250.0,
+      "currency": "USD",
+      "country": "MX",
+      "product_type": "debit",
+      "customer_confirmed": true,
+      "active_case": false
+    },
+    "recorded": {
+      "decision": "block_and_open_case",
+      "zone": "high",
+      "approval_modes": {
+        "open_case": "auto",
+        "block_card": "manual_check",
+        "provisional_credit": "human_required",
+        "unblock_card": "human_required"
+      },
+      "allowed_actions": [
+        "open_case",
+        "block_card"
+      ],
+      "handoff_reason": null,
+      "request_call": null,
+      "queue_status_after": "verification",
+      "rule_ids": [
+        "POL-ZONE-HIGH",
+        "POL-TICKET-ALWAYS"
+      ],
+      "guardrail_ids": [],
+      "policies_version": 2
+    }
+  },
+  "deadlines": {
+    "MX": {
+      "stored": {
+        "country": "MX",
+        "product": "debit",
+        "opened_on": "2026-06-01",
+        "credit_deadline": "2026-06-03",
+        "ruling_deadline": "2026-07-16",
+        "deadline_source": "Banxico Circular 3/2012, arts. 19 Bis 3 and 19 Bis 4 (as amended by Circular 14/2018)",
+        "source_url": "https://www.banxico.org.mx/marco-normativo/normativa-emitida-por-el-banco-de-mexico/circular-3-2012/%7B4E0281A4-7AD8-1462-BC79-7F2925F3171D%7D.pdf",
+        "verified_on": "2026-10-04",
+        "calendar": {
+          "credit": "business",
+          "ruling": "calendar"
+        },
+        "holidays_skipped": [],
+        "extendable_once": false,
+        "rule_ids": [],
+        "policies_version": 2
+      },
+      "charged_at": "2026-05-30T12:00:00+00:00"
+    },
+    "AR": {
+      "stored": {
+        "country": "AR",
+        "product": "debit",
+        "opened_on": "2026-06-01",
+        "credit_deadline": null,
+        "ruling_deadline": "2026-06-16",
+        "deadline_source": "BCRA, Protecci\u00f3n de los Usuarios de Servicios Financieros, item 3.1.6",
+        "source_url": "https://www.bcra.gob.ar/archivos/Pdfs/texord/t-pusf.pdf",
+        "verified_on": "2026-10-04",
+        "calendar": {
+          "ruling": "business"
+        },
+        "holidays_skipped": [
+          "2026-06-15"
+        ],
+        "extendable_once": false,
+        "rule_ids": [],
+        "policies_version": 2
+      }
+    },
+    "ZZ": {
+      "stored": {
+        "country": "ZZ",
+        "product": "debit",
+        "opened_on": "2026-06-01",
+        "credit_deadline": null,
+        "ruling_deadline": null,
+        "deadline_source": null,
+        "source_url": null,
+        "verified_on": null,
+        "calendar": {},
+        "holidays_skipped": [],
+        "extendable_once": false,
+        "rule_ids": [
+          "POL-CLOCK-UNKNOWN"
+        ],
+        "policies_version": 2
+      }
+    }
+  }
+}
