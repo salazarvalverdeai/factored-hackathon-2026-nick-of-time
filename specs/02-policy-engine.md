@@ -215,9 +215,9 @@ fx.convert(amount=1250.0, from_currency="USD", to_currency="MXN") -> {amount, ra
 - `contracts/handoff.schema.json` also gains the optional `score_source` (the `GetFraudScoreOut.source` values) and
   `score_version` (D-033, default pending the lead), so `record_source_in_audit` reaches the analyst's card.
 - The loader (FR-01) also refuses a file that breaks a firm rule: `default` other than `deny`, `open_case` not `auto`
-  or `provisional_credit` not `human_required` in every zone, `block_card` not `human_required` in the medium and
-  human zones or `human_required` in the high zone (the high zone blocks), `unblock_card` not `human_required` in every
-  zone, `close` not `human_only`, zone bands with gaps, tiers that loosen as the amount grows, a rule citing an unknown
+  or `provisional_credit` not `human_required` in every zone, `block_card` other than `manual_check` in the high zone
+  and `human_required` in the medium and human zones (§4.2), `unblock_card` not `human_required` in every zone,
+  `close` not `human_only`, zone bands with gaps, tiers that loosen as the amount grows, a rule citing an unknown
   guardrail, `llm` among the deciding sources, or a `scoring.provider` or deciding source without a `scoring.providers`
   entry (the audit needs its version). It types the `contact` section (D-008, added by #50), so the file loads with
   or without it. The loaded model is deeply frozen (read-only mappings, tuples), so no caller can loosen a rule at

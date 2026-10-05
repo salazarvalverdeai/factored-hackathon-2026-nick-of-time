@@ -160,9 +160,9 @@ class Policies(_Strict):
         if set(per_action.get("provisional_credit", {}).values()) != {"human_required"}:
             problems.append("provisional_credit must be human_required in every zone (AC-09)")
         block = per_action.get("block_card", {})
-        if (block.get("medium"), block.get("human")) != ("human_required", "human_required") or \
-                block.get("high") in (None, "human_required"):
-            problems.append("block_card must be human_required in the medium and human zones and not in the high zone")
+        if (block.get("high"), block.get("medium"), block.get("human")) != ("manual_check", "human_required",
+                                                                           "human_required"):
+            problems.append("block_card must be manual_check in the high zone and human_required in the others (§4.2)")
         if set(per_action.get("unblock_card", {}).values()) != {"human_required"}:
             problems.append("unblock_card must be human_required in every zone")
         if money != set(per_action) - {"open_case"}:

@@ -75,21 +75,30 @@ def test_ac_02_the_handoff_card_can_carry_the_score_source_and_version():
     assert not {"score_source", "score_version"} & set(schema["required"])
 
 
-@pytest.mark.parametrize("contact, loads", [(None, True), ({"callback_within_business_days": 1}, True),
+NO_CONTACT = {k: v for k, v in RAW.items() if k != "contact"}
+
+
+@pytest.mark.parametrize("contact, loads", [("absent", True), ("as in the file", True),
+                                            ({"callback_within_business_days": 1}, True),
                                             ({"callback_within_business_days": None}, True),
                                             ({"callback_within_business_days": 0}, False),
                                             ({"callback_within_business_days": "1"}, False),
                                             ({"callback_hours": 4}, False)])
 def test_ac_12_the_contact_section_of_pr_50_loads(contact, loads):
-    """FR-01: #50 adds a top-level contact section (D-008); the strict model types it, so merge order does not matter."""
-    raw = RAW if contact is None else {**RAW, "contact": contact}
+    """FR-01: #50 adds a top-level contact section (D-008); the strict model types it, so merge order does not matter.
+    The file is loaded with the section removed, as it is (with or without #50), and with each variant."""
+    raw = {"absent": NO_CONTACT, "as in the file": RAW}.get(contact) if isinstance(contact, str) else \
+        {**NO_CONTACT, "contact": contact}
     if not loads:
         with pytest.raises(ValidationError):
             Policies.model_validate(raw)
         return
     policies = Policies.model_validate(raw)
+    if contact == "absent":
+        assert policies.contact is None
+        return
     got = policies.contact.callback_within_business_days if policies.contact else None
-    assert got == (contact or {}).get("callback_within_business_days")
+    assert got == (raw.get("contact") or {}).get("callback_within_business_days")
 
 
 def test_ac_05_the_loaded_policies_are_frozen_all_the_way_down():
@@ -136,8 +145,14 @@ INVALID = [
     ("AC-04 manual_check leaves the case in review", "approval.manual_check_leaves_case_in", "review"),
     ("AC-05 block in the human zone", "approval.per_action.block_card.human", "auto"),
     ("AC-05 block in the medium zone without a person", "approval.per_action.block_card.medium", "manual_check"),
+    ("AC-05 block in the medium zone automatically", "approval.per_action.block_card.medium", "auto"),
     ("AC-05 high zone never blocks", "approval.per_action.block_card.high", "human_required"),
+    ("AC-05 high zone blocks with no check", "approval.per_action.block_card.high", "auto"),
     ("AC-05 unblock without a person", "approval.per_action.unblock_card.high", "auto"),
+    ("AC-05 unblock in the medium zone automatically", "approval.per_action.unblock_card.medium", "auto"),
+    ("AC-05 unblock in the medium zone with a check", "approval.per_action.unblock_card.medium", "manual_check"),
+    ("AC-05 unblock in the human zone automatically", "approval.per_action.unblock_card.human", "auto"),
+    ("AC-05 unblock in the human zone with a check", "approval.per_action.unblock_card.human", "manual_check"),
     ("AC-08 tau of zero", "clarify.intent_confidence_min", 0),
     ("AC-08 tau above one", "clarify.intent_confidence_min", 1.2),
     ("AC-12 raw transcript in the handoff", "handoff.never_include_raw_transcript", False),
