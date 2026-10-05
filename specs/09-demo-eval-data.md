@@ -78,7 +78,12 @@ Colombia (5 in Mexico, 2 in Argentina). See Q1.
 Columns: `customer_id`, `country` (`MX`|`CO`|`AR`, mapped from `customer_country`), `segment`, `split`, `product_id`,
 `product_type` (`debit`|`credit`), `transaction_id`, `transaction_date`, `amount`, `currency`, `merchant_name`,
 `fraud_score`, `zone`, `amount_tier` (`low`|`mid`|`above_high`, from `amount_gate.by_country`), `n_candidates_7d` (the
-customer's card transactions within ±7 days, to pick ambiguous cases).
+customer's card transactions within ±7 days, itself included and any status, to pick ambiguous cases).
+
+**Sample.** The index holds `dev` and `heldout` customers only; train customers are used by no demo customer and no
+case. Every high-zone and medium-zone candidate is kept. The human zone keeps 6 rows per country × split × product ×
+score band (no score, below 30) × segment, ordered by `md5('demo-index-v1' || transaction_id)`: that string is the
+fixed seed, so the same gold gives the same file. The rows per cell and the empty cells are in `eval/README.md`.
 
 ### 7.3 Demo — `eval/demo/`
 - `customers.json`: six `dev` customers, two per mandatory case (normal, ambiguous, requires a human), with
@@ -187,7 +192,7 @@ generator and the sample-case seeder (spec 05; this spec gives their inputs) · 
 
 ## 10. Plan, tasks and verification
 Implementation goes in `feat/09-…` branches once this spec is approved.
-- [ ] T1 — `queries/eval/demo_index.sql` + `eval/demo_index.csv` · covers AC-01, AC-07, AC-08 · done when: the cells of
+- [x] T1 — `queries/eval/demo_index.sql` + `eval/demo_index.csv` (`python -m eval.demo_index`) · covers AC-01, AC-07, AC-08 · done when: the cells of
       §7.2 are filled or the empty ones are listed in `eval/README.md`
 - [ ] T2 — `eval/demo/customers.json`, `live_profiles.yaml`, `sample_cases.jsonl` · covers AC-02, AC-11
 - [ ] T3 — `eval/derive_expected.py` + `eval/cases/dev.jsonl` · covers AC-03, AC-09 · done when: 20 cases validate
