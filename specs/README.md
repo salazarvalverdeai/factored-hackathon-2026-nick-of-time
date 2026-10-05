@@ -18,12 +18,12 @@ States: **Draft → Approved → In progress → Implemented → Superseded**. S
 | 06 | Deploy + CI (Compose on EC2, GHCR, OIDC, SSM) | @gianzk | P0 | M | — | #8 | Not started |
 | 07 | Customer chat `/chat` with verified receipt and trace | @gianzk | P0 | L | 16, 04, 05 | #9 | In progress |
 | 08 | Analyst login + console `/login`, `/console` | @gianzk | P0 | L | 16, 05 | #10 | In progress |
-| 09 | Demo and evaluation data (demo index, agent cases, classifier set) | @vldiego | P0 | M | gold | #11 | Not started |
+| 09 | Demo and evaluation data (demo index, agent cases, classifier set) | @vldiego | P0 | M | gold | #11 | Draft |
 | 10 | Evaluation harness (final state, pass^4, challenge metrics) | @vldiego | P0 | M | 01, 09 | #12 | Not started |
 | 11 | Intent classifier + injection detector + selection protocol | @salazarvalverdeai | P0 | M | 09 | #13 | Draft |
-| 12 | Insight pages content: `/evaluation` (P0), `/analytics`, `/data` | @vldiego | P0/P1 | M | 16, 10, 15 | #14 | Not started |
+| 12 | Insight pages content: `/evaluation` (P0), `/analytics`, `/data` | @vldiego | P0/P1 | M | 16, 10, 15 | #14 | Draft |
 | 13 | `/case/{id}` + Telegram + email notifications | @gianzk | P0 | M | 05 | #15 | In progress |
-| 14 | Operational lakehouse (bronze → silver → gold of case events; Databricks desirable) | @vldiego | P1 | M–L | 05 | #16 | Not started |
+| 14 | Operational lakehouse (bronze → silver → gold of case events; Databricks desirable) | @vldiego | P1 | M–L | 05 | #16 | Draft |
 | 15 | Model benchmark (~20 Bedrock models + Jev vs rules and TF-IDF + LR; one model per task; lean choice) | @salazarvalverdeai | P0 | M | 09, 11 | #17 | Draft |
 | 16 | Web foundation + front-end standard (page shells, shared components, mock API client) | @gianzk | P0 | M | 01 | #18 | In progress |
 | 17 | Our fraud model vs the bank's score (time split, lean scikit-learn screen, analyst signal) | @salazarvalverdeai | P0 | M | 09, ADR 0022 | #28 | Draft |

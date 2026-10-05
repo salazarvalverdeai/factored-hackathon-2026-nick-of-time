@@ -87,13 +87,18 @@ Each criterion carries its phase: **[P0]** in the submission · **[P1]** if time
 | A10 | Cost and latency | within the budget and limits of G-OPS-01 | low |
 
 Notes on A3–A7 (task 18a):
-- **A3** follows D-025 `[assumption]`, pending the lead. Writes (`open_case`, `block_card`) return no V- id. The
+- **A3** follows D-025 `[assumption]`, pending the lead. Writes (the six of `WRITE_EVENTS`) return no V- id. The
   verifying read mints it in an append-only `action_verified {action_id, verification_id, read_at}` case event. Every
   verified claim (TurnResult `actions[]`, `receipt.actions[]` by `verified_at`, `handoff.actions[]` by `verified: true`)
   needs an `action_verified` event with the same `action_id` and `verification_id`, a `read_at` at or after the write's
-  request, and a claimed time equal to that `read_at` (the handoff carries none). A V- id from anywhere else is not
-  evidence.
-- **A4** covers numbers, dates and ids; statuses belong to A5. Amounts are locale-aware: a last separator followed by
+  request, and a claimed time equal to that `read_at` (the handoff carries none). A turn may show **any** V- id of
+  the action (every read stays in the trail). A V- id from anywhere else is not evidence, and a record or handoff
+  that names a tool other than the write's (`case_opened` also from `request_reevaluation` when the case has a
+  `related_case_id`, spec 03 AC-19) is a finding. That the read was the write's `VERIFIED_WITH` read is a store
+  invariant, not re-checked by A3 (task 01g, PR #82, adds `read` to the `action_verified` payload).
+- **A4** covers numbers, dates and ids; statuses belong to A5. Ids follow the `PATTERN` shapes of `nick_of_time.ids`
+  (K-, S-, A-, V-, E-, RC-, N-) and the gold ones (TRX-, PRD-, CLI-). The receipt's own `RC-` id and the session's
+  `CLI-` id (`known_ids`) are known ids. Amounts are locale-aware: a last separator followed by
   1–2 digits is the decimal mark, and groups of 3 are thousands, also after a space or NBSP (`COP 3 500 000`). An ISO
   timestamp states only its date. The legal source (`deadline_source`, `source_url`, `verified_on`) is a
   `compute_deadline` fact and is checked. Skipped keys, none of them a tool fact: `receipt_id` and `issued_at` (minted
@@ -101,7 +106,8 @@ Notes on A3–A7 (task 18a):
   `intent_confidence` (classifier), `guardrails_triggered` (guardrail ids) and `verified_at` (checked by A3).
 - **A6** applies the transcript rule to notification surfaces only (utterances of 20+ characters, word-bounded,
   case-blind). The score counts only within 40 characters of a score word (score, puntaje, puntuación, pontuação,
-  riesgo, risco) and never as an amount. A card number must pass Luhn and is searched with ids and dates blanked out.
+  riesgo, risco, `fraud` (stem), probabilidad (also probabilidade), índice) and never as an amount. A card number
+  must pass Luhn and is searched with ids and dates blanked out.
 - **A7** also requires a person (`analyst:<sub>`, with a non-empty sub) for `resolved`, not only for `closed`. Active
   cases come from each case's last status; duplicates are keyed by customer and transaction.
 
@@ -154,6 +160,8 @@ comes from the policy engine, not from an LLM, so the judge does not grade its o
 - Judge: at most one call per case in review; cost under 0.01 USD per case `[assumption]`, estimated before the call
   and the call is skipped when over budget or when the client has no prices; input capped at about 12k tokens; timeout
   10 s because G-OPS-01's 800 ms would always expire on a model call (D-037) `[assumption]`; the customer never sees it.
+  `judge_client` builds the judge's client with read timeout = that timeout and one attempt, so an abandoned call ends
+  soon after (the LLM client takes `read_timeout_s` and `max_attempts`, defaults unchanged).
   The cap reserves 700 output tokens, so it implies a **Haiku-class judge**, and AC-12's choice must respect it: at the
   `eval/bench/prices.yaml` prices `[external]`, Sonnet 4.6 (16.5 USD per 1M output tokens) can never fit, and Haiku 4.5
   (1.1 in, 5.5 out) fits up to about 5.6k estimated input tokens, so the cost cap binds before the 12k input cap.
@@ -169,8 +177,13 @@ decision: AnalystDecision = judge.record_decision(case_id, analyst, action, prop
 - **Input mapping (for the `records_for_run(run_id)` adapter of T2, reused by T3).** `FinalState` does not change.
   - A3: the claims are the TurnResult `actions` (`ActionRecord`), `receipt.actions` and `handoff.actions`. The evidence
     is one `ActionRead` per `action_verified` event (D-025), with `action_id`, `verification_id` and `read_at` from its
-    payload; `requested_at` is the `created_at` of the write event (`case_opened` or `card_blocked`) with the same
-    `action_id`.
+    payload (`store.verifications(case_id, action_id, run_id=...)`); `requested_at` is the `created_at` of the write
+    event (any of the six `WRITE_EVENTS`, from `store.action_write`) with the same `action_id`;
+    `reads_from_store(store, action_ids, customer_id=, run_id=)` does both: `action_ids` is the union of the
+    record, receipt and handoff ids, and `customer_id` is the session's, so another customer's action is no evidence.
+  - A4: `tool_results` are the run's tool outputs from the trace; `reply`, `receipt` and `handoff` as emitted;
+    `policy_facts` are the `policies.yaml` values a reply may cite (such as the `regulatory_clock` business days);
+    `known_ids` is the session's `CLI-` id.
   - A5: `FinalState.status_replies` (told vs a fresh read, the K- id included).
   - A6: surfaces from the reply, the receipt and `notifications.text`; `other_customer_data_exposed` from `FinalState`.
   - A7: `case_opened` → `LifecycleEvent(type="status", status="new")`; `status_changed` → `status` = payload `to`; the
@@ -202,7 +215,7 @@ tools for the third line (internal audit).
 ## 10. Plan, tasks and verification
 - [ ] T1 [P0] — `nick_of_time.audit` with A1–A7 as pure functions + tests on recorded fixtures · AC-01
       (A3–A7 done, task 18a: `tests/test_spec18_audit_a3_a7.py`, A3 on D-025's `action_verified`; A1–A2 remain,
-      task 18b)
+      task 18b; follow-ups 18x: A3 on the store, six writes, A4 own ids, score paraphrases, v1.1 fixtures)
       Note: AC-01 names A1–A10, but P0 is A1–A7 (§4.3, T1); A8–A10 are outside P0, pending the lead.
 - [ ] T2 [P0] — harness uses the library for its final-state checks (with @vldiego) · AC-02
 - [ ] T3 [P1] — api background task, `audit_findings`, critical flag and acknowledgment · AC-03, AC-04, AC-05
@@ -210,7 +223,7 @@ tools for the third line (internal audit).
       AC-10, AC-11 (`nick_of_time/audit/judge.py`, `tests/test_spec18_judge.py`; the fallback is `None`, the timeout and
       the per-case cost cap are `[assumption]` defaults, see §4.2 and §5; the `AnalystDecision` record matches only the
       first decisive action and leaves persistence to the store owner, see T5)
-- [ ] T5 [P0] — second-opinion panel in the console (with @gianzk) · AC-09. The api gives the judge its own client and
+- [ ] T5 [P0] — second-opinion panel in the console (with @gianzk) · AC-09. The api gives the judge its own client from `judge.judge_client` and
       owns persistence: it calls `judge.record_decision` with the case's earlier analyst actions as `prior_actions` (only
       the first decisive action is matched, §4.2) and stores `matched_second_opinion` in the `analyst_action` payload,
       the opinion in `second_opinions`, and one `llm_calls` row per billed call (`on_call` result not `None`) · AC-10

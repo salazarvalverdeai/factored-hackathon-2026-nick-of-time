@@ -263,7 +263,7 @@ def test_ac_04_sample_receipt_validates_against_the_schema():
     assert facts["V"].source_id == sample.actions[0].verification_id and facts["K"].source_id == sample.case_id
     charged = dt.date.fromisoformat(re.search(r"\d{4}-\d{2}-\d{2}", facts["TRX"].fact).group())
     since_charge = sample.issued_at - dt.datetime.combine(charged, dt.time(), dt.UTC)
-    assert dt.timedelta(0) < since_charge <= dt.timedelta(hours=48)          # the 48 h notice window (spec 02 §4.3)
+    assert dt.timedelta(0) < since_charge <= dt.timedelta(days=90)         # the 90-calendar-day window (spec 02 §4.3, ADR 0023)
 
 
 NOW = "2026-06-01T15:04:12Z"                    # DEMO_TODAY (ADR 0020)

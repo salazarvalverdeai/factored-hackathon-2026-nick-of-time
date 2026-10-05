@@ -14,6 +14,9 @@ def make_client(cfg, *, prices: dict | None = None, **kw) -> LLMClient:
     Extra keywords (script=, boto_client=, sdk_client=) go to the provider class."""
     kw.setdefault("temperature", cfg.temperature)
     kw.setdefault("mode", cfg.tool_choice)
+    for name in ("read_timeout_s", "max_attempts"):
+        if getattr(cfg, name, None) is not None:
+            kw.setdefault(name, getattr(cfg, name))
     if cfg.provider == "fake":
         return FakeClient(cfg.model or "fake", prices=prices, **kw)
     if cfg.provider == "bedrock":

@@ -100,7 +100,8 @@ def test_adr_0016_every_placeholder_is_allowed_and_documented_in_header():
         assert name in header, name
 
 
-@pytest.mark.parametrize("top", ["greet", "plan", "connect", "suggest", "status", "receipt", "notify"])
+@pytest.mark.parametrize(
+    "top", ["greet", "plan", "connect", "suggest", "status", "receipt", "notify", "refuse", "clarify"])
 def test_ac_15_ac_16_ac_29_ac_26_spec_names_top_level_keys(top):
     assert top in load()
 
@@ -236,3 +237,33 @@ def test_rule_6_no_promise_of_outcome_or_credit():
     """CLAUDE.md rule 6: provisional credit is always a human decision; templates never promise it."""
     for key, leaf in leaves(load()):
         assert not PROMISE.search(leaf["es"] + " " + leaf["pt"]), key
+
+
+ACTION_CLAIM = re.compile(r"bloque[eé]|bloquei|\babr[ií]\b|registr[eé]\b|registrei|envi[eé]\b|enviei|\bcre[eé]\b|"
+                          r"criei|cancel[eé]\b|cancelei", re.I)
+REFUSAL_REASON = re.compile(r"regla|regra|norma|segurid|seguran|guardrail|inyecci|inje[cç]|porque|pois|ya que|"
+                            r"j[aá] que", re.I)
+
+
+def test_ac_11_msg2_refuse_clarify_declined_state_no_action_time_or_reason():
+    """MSG2: each text asks or declines; none states an action or a time; the refusal gives no reason.
+    The refuse behavior (DENY, guardrail id, policy_denials) is tested in T2."""
+    data = load()
+    for group, key in (("refuse", "deny"), ("clarify", "ask_what"), ("plan", "declined")):
+        for lang in ("es", "pt"):
+            t = data[group][key][lang]
+            assert not PLACEHOLDER.search(t), (group, lang)
+            assert not TIME_WORDS.search(t), (group, lang)  # \d also rejects "48 horas" (ADR 0023)
+            assert not ACTION_CLAIM.search(t), (group, lang)
+    for lang in ("es", "pt"):
+        assert not REFUSAL_REASON.search(data["refuse"]["deny"][lang]), lang
+
+
+def test_adr_0023_no_template_promises_48_hours():
+    assert not re.search(r"48\s*(h\b|hora)", text(), re.I)
+
+
+@pytest.mark.parametrize("bad", ["Bloqueé tu tarjeta", "Ya abrí un caso", "registré tu caso", "em 2 dias úteis",
+                                 "te llamará pronto", "una regla de seguridad lo impide"])
+def test_ac_11_msg2_guard_regexes_catch_known_violations(bad):
+    assert ACTION_CLAIM.search(bad) or TIME_WORDS.search(bad) or REFUSAL_REASON.search(bad)

@@ -91,7 +91,7 @@ graph's run id). Kind: R read · W write · N notification.
 | `get_fraud_score` | R | Provider `dataset` (ADR 0006): `transactions.fraud_score` for a transaction of the session's customer, `source: "dataset"`, `version: "gold-v1"`; for a synthetic transaction, its generated score with `source: "synthetic"`. Another customer's transaction → `DENY POL-CROSS-CUSTOMER`. |
 | `compute_deadline` | R | Country from the customer (`México`→MX, `Argentina`→AR, `Colombia`→CO), product from the card type, opened on `clock.today(mode, country)`, `abroad` when `transaction_country` ≠ customer country; delegates to `clock.deadline()` (spec 02); returns `source_url` and `verified_on`. |
 | `open_case` | W | Duplicate check first (AC-15); recomputes the zone from the score (mismatch → AC-09); idempotent on `idempotency_key` (prefixed with `run_id`); writes `cases` (with `mode`, `related_case_id` when given) and `case_events(case_opened)`; returns `case_id`, deadlines and `duplicate_of`. |
-| `block_card` | W | Requires an open case for that product in the session and run; asks `engine.check("block_card", zone, amount, country, supervised_mode)`; on allow, writes `product_overrides(Blocked)` and `case_events(card_blocked)`, returns `state: "requested"` (not yet verified). |
+| `block_card` | W | Requires an open case for that product in the session and run; asks `engine.check("block_card", zone, supervised_mode=…, amount=…, currency=…, country=…)` (spec 02 §6); on allow, writes `product_overrides(Blocked)` and `case_events(card_blocked)`, returns `state: "requested"` (not yet verified). |
 | `get_product_status` | R | Latest override for the product in the same `run_id`, else gold `product_status`; returns type, last 4, status and `read_at`, plus `action_id` + `verification_id` only when called with a write's `action_id` whose post-condition holds (D-025). No cache. |
 | `list_my_cards` | R | The session customer's cards with the same fields as `get_product_status`, never with an `action_id` or `V-`: a listing verifies no write (D-025). |
 | `get_case` | R | Replaces `get_case_status`. Status label for the customer (`Recibido`, `En revisión`, `Resuelto`, `Cerrado` and PT equivalents from `messages.yaml`), stored deadlines with source, transaction, visible timeline, `taken_by_person` (an `assigned` event exists), `related_case_id`, `read_at`. |
@@ -103,6 +103,10 @@ graph's run id). Kind: R read · W write · N notification.
 | `send_case_summary` | N | AC-21; renders `messages.yaml receipt.*` with the case's verified facts, writes `notifications(trigger=on_request)` + `case_events(notification_sent)`, hands delivery to the api's sender (Telegram or Resend); returns `notification_id` and `state: "requested"`. |
 | `list_my_notifications` | R | AC-22. |
 
+`get_fraud_score` never returns `source: "synthetic"` in `replay`: synthetic transactions exist only in `live` (ADR 0020
+rule 2), and only a live synthetic score decides as `[simulated]` (spec 02 D-027; the handoff card carries it as
+`score_source`, D-033). A T3 test pins it.
+
 **Case lifecycle** (with `case_queue.transitions` of `policies.yaml`):
 
 | Situation | What happens | Who decides |
@@ -113,11 +117,17 @@ graph's run id). Kind: R read · W write · N notification.
 | Closed case | Never reopened by the customer; a new case with `related_case_id`; its deadline runs from the new notice `[assumption, verify per country in spec 02 T3]` | Registered automatically; decided by a person |
 | Customer wants to close or reopen a case | Not allowed: closing and reopening are analyst actions in the api | — |
 
-**Common rules:** API key middleware; session check first (AC-02); fault check second (AC-05); errors returned as
-`ToolError`, never raised; strict Pydantic validation (`extra="forbid"`) rejects unexpected arguments; tool outputs
-are typed data, delimited when passed to the LLM (G-IN-01); per-session limits of 30 calls/min, 5 writes/min and 3
-notifications/hour `[assumption]` (G-TOOL-01, G-OPS-01); every call audited with `trace_id`, actor `agent` and an input
-hash (G-OPS-02). The analysts' actions never appear in this server.
+**Common rules:** API key middleware (every route but `/health`, which returns no data, answers 401 without a valid
+`X-API-Key`; an `MCP_API_KEY` under 32 characters refuses to start); session check first (AC-02); fault check second
+(AC-05); then per-session limits of 30 calls/min, 5 writes/min (W and N tools) and 3 notifications/hour (D-041),
+counting admitted calls only `[assumption]` (G-TOOL-01, G-OPS-01); then strict Pydantic validation (`extra="forbid"`),
+which answers `DENY` to an unexpected argument such as `customer_id`. A rate-limit or schema `DENY` cites
+`POL-DEFAULT-DENY` and G-TOOL-01 (D-040). Errors are returned as `ToolError`, never raised: a tool with no handler yet,
+a failing handler or a failing audit answers `UNAVAILABLE`. Tool outputs are typed data, delimited when passed to the
+LLM (G-IN-01). Every call is audited as one JSON line on stdout (D-040) with `trace_id` (`X-Trace-Id`, else a minted
+`mcp-` id), actor `agent` and hashes of the input and the session id, never either one; every `DENY` is a
+`policy_denials` row (AC-12); a handler's `DENY` cites G-POL-01 until T4 maps its rule's guardrail.
+The analysts' actions never appear in this server.
 
 **Verification, call requests and score sources** `[assumption]` (defaults pending the lead):
 - D-025: a write returns `state: "requested"` and no `V-` id. The read that verifies it (`VERIFIED_WITH` in
@@ -151,6 +161,8 @@ and writes Postgres through `nick_of_time.store`: `sessions` (read), `demo_trans
 - **Q3 — order of writes:** `open_case` first (the ticket is always opened), then `block_card`, which requires the open case.
 - **Q4 — tool contract v1.1:** ~~open~~ **Decided (lead, 2026-10-04):** the 16 tools of §6 and the case lifecycle above
   (improvement #13).
+- **D-040 (lead, 2026-10-04):** the tool-call audit is a stdout log line for now; gate denials cite `POL-DEFAULT-DENY`
+  with G-TOOL-01, with no `contracts/` change. **D-041 (lead, 2026-10-04):** the notification limit is per session (AC-21).
 - Assumption: the DuckDB in-memory load fits the EC2 (t3.medium, 4 GB) — measured in T5.
 
 ## 9. Out of scope
@@ -158,8 +170,9 @@ Analyst tools (they live in the backend API, spec 05); automatic notifications o
 webhooks (api, spec 13); the agent logic (spec 04).
 
 ## 10. Plan, tasks and verification
-Implementation goes in `feat/03-mcp-tools` once this spec, spec 01 and spec 02 are approved.
-- [ ] T1 — FastMCP app, API key middleware, session and fault checks, rate limits, audit · AC-02, AC-05, AC-06
+Implementation goes in one `feat/03-*` branch per task (T1: `feat/03-mcp-server`).
+- [x] T1 — FastMCP app, API key middleware, session and fault checks, rate limits, audit · AC-02, AC-05, AC-06 ·
+      `apps/mcp/mcp_server/{server,gate}.py`, `tests/test_spec03_server.py`
 - [ ] T2 — Gold loader (DuckDB in-memory, card transactions by customer), `demo_transactions` in `live`, and
       `search_transaction` ranking · AC-01, 07, 08, 11, 14
 - [ ] T3 — `get_customer_profile`, `get_fraud_score`, `compute_deadline`, `convert_amount` · AC-11, AC-20
@@ -169,7 +182,11 @@ Implementation goes in `feat/03-mcp-tools` once this spec, spec 01 and spec 02 a
       gold v1 · AC-04, AC-13, AC-16
 - [ ] T6 — follow-up tools (`add_case_info`, `request_call`, `request_reevaluation`) · AC-17, AC-18, AC-19
 - [ ] T7 — `send_case_summary`, `list_my_notifications` · AC-21, AC-22
-- [ ] T8 — Dockerfile and compose service `mcp`; tests `tests/test_spec03_*.py` against a gold fixture
+- [ ] T8 — entry point (`MCP_API_KEY` from SSM, one uvicorn worker) over the in-memory store (the Postgres backend
+      and its `sessions` and `policy_denials` accessors are task 01g's; the gate's `SessionRow` and `DenialRow` move to
+      those accessors once 01g part 2, PR #87, merges), Dockerfile and compose service `mcp`; tests
+      `tests/test_spec03_*.py` against a gold fixture. The `tools/list` descriptions (today `<name> (spec 03 §6)`) are
+      set here from what spec 04 binds for the agent (owner: spec 04 / T8)
 
 **Closing checklist:** every AC has a passing test or check that cites it · status → Implemented · lessons to `CLAUDE.md`.
 

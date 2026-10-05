@@ -34,6 +34,8 @@
     "handoff_reason": {
       "enum": [
         "zone_human",
+        "zone_medium",
+        "supervised_mode",
         "amount_over_case_gate",
         "identity_unverified",
         "clarification_exhausted",
@@ -206,6 +208,20 @@
         "number",
         "null"
       ]
+    },
+    "score_source": {
+      "enum": [
+        "dataset",
+        "rules",
+        "model",
+        "llm",
+        "synthetic"
+      ],
+      "description": "GetFraudScoreOut.source; the console and the card show a synthetic score as [simulated]"
+    },
+    "score_version": {
+      "type": "string",
+      "description": "GetFraudScoreOut.version, e.g. gold-v1"
     },
     "intent_confidence": {
       "type": "number"

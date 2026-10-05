@@ -2,6 +2,8 @@
 -- migration (D-002); tests/test_spec01_store_schema.py keeps it in step with the spec table.
 -- Conventions [assumption]: a column the spec leaves untyped is text (timestamps timestamptz, counters integer); a
 -- column is not null unless the spec marks it null. Rows are never updated or deleted in the append-only (AO) tables.
+-- A "sub not blank" holds a character outside Python's str.isspace() set, spelled out so no server locale changes it;
+-- (?p) keeps `.` off newlines, as in the store's ACTOR.
 
 create table sessions (
   session_id text primary key,
@@ -79,7 +81,8 @@ create table case_events (                                           -- AO
     'status_changed', 'handoff_emitted', 'assigned', 'analyst_action', 'customer_info_added', 'call_requested',
     'reevaluation_requested', 'related_case_opened', 'notification_sent', 'receipt_issued', 'telegram_linked',
     'email_confirmed')),
-  actor text not null check (actor in ('agent', 'customer', 'system') or actor ~ '^analyst:.*\S.*$'),
+  actor text not null check (actor in ('agent', 'customer', 'system')
+    or actor ~ '(?p)^analyst:.*[^\t\n\v\f\r\u001c-\u001f \u0085\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000].*$'),
   payload jsonb not null default '{}',
   customer_visible boolean not null,
   trace_id text not null,
@@ -103,14 +106,16 @@ create table case_events (                                           -- AO
   check (customer_visible = (type not in ('action_verified', 'handoff_emitted', 'analyst_action')))
 );
 
-create table product_overrides (                                     -- AO; status = latest row of the same run_id
+create table product_overrides (                                     -- AO; status = latest row_no of the same run_id
   override_id text primary key,                                      -- the action_id of the write (D-025)
   product_id text not null,
   status text not null check (status in ('Active', 'Blocked', 'Closed', 'Suspended')),
   case_id text not null,
-  actor text not null check (actor in ('agent', 'customer', 'system') or actor ~ '^analyst:.*\S.*$'),
+  actor text not null check (actor in ('agent', 'customer', 'system')
+    or actor ~ '(?p)^analyst:.*[^\t\n\v\f\r\u001c-\u001f \u0085\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000].*$'),
   run_id text null,
-  created_at timestamptz not null default now()
+  created_at timestamptz not null default now(),
+  row_no bigint not null generated always as identity                -- insertion order: "latest" (T9)
 );
 
 create table notifications (                                         -- AO
@@ -126,21 +131,23 @@ create table notifications (                                         -- AO
   created_at timestamptz not null default now()
 );
 
-create table notification_deliveries (                               -- AO; delivery status = latest row
+create table notification_deliveries (                               -- AO; delivery status = latest row_no
   delivery_id text primary key,
   notification_id text not null references notifications (notification_id),
   status text not null check (status in ('queued', 'sent', 'delivered', 'bounced', 'failed')),
   provider_event jsonb null,
-  created_at timestamptz not null default now()
+  created_at timestamptz not null default now(),
+  row_no bigint not null generated always as identity                -- insertion order: "latest" (T9)
 );
 
-create table customer_channels (                                     -- AO; latest row per channel wins
+create table customer_channels (                                     -- AO; latest row_no per channel wins
   channel_id text primary key,
   customer_id text not null,
   channel text not null,
   address text not null,
   event text not null check (event in ('linked', 'confirmed', 'revoked')),
-  created_at timestamptz not null default now()
+  created_at timestamptz not null default now(),
+  row_no bigint not null generated always as identity                -- insertion order: "latest" (T9)
 );
 
 create table link_tokens (                                           -- one-time
@@ -156,14 +163,16 @@ create table idempotency (                                           -- key pref
   action text not null,
   result jsonb not null,
   run_id text null,
-  created_at timestamptz not null default now()
+  created_at timestamptz not null default now(),
+  args_hash text not null                                            -- sha256 of the call's arguments: a reused key must match
 );
 
 create table policy_denials (                                        -- AO
   denial_id text primary key,
   trace_id text not null,
   session_id text null,                                              -- null for api and analyst denials (D-023)
-  actor text not null check (actor in ('agent', 'customer') or actor ~ '^analyst:.*\S.*$'),
+  actor text not null check (actor in ('agent', 'customer')
+    or actor ~ '(?p)^analyst:.*[^\t\n\v\f\r\u001c-\u001f \u0085\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000].*$'),
   policy_id text not null,
   guardrail_id text not null,                                        -- a rule-only denial cites G-POL-01
   detail jsonb not null,
@@ -184,12 +193,13 @@ create table llm_calls (                                             -- AO
   created_at timestamptz not null default now()
 );
 
-create table settings_events (                                       -- AO; supervised_mode = latest
+create table settings_events (                                       -- AO; supervised_mode = latest row_no
   event_id text primary key,
   key text not null,
   value jsonb not null,
   actor text not null,
-  created_at timestamptz not null default now()
+  created_at timestamptz not null default now(),
+  row_no bigint not null generated always as identity                -- insertion order: "latest" (T9)
 );
 
 -- postgres-only: the action-id index and the append-only guard. The offline DuckDB check stops at this line.
@@ -207,7 +217,8 @@ do $$
 declare t text;
 begin
   foreach t in array array['cases', 'case_events', 'product_overrides', 'notifications', 'notification_deliveries',
-                           'customer_channels', 'policy_denials', 'llm_calls', 'settings_events'] loop
+                           'customer_channels', 'idempotency', 'policy_denials', 'llm_calls',
+                           'settings_events'] loop
     execute format('create trigger %I before update or delete or truncate on %I '
                    'for each statement execute function forbid_append_only_change()', t || '_append_only', t);
   end loop;
