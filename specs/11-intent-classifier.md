@@ -158,6 +158,10 @@ Reads the sentence set of spec 09 (`eval/classifier/*.jsonl`). Writes `models/in
 - **B0 confidence `[assumption]`:** fixed at 0.9 for a match and 0.5 for none, so it stays above
   `clarify.intent_confidence_min` (0.80) on a match. Being constant, ECE and coverage at τ say nothing for B0; the T6
   report states it.
+- **B0 coverage `[assumption]`:** a bare "mil" before a currency word reads as 1000, and a second figure or a number word
+  before or after "mil" (fifteen, "y dos", millones) gives no amount; a dispute noun counts only after an opening verb and an
+  article, except disputa, contracargo, chargeback, contestação and estorno, which need no charge noun; a person request is
+  refused only when a negation is followed by a closed list (me, que, quiero, necesito, preciso, hay que...) and nothing else.
 - **Currency `[assumption]`:** a bare "$" or "pesos" leaves `currency` null; the country comes from the session.
 - Assumption: spec 09 delivers about 800 sentences (ES and PT, with author ids) written by the team and paraphrased
   with an LLM whose name is recorded; results from a candidate of the same family as the generator are flagged.

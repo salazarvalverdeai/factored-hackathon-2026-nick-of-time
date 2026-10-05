@@ -21,12 +21,16 @@ from .text import fold
 ARM, VERSION = "B0", "b0-v1"
 
 _PERSON = r"(?:persona|humano|agente|asesor|ejecutivo|operador|atendente|pessoa|alguem|alguien|representante|gerente|supervisor)"
+_OPEN = (r"\b(?:abrir|presentar|registrar|hacer|levantar|iniciar|fazer|pedir|solicitar|quiero|quero|necesito|preciso|"
+         r"gostaria) (?:(?!ver |saber |consultar |revisar |checar |conferir |acompanhar |cancelar |cerrar |retirar |"
+         r"anular |encerrar |desistir )\w+ ){0,2}")
 _INTENT_RULES: list[tuple[str, list[str]]] = [
     ("human_request", [
         # "comuni-" needs a person after it: "me comunico con ustedes por un cargo" is an opener, not a request
-        r"\b(?:hablar|conversar|comuni\w*|pas\w*|falar|passar) (?:\w+ ){0,2}(?:con|com|para|pra|pro|a) "
+        r"\b(?:hablar|conversar|comuni(?:c(?:ame|arme|arnos|ar|an)|quenme|quen|quem)|pas(?:a|as|an|en|ame|eme|enme|ar|arme|arnos)|falar"
+        r"|pass(?:a|e|em|ar)) (?:\w+ ){0,2}(?:con|com|para|pra|pro|a) "
         r"(?:un |una |um |uma |o |a |el |la )?" + _PERSON,
-        r"\b(?:quiero|necesito|quero|preciso|prefiero|prefiro) (?:(?!si |se )\w+ ){0,3}"
+        r"\b(?:quiero|necesito|quero|preciso|prefiero|prefiro) (?:(?!si |se |saber )\w+ ){0,3}"
         r"(?:un |una |um |uma |o |a |el |la )?" + _PERSON,
         # a message that is only the person word ("Supervisor", "Un asesor", "Humano por favor", "Atendente, por favor")
         r"^(?:un |una |um |uma |o |a |el |la )?" + _PERSON + r"(?: humano| real)?(?:,? por favor)?[.!? ]*$",
@@ -60,12 +64,14 @@ _INTENT_RULES: list[tuple[str, list[str]]] = [
         r"(?:cargo|compra|cobro|cobranca|debito|transacao|transaccion|movimiento|consumo)\b",
         r"\b(?:no es mi[oa]|nao e (?:meu|minha))\b",
         r"\b(?:no son mi[oa]s|nao sao (?:meus|minhas))\b",
-        r"\b(?:alguien|alguem) (?:uso|usou|ha usado|esta usando) (?:mi|meu) (?:tarjeta|cartao)\b",
-        # a dispute noun counts only after an opening verb and an article ("quiero abrir una disputa por un cargo");
-        # "como va mi disputa del cargo" or "quiero ver el reclamo del cargo" stay status questions
-        r"\b(?:abrir|presentar|registrar|hacer|levantar|iniciar|fazer|pedir|solicitar|quiero|quero|necesito|preciso|"
-        r"gostaria) (?:(?!ver |saber |consultar |revisar |checar |conferir |acompanhar )\w+ ){0,2}"
-        r"(?:un|una|um|uma|o|el|a|la) (?:disputa|reclamo|reclamacao|contestacao|aclaracion|contracargo|chargeback|estorno)"
+        r"\bno (?:es|son) mis? (?:cargos?|compras?|cobros?|consumos?|transaccion(?:es)?|movimientos?|debitos?)\b",
+        r"\b(?:alguien|alguem) (?:uso|usou|ha usado|esta usando|utilizo|utilizou|ha utilizado|esta utilizando) "
+        r"(?:(?:o|a) )?(?:mi|meu|minha) (?:tarjeta|cartao)\b",
+        # [assumption] a dispute noun counts only after an opening verb and an article ("quiero abrir una disputa");
+        # "como va mi disputa del cargo" or "quiero ver el reclamo del cargo" stay status questions. The 4 strong
+        # nouns need no charge noun; reclamo, reclamacao and aclaracion do.
+        _OPEN + r"(?:un|una|um|uma|o|el|a|la) (?:disputa|contracargo|chargeback|contestacao|estorno)\b",
+        _OPEN + r"(?:un|una|um|uma|o|el|a|la) (?:reclamo|reclamacao|aclaracion|disputa|contracargo|chargeback|contestacao|estorno)"
         r" (?:\w+ ){0,2}(?:cargo|compra|cobro|cobranca|debito|transacao|transaccion|movimiento|consumo)\b",
     ]),
 ]
@@ -75,6 +81,10 @@ _CALL = re.compile(r"\b(?:que me llamen?|llamenme|llamame|me llamen|me liguem?|m
                    r"|\b(?:me|nos) (?:pueden|puede|podrian|podria) llamar\b|\bpodem? me ligar\b"
                    r"|\b(?:quiero|necesito|pido|solicito|quero|preciso|peco) (?:\w+ ){0,2}(?:llamada|ligacao)\b")
 _NEGATED = re.compile(r"\b(?:no|nao|sin|sem)(?: \w+){0,2} $")
+# [assumption] a person request is refused only when a negation is followed by this closed list and nothing else:
+# "no quiero que me pasen con un asesor" is a refusal, "no me pueden pasar con un asesor" is a request
+_REFUSAL = re.compile(r"\b(?:no|nao|sin|sem) (?:(?:me|te|le|nos|que|quiero|quero|necesito|preciso|precisa|precisam|deseo|"
+                      r"desejo|hace falta|es necesario|e necessario|hay que|tengo que|tenho que) )*$")
 # "already reported": the ES past tense differs from the noun "reporte" and the command "registre" only by its accent,
 # so it is read before folding; an unaccented form counts only after ya/lo/la. PT -ei forms are unambiguous.
 _REPORTED_ES = re.compile(r"\b(?:report|reclam|registr|denunci)é\b")
@@ -105,7 +115,11 @@ _DATE_NOISE = re.compile(r"\d{4}-\d{2}-\d{2}|\d{1,2}/\d{1,2}/\d{4}|\d{1,2} de [a
 _MERCHANT = re.compile(r"\b(?:en|em|de|do|da)\s+((?:[A-ZÁÉÍÓÚÑÃÕÇ][\w&'.-]*)(?:\s+[A-ZÁÉÍÓÚÑÃÕÇ][\w&'.-]*){0,3})(?![\w$])")
 _THOUSANDS = re.compile(r"(\d+(?:[.,]\d{1,2})?) ?mil\b(?! ?(?:millon|milhao))")
 # "2,500 mil", "15 mil e 500", "3 mil 200", "7 mil quinientos": a second figure after "mil" is unsafe
-_MIL_COMPOUND = re.compile(r"\d[.,]\d{3}(?:[.,]\d+)? ?mil\b|\bmil,? (?:(?:e|y) )?(?:\d|cien|cem|"
+_MIL_COMPOUND = re.compile(r"\d[.,]\d{3}(?:[.,]\d+)? ?mil\b|\bmil (?:millon|milhao|milho)\w*|"
+                           r"\b(?:(?:y|e) (?:un|uno|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|um|dois|duas|quatro|sete|oito|nove)"
+                           r"|once|doce|trece|catorce|quince|veinte|treinta|cuarenta|cincuenta|sesenta|setenta|ochenta|noventa"
+                           r"|cien|ciento|\w*cientos|onze|doze|treze|quatorze|quinze|vinte|trinta|quarenta|cinquenta|sessenta"
+                           r"|oitenta|cem|\w*centos) mil\b|\bmil,? (?:(?:e|y) )?(?:\d|cien|cem|"
                            r"\w*(?:cient|quinient|zent|cent|hent)\w*|(?:vein|trein|cuaren|cincuen|sesen|seten|ochen|noven|vint|"
                            r"trinta|quarent|cinquent|sessent|setent|oitent|novent)\w*)")
 # "dos mil pesos", "mil reais": number words 1-10 (and a bare "mil" before a currency word) become digits first
@@ -171,7 +185,7 @@ def classify_intent(text: str) -> tuple[str, float, bool]:
     t = fold(text)
     # a negated person request ("no quiero hablar con un asesor") is no request; other intents ignore negation
     hits = {intent for intent, patterns in _COMPILED
-            if any(not (intent == "human_request" and _NEGATED.search(t[:m.start()]))
+            if any(not (intent == "human_request" and _REFUSAL.search(t[:m.start()]))
                    for p in patterns for m in p.finditer(t))}
     if any(not _NEGATED.search(t[:m.start()]) for m in _CALL.finditer(t)):
         hits.add("human_request")
