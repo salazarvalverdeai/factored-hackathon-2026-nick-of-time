@@ -735,9 +735,9 @@ def test_d035_a_summary_send_is_verified_only_while_its_latest_delivery_is_not_l
     assert [n.delivery_status for n in store.list_notifications("CLI-000001", run_id=None)] == ["delivered"]
 
 
-def test_d025_the_store_copy_of_verified_with_matches_the_contract():
-    """TODO(01c): the store imports VERIFIED_WITH from contracts.tools once #59 merges; until then they must agree."""
-    assert getattr(contract_tools, "VERIFIED_WITH", VERIFIED_WITH) == VERIFIED_WITH
+def test_d025_the_store_import_of_verified_with_matches_the_contract():
+    """The store imports VERIFIED_WITH from contracts.tools (spec 01 §6.3)."""
+    assert VERIFIED_WITH is contract_tools.VERIFIED_WITH
 
 
 @pytest.mark.parametrize("write, payload", [("customer_info_added", {"text": "Nunca estuve en Monterrey"}),
