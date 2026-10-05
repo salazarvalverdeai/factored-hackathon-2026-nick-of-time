@@ -127,9 +127,12 @@ def test_ac_08_case_files_and_scripts_never_touch_the_labels():
 
 @each_set
 def test_ac_09_expected_is_what_the_policy_engine_derives(name):
-    """AC-09: the committed `expected` of every case equals expected_for() on that case, so none is typed by hand."""
+    """AC-09: the committed `expected` of every case equals expected_for() on that case with the intent of its plan line,
+    so none is typed by hand and the intent label is the team's, not the case file's."""
+    plans = {plan["id"]: plan for plan in read_jsonl(CASES / "plan" / f"{name}.jsonl")}
+    assert set(plans) == {item["id"] for item in SETS[name]}
     for item in SETS[name]:
-        assert item["expected"] == expected_for(item, item["expected"].get("intent"), ENGINE), item["id"]
+        assert item["expected"] == expected_for(item, plans[item["id"]].get("intent"), ENGINE), item["id"]
 
 
 @each_set

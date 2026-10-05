@@ -92,7 +92,7 @@ keep their real country (spec 09 Q5, default).
 | SC-01 | MX high zone: card blocked, credit approved, closed | `closed` |
 | SC-02 | CO human zone: information requested, then resolved | `resolved` |
 | SC-03 | AR human zone: resolved, then re-evaluated at the customer's request | `review` |
-| SC-04 | PT: injection refused, then a legitimate high-zone case | `verification` |
+| SC-04 | PT: injection refused, then a legitimate case handed to a person (human zone) | `review` |
 
 ## Agent cases (`cases/`)
 `PYTHONPATH=packages python -m eval.derive_expected dev` rebuilds `cases/dev.jsonl` from `cases/plan/dev.jsonl`. To
