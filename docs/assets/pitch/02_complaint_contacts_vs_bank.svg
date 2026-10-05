@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 400" width="720" height="400" font-family='system-ui, -apple-system, "Segoe UI", sans-serif' role="img" aria-label="Complaint contacts resolve less, last longer and leave follow-up">
+<rect x="0.5" y="0.5" width="719" height="399" rx="8" fill="#fcfcfb" stroke="#e1e0d9"/>
+<text x="32.0" y="36.0" font-size="16" fill="#0b0b0b" text-anchor="start" font-weight="600">Complaint contacts resolve less, last longer and leave follow-up</text>
+<text x="32.0" y="56.0" font-size="12" fill="#52514e" text-anchor="start" font-weight="normal">Call-center contacts: 117,021 complaint contacts against 686,296 in the whole bank</text>
+<rect x="32" y="75" width="10" height="10" rx="2" fill="#2a78d6"/>
+<text x="48.0" y="84.0" font-size="12" fill="#52514e" text-anchor="start" font-weight="normal">Complaint contacts (reason “Queja”)</text>
+<rect x="280" y="75" width="10" height="10" rx="2" fill="#c3c2b7"/>
+<text x="296.0" y="84.0" font-size="12" fill="#52514e" text-anchor="start" font-weight="normal">Whole bank</text>
+<text x="32.0" y="116.0" font-size="12" fill="#0b0b0b" text-anchor="start" font-weight="600">Resolved at first contact (FCR, % of contacts)</text>
+<path d="M32.0,126.0 H272.2 Q276.2,126.0 276.2,130.0 V140.0 Q276.2,144.0 272.2,144.0 H32.0 Z" fill="#2a78d6"/>
+<text x="284.2" y="139.0" font-size="12" fill="#0b0b0b" text-anchor="start" font-weight="normal">43.6%</text>
+<path d="M32.0,146.0 H457.2 Q461.2,146.0 461.2,150.0 V160.0 Q461.2,164.0 457.2,164.0 H32.0 Z" fill="#c3c2b7"/>
+<text x="469.2" y="159.0" font-size="12" fill="#0b0b0b" text-anchor="start" font-weight="normal">76.6%</text>
+<line x1="32" y1="122" x2="32" y2="168" stroke="#c3c2b7"/>
+<text x="32.0" y="204.0" font-size="12" fill="#0b0b0b" text-anchor="start" font-weight="600">Requires follow-up (% of contacts)</text>
+<path d="M32.0,214.0 H380.6 Q384.6,214.0 384.6,218.0 V228.0 Q384.6,232.0 380.6,232.0 H32.0 Z" fill="#2a78d6"/>
+<text x="392.6" y="227.0" font-size="12" fill="#0b0b0b" text-anchor="start" font-weight="normal">63.0%</text>
+<path d="M32.0,234.0 H223.1 Q227.1,234.0 227.1,238.0 V248.0 Q227.1,252.0 223.1,252.0 H32.0 Z" fill="#c3c2b7"/>
+<text x="235.1" y="247.0" font-size="12" fill="#0b0b0b" text-anchor="start" font-weight="normal">34.8%</text>
+<line x1="32" y1="210" x2="32" y2="256" stroke="#c3c2b7"/>
+<text x="32.0" y="292.0" font-size="12" fill="#0b0b0b" text-anchor="start" font-weight="600">Median contact duration (minutes, scale 0–10)</text>
+<path d="M32.0,302.0 H430.2 Q434.2,302.0 434.2,306.0 V316.0 Q434.2,320.0 430.2,320.0 H32.0 Z" fill="#2a78d6"/>
+<text x="442.2" y="315.0" font-size="12" fill="#0b0b0b" text-anchor="start" font-weight="normal">7.18 min</text>
+<path d="M32.0,322.0 H299.6 Q303.6,322.0 303.6,326.0 V336.0 Q303.6,340.0 299.6,340.0 H32.0 Z" fill="#c3c2b7"/>
+<text x="311.6" y="335.0" font-size="12" fill="#0b0b0b" text-anchor="start" font-weight="normal">4.85 min</text>
+<line x1="32" y1="298" x2="32" y2="344" stroke="#c3c2b7"/>
+<text x="32.0" y="384.0" font-size="11" fill="#898781" text-anchor="start" font-weight="normal">[data] p02 · p03 · p04</text>
+</svg>

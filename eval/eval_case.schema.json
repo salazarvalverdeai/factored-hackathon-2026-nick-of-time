@@ -36,7 +36,8 @@
         "missing_data",
         "late_arrival",
         "out_of_scope",
-        "cap"
+        "cap",
+        "customer_returns"
       ]
     },
     "origin": {
@@ -95,7 +96,63 @@
               "search_transaction"
             ]
           }
+        },
+        "case_id": {
+          "type": "string",
+          "pattern": "^K-[0-9]{6}$",
+          "description": "returning customer (customer_returns): the case they already have; the seed maps it to a fresh id per run"
+        },
+        "case": {
+          "type": "object",
+          "description": "fixture of the existing case; deadlines come from the clock at opened_on",
+          "required": [
+            "transaction_id",
+            "dispute_type",
+            "zone",
+            "queue_status",
+            "opened_on"
+          ],
+          "properties": {
+            "transaction_id": {
+              "type": "string"
+            },
+            "dispute_type": {
+              "enum": [
+                "unrecognized_charge",
+                "wrongful_charge"
+              ]
+            },
+            "zone": {
+              "enum": [
+                "high",
+                "medium",
+                "human"
+              ]
+            },
+            "queue_status": {
+              "enum": [
+                "new",
+                "verification",
+                "review",
+                "resolved",
+                "closed"
+              ]
+            },
+            "opened_on": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          "additionalProperties": false
         }
+      },
+      "dependentRequired": {
+        "case_id": [
+          "case"
+        ],
+        "case": [
+          "case_id"
+        ]
       }
     },
     "messages": {
@@ -133,6 +190,8 @@
             "confirm",
             "ask",
             "handoff",
+            "answer_status",
+            "connect_person",
             "deny",
             "reauthenticate",
             "escalate_unconfirmed_action"
@@ -150,9 +209,26 @@
           "enum": [
             "unrecognized_charge",
             "wrongful_charge",
-            "inquiry",
+            "status_inquiry",
+            "human_request",
             "out_of_scope"
           ]
+        },
+        "receipt": {
+          "type": "object",
+          "required": [
+            "issued",
+            "has_deadline"
+          ],
+          "properties": {
+            "issued": {
+              "type": "boolean"
+            },
+            "has_deadline": {
+              "type": "boolean"
+            }
+          },
+          "additionalProperties": false
         },
         "final_state": {
           "type": "object",

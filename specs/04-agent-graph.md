@@ -139,7 +139,7 @@ greet ─► understand ─► identity ─► route ─┬─► retrieve ─�
 | `act` | `open_case` (dedupe, related case), then `block_card` when allowed; idempotency key `session:transaction:action:run` | MCP |
 | `verify` | Post-conditions; 2 retries, 800 ms timeout; failure → `not_confirmed` + escalation | `get_product_status` · `get_case` |
 | `status` | Re-reads cards, cases or notifications and answers with the reading time | `list_my_cards` · `get_case` · `list_my_cases` · `list_my_notifications` |
-| `connect` | Registers a call request on the active case (or a general one) and says when to expect it; without a verified session, the bank's general contact path with no data | `request_call` · `messages.yaml connect.*` |
+| `connect` | Registers a call request on the active case (or a general one) and says the call request is registered (the expected contact window is pending lead decision D-008); without a verified session, the bank's general contact path with no data | `request_call` · `messages.yaml connect.*` |
 | `clarify` | Options (≤ 3 candidates) or a request for amount/date; counts turns | templates; LLM wording in S1/S2 |
 | `refuse` | DENY or re-authenticate with no data and a way forward | templates |
 | `respond` | Receipt and handoff from verified facts; reply from templates (S1/S2 may reword, then the grounding check runs); suggestion chips from §4.5 | `nick_of_time.receipt` · `send_case_summary` · `request_call` · `request_reevaluation` · `add_case_info` · `messages.yaml suggest.*` |
@@ -158,7 +158,8 @@ Modes (ADR 0020): `replay` (dataset, "today" = `DEMO_TODAY`) for evaluation and 
 ### 4.5 Suggestion chips
 Chips help the customer take the next step without typing. Three kinds: **text** (sends its label as the next message),
 **action** (sends a structured `action`, skipping the classifier) and **link** (an internal route set by the server).
-Labels live in `messages.yaml suggest.*` (ES/PT); ES examples below.
+Labels and chip kinds (`text`, `action`, `link`) live in `messages.yaml suggest.*` (ES/PT); the action payload
+(`type`, spec 01 §6.4) and the route are set by server code. ES examples below.
 
 | State after the turn | Chips |
 |---|---|
@@ -220,7 +221,20 @@ messages.
       AC-29, AC-30, AC-31, AC-32
 - [ ] T6 — `status` and `connect` nodes and the returning-customer path · AC-06, AC-19, AC-24, AC-28
 - [ ] T7 — progress stream; S1/S2 wiring (Bedrock, structured output); usage; graceful degradation to S0 · AC-14, AC-17
+- [ ] T7a — Shared LLM client `nick_of_time.llm` (`fake`, `bedrock`, `anthropic`) and `nick_of_time.config.resolve(arm)`:
+      forced tool use with the tool → any → auto ladder (D-011), temperature 0 or provider default recorded per arm
+      (D-016), usage, latency and cost from a price table, `ProviderUnavailable` for provider errors (graph degrades to
+      S0, section 5), `NoStructuredOutput` when the accepted mode returns no or schema-invalid input (caller decides;
+      it carries the billed call's usage); timeouts connect 2 s, read 15 s, 2 attempts in total (Bedrock
+      `total_max_attempts`) and 15 s, 1 retry (Anthropic) `[assumption]`; Anthropic is
+      an operator switch (`LLM_PROVIDER=anthropic`), not a runtime failover; a per-task arm config (spec 15 section
+      4.2) is planned for spec 15 T6 · supports AC-14; tests `tests/test_spec04_llm.py` (lead decision D-003)
 - [ ] T8 — Platform deployment; `/agent` content · AC-07, AC-08
+- [x] T-MSG — `contracts/messages.yaml`: ES/PT templates for greet, plan, connect, suggestion chips, status labels,
+      receipt and notify (placeholders `{name}`, tool facts only). Supports AC-06, AC-10, AC-11, AC-15, AC-16, AC-18,
+      AC-19, AC-21, AC-25, AC-26, AC-28, AC-29, AC-31, AC-32; behavior tested in T2–T6. T2–T7 extend the file (clarify,
+      refuse, progress AC-17, duplicate AC-23, re-evaluation AC-24, reversed charge); each extension is a contract
+      change that needs the lead's approval.
 - [ ] Tests `tests/test_spec04_*.py` with the `fake` LLM and the fake MCP; EV-0001 end to end in historical mode
 
 **Closing checklist:** every AC has a passing test or check · status → Implemented · ADR if a question changes a

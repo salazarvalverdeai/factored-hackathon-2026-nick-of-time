@@ -39,21 +39,31 @@ code is not re-specified (brownfield adoption).
 ## Business rules (firm, from `contracts/policies.yaml`)
 - Zones from the bank's `fraud_score` (an optional input): high ≥ 50 · medium 30–49 · human < 30 or null (own policy id).
 - A ticket is always opened, in every zone. High zone blocks and verifies; medium confirms with the customer first.
-- Regulatory clock in business days per country (MX debit: provisional credit by business day 2, Banxico 3/2012;
-  MX credit: LTOSF art. 23; AR: BCRA 10 business days; CO: SFC 15 days; BR: CMN 4.860). `amount_gate` only changes the
-  approval mode, never the clock.
+- Regulatory clock: a data table in `policies.yaml`, every entry with `source_url` and `verified_on` (ADR 0019). MX
+  debit: provisional credit by business day 2 **only for charges within the 48 h before the notice** (Banxico
+  3/2012); MX credit: LTOSF art. 23; AR: BCRA 10 business days; CO: SFC 15 business days; BR: CMN 4.860; PE: SBS
+  04036-2022; CL: Ley 20.009; any other country → `POL-CLOCK-UNKNOWN` (case opened, a person decides, no invented
+  deadline). `amount_gate` only changes the approval mode, never the clock. Spec 02 §4.3 is the source of truth.
 - Case queue: `new → verification | review → resolved → closed`; a case's status is its last event (append-only).
 - Customer notifications on every status: in-app log, Telegram and email. Never send score, policy ids or transcript.
-- Demo "today" is frozen at `DEMO_TODAY=2026-06-03` (gold ends on 2026-05-31).
+- Two time modes (ADR 0020): `replay` uses `DEMO_TODAY=2026-06-01` for evaluation and the processed sample cases;
+  `live` uses the real date with recent transactions marked synthetic. Nothing reads the system clock directly.
+- Conversation (spec 04): greet with capabilities, state the plan before acting, show progress, report actions only as
+  in progress / requested / verified / not confirmed, re-read the system for every status question, and end every
+  reply with 2–3 suggestion chips chosen by rules (a person always reachable).
+- Oversight (spec 18, ADR 0021): a deterministic auditor re-derives each outcome; an LLM judge gives the analyst an
+  advisory second opinion tied to evidence; every model and decision engine is in the inventory.
+- Models (spec 15): one model per LLM task, chosen by a pre-registered lean rule — the cheapest arm not significantly
+  worse than the best; whether a model may go to production is a result of the benchmark.
 
 ## Repository layout and owners
 Target layout; spec 01 fixes the final folders. Owners are enforced by `.github/CODEOWNERS`.
 ```
 apps/web/            Next.js app and front-end standard (apps/web/README.md)    GianMarco
 apps/api/            FastAPI backend: sessions, cases, analyst actions, notify  GianMarco
-apps/mcp/            FastMCP server with the 7 customer tools                    Freddy
+apps/mcp/            FastMCP server with the 16 customer tools                   Freddy
 apps/agent/          LangGraph graph deployed to Platform (langgraph.json)       Freddy
-packages/policy/     policy engine + regulatory clock shared by agent and tools Freddy
+packages/nick_of_time/ shared package: contracts, policy engine, clock, store, receipt, audit  Freddy
 contracts/           policies.yaml · tools.py · handoff and eval schemas         Freddy (lead)
 data/pipeline/       bronze → silver → gold pipeline                             Diego
 eval/                eval sets, protocol, harness, results                       Diego
@@ -81,6 +91,8 @@ cd apps/web && npm ci && npm run dev     # front end on :3000
 - Conventional Commits with a `why:` body; branches `spec/NN-slug`, `feat/NN-slug`, `fix/NN-slug` (CONTRIBUTING.md).
 - Tests for spec NN live in `tests/test_specNN_*.py` and cite the acceptance criterion (`AC-03`) in name or docstring.
 - Never call the real LLM in CI: use the `fake` provider.
+- Brand: UI, avatars, favicons and customer-facing copy follow [`docs/brand/BRAND.md`](docs/brand/BRAND.md) (colors,
+  Sora type, calm and precise voice). The SVGs in `docs/brand/` are the source of truth: never redraw the mark.
 
 ## Spec-driven flow (short)
 Spec (what) → plan (how) → tasks → implement, with human review at each gate. One spec per person at a time; parallel

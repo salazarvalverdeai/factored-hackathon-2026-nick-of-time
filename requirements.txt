@@ -7,5 +7,23 @@ pandera[polars]>=0.20
 pytest>=8
 pyyaml>=6
 jsonschema>=4
+rfc3339-validator>=0.1.4,<1   # without it jsonschema skips "format": "date-time" (spec 01 §6.7)
+# Lines below cap the next major so a breaking release never reaches CI untested (tzdata is calendar-versioned).
+# shared package, api and mcp (specs 01, 02, 03; ADRs 0008, 0010, 0017, 0020)
+pydantic>=2.7,<3
+fastapi>=0.115,<1
+uvicorn>=0.30,<1
+httpx>=0.27,<1
+psycopg[binary]>=3.2,<4
+alembic>=1.13,<2
+pyjwt[crypto]>=2.8,<3
+tzdata>=2024.1
+fastmcp>=4.0,<5
+# agent graph and LLM providers (specs 04, 15, 18; ADR 0009); boto3 above covers the Bedrock Converse API
+langgraph>=1.0,<2
+langchain-aws>=1.0,<2
+anthropic>=1.0,<2
+# learned components (specs 11, 15, 17)
 numpy>=2.0,<3
 scikit-learn>=1.5,<2
+# local only, not installed by CI: pip install "langgraph-cli[inmem]>=0.4"  (langgraph dev, ADR 0008)
