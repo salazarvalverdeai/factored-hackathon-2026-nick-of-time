@@ -248,7 +248,7 @@ precision ≥ 0.95 on validation (AC-07). Every arm is reported at τ. B2 is the
 and schema of the graph's `understand` step and forced tool use (D-011); a reply with no valid tool input is a wrong
 prediction (D-022). On validation it is opt-in (`CLASSIFIER_ARMS=B0,B1,B2`); `make classifier-test` always scores it.
 Both need `LLM_PROVIDER=bedrock AWS_PROFILE=nickoftime`. B2 refuses the fake provider, a provider without a price row
-(D-058) and, before any call, a projected spend above `--max-usd` (default 1 USD). Before anything is written (the B1
+(D-058) and, before any call, a projected spend above `--max-usd` (default 1 USD). Before the test run is claimed and before anything is written (the B1
 file included) one preflight call on the first validation sentence must get a reply, so an unavailable provider
 refuses the run before test is touched. A reply with no valid tool input counts in `missing_tool_calls`; a provider
 error with no reply is also scored wrong but counts in `provider_errors`. `classifier.json` records its provider,
@@ -260,7 +260,10 @@ model, toolChoice mode, temperature, measured cost and the preflight.
 - `make classifier-test`: **the one test-split run, after the seal (M02)**. Refused while `PROTOCOL.md` is UNSEALED, when no
   `protocol-v1` tag in HEAD's history holds this same `PROTOCOL.md`, or when the promoted split files do not hash to
   the sealed manifest. It scores exactly the pre-registered arms B0, B1 and B2 and refuses any other set (AC-02,
-  `PROTOCOL.md` §1.2). It saves B1 before `test.jsonl` is read, then writes `models/intent-b1-v1.joblib`,
+  `PROTOCOL.md` §1.2). It runs once: before B1 is saved and `test.jsonl` is read, the shared guard of
+  `harness/seal_guard.py` checks the seal and the committed sealed inputs, then claims the run
+  (`results/classifier-test/classifier-test.start.json`); a marker or an output of an earlier run refuses it. It saves
+  B1 before `test.jsonl` is read, then writes `models/intent-b1-v1.joblib`,
   `results/classifier.csv` and `apps/web/public/data/classifier.json` (spec 11 §7.1). The export records
   `test_review` (`rules-v1` or `human`) and, for `rules-v1`, the label "test split decided by fixed rules, without
   independent human review" (ADR 0028), plus the B1 file's sha256 and the scikit-learn version that wrote it.

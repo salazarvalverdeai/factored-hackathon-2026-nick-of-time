@@ -3,14 +3,13 @@ from __future__ import annotations
 
 import hashlib
 import json
-import re
 import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Optional
 
 from eval.harness import labels as label_module
-from eval.harness import metrics
+from eval.harness import metrics, seal_guard
 from eval.harness.client import HarnessError
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -39,11 +38,9 @@ def sha256_of(path: Path) -> str:
 
 def protocol_seal(path: Path = PROTOCOL) -> dict[str, Optional[str]]:
     """Status and protocol hash from the seal block of eval/PROTOCOL.md; the harness reads nothing else of it."""
-    text = path.read_text(encoding="utf-8")
-    block = re.search(r"<!-- SEAL:BEGIN -->(.*?)<!-- SEAL:END -->", text, re.S)
-    fields = dict(re.findall(r"^- ([^:\n]+): (.+)$", block.group(1) if block else "", re.M))
-    sha = fields.get("Protocol sha256", "").strip()
-    return {"status": fields.get("Status", "UNSEALED").strip(), "sha256": sha if re.fullmatch(r"[0-9a-f]{64}", sha) else None}
+    fields = seal_guard.seal_fields(path.read_text(encoding="utf-8"))
+    sha = fields.get("Protocol sha256", "")
+    return {"status": fields.get("Status", "UNSEALED"), "sha256": sha if seal_guard.HEX64.fullmatch(sha) else None}
 
 
 def check_heldout(cases: Path, protocol: Path = PROTOCOL, hash_file: Path = HELDOUT_HASH) -> None:

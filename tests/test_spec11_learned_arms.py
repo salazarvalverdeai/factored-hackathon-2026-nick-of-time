@@ -5,6 +5,7 @@ and the AC-01 guard: no result file while eval/PROTOCOL.md is UNSEALED.
 """
 import hashlib
 import json
+import subprocess
 from datetime import date
 from itertools import product
 
@@ -73,6 +74,22 @@ def oracle(split: str) -> llm.FakeClient:
 
 def results(root):
     return [p for g in RESULT_GLOBS for p in root.glob(g)]
+
+
+GUARD = {"status": "SEALED", "sha256": "a" * 64, "tag": "protocol-v1", "commit": "c" * 40, "head": "d" * 40,
+         "test_review": "rules-v1", "inputs": {"classifier_splits": "b" * 64}}
+
+
+def sealed_guard(monkeypatch, refuse: str | None = None) -> None:
+    """The temporary root has no git tag: stand in for seal_guard.check_seal, and keep claim_run offline."""
+    def check_seal(inputs=None, root=None, **kw):
+        assert inputs == {"classifier_splits": None}               # every top-level split file is hashed
+        if refuse:
+            raise ev.seal_guard.SealError(refuse)
+        return GUARD
+    monkeypatch.setattr(ev, "protocol_tagged", lambda root: True)
+    monkeypatch.setattr(ev.seal_guard, "check_seal", check_seal)
+    monkeypatch.setattr(ev.seal_guard, "_origin_main", lambda root, fetch: None)
 
 
 def test_ac_02_ac_05_b1_trains_parses_and_reloads_with_its_version(tmp_path):
@@ -209,9 +226,73 @@ def test_ac_03_test_review_is_rules_v1_only_when_the_rules_decided_every_row(rev
     assert ev.review_mode([{"reviewer": r} for r in reviewers]) == mode
 
 
+def git(repo, *args: str) -> str:
+    cmd = ["git", "-c", "user.name=t", "-c", "user.email=t@example.com", "-c", "commit.gpgsign=false",
+           "-c", "tag.gpgsign=false", "-c", "init.defaultBranch=main", *args]
+    return subprocess.run(cmd, cwd=repo, capture_output=True, text=True, check=True).stdout.strip()
+
+
+def sealed_repo(tmp_path):
+    """A throwaway repository sealed like the real one (spec 10 seal guard tests): synthetic split files, a protocol
+    whose sha256 recomputes by the sealed method, the tag protocol-v1 and a commit after the seal."""
+    root = make_root(tmp_path / "repo", "SEALED", test_reviewer="rules-v1")
+    body = "# Evaluation protocol\n\n"
+    man = ev.seal_guard.classifier_manifest_sha256(root)
+    (root / "eval/PROTOCOL.md").write_text(body + SEAL.format(
+        status="SEALED", proto=hashlib.sha256(body.encode()).hexdigest(), man=man))
+    git(root, "init", "-q")
+    git(root, "add", "-A")
+    git(root, "commit", "-q", "-m", "seal")
+    sha = git(root, "rev-parse", "HEAD")
+    git(root, "tag", ev.SEAL_TAG)
+    (root / "code.py").write_text("print(1)\n")
+    git(root, "add", "-A")
+    git(root, "commit", "-q", "-m", "after the seal")
+    return root, sha
+
+
+def test_ac_01_test_run_runs_once_through_the_shared_seal_guard(tmp_path, monkeypatch):
+    root, sha = sealed_repo(tmp_path)
+    check_seal = ev.seal_guard.check_seal                          # the real guard, pinned to this repo's seal commit
+    monkeypatch.setattr(ev.seal_guard, "check_seal", lambda inputs=None, root=None: check_seal(inputs, root=root,
+                                                                                               commit=sha))
+    out = ev.evaluate("test", ["B0", "B1", "B2"], root, client=oracle("test"))
+    guard = json.loads(out.read_text())["data"]["seal_guard"]
+    assert (guard["status"], guard["tag"], guard["commit"], guard["test_review"]) == ("SEALED", "protocol-v1", sha,
+                                                                                      "rules-v1")
+    assert guard["inputs"] == {"classifier_splits": ev.seal_guard.classifier_manifest_sha256(root)}
+    marker = root / "eval/results/classifier-test/classifier-test.start.json"
+    assert json.loads(marker.read_text())["protocol_sha256"] == guard["sha256"]
+    before = {p: p.read_bytes() for p in results(root) if p.is_file()}
+    monkeypatch.setattr(ev, "read_test", lambda root: pytest.fail("test.jsonl read on a second run"))
+    with pytest.raises(ev.EvalError, match="already started"):
+        ev.evaluate("test", ["B0", "B1", "B2"], root, client=oracle("test"))
+    assert {p: p.read_bytes() for p in results(root) if p.is_file()} == before
+
+
+def test_ac_01_a_marker_alone_refuses_the_test_run(tmp_path, monkeypatch):
+    root = make_root(tmp_path, "SEALED", test_reviewer="rules-v1")
+    sealed_guard(monkeypatch)
+    (root / "eval/results/classifier-test").mkdir(parents=True)
+    (root / "eval/results/classifier-test/classifier-test.start.json").write_text("{}")
+    monkeypatch.setattr(ev, "read_test", lambda root: pytest.fail("test.jsonl read after a claimed run"))
+    with pytest.raises(ev.EvalError, match="already started"):
+        ev.evaluate("test", ["B0", "B1", "B2"], root, client=oracle("test"))
+    assert not (root / "models").exists()
+
+
+def test_ac_01_a_refused_seal_guard_writes_nothing_and_never_reads_test(tmp_path, monkeypatch):
+    root = make_root(tmp_path, "SEALED", test_reviewer="rules-v1")
+    sealed_guard(monkeypatch, refuse="uncommitted changes to sealed inputs")
+    monkeypatch.setattr(ev, "read_test", lambda root: pytest.fail("test.jsonl read after a refused guard"))
+    with pytest.raises(ev.EvalError, match="uncommitted"):
+        ev.evaluate("test", ["B0", "B1", "B2"], root, client=oracle("test"))
+    assert not results(root) and not (root / "models").exists()
+
+
 def test_ac_03_ac_05_sealed_test_run_exports_the_spec_shape(tmp_path, monkeypatch):
     root = make_root(tmp_path, "SEALED", test_reviewer="rules-v1")
-    monkeypatch.setattr(ev, "protocol_tagged", lambda root: True)
+    sealed_guard(monkeypatch)
     read_test = ev.read_test
 
     def after_b1_is_saved(root):                                  # §0 rule 1: B1 frozen before test is read
