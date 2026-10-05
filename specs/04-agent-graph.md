@@ -139,7 +139,7 @@ greet ─► understand ─► identity ─► route ─┬─► retrieve ─�
 | `act` | `open_case` (dedupe, related case), then `block_card` when allowed; idempotency key `session:transaction:action:run` | MCP |
 | `verify` | Post-conditions; 2 retries, 800 ms timeout; failure → `not_confirmed` + escalation | `get_product_status` · `get_case` |
 | `status` | Re-reads cards, cases or notifications and answers with the reading time | `list_my_cards` · `get_case` · `list_my_cases` · `list_my_notifications` |
-| `connect` | Registers a call request on the active case (or a general one) and says the call request is registered (the expected contact window is pending lead decision D-008); without a verified session, the bank's general contact path with no data | `request_call` · `messages.yaml connect.*` |
+| `connect` | Registers a call request on the active case (or a general one) and says the call request is registered and when to expect the call, using `expected_contact_by` from `request_call` (D-008); when it is `null`, the reply promises no time; without a verified session, the bank's general contact path with no data | `request_call` · `messages.yaml connect.*` |
 | `clarify` | Options (≤ 3 candidates) or a request for amount/date; counts turns | templates; LLM wording in S1/S2 |
 | `refuse` | DENY or re-authenticate with no data and a way forward | templates |
 | `respond` | Receipt and handoff from verified facts; reply from templates (S1/S2 may reword, then the grounding check runs); suggestion chips from §4.5 | `nick_of_time.receipt` · `send_case_summary` · `request_call` · `request_reevaluation` · `add_case_info` · `messages.yaml suggest.*` |
@@ -206,6 +206,7 @@ None directly: the graph reads and writes only through the MCP tools (spec 03 v1
 - **Q4 — reversed charges:** the agent says the charge was already reversed and opens no case.
 - **Q5 — suggestion chips** (lead requirement): mandatory in the agent and the web; chosen by rules (§4.5), never by the
   LLM, so a chip never offers something the policy would deny.
+- **D-008 (lead, 2026-10-04):** `request_call` returns `expected_contact_by`; `connect` says when to expect the call.
 - Assumptions: the p95 ≤ 6 s and ≤ 0.02 USD per case targets are confirmed or corrected by the benchmark (spec 15).
 
 ## 9. Out of scope
