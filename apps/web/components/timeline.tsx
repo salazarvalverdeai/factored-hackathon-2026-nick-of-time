@@ -1,8 +1,7 @@
 import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
-import type { CaseEvent } from "@/lib/types";
 
-const LABEL: Record<CaseEvent["type"], string> = {
+const LABEL: Record<string, string> = {
   case_opened: "Case opened",
   card_blocked: "Card blocked",
   verification_started: "Verification started",
@@ -18,7 +17,8 @@ const LABEL: Record<CaseEvent["type"], string> = {
 export interface TimelineEvent {
   id: string;
   at: string; // ISO timestamp
-  type: CaseEvent["type"];
+  /** Mock event types, or the live store's (shown as words when there is no label). */
+  type: string;
   /** The status after this event: a StatusBadge for analysts, the localized status label for customers. */
   badge: ReactNode;
   /** Small print under the title: the analyst sees "actor · reason", the customer sees nothing internal. */
@@ -39,7 +39,7 @@ export function Timeline({ events, className }: { events: TimelineEvent[]; class
             )}
           />
           <div className="flex flex-wrap items-center gap-2 text-sm">
-            <span className="font-medium">{LABEL[e.type]}</span>
+            <span className="font-medium">{LABEL[e.type] ?? e.type.replaceAll("_", " ")}</span>
             {e.badge}
           </div>
           <p className="text-xs text-muted-foreground">

@@ -101,3 +101,15 @@ Spec (what) → plan (how) → tasks → implement, with human review at each ga
 work across people is possible because spec 01 (the integration contract) is approved first. If code changes, its spec
 changes in the same PR. Closing checklist: every AC has a passing test that cites it · spec marked Implemented · ADR
 for any decision · lessons added here.
+
+## Lessons
+- **Sealing (spec 09, 2026-10-05):** promote the splits before the seal, then replace only the block between the lines
+  that are exactly the seal markers (the `sed` command in `eval/PROTOCOL.md` also contains the marker text), and tag
+  `protocol-v1` only after checking `Status: SEALED` at the commit being tagged. A PR stacked on another branch merges
+  into that branch, not into `main`.
+- **Blind labels:** whoever develops the agent or the classifier labels only dev data before the seal, and the sheet
+  hides anything that gives the answer away (the case `type`, the expected block).
+- **Model-written evaluation text:** one generator family per split, none from the family we expect to choose; a
+  person or fixed pre-registered rules decide each line, and deterministic hints (no model) speed that up (ADRs
+  0025, 0028).
+

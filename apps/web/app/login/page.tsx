@@ -9,13 +9,13 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { ApiError, api } from "@/lib/api";
-import { useMockState, useMounted } from "@/lib/use-query";
+import { useMounted, useSession } from "@/lib/use-query";
 
-/** Analyst login (spec 08). Mock accounts until Amazon Cognito arrives with spec 05 (ADR 0017). */
+/** Analyst login (spec 08). Mock accounts in mock mode; Amazon Cognito in live mode (ADR 0017). */
 export default function LoginPage() {
   const router = useRouter();
   const mounted = useMounted();
-  const { analystSession } = useMockState();
+  const { analystSession } = useSession();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -41,7 +41,9 @@ export default function LoginPage() {
         <CardHeader>
           <CardTitle>Sign in</CardTitle>
           <CardDescription>
-            Mock accounts [simulated]: freddy, gianmarco, diego, judge, with any password. Real login is Cognito (spec 05).
+            {api.mode === "mock"
+              ? "Mock accounts [simulated]: freddy, gianmarco, diego, judge, with any password. Live mode signs in with Cognito."
+              : "Use your analyst account (Amazon Cognito). Every action you take is recorded with your user."}
           </CardDescription>
         </CardHeader>
         <CardContent>
