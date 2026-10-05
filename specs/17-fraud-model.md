@@ -100,8 +100,36 @@ Implementation choices (`scripts/ml/fraud_features.py`) `[assumption]`:
   closest strictly earlier transaction of any kind.
 - Cold start: gold begins on 2025-06-01, so early rows have no history. Share of Approved/Pending transactions with no
   earlier transaction of the customer `[data]`: 61.5% in 2025-06, 23.9% in 2025-07, 10.7% in 2025-08, 0.8% in 2026-01
-  (computed with `build_features` on gold v1). Whether to burn in the first months is decided in task 17b; the
-  training window is not changed here.
+  (computed with `build_features` on gold v1). The windows and counts are not changed. Task 17b adds one feature,
+  `n_prev` (count of strictly earlier transactions of the entity, any status), so the models can tell a thin history
+  from a quiet customer `[assumption]`; validation metrics are reported by month so the effect is visible. Risk,
+  recorded and pending the lead: `n_prev` grows with calendar time, so it can encode the period rather than the
+  customer (|ROC-AUC| 0.522 on train+validation `[data]`, probably from the extra frauds of 2025-06).
+
+Signal search before the test window (D-015, `scripts/ml/fraud_signal_search.py`; reproduce with `python -m
+scripts.ml.fraud_signal_search --gold $GOLD --eval $GOLD_EVAL --out <dir outside the repo>`). 31 more candidates, built
+only from fields known at transaction time and from strictly earlier rows (DuckDB RANGE frames that end 1 µs before the
+row), in eleven families: customer velocity; card velocity; declines before (earlier Declined rows only: the decline
+codes on Reversed and Pending rows go with a final status that is not known at transaction time, D-009); novelty (first
+country, city, channel or merchant category; time since the last visit to the merchant); geo jumps (km and km/h from the
+previous located transaction, km from the customer's mean location); amount against the customer's history; hour and
+weekday habit; product age, customer tenure and age in complete years; merchant and city load in the last hour;
+complaints created in the 90 days before and in an earlier daily file (gold has no late arrivals,
+`docs/eda/data_quality.md` §B4); and category rates: smoothed fraud rates of merchant, city, branch and merchant
+category × country learned on train labels only. A candidate counts as signal only if its train and validation 95%
+bootstrap CIs (stratified, 2,000 replicates) exclude 0.5 on the same side and its validation ROC-AUC is at least 0.02
+from 0.5 `[assumption]`. Result on gold v1 `[data]`, stated as a bound: **none passes**. Every non-degenerate train CI
+includes 0.5 and lies within [0.469, 0.525] (29 of 31; `card_n_1h` and `declines_24h` have near-zero-width CIs because
+no train fraud has a non-zero value), and so does every non-degenerate CI on late train (2025-09 → 2026-01, past the
+cold start, 531 frauds), within [0.462, 0.534]. Validation ROC-AUC spans 0.465–0.547; its largest deviation from 0.5,
+0.047 (time since the card's previous transaction: 0.547 [0.505, 0.590], train 0.494), is below 0.062, the 95th
+percentile of the largest deviation over the 31 candidates under permuted validation labels, so the family-wise test
+does not reject. With 182 validation frauds a continuous full-coverage candidate's CI is about ±0.04, so the rule cannot
+detect |AUC − 0.5| below about 0.04: a true deviation of 0.04 passes about half the time and 80% power needs about 0.06,
+so the train range (half-width 0.019 at 896 frauds) is the tighter bound; a weaker single-feature signal is not ruled
+out. The bank score, as a positive control, gives 0.728 [0.673, 0.780]. Reversals before the transaction are not
+candidates: gold keeps each row's final status with no reversal time, so a reversal is not known at transaction time
+(D-009). The features above stay as they are; §4.4 rule 5 covers the outcome.
 
 ### 4.3 Arms — a lean scikit-learn screen
 The dataset is large enough for all of these (about 1.39 million Approved/Pending transactions, 896 frauds to train).
@@ -119,20 +147,39 @@ training window only, and is calibrated on the validation window.
 | Neural | `MLPClassifier` (small) | checks whether a non-linear model beyond trees adds anything |
 | Stacked | the best supervised arm + the bank's score | whether our model adds to the score rather than replacing it |
 
+Stacked base (D-017a, decided by the lead on 2026-10-04): the best supervised arm by validation PR-AUC; when none
+exceeds twice the validation base rate, the balanced `HistGradientBoostingClassifier` (a base with no signal would only
+add noise to the bank score; on gold v1 a linear base gave stacked PR-AUC 0.460 against 0.589 for the bank score alone
+`[data]`). The 2x threshold is a heuristic `[assumption]`: at this prevalence one fraud ranked near the top can lift a
+no-signal arm above it. The alternatives weighed before D-017a were to always stack on the balanced HGB or to require
+the bootstrap lower bound of the arm's PR-AUC to be above the base rate.
+
 Kernel SVMs and k-nearest neighbours are left out: scikit-learn documents that `SVC` fit time grows at least
 quadratically with the number of samples and is impractical beyond tens of thousands of rows.
 
 ### 4.4 Decision rule (pre-registered, lean)
 1. **Hard limits:** at the bank's precision levels (0.80 and 0.95), recall is at least the bank's; no country or segment
    has a recall below 80% of the overall recall `[assumption]`; scoring p95 ≤ 50 ms and model size ≤ 200 MB
-   `[assumption]`.
+   `[assumption]`. The overall, per-country and per-segment recall of this floor are measured at the 1% alert budget (the
+   top 1% of the window by score) `[assumption]` (D-017b). The floor applies only to country and segment slices with at
+   least 20 frauds in the window; smaller slices are reported with their fraud count and not enforced `[assumption]`
+   (D-017c).
 2. **Value:** the arm beats S-bank — PR-AUC higher with the 95% bootstrap CI of the difference above zero — **or** it
-   catches at least 30% of the frauds with no bank score at the 1% alert budget `[assumption]`.
+   catches at least 30% of the frauds with no bank score at an alert budget of 1% of those transactions (AC-04)
+   `[assumption]` (D-017d).
 3. **Quality bar:** keep the arms whose PR-AUC is not significantly worse than the best arm (paired bootstrap on the
    same test transactions).
 4. **Lean choice:** among those, the cheapest to run — lowest scoring p95, then smallest model, then shortest training;
    a tie goes to the simpler family (linear < tree < ensemble < neural < stacked).
 5. If no arm passes, the bank's score stays alone and the benchmark is reported as is.
+
+Rules 1-2 are judged on all products; the card subset is reported with its CI and does not gate `[assumption]` (D-022);
+country is `customer_country`.
+
+Note on rule 1 (validation evidence behind D-017c, `scripts/ml/fraud_screen.py` on gold v1) `[data]`: at the 1% window
+budget S-bank itself misses the 80% floor in the Plus segment (recall 0.463 on 54 frauds against 0.588 overall, 0.79x),
+and Premium and Student have 9 and 10 frauds. `customer_segment` is not a feature (D-010) but is still a reporting
+slice, and each slice records its fraud count (`n_fraud`).
 
 ### 4.5 Scope for the submission
 | Phase | What | Criteria |
@@ -171,6 +218,20 @@ versioned queries under `queries/fraud/`.
   (§4.2).
 - **D-010 — customer segment (2026-10-04; default applied by the orchestrator, pending lead confirmation):**
   `customer_segment` is not a feature, because gold holds one snapshot taken at the cut (§4.2).
+- **D-015 — signal search before the test window (2026-10-04, lead):** look for transaction-time signal beyond §4.2 on
+  train and validation only, before task 17c scores the test window; outcome in §4.2.
+- **D-017a — stacked base (2026-10-04, lead):** best supervised arm by validation PR-AUC, else the balanced HGB when
+  none exceeds twice the validation base rate `[assumption]` (§4.3).
+- **D-017b — operating point (2026-10-04, lead):** overall, per-country and per-segment recall of the rule-1 floor at
+  the 1% alert budget of the window `[assumption]` (§4.4).
+- **D-017c — slice minimum (2026-10-04, lead):** the floor applies only to slices with at least 20 frauds; smaller
+  slices are reported with their fraud count `[assumption]` (§4.4).
+- **D-017d — rule-2 wording (2026-10-04, lead):** "at an alert budget of 1% of those transactions (AC-04)" (§4.4).
+- **D-017e — split shares (2026-10-04, lead):** within 3 points of 60/15/25 `[assumption]`; it applies to spec 11 and
+  is listed here because it was decided with D-017a–d.
+- **D-022 — scope of the rule (2026-10-04; default applied by the orchestrator, pending lead confirmation):** rules 1-2
+  judged on all products; the card subset reported with its CI and not gating; country is `customer_country`
+  `[assumption]` (§4.4).
 
 ## 9. Out of scope
 Deep learning or graph features; streaming features; using the model for automation in the submission; scheduled
@@ -179,8 +240,14 @@ retraining (ADR 0021, P2).
 ## 10. Plan, tasks and verification
 - [x] T1 [P0] — versioned queries for the monthly label counts and the time split; split hash · AC-01
 - [x] T2 [P0] — feature builder from earlier transactions only + leakage test · AC-02
-- [ ] T3 [P0] — the arms of §4.3 with calibration on validation; cost and efficiency harness; lean rule in
-      `eval/PROTOCOL.md` · AC-03, AC-05, AC-06
+- [x] T3 [P0] — the arms of §4.3 with calibration on validation (Platt scaling; legitimate rows down-sampled 100 per
+      fraud in train only, plus class weights where available `[assumption]`), cost and efficiency harness
+      (`scripts/ml/fraud_screen.py`; models and outputs outside the repo, the protocol seal forbids results inside it);
+      train and validation only, so the test-window part of AC-03 is task 17c · AC-03 (screen), AC-05
+- [ ] T3b [P0] — lean rule in `eval/PROTOCOL.md` · AC-06 · #47 (merged); PROTOCOL §3.1 and §3.3 synced with §4.3–4.4
+      by PR #60 (open; task PROT2; D-017a–e, D-022), and §4.4 rules 1–2 copied back from PROTOCOL §3.3
+- [x] T3c [P0] — signal search beyond §4.2 on train and validation (`scripts/ml/fraud_signal_search.py`, D-015): no
+      candidate passes, the feature list is unchanged · AC-02, AC-05
 - [ ] T4 [P0] — test-window evaluation, report, `fraud_benchmark.json` for `/evaluation` · AC-04
 - [ ] T5 [P1] — `model_score` in `get_fraud_score` and the handoff card; inventory entry · AC-07, AC-08
 

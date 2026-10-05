@@ -15,7 +15,7 @@ import polars as pl
 STATIC = ["amount_usd_f", "log_amount_usd", "currency", "channel", "transaction_type", "transaction_category",
           "merchant_category", "abroad", "hour", "weekday", "product_type"]
 HISTORY = ["n_1h", "amt_1h", "n_24h", "amt_24h", "n_7d", "amt_7d", "amount_vs_median", "first_at_merchant",
-           "km_from_prev", "secs_since_prev"]
+           "km_from_prev", "secs_since_prev", "n_prev"]
 FEATURES = STATIC + HISTORY
 INPUT_COLUMNS = ["transaction_id", "transaction_date", "customer_id", "product_id", "amount", "amount_usd", "currency",
                  "channel", "transaction_type", "transaction_category", "merchant_name", "merchant_category",
@@ -96,6 +96,7 @@ def build_features(tx: pl.DataFrame) -> pl.DataFrame:
         df["transaction_date"].dt.weekday().alias("weekday"),
         pl.Series("amount_vs_median", ratio, dtype=pl.Float64),
         km.alias("km_from_prev"),
+        pl.Series("n_prev", [h - s0 for h, s0 in zip(hi, start)], dtype=pl.Int64),  # history length (cold start, F-002)
         (ts - ts.gather(prev)).alias("secs_since_prev"),
         *cols.values(),
     )
