@@ -3,8 +3,9 @@
 - **Status:** Proposed. This is a draft. Every number below comes from a **development run on validation, not the
   pre-registered test result**. The lead fills the decision from `make bench` after the seal (M02).
 - **Date:** 2026-10-05
-- **Deciders:** Freddy (lead) · **Owner:** @salazarvalverdeai · **Reviewer:** @vldiego
-- **Related:** specs 04, 11, 15 (§4.2, §4.4, §4.5, AC-07) · ADRs 0009, 0015, 0021, 0025 · `eval/PROTOCOL.md` §2
+- **Deciders:** Freddy (lead) · **Owner:** @salazarvalverdeai · **Reviewer:** none yet (Diego could not continue,
+  as the seal block of `eval/PROTOCOL.md` records)
+- **Related:** specs 04, 11, 15 (§4.2, §4.4, §4.5, AC-07) · ADRs 0009, 0015, 0021, 0025, 0028 · `eval/PROTOCOL.md` §1.1, §2
 
 ## Context
 - The agent uses an LLM for only two tasks: `understand`, below τ, and `word`. The analyst console adds a third task,
@@ -13,9 +14,19 @@
   worse than the best (paired McNemar, p ≥ 0.05); then the cheapest arm (a tie goes to the lower p95); then the
   production gate (§4.5). If no LLM arm beats B0 with significance, B0 stays.
 - The B1 screen is decided once, on the frozen **test** split, after the seal (PROTOCOL §0.2). Validation may be used
-  only to fix prompts (§2.1). `make bench` refuses to run unless the protocol is SEALED and the lead's `protocol-v1`
-  tag is on the merged sealing commit with the same `eval/PROTOCOL.md`. It is the only command that
-  writes `eval/results/bench_*`, `benchmark.json` and `docs/assets/benchmark_cost_quality.svg`.
+  only to fix prompts (§2.1). The protocol was sealed on 2026-10-05; tag `protocol-v1` points to `7b18f72`.
+- `make bench` is the only command that writes `eval/results/bench_*`, `benchmark.json` and
+  `docs/assets/benchmark_cost_quality.svg`. Before the first model call it runs the shared seal guard
+  (`eval/harness/seal_guard.py`):
+  - `check_seal` with the classifier split manifest. It checks that the tag is on the sealing commit, that the
+    protocol is unchanged, that the protocol sha256 and the split manifest recompute to the sealed values, and that no
+    sealed input has an uncommitted change.
+  - `claim_run("bench")`, which writes `eval/results/bench/bench.start.json` and refuses a second run.
+
+  The command also refuses while any official output already exists. `benchmark.json` embeds the guard as `protocol`.
+- The classifier test split was decided by the fixed rules `rules-v1` (ADR 0028). Every B1 test result therefore
+  carries `test_review: rules-v1` and the PROTOCOL §1.1 label "test split decided by fixed rules, without independent
+  human review", in `benchmark.json`, `bench_b1.md` and `bench_b1.csv`.
 
 ## Decision (draft)
 The model map is the output of `make bench` on the sealed test split under PROTOCOL §2.3. This ADR records, for each
@@ -24,9 +35,24 @@ sealed run exists, the rows below come from the development run and decide nothi
 
 | Task | Best measured | Cheapest that meets the bar | Chosen |
 |---|---|---|---|
-| `understand` | `sonnet-4-6` | none | `b0_rules` (no LLM): no arm meets the hard limits `[assumption]`, see Q3 |
+| `understand` | `sonnet-4-6` | none | `b0_rules` (no LLM): no arm meets the hard limits `[assumption]`, see "How the code reads §2.3" |
 | `word` | not run (AC-12 is P1) | — | `templates` |
 | `judge` | not run (joins in P2) | — | `haiku-4-5` (spec 15 §8, Q4) |
+
+### How the code reads §2.3 where it is silent `[assumption]`
+Lead decision D-077 is pending. `eval/bench/report.py` implements the recommended reading, set in one constant,
+`SELECTION_READING`, so it can be changed if the lead picks the other reading. Each output (`benchmark.json`
+`model_map.understand.reading`, `bench_b1.md`) names the reading it used.
+- **Best arm of rule 2.** By default (`among_passing`), the best arm is the best among the arms that pass rule 1.
+  This follows spec 11 §4: "among the rest". The alternative (`all_measured`) compares with the best of every
+  measured arm, so an arm that fails a hard limit could still set the bar.
+- **Every arm fails rule 1, or no arm that meets the bar passes the gate.** §2.3 does not cover this. B0 rules stays,
+  because it is the no-LLM option of PROTOCOL §0.3, and `chosen_by` says so with `[assumption]`.
+- **No arm was measured.** No arm is chosen (`chosen: "none"`), and the command exits with code 3. It does not name
+  an unmeasured B0.
+- **Rule 5.** The code applies it as the protocol words it: B0 stays when **no** LLM arm beats it with significance.
+  It is not applied to the chosen arm alone.
+- **"Best".** The best arm is the one with the highest intent accuracy, the quantity that McNemar compares.
 
 ## Development run on validation, not the pre-registered test result
 Run of 2026-10-05: `make bench-dev` on Bedrock `us-east-2`, replay mode with `DEMO_TODAY` 2026-06-01. It used the 150
@@ -57,16 +83,22 @@ is in the git-ignored folder `eval/.runs/bench/2026-10-05-validation-bedrock/`.
   in both languages. Bedrock availability now cites the Bedrock SLA, checked on 2026-10-05. On this run only Sonnet 4.6
   passes the production gate.
 
-## Open questions for the lead (before the seal; validation is where prompts and schemas may still change)
-- **Q1 — slot keys:** should the `understand` schema (spec 04, `nick_of_time.llm.steps.INTENT_SCHEMA`) stop requiring
-  null slot keys? That would let 12 more arms reach B1. B1 has to measure the request that production sends, so the
-  change belongs to spec 04 and lands in both places.
-- **Q2 — person requests:** every LLM arm misses `human_request` far more often than the floor allows. Before the seal,
-  check the label convention for messages that ask for a person and also report a charge (D-020 intent order) against
-  the prompt wording.
-- **Q3 — no arm meets the hard limits:** §2.3 does not say what happens then. The draft keeps the no-LLM option (B0) and
-  marks that choice `[assumption]`. The alternatives are "none" or a re-run after Q1 and Q2.
-- **Q4 — Jev:** the local `.env` stops parsing at an unquoted value on line 40, so the Jev key was never loaded.
+## Open questions for the lead (after the seal, before `make bench`)
+The protocol was sealed on 2026-10-05 (tag `protocol-v1` → `7b18f72`). The sealed manifest covers the split files, so
+no label may change. Only the prompt or the schema may still change, validated on validation (PROTOCOL §2.1). Nothing
+may change once the test run has started.
+- **Q1: slot keys.** Should the `understand` schema (spec 04, `nick_of_time.llm.steps.INTENT_SCHEMA`) stop requiring
+  the null slot keys? That would let 12 more arms reach B1.
+  - The schema is not a hashed input, and §2.1 allows prompt and schema fixes on validation.
+  - B1 has to measure the request that production sends, so the change belongs to spec 04 and lands in both places.
+  - After the change, re-run `make bench-dev` on validation, record the new `prompt_hash` here, and only then run
+    `make bench`.
+- **Q2: person requests.** Every LLM arm misses `human_request` far more often than the floor allows.
+  - **Do not act on this by relabeling.** `validation.jsonl` and `test.jsonl` are in the sealed manifest, so any label
+    edit breaks the seal, and `make bench` would refuse.
+  - Only the prompt wording may change, validated on validation before the test run.
+- **Q3: no arm meets the hard limits.** Handled by the reading above `[assumption]`; D-077 is pending.
+- **Q4: Jev.** The local `.env` stops parsing at an unquoted value on line 40, so the Jev key was never loaded.
 
 ## Alternatives considered
 | Option | Pros | Cons |
@@ -77,7 +109,8 @@ is in the git-ignored folder `eval/.runs/bench/2026-10-05-validation-bedrock/`.
 
 ## Consequences
 - The map is loaded by `nick_of_time.config.resolve(arm)` as arm S1 once it is accepted.
-- If Q1 and Q2 change the prompt or the schema, the development run must be repeated on validation before the seal.
+- If Q1 or Q2 changes the prompt or the schema, the development run must be repeated on validation before
+  `make bench`. The split labels never change after the seal.
 
 ## Confidence
 Low until the sealed run exists. The development numbers are 150 sentences from one generator family. The sealed test

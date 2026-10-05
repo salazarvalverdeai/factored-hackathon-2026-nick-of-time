@@ -6,7 +6,10 @@ import math
 from html import escape
 
 W, H, L, R, T, B = 760, 460, 70, 190, 64, 58
-INK, MUTED, GRID, FRONTIER, OTHER, SURFACE = "#111827", "#64748B", "#E2E8F0", "#7C3AED", "#8391A7", "#FFFFFF"
+# BRAND.md §6 tokens only: Surface ink, Violet frontier, Slate for the other arms and the grid, White background.
+# Secondary text is Surface at 70% opacity (Slate text on white is too light to read).
+INK, GRID, FRONTIER, OTHER, SURFACE = "#111827", "#94A3B8", "#7C3AED", "#94A3B8", "#FFFFFF"
+MUTED = f'fill="{INK}" fill-opacity="0.7"'       # secondary text: Surface ink at 70%
 ZERO_GAP = 36                                    # px left of the log axis where the no-cost arms sit
 
 
@@ -26,17 +29,17 @@ def svg(rows: list[dict], subtitle: str) -> str:
     out = [f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {W} {H}" font-family="Sora, sans-serif">',
            f'<rect width="{W}" height="{H}" fill="{SURFACE}"/>',
            f'<text x="{L}" y="24" font-size="15" font-weight="600" fill="{INK}">B1 understand: cost vs accuracy</text>',
-           f'<text x="{L}" y="42" font-size="11" fill="{MUTED}">{escape(subtitle)}</text>']
+           f'<text x="{L}" y="42" font-size="11" {MUTED}>{escape(subtitle)}</text>']
     for k in range(int(y0 * 10), 11):
         yy = y(k / 10)
-        out += [f'<line x1="{L}" x2="{W - R}" y1="{yy:.1f}" y2="{yy:.1f}" stroke="{GRID}"/>',
-                f'<text x="{L - 8}" y="{yy + 4:.1f}" font-size="10" fill="{MUTED}" text-anchor="end">{k / 10:.1f}</text>']
+        out += [f'<line x1="{L}" x2="{W - R}" y1="{yy:.1f}" y2="{yy:.1f}" stroke="{GRID}" stroke-opacity="0.35"/>',
+                f'<text x="{L - 8}" y="{yy + 4:.1f}" font-size="10" {MUTED} text-anchor="end">{k / 10:.1f}</text>']
     ticks = [(0, "0")] + [(10 ** e, f"{10 ** e:g}") for e in range(math.ceil(lo), math.floor(hi) + 1)]
     for c, label in ticks:
-        out.append(f'<text x="{x(c):.1f}" y="{H - B + 16}" font-size="10" fill="{MUTED}" text-anchor="middle">{label}</text>')
-    out += [f'<text x="{(L + W - R) / 2}" y="{H - 16}" font-size="11" fill="{MUTED}" text-anchor="middle">'
+        out.append(f'<text x="{x(c):.1f}" y="{H - B + 16}" font-size="10" {MUTED} text-anchor="middle">{label}</text>')
+    out += [f'<text x="{(L + W - R) / 2}" y="{H - 16}" font-size="11" {MUTED} text-anchor="middle">'
             'USD per 1,000 messages (log scale; 0 = no LLM)</text>',
-            f'<text transform="translate(18 {(T + H - B) / 2}) rotate(-90)" font-size="11" fill="{MUTED}" '
+            f'<text transform="translate(18 {(T + H - B) / 2}) rotate(-90)" font-size="11" {MUTED} '
             'text-anchor="middle">Intent accuracy (95% Wilson CI)</text>']
     front = sorted((r for r in pts if r.get("pareto")), key=lambda r: r["metrics"]["cost_per_1000_usd"])
     if len(front) > 1:

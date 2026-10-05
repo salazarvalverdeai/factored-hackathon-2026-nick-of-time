@@ -1,12 +1,16 @@
 """B1 benchmark command (spec 15: AC-01, AC-03, AC-04, AC-07). From the repo root, with PYTHONPATH=.:packages:
 
-    python -m eval.bench --split test                       # make bench: the pre-registered run, only when SEALED
+    python -m eval.bench --split test                       # make bench: the pre-registered run, once, after the seal
     python -m eval.bench --split validation [--limit N]     # make bench-dev: development run, git-ignored output
     ... [--provider bedrock|fake] [--arms a,b] [--dry-run]  # --dry-run prints the [projected] spend and stops
+    python -m eval.bench --split S --from-items FILE        # re-render table and chart from scored items, no model call
 
-Only the test split writes the result files of spec 15 §4.5 (eval/results/, benchmark.json, the SVG), and it refuses
-to run unless eval/PROTOCOL.md is SEALED and tagged `protocol-v1` on the merged sealing commit. Every other run goes to eval/.runs/bench/, labeled a development run, so
-no result path of the seal guard exists before the seal.
+Only the test split writes the result files of spec 15 §4.5 (eval/results/, benchmark.json, the SVG). Before the first
+model call it runs the shared seal guard (eval/harness/seal_guard.py): `check_seal` (tag protocol-v1 on the sealing
+commit, the protocol and the classifier split manifest as sealed, no uncommitted sealed input), then
+`claim_run("bench")`, which writes eval/results/bench/bench.start.json and refuses a second run; it also refuses while
+any official output already exists. Test results carry `test_review: rules-v1` and the PROTOCOL §1.1 label (ADR 0028).
+Every other run goes to eval/.runs/bench/ (git-ignored), labeled a development run.
 """
 from __future__ import annotations
 
@@ -15,32 +19,55 @@ import csv
 import json
 import subprocess
 import sys
-from datetime import date
 from pathlib import Path
 
 from eval.bench import b1, chart, core, gate, report
+from eval.harness import seal_guard
 from eval.harness.report import git_sha, now, protocol_seal
+from eval.harness.seal_guard import SealError
+from nick_of_time import config
 
 ROOT = b1.ROOT
-PROTOCOL_TAG = "protocol-v1"            # set by the lead on the merged sealing commit (eval/PROTOCOL.md "Seal")
+SEAL_COMMIT = seal_guard.SEAL_COMMIT    # the sealing commit that tag protocol-v1 must resolve to
+SEAL_INPUTS = {"classifier_splits": None}         # the guard hashes eval/classifier/*.jsonl itself (seal field (b))
+RUN_NAME, CLAIM_DIR = "bench", "eval/results/bench"   # claim marker: eval/results/bench/bench.start.json
+TEST_REVIEW = seal_guard.TEST_REVIEW                  # "rules-v1" (ADR 0028)
+TEST_REVIEW_LABEL = "test split decided by fixed rules, without independent human review"    # PROTOCOL §1.1
 DEV_LABEL = "development run on validation — not the pre-registered test result"
+RERENDER_DIR = "eval/.runs/bench/rerender"
 OFFICIAL = {"csv": "eval/results/bench_b1.csv", "items": "eval/results/bench_b1_items.jsonl",
             "gate": "eval/results/bench_gate.csv", "table": "eval/results/bench_b1.md",
             "json": "apps/web/public/data/benchmark.json", "svg": "docs/assets/benchmark_cost_quality.svg"}
 CSV_FIELDS = ["arm", "status", "reason", "model_id", "version", "prompt_hash", "tool_choice_mode", "temperature",
               "price_input_per_1m", "price_output_per_1m", "price_status", "price_source_url", "price_checked_on",
               "run_date", "accuracy", "accuracy_ci_low", "accuracy_ci_high", "macro_f1_es", "macro_f1_pt",
-              "dispute_recall", "human_request_recall", "slot_accuracy", "missing_tool_calls", "p50_ms", "p95_ms",
-              "cost_per_1000_usd", "meets_bar", "pareto", "mcnemar_p_vs_best", "same_family_as_generator"]
+              "dispute_recall", "human_request_recall", "slot_accuracy", "missing_tool_calls", "errors",
+              "errors_by_class", "p50_ms", "p95_ms", "cost_per_1000_usd", "meets_bar", "pareto", "mcnemar_p_vs_best",
+              "same_family_as_generator", "test_review", "test_review_label"]
 
 
-def protocol_tagged(tag: str = PROTOCOL_TAG) -> bool:
-    """The seal is final only once the lead tags it: `protocol-v1` must exist, be an ancestor of HEAD (the merged
-    sealing commit) and carry the same eval/PROTOCOL.md as HEAD."""
-    def ok(*cmd: str) -> bool:
-        return subprocess.run(["git", *cmd], cwd=ROOT, capture_output=True).returncode == 0
-    return (ok("rev-parse", "--verify", "--quiet", f"refs/tags/{tag}") and ok("merge-base", "--is-ancestor", tag, "HEAD")
-            and ok("diff", "--quiet", tag, "HEAD", "--", "eval/PROTOCOL.md"))
+def check_test_seal() -> dict:
+    """The shared guard for the one-time test run: raises SealError unless the seal holds; returns the dict that
+    benchmark.json embeds as `protocol` (status, sha256, tag, commit, head, test_review, inputs)."""
+    return seal_guard.check_seal(inputs=dict(SEAL_INPUTS), root=ROOT, commit=SEAL_COMMIT)
+
+
+def existing_outputs(root: Path | None = None) -> list[str]:
+    """Official outputs that already exist in the working tree, on HEAD or on origin/main: the test run never
+    overwrites them (spec 15 §4.5, PROTOCOL §0.2)."""
+    root = root or ROOT
+    found = [rel for rel in OFFICIAL.values() if (root / rel).exists()]
+    for ref in ("HEAD", "refs/remotes/origin/main"):
+        for rel in OFFICIAL.values():
+            probe = subprocess.run(["git", "cat-file", "-e", f"{ref}:{rel}"], cwd=root, capture_output=True)
+            if probe.returncode == 0:
+                found.append(f"{ref}:{rel}")
+    return found
+
+
+def run_date() -> str:
+    """The run date from the clock (ADR 0020): B1 runs only in replay, so it is DEMO_TODAY, never the system date."""
+    return config.today("replay").isoformat()
 
 
 def vendor(model_id: str | None) -> str | None:
@@ -52,8 +79,14 @@ def generator(split: str) -> str | None:
     return meta["generators"].get(split, {}).get("model_id")
 
 
+def review_fields(split: str) -> dict:
+    """PROTOCOL §1.1, ADR 0028: every test result says how the test split was decided."""
+    return {"test_review": TEST_REVIEW, "test_review_label": TEST_REVIEW_LABEL} if split == "test" else {}
+
+
 def export(rows, gate_rows, model_map, prices, split, seal, run_date, provider) -> dict:
-    """`{generated_at, git_sha, source, data}` with `data` in the shape of spec 15 §7.1."""
+    """`{generated_at, git_sha, source, data}` with `data` in the shape of spec 15 §7.1. On the test split `seal` is
+    the dict of the seal guard, embedded whole as `protocol`."""
     by_arm = {}
     for g in gate_rows:
         by_arm.setdefault(g["arm"], []).append(g)
@@ -68,7 +101,9 @@ def export(rows, gate_rows, model_map, prices, split, seal, run_date, provider) 
                       "output_per_1m_usd": p.get("output_per_1m"), "source": p.get("source_url"),
                       "date": p.get("checked_on")},
             **{k: m.get(k) for k in ("macro_f1", "macro_f1_ci", "accuracy", "dispute_recall", "human_request_recall",
-                                     "slot_accuracy", "missing_tool_calls", "p50_ms", "p95_ms", "cost_per_1000_usd")},
+                                     "slot_accuracy", "missing_tool_calls", "errors", "p50_ms", "p95_ms",
+                                     "cost_per_1000_usd")},
+            "errors_by_class": r.get("errors") or {},
             "meets_bar": r.get("meets_bar"), "pareto": r.get("pareto"), "mcnemar_p_vs_best": r.get("mcnemar_p_vs_best"),
             "same_family_as_generator": r.get("same_family_as_generator"),
             "gate": {"benchmark_pass": v.get("benchmark"), "production_pass": v.get("production"),
@@ -76,20 +111,88 @@ def export(rows, gate_rows, model_map, prices, split, seal, run_date, provider) 
                                                      "evidence_url", "checked_on")} for g in by_arm.get(r["arm"], [])]}})
     kind = "pre-registered test run" if split == "test" else DEV_LABEL
     data = {"label": "[simulated]", "protocol": seal, "mode": "replay", "demo_today": b1.TODAY, "run_date": run_date,
-            "split": split, "run_kind": kind, "provider": provider, "b1": {"arms": arms},
+            "split": split, "run_kind": kind, **review_fields(split), "provider": provider, "b1": {"arms": arms},
             "word": {"arms": []}, "judge": {"arms": []}, "b2": {"set": "dev", "cases": 20, "runs_per_case": 4, "arms": []},
             "model_map": {"understand": model_map, "word": {"chosen": "templates"},
                           "judge": {"chosen": "haiku-4-5"}}}            # word: AC-12 pending; judge: spec 15 Q4
     return {"generated_at": now(), "git_sha": git_sha(), "source": f"eval/bench B1 [simulated], {kind}", "data": data}
 
 
-def csv_row(r: dict) -> dict:
+def csv_row(r: dict, split: str = "validation") -> dict:
     m = r.get("metrics") or {}
     acc = m.get("accuracy") or {}
     flat = {"accuracy": acc.get("value"), "accuracy_ci_low": acc.get("ci_low"), "accuracy_ci_high": acc.get("ci_high"),
             "macro_f1_es": (m.get("macro_f1") or {}).get("es"), "macro_f1_pt": (m.get("macro_f1") or {}).get("pt"),
             **{k: (m.get(k) or {}).get("value") for k in ("dispute_recall", "human_request_recall", "slot_accuracy")}}
-    return {**r, **{k: m.get(k) for k in ("missing_tool_calls", "p50_ms", "p95_ms", "cost_per_1000_usd")}, **flat}
+    return {**r, **{k: m.get(k) for k in ("missing_tool_calls", "errors", "p50_ms", "p95_ms", "cost_per_1000_usd")},
+            **flat, "errors_by_class": json.dumps(r.get("errors") or {}, sort_keys=True), **review_fields(split)}
+
+
+def score(results: list[dict], arms: list[dict], split: str, date: str, official: bool) -> tuple[list[dict], dict]:
+    """Metrics per measured arm, the gate rows with `es_pt_quality` from this run, and the lean-rule model map."""
+    gen = vendor(generator(split))
+    for r in results:
+        r.setdefault("items", [])
+        r["same_family_as_generator"] = vendor(r["model_id"]) == gen if r["model_id"] else False
+        if r["status"] == "ok" and r["items"]:
+            r["metrics"] = report.arm_metrics(r)
+    gate_rows = gate.gate_rows(arms, gate.load_evidence(), date)
+    report.measured_quality(gate_rows, results, f"{OFFICIAL['csv'] if official else 'development run'}, macro-F1 "
+                            f"per language >= {report.MACRO_F1_FLOOR}")
+    model_map = report.select(results, {a: v["production"] for a, v in gate.summary(gate_rows).items()})
+    return gate_rows, model_map
+
+
+def label_of(split: str, provider: str) -> str:
+    if split == "test":
+        return f"[simulated] pre-registered test run; {TEST_REVIEW_LABEL} (test_review: {TEST_REVIEW}, ADR 0028)"
+    return f"[simulated] {DEV_LABEL} ({provider})"
+
+
+def table_md(results: list[dict], model_map: dict, label: str) -> str:
+    return f"{label}\n\n" + report.table(results) + "\n" + report.selection_md(model_map)
+
+
+def results_from_items(path: Path, arms: list[dict], prices: dict, date: str) -> list[dict]:
+    """Rows of `b1.run` rebuilt from a scored-items JSONL (one line per sentence with its arm), so the table and the
+    chart can be re-rendered without calling any model. Only arms with items appear."""
+    by_arm: dict[str, list[dict]] = {}
+    for line in path.read_text(encoding="utf-8").splitlines():
+        if line.strip():
+            it = json.loads(line)
+            by_arm.setdefault(it.pop("arm"), []).append(it)
+    meta = {a["id"]: a for a in arms}
+    rows = []
+    for arm_id, items in by_arm.items():
+        row = core.make_row(meta.get(arm_id, {"id": arm_id}), prices, b1.PROMPT, date)
+        errors: dict[str, int] = {}
+        for it in items:
+            if it.get("error"):
+                name = it["error"].split(":", 1)[0]
+                errors[name] = errors.get(name, 0) + 1
+        rows.append({**row, "items": items, "errors": errors})
+    return rows
+
+
+def rerender(args, arms: list[dict], prices: dict) -> int:
+    """`--from-items`: the table and the SVG again from scored items; writes only to a git-ignored folder."""
+    date = run_date()
+    results = results_from_items(args.from_items, arms, prices, date)
+    _, model_map = score(results, arms, args.split, date, official=False)
+    out = Path(args.out) if args.out else ROOT / RERENDER_DIR
+    out.mkdir(parents=True, exist_ok=True)
+    label = f"{label_of(args.split, args.provider)}; re-rendered from {args.from_items.name}"
+    (out / Path(OFFICIAL["table"]).name).write_text(table_md(results, model_map, label), encoding="utf-8")
+    n = max((len(r["items"]) for r in results), default=0)
+    (out / Path(OFFICIAL["svg"]).name).write_text(chart.svg(results, f"{label}, {n} sentences, run {date}"),
+                                                  encoding="utf-8")
+    print(f"re-rendered {len(results)} arms from {args.from_items} into {out} (no model was called)")
+    return 0
+
+
+def refuse(message: str) -> int:
+    print(f"refused: {message}", file=sys.stderr)
+    return 2
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -99,15 +202,30 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--arms", help="comma-separated arm ids (default: every arm of arms.yaml)")
     ap.add_argument("--limit", type=int, help="development runs only: first N sentences per language and intent")
     ap.add_argument("--dry-run", action="store_true")
+    ap.add_argument("--from-items", type=Path, help="re-render the table and the chart from a scored-items JSONL")
+    ap.add_argument("--out", help=f"--from-items only: output folder (default {RERENDER_DIR})")
     args = ap.parse_args(argv)
-    seal, official = protocol_seal(), args.split == "test"
-    if official and (seal["status"] != "SEALED" or args.limit or args.arms or args.provider != "bedrock"
-                     or not protocol_tagged()):
-        print(f"refused: the test split runs once, whole, on Bedrock, after the seal (eval/PROTOCOL.md is "
-              f"{seal['status']}; tag {PROTOCOL_TAG} on the merged sealing commit: "
-              f"{'yes' if protocol_tagged() else 'no'})", file=sys.stderr)
-        return 2
     arms, prices = core.load_arms(), core.load_prices()
+    if args.from_items:
+        return rerender(args, arms, prices)
+    official = args.split == "test"
+    if official and (args.limit or args.arms or args.provider != "bedrock"):
+        return refuse("the test split runs once, whole, on Bedrock (no --limit, --arms or fake provider)")
+    if official:
+        try:
+            seal = check_test_seal()
+        except SealError as exc:
+            return refuse(f"the seal does not hold: {exc}")
+        present = existing_outputs()
+        if present:
+            return refuse(f"official B1 outputs already exist and are never overwritten: {present[:5]}")
+        if not args.dry_run:
+            try:
+                seal_guard.claim_run(RUN_NAME, ROOT / CLAIM_DIR, seal, root=ROOT)
+            except SealError as exc:
+                return refuse(str(exc))
+    else:
+        seal = protocol_seal()
     if args.arms:
         arms = [a for a in arms if a["id"] in args.arms.split(",")]
     rows = b1.load_split(args.split)
@@ -120,41 +238,35 @@ def main(argv: list[str] | None = None) -> int:
     print(f"{len(arms)} arms x {len(rows)} sentences ({args.split}); projected spend {projected:.4f} USD [projected]")
     if args.dry_run:
         return 0
-    run_date = date.today().isoformat()
-    provider = b1.smoke.bedrock_provider() if args.provider == "bedrock" else b1.fake_provider
-    results = b1.run(arms, rows, provider, prices, run_date)
-    gen = vendor(generator(args.split))
-    for r in results:
-        r.setdefault("items", [])
-        r["same_family_as_generator"] = vendor(r["model_id"]) == gen if r["model_id"] else False
-        if r["status"] == "ok" and r["items"]:
-            r["metrics"] = report.arm_metrics(r)
-    gate_rows = gate.gate_rows(arms, gate.load_evidence(), run_date)
-    report.measured_quality(gate_rows, results, f"{OFFICIAL['csv'] if official else 'development run'}, macro-F1 "
-                            f"per language >= {report.MACRO_F1_FLOOR}")
-    model_map = report.select(results, {a: v["production"] for a, v in gate.summary(gate_rows).items()})
+    date = run_date()
     paths = ({k: ROOT / v for k, v in OFFICIAL.items()} if official else
-             {k: ROOT / "eval/.runs/bench" / f"{run_date}-{args.split}-{args.provider}" / Path(v).name
+             {k: ROOT / "eval/.runs/bench" / f"{date}-{args.split}-{args.provider}" / Path(v).name
               for k, v in OFFICIAL.items()})
     for p in paths.values():
         p.parent.mkdir(parents=True, exist_ok=True)
-    payload = export(results, gate_rows, model_map, prices, args.split, seal, run_date, args.provider)
+    if not official:
+        paths["items"].unlink(missing_ok=True)       # a development rerun starts a fresh stream; the test run never
+    provider = b1.smoke.bedrock_provider() if args.provider == "bedrock" else b1.fake_provider
+    results = b1.run(arms, rows, provider, prices, date, items_path=paths["items"])   # items streamed as scored
+    gate_rows, model_map = score(results, arms, args.split, date, official)
+    payload = export(results, gate_rows, model_map, prices, args.split, seal, date, args.provider)
     paths["json"].write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     with paths["csv"].open("w", newline="", encoding="utf-8") as fh:
         writer = csv.DictWriter(fh, CSV_FIELDS, extrasaction="ignore")
         writer.writeheader()
-        writer.writerows(csv_row(r) for r in results)
+        writer.writerows(csv_row(r, args.split) for r in results)
     gate.write_csv(gate_rows, paths["gate"])
-    paths["items"].write_text("".join(json.dumps({"arm": r["arm"], **i}, ensure_ascii=False) + "\n"
-                                      for r in results for i in r["items"]), encoding="utf-8")
-    label = "[simulated] pre-registered test run" if official else f"[simulated] {DEV_LABEL} ({args.provider})"
-    paths["table"].write_text(f"{label}\n\n" + report.table(results), encoding="utf-8")
-    paths["svg"].write_text(chart.svg(results, f"{label}, {len(rows)} sentences, run {run_date}"), encoding="utf-8")
+    label = label_of(args.split, args.provider)
+    paths["table"].write_text(table_md(results, model_map, label), encoding="utf-8")
+    paths["svg"].write_text(chart.svg(results, f"{label}, {len(rows)} sentences, run {date}"), encoding="utf-8")
     spent = sum(i["cost_usd"] for r in results for i in r["items"]) + sum(r.get("smoke_cost_usd", 0) for r in results)
     print(report.table(results))
     tag = "USD [data]" if args.provider == "bedrock" else "USD [simulated] (fake provider: no model was called)"
     print(f"model map (understand): {json.dumps(model_map)}\nspent {spent:.4f} {tag} · outputs in "
           f"{paths['json'].parent if not official else 'eval/results, apps/web/public/data, docs/assets'}")
+    if model_map.get("refused"):
+        print(f"refused to choose: {model_map['chosen_by']}", file=sys.stderr)
+        return 3
     return 0
 
 
