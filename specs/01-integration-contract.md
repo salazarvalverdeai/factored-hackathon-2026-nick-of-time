@@ -2,17 +2,22 @@
 
 - **Feature:** the contract the three of us build against — folders, REST API, MCP tools, graph I/O, Postgres schema,
   customer receipt, evaluation hooks — plus stubs so nobody waits for anybody.
-- **Status:** Draft (contract 1.2.0, updated 2026-10-04: 16 customer tools, two time modes, action states, delivery status)
+- **Status:** Draft (contract 1.3.0, updated 2026-10-04: 16 customer tools, two time modes, action states, delivery
+  status, the store's §6.5 rules)
 - **Owner:** @salazarvalverdeai · **Priority:** P0 · **Size:** M
 - **Challenge dimension:** AI Engineering, Technical Judgment
 - **Depends on:** framework (#2) · **Enables:** 03, 05, 07, 08, 10, 13, 16 · **ADRs:** 0005, 0007, 0008, 0010, 0013, 0017, 0019,
   0020
 - **Issue:** #3 · **Approval:** all three (@salazarvalverdeai, @gianzk, @vldiego)
 
-> Full profile: this spec *is* the contract. Contract version **1.2.0** (1.0.0 was the first review draft; 1.1.0 adds
+> Full profile: this spec *is* the contract. Contract version **1.3.0** (1.0.0 was the first review draft; 1.1.0 adds
 > the approved improvements #12–#16 before approval; 1.2.0 is additive: the handoff rules of §6.4, `GOLD_PATTERN`, the
-> `zone_medium` and `supervised_mode` handoff reasons). Any change after approval is a PR that all three approve and that
-> bumps the version (minor = additive, major = breaking).
+> `zone_medium` and `supervised_mode` handoff reasons; 1.3.0 is additive, from task 01c, §6.5: the `action_verified`
+> event type, `cases.opened_on` and the `on` business date of `status_changed` (D-023), an `action_id` on each customer
+> write with the `V-` id minted only by its verifying read and post-condition, `block_verified` from that read,
+> `verifications` and `action_write` (D-025, D-035), the analyst-action table (D-034) and the store's write rules).
+> Any change after approval is a PR that all three approve and that bumps the version (minor = additive, major =
+> breaking).
 
 ---
 
