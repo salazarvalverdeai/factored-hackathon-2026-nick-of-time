@@ -8,6 +8,7 @@ import yaml
 from nick_of_time.contracts import (CONTRACTS_DIR, CaseSummary, CaseView, CustomerCaseSummary, ProductView, TurnResult,
                                     sample_receipt)
 
+MESSAGES = yaml.safe_load((CONTRACTS_DIR / "messages.yaml").read_text())
 POLICIES = yaml.safe_load((CONTRACTS_DIR / "policies.yaml").read_text())   # decisions live there (constitution #2)
 POLICIES_VERSION = POLICIES["version"]
 SESSION_TTL_MINUTES = POLICIES["identity"]["session_ttl_minutes"]

@@ -15,7 +15,9 @@
 > `zone_medium` and `supervised_mode` handoff reasons; 1.3.0 is additive, from task 01c, §6.5: the `action_verified`
 > event type, `cases.opened_on` and the `on` business date of `status_changed` (D-023), an `action_id` on each customer
 > write with the `V-` id minted only by its verifying read and post-condition, `block_verified` from that read,
-> `verifications` and `action_write` (D-025, D-035), the analyst-action table (D-034) and the store's write rules).
+> `verifications` and `action_write` (D-025, D-035), the analyst-action table (D-034) and the store's write rules;
+> and `schema.sql` as the §6.5 DDL with its typing and null convention, `cases` insert-only (AO), `policy_denials`
+> `session_id` null, `actor` and `run_id`, `llm_calls.run_id` (D-023), the unique action-id index and the row checks).
 > Any change after approval is a PR that all three approve and that bumps the version (minor = additive, major =
 > breaking).
 
@@ -94,7 +96,7 @@ packages/
   nick_of_time/           shared package — @salazarvalverdeai
     contracts.py          re-exports contracts/tools.py models + TurnResult + receipt models
     policy/               policy engine + regulatory clock (spec 02)
-    store/                `Store` interface used by api and mcp and its in-memory backend (tables of §6.5)
+    store/                `Store` interface used by api and mcp, in-memory backend, `schema.sql` (§6.5)
     receipt.py            deterministic receipt and handoff builders (ADR 0016)
     ids.py                identifier generation (§6.7)
 contracts/                policies.yaml · tools.py · *.schema.json — source of truth (lead approves)
@@ -120,7 +122,7 @@ OpenAPI is generated from the code at `/api/docs` (schema at `/api/openapi.json`
 | GET | `/api/demo/customers` | — | `[{customer_id, display_name, country, segment, scenario, language}]` (6 demo customers, spec 09) | 200 |
 | POST | `/api/sessions` | `{customer_id, mode: "replay"\|"live"}` (default `live`) | `{session_id, mode, today, otp_demo, expires_at}` — the OTP is shown on screen (mock, ADR 0017) | 201 / 404 |
 | POST | `/api/sessions/{session_id}/verify` | `{otp}` | `{verified, expires_at}` + sets `not_session` cookie | 200 / 401 / 404 / 410 |
-| * | `/api/agent/...` | LangGraph Server protocol subset: `POST threads`, `POST threads/{id}/runs/stream`, `GET threads/{id}/state` | proxied to Platform; `configurable.session_id` injected from the cookie; any client `session_id`/`customer_id` is dropped (AC-06); the stream carries SSE events `progress` (`ProgressItem`), `turn` (`CustomerTurn`) and `error` (the standard error shape), and `threads/{id}/state` returns the last `CustomerTurn`, never the raw thread state (D-013). A thread belongs to the session that created it: an unknown or foreign thread is 404. `[assumption]` (pending the lead) 401 `UNAUTHENTICATED` only for a missing or unknown cookie; a known session in any state is forwarded with `configurable.session_state` = `verified\|expired\|unverified` and the graph decides `reauthenticate` (spec 02 AC-07) | 200 / 401 / 404 |
+| * | `/api/agent/...` | LangGraph Server protocol subset: `POST threads`, `POST threads/{id}/runs/stream`, `GET threads/{id}/state` | proxied to Platform; `configurable.session_id` injected from the cookie; any client `session_id`/`customer_id` is dropped (AC-06); the stream carries SSE events `progress` (`ProgressItem`), `turn` (`CustomerTurn`) and `error` (the standard error shape), and `threads/{id}/state` returns the last `CustomerTurn`, never the raw thread state (D-013). A thread belongs to the session that created it: an unknown or foreign thread is 404. `[assumption]` (pending the lead) the two POST routes answer 401 `UNAUTHENTICATED` only for a missing or unknown cookie; a known session in any state is forwarded with `configurable.session_state` = `verified\|expired\|unverified` and the graph decides `reauthenticate` (spec 02 AC-07), whose turn carries no case, receipt or action claim, only the session line and the chips per spec 04 §4.5 (G-SES-01). `GET threads/{id}/state` is not forwarded: an expired session gets 401 `SESSION_EXPIRED` and an unverified one 401 `UNAUTHENTICATED`, with no turn | 200 / 401 / 404 |
 | GET | `/api/notifications` | — | `[{notification_id, case_id, event, channel, masked_address, text, delivery_status, created_at}]` for the session's customer ("My notifications"); `delivery_status` = `queued\|sent\|delivered\|bounced\|failed` | 200 / 401 |
 | GET | `/api/me/products` | — | `[ProductView]` (§6.6) — "My cards", read fresh on each call | 200 / 401 |
 | GET | `/api/me/cases` | — | `[CustomerCaseSummary]` (§6.6) — the customer's cases, active first | 200 / 401 |
@@ -261,23 +263,26 @@ shape of `data` is fixed in the producing spec.
   and notifications carry neither. `denials[].detail` comes only from a `messages.yaml` template, never from engine
   output.
 
-### 6.5 Postgres schema (owned by `apps/api/migrations`, used through `nick_of_time.store`)
-Append-only tables are marked **AO** (no `UPDATE`/`DELETE`; enforced by grants and a test).
+### 6.5 Postgres schema (DDL in `packages/nick_of_time/store/schema.sql`, used through `nick_of_time.store`)
+`apps/api/migrations` adopts `schema.sql` as its first migration (D-002); a test keeps the file in step with this
+table. A column the table leaves untyped is `text` (timestamps `timestamptz`, counters `integer`) and a column is
+`not null` unless marked `null` `[assumption]`. Append-only tables are marked **AO** (no `UPDATE`, `DELETE` or
+`TRUNCATE`; enforced by a trigger in `schema.sql` and a test).
 
 | Table | Columns (type) | Notes |
 |---|---|---|
 | `sessions` | `session_id` text PK · `customer_id` text null · `otp_hash` text · `verified_at` timestamptz null · `expires_at` timestamptz · `language` text · `mode` text (`replay\|live`) · `display_currency` text null · `tool_faults` text[] · `run_id` text null · `arm` text null · `created_at` | TTL 15 min; `mode` fixed at creation; `run_id`/`arm` set only by the eval seed |
-| `cases` | `case_id` text PK · `customer_id` · `transaction_id` · `product_id` · `country` · `product_type` · `zone` · `dispute_type` · `opened_on` date · `credit_deadline` date null · `ruling_deadline` date null · `deadline_source` text · `deadline_source_url` text · `deadline_verified_on` date null · `related_case_id` text null · `mode` text · `run_id` text null · `trace_id` · `created_at` | static facts only; `opened_on` is the business date of the notice (`clock.today(mode, country)`; the eval seed passes `initial_state.case.opened_on`) and `created_at` the audit time in every mode `[assumption]` (D-023); `deadline_verified_on` `[assumption]` (D-014), null only when both dates are null; `case_id` from `ids.new_id("case")` has 10^6 values, so the insert retries on a PK conflict (T9, §10) |
-| `demo_transactions` | same columns as gold `transactions` · `synthetic` bool (always true) · `scenario` text · `generated_at` | `live` mode only; deleted and regenerated by "Reset demo"; never copied to gold, lakehouse or eval. `transaction_id` follows `ids.GOLD_PATTERN["transaction"]` and is drawn again if it clashes with gold; rows are told apart by `synthetic`, not by an id prefix (32 gold ids already start with `TRX-SYN` `[data]`) |
-| `case_events` **AO** | `event_id` text PK · `case_id` FK · `seq` int · `type` text · `actor` text · `payload` jsonb · `customer_visible` bool · `trace_id` · `created_at` | unique (`case_id`, `seq`) |
-| `product_overrides` **AO** | `override_id` PK · `product_id` · `status` · `case_id` · `actor` · `run_id` text null · `created_at` | current status = latest row **for the same `run_id`**, else gold; `override_id` is the `action_id` of the write `[assumption]` (D-025) |
-| `notifications` **AO** | `notification_id` PK · `case_id` · `customer_id` · `event` · `channel` (`log\|telegram\|email`) · `masked_address` · `text` · `trigger` (`auto\|on_request`) · `provider_message_id` null · `created_at` | |
-| `notification_deliveries` **AO** | `delivery_id` PK · `notification_id` FK · `status` (`queued\|sent\|delivered\|bounced\|failed`) · `provider_event` jsonb · `created_at` | delivery status = latest row |
-| `customer_channels` **AO** | `channel_id` PK · `customer_id` · `channel` · `address` (chat id or e-mail) · `event` (`linked|confirmed|revoked`) · `created_at` | latest row per channel wins |
+| `cases` **AO** | `case_id` text PK · `customer_id` · `transaction_id` · `product_id` · `country` · `product_type` · `zone` · `dispute_type` · `opened_on` date · `credit_deadline` date null · `ruling_deadline` date null · `deadline_source` text null · `deadline_source_url` text null · `deadline_verified_on` date null · `related_case_id` text null · `mode` text · `run_id` text null · `trace_id` · `created_at` | static facts only, insert-only (spec 03 AC-16; AO `[assumption]` D-023); `opened_on` is the business date of the notice (`clock.today(mode, country)`; the eval seed passes `initial_state.case.opened_on`) and `created_at` the audit time in every mode `[assumption]` (D-023); `deadline_verified_on` `[assumption]` (D-014), null only when both dates are null, like `deadline_source` (never empty) and `deadline_source_url` (always `https://` and a host, no whitespace); `mode`, `zone`, `product_type` and `dispute_type` take only the store model's values; `case_id` from `ids.new_id("case")` has 10^6 values, so the insert retries on a PK conflict (T9, §10) |
+| `demo_transactions` | same columns as gold `transactions`, `transaction_id` PK · `synthetic` bool (always true) · `scenario` text · `generated_at` | `live` mode only; deleted and regenerated by "Reset demo"; never copied to gold, lakehouse or eval. `transaction_id` follows `ids.GOLD_PATTERN["transaction"]` and is drawn again if it clashes with gold; rows are told apart by `synthetic`, not by an id prefix (32 gold ids already start with `TRX-SYN` `[data]`) |
+| `case_events` **AO** | `event_id` text PK · `case_id` FK · `seq` int · `type` text · `actor` text · `payload` jsonb · `customer_visible` bool · `trace_id` · `created_at` | unique (`case_id`, `seq`), `seq` ≥ 1; `actor` is `agent\|customer\|system\|analyst:<sub>` (sub not blank); `customer_visible` follows the ✓ list; `status_changed` needs `payload.to` (a status of `case_queue.transitions`); the five write types other than `notification_sent`, `action_verified` and `block_verified` need `payload.action_id`, every `payload.action_id` is an `A-` id and `action_verified` carries a `V-` `verification_id`; `analyst_action`, `assigned` and a `status_changed` to `resolved` or `closed` need an `analyst:` actor; `payload->>'action_id'` unique over the six write types (`case_opened`, `card_blocked`, `customer_info_added`, `call_requested`, `reevaluation_requested`, `notification_sent`), so one read never verifies two actions `[assumption]` (D-025) |
+| `product_overrides` **AO** | `override_id` PK · `product_id` · `status` · `case_id` · `actor` · `run_id` text null · `created_at` | `status` is `Active\|Blocked\|Closed\|Suspended` and `actor` as in `case_events`; current status = latest row **for the same `run_id`**, else gold; `override_id` is the `action_id` of the write `[assumption]` (D-025) |
+| `notifications` **AO** | `notification_id` PK · `case_id` · `customer_id` · `event` · `channel` (`log\|telegram\|email`) · `masked_address` null · `text` · `trigger` (`auto\|on_request`) · `provider_message_id` null · `created_at` | |
+| `notification_deliveries` **AO** | `delivery_id` PK · `notification_id` FK · `status` (`queued\|sent\|delivered\|bounced\|failed`) · `provider_event` jsonb null · `created_at` | delivery status = latest row |
+| `customer_channels` **AO** | `channel_id` PK · `customer_id` · `channel` · `address` (chat id or e-mail) · `event` (`linked\|confirmed\|revoked`) · `created_at` | latest row per channel wins |
 | `link_tokens` | `token` PK · `case_id` · `channel` · `expires_at` · `used_at` null | one-time |
 | `idempotency` | `key` PK · `action` · `result` jsonb · `run_id` text null · `created_at` | the key is prefixed with `run_id` when present |
-| `policy_denials` **AO** | `denial_id` PK · `trace_id` · `session_id` · `policy_id` · `guardrail_id` · `detail` jsonb · `created_at` | |
-| `llm_calls` **AO** | `call_id` PK · `trace_id` · `provider` · `model` · `tokens_in` · `tokens_out` · `latency_ms` · `cost_usd` numeric · `created_at` | |
+| `policy_denials` **AO** | `denial_id` PK · `trace_id` · `session_id` text null · `actor` (`agent\|customer\|analyst:<sub>`) · `policy_id` · `guardrail_id` · `detail` jsonb · `run_id` text null · `created_at` | `actor` is a closed list (no `system`; sub not blank); `session_id` null for an api or analyst denial; a rule-only denial cites `G-POL-01` (writers map a missing guardrail id to it) `[assumption]` (D-023) |
+| `llm_calls` **AO** | `call_id` PK · `trace_id` · `provider` · `model` · `tokens_in` · `tokens_out` · `latency_ms` · `cost_usd` numeric · `run_id` text null · `created_at` | `run_id` from the session, so a run's tokens and cost sum alone `[assumption]` (D-023) |
 | `settings_events` **AO** | `event_id` PK · `key` · `value` jsonb · `actor` · `created_at` | `supervised_mode` = latest |
 
 **Case event types** (`case_events.type`, visible to the customer when marked ✓): `case_opened` ✓ · `card_blocked` ✓ ·
@@ -493,6 +498,16 @@ Implementation goes in one `feat/01-*` branch per task (for example `feat/01-pac
       `AnalystActionIn.idempotency_key` through the `idempotency` accessor before it calls `record_analyst_action`.
       Once task 02a merges, `record_analyst_action` takes the new status from `engine.transition(current, action,
       actor)`, and the store's `check_transition` stays for agent and customer changes
+- [x] T10 — `store/schema.sql`: the §6.5 tables as Postgres DDL with the append-only trigger and the unique
+      action-id index, adopted verbatim by `apps/api/migrations` as its first migration (D-002) · covers AC-01 ·
+      `tests/test_spec01_store_schema.py`; its `postgres`-marked test runs when `TEST_DATABASE_URL` is set, and the
+      CI job with a `postgres:16` service comes with task 03a (with grants of INSERT and SELECT only on the AO tables
+      for the app role)
+- [x] T11 — api stub follow-ups from the 01d round-2 review: `GET threads/{id}/state` 401 on an expired session (not
+      forwarded), a data-free `reauthenticate` turn (session line, chips, no progress event), the seed answers the stored
+      mode, exact key-set tests for the dict-shaped §6.2 rows, and tests for verify-expired 410, final-state on a
+      non-eval session and the `none` seed's missing customer · covers AC-02, AC-07, AC-08 (seed half) ·
+      `tests/test_spec01_api_stub.py`
 
 **Closing checklist:** every AC has a passing test or check · status → Implemented · contract version recorded in
 `/api/health` · lessons added to `CLAUDE.md`.

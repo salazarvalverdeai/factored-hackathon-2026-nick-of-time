@@ -87,6 +87,20 @@ ROWS = [
     ("GET", "/api/eval/final-state/{session_id}", "eval", None, 200, FinalState, OWN),
 ]
 DOCS = {"/api/docs", "/api/openapi.json"}
+# AC-02: the exact key set of each dict-shaped response, typed out from spec 01 §6.2 / §6.8 (not read from the models).
+KEYS = {
+    main.HealthOut: "status version contract_version git_sha gold_version policies_version platform_revision models "
+                    "prompt_hash classifier_version today",
+    main.SessionOut: "session_id mode today otp_demo expires_at", main.VerifyOut: "verified expires_at",
+    main.ConsoleCaseOut: "case handoff events", main.ThreadOut: "thread_id", main.PrefsOut: "display_currency language", main.EventOut: "event_id",
+    main.CallOut: "event_id expected_contact_by", main.ReevalOut: "event_id case_id",
+    main.TelegramOut: "deep_link expires_at", main.EmailOut: "confirmation_sent", main.AckOut: "ok",
+    main.SettingsOut: "supervised_mode score_provider policies_version",
+    main.ResetOut: "demo_transactions sample_cases", main.SeedOut: "session_id thread_id run_id arm mode",
+    main.DemoCustomerOut: "customer_id display_name country segment scenario language",
+    main.NotificationOut: "notification_id case_id event channel masked_address text delivery_status created_at",
+}
+LIST_ROWS = {"/api/demo/customers": main.DemoCustomerOut, "/api/notifications": main.NotificationOut}
 
 
 def _call(c, row, sid, tid, path_case=None, headers=None, cookies=True):
@@ -134,6 +148,19 @@ def test_ac_02_every_row_returns_its_status_and_a_model_valid_body(monkeypatch, 
         (model.validate_python if isinstance(model, TypeAdapter) else model.model_validate)(r.json())
     if row[1].startswith("/api/agent/threads/{thread_id}/runs"):
         assert r.headers["content-type"].startswith("text/event-stream")
+
+
+@pytest.mark.parametrize("row", [r for r in ROWS if r[5] in KEYS or r[1] in LIST_ROWS],
+                         ids=lambda r: f"{r[0]} {r[1]}")
+def test_ac_02_response_key_sets_are_exactly_the_spec(monkeypatch, row):
+    """AC-02: a field dropped from both the model and the route, or an extra one, fails here."""
+    c, sid, tid, headers = _prepared(monkeypatch, row)
+    body = _call(c, row, sid, tid, headers=headers).json()
+    model = LIST_ROWS.get(row[1]) or row[5]
+    if row[1] in LIST_ROWS:
+        body = body[0]
+    keys = set(KEYS[model].split())
+    assert set(body) == keys and set(model.model_fields) == keys
 
 
 @pytest.mark.parametrize("row", [r for r in ROWS if r[2] in ("customer", "known")],
@@ -210,6 +237,7 @@ def test_ac_02_health_reads_versions_from_the_contract_and_policies(client):
     h = client.get("/api/health").json()
     assert h["contract_version"] == CONTRACT_VERSION and h["policies_version"] == fx.POLICIES["version"]
     assert h["today"]["replay"] == "2026-06-01"
+    assert set(h["models"]) == {"graph", "fast"} and set(h["today"]) == {"replay", "live"}
 
 
 def test_ac_02_a_verified_session_expires(me):
@@ -251,7 +279,7 @@ def test_ac_06_threads_are_bound_to_their_session(client):
     assert client.get(f"/api/agent/threads/{tid}/state").status_code == 200
 
 
-def test_ac_07_agent_routes_forward_expired_and_unverified_sessions(client):
+def test_ac_02_agent_routes_forward_expired_and_unverified_sessions(client):
     client.cookies.set("not_session", "S-forged0000000000")
     assert client.post("/api/agent/threads").status_code == 401                        # unknown cookie
     unverified = client.post("/api/sessions", json={"customer_id": ME, "mode": "replay"}).json()["session_id"]
@@ -267,6 +295,51 @@ def test_ac_07_agent_routes_forward_expired_and_unverified_sessions(client):
     assert client.post(f"/api/agent/threads/{tid}/runs/stream", json={}).status_code == 200
     assert client.app.state.runs[-1]["session_state"] == "expired"
     assert client.get("/api/me/cases").json()["code"] == "SESSION_EXPIRED"            # data routes keep 401
+
+
+def _expire(c, sid):
+    c.app.state.sessions[sid]["expires_at"] = dt.datetime.now(dt.timezone.utc) - dt.timedelta(seconds=1)
+
+
+def test_ac_02_state_on_an_expired_session_is_401_and_not_forwarded(client):
+    """spec 02 AC-07 / G-SES-01 (expired -> no data): GET state is not forwarded; it answers 401 SESSION_EXPIRED."""
+    sid = login(client)
+    tid = client.post("/api/agent/threads").json()["thread_id"]
+    runs = len(client.app.state.runs)
+    _expire(client, sid)
+    r = client.get(f"/api/agent/threads/{tid}/state")
+    assert r.status_code == 401 and r.json() == {"code": "SESSION_EXPIRED", "policy_id": None,
+                                                 "message": "Session expired: verify again"}
+    assert len(client.app.state.runs) == runs and "K-" not in r.text
+
+
+@pytest.mark.parametrize("cid, lang", [(ME, "es"), (fx.CUSTOMERS[1]["customer_id"], "pt")])
+def test_ac_02_reauthenticate_reply_carries_no_data(client, cid, lang):
+    """spec 02 AC-07 / G-SES-01: an expired session's turn has no case id, receipt or action claim, only the session line."""
+    sid = login(client, cid)
+    tid = client.post("/api/agent/threads").json()["thread_id"]
+    _expire(client, sid)
+    r = client.post(f"/api/agent/threads/{tid}/runs/stream", json={"input": "hola"})
+    assert "K-" not in r.text                                          # the whole stream
+    events = _events(r.text)
+    assert [e for e, _ in events] == ["turn"]                          # no progress event: nothing was done
+    turn = CustomerTurn.model_validate(events[0][1])
+    assert turn.decision == "reauthenticate" and turn.case_id is None and turn.receipt is None
+    assert turn.language == lang and turn.intent is None and turn.denials == []
+    assert turn.guardrails_triggered == ["G-SES-01"]
+    assert "bloque" not in turn.reply.lower()
+    assert turn.reply == fx.MESSAGES["connect"]["general_contact"][lang]
+    chips = fx.MESSAGES["suggest"]
+    assert [s.id for s in turn.suggestions] == ["reauthenticate", "talk_to_person"]
+    assert [s.label for s in turn.suggestions] == [chips["reauthenticate"][lang], chips["talk_to_person"][lang]]
+    assert [s.href for s in turn.suggestions if s.kind == "link"] == ["/"]
+    assert [s.action.type for s in turn.suggestions if s.kind == "action"] == ["request_call"]
+    assert set(events[0][1]) == set(CustomerTurn.model_fields)
+
+
+def test_ac_02_analyst_action_with_a_mismatched_case_id_is_403(me):
+    r = me.post(f"/api/cases/{fx.CASE_ID}/action", headers=BEARER, json={**ACTION, "case_id": RES})
+    assert r.status_code == 403
 
 
 # ---- privacy -------------------------------------------------------------------------------------------------------
@@ -364,15 +437,24 @@ def test_ac_02_eval_hooks_when_on(monkeypatch):
         r = c.post("/api/eval/seed", json=SEED).json()
         assert r["mode"] == "replay" and r["session_id"]
         c.cookies.set("not_session", r["session_id"])                      # D-019: the seeded session is the cookie
-        assert c.get(f"/api/agent/threads/{r['thread_id']}/state").status_code == 200
+        st = c.get(f"/api/agent/threads/{r['thread_id']}/state")
+        assert st.status_code == 200 and st.json()["mode"] == "replay"     # AC-08 (seed half): the stored mode
+        assert c.app.state.sessions[r["session_id"]]["mode"] == "replay"
         none = c.post("/api/eval/seed", json={**SEED, "initial_state": {"customer_id": ME, "session": "none"}}).json()
+        assert c.app.state.sessions[none["session_id"]]["customer_id"] is None      # §6.8: no customer kept
         c.cookies.set("not_session", none["session_id"])
+        assert c.get(f"/api/agent/threads/{none['thread_id']}/state").json()["code"] == "UNAUTHENTICATED"
         assert c.get("/api/me/cases").json()["code"] == "UNAUTHENTICATED"
         exp = c.post("/api/eval/seed", json={**SEED, "initial_state": {"customer_id": ME, "session": "expired"}}).json()
         c.cookies.set("not_session", exp["session_id"])
         assert c.get("/api/me/cases").json()["code"] == "SESSION_EXPIRED"
         assert c.post("/api/eval/seed", json={**SEED, "initial_state": {"session": "x"}}).status_code == 400
         assert c.get("/api/eval/final-state/S-unknown").status_code == 404
+        plain = c.post("/api/sessions", json={"customer_id": ME}).json()["session_id"]
+        assert c.get(f"/api/eval/final-state/{plain}").status_code == 404           # a non-eval session has none
+        c.post(f"/api/sessions/{plain}/verify", json={"otp": fx.OTP})
+        c.app.state.sessions[plain]["expires_at"] = dt.datetime.now(dt.timezone.utc) - dt.timedelta(seconds=1)
+        assert c.post(f"/api/sessions/{plain}/verify", json={"otp": fx.OTP}).status_code == 410
 
 
 def test_ac_02_console_handoff_follows_its_schema_and_filters(client):
