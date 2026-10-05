@@ -59,16 +59,17 @@ def bad(value: Any, facts: list[Any], policy: Iterable[str] = ()) -> bool:
     return check_grounding(facts, handoff=doc, policy_facts=list(policy)).status == "finding" or untimed(doc, facts)
 
 
-POLICY_ID = re.compile(r"\bPOL-[A-Z0-9]+(?:-[A-Z0-9]+)*")
+POLICY_ID = re.compile(r"\bPOL-[A-Z0-9]+(?:-[A-Z0-9]+)*", re.I)
 # [assumption] internal names: snake_case (tool, decision, event and queue names) and guardrail ids; none is customer copy
 INTERNAL = re.compile(r"\b[a-z]+(?:_[a-z0-9]+)+\b|\bG-[A-Z]+-\d+\b")
 SCORE_WORD = re.compile(r"(?i)score|puntaje|puntuaci[oó]n|pontua[cç][aã]o|riesgo|risco|fraud|probabilidad|[íi]ndice")
 
 
 def never_send(text: str, template: str = "", *, score: Any = None, transcript: Iterable[str] = ()) -> list[str]:
-    """What a reworded line leaks that `notifications.never_send` forbids (spec 04 §4.3, D-056 follow-up): a policy id
-    of any shape, an internal name or a score word the template line did not have (a source URL may hold one), the
-    score's value or a customer utterance of at least 20 characters. [] when clean."""
+    """What a customer-facing line leaks that `notifications.never_send` forbids (spec 04 §4.3, D-056 follow-up): a
+    policy id of any shape, an internal name or a score word its template line did not have (a source URL may hold
+    one), the score's value or a customer utterance of at least 20 characters. [] when clean. A utility for spec 15's
+    `word` gate: no reworded line reaches a customer yet."""
     internal = set(INTERNAL.findall(text)) - set(INTERNAL.findall(template))
     hits = ["policy_id"] * bool(POLICY_ID.search(text)) + ["internal_name"] * bool(internal)
     if (score is not None and check_privacy({"reply": text}, score=float(score)).status == "finding") or (

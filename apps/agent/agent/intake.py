@@ -9,8 +9,8 @@ the B0 rules arm first in every arm. `status` re-reads cards or
 cases in every turn that asks (AC-19) and `connect` registers the call where the decision says, on the active case or
 a general one (AC-28; task 04e). `respond` builds the receipt and the handoff card from tool results, and the
 grounding gate drops any fact no tool returned (G-OUT-01, task 04d). S1/S2 (task 04f, `nick_of_time.llm.steps`):
-`understand` asks the LLM below τ and `respond` may reword a turn that states no status or action; any LLM failure
-runs that step as S0, and the run returns its usage and denials (AC-14). Tools are reached only through MCP
+`understand` asks the LLM below τ in a verified session, and the reply stays template text (rewording waits for spec
+15's `word` gate); any LLM failure runs the step as S0, and the run returns its usage and denials (AC-14). Tools are reached only through MCP
 with the session of the run config (constitution #3); "today" comes from `config.today(mode)` (AC-27, ADR 0020).
 Served as `dispute_intake` in langgraph.json (D-048 applied); the echo graph stays as `dispute_intake_echo`.
 """
@@ -31,8 +31,8 @@ from pydantic import BaseModel
 
 from contracts.tools import CUSTOMER_TOOLS, VERIFIED_WITH, ToolError
 from nick_of_time import receipt as msg
+from nick_of_time.config import check_prices, resolve, today
 from nick_of_time.llm import steps as arms
-from nick_of_time.config import price, resolve, today
 from nick_of_time.contracts import TurnResult
 from nick_of_time.ids import new_id
 from nick_of_time.receipt import build
@@ -41,6 +41,7 @@ from nick_of_time.nlu.text import fold
 from nick_of_time.policy import DecisionInput, PolicyDecision, PolicyEngine
 
 ENGINE, NLU = PolicyEngine.load(), load_nlu("B0")
+check_prices()                              # D-058: a production (bedrock) LLM arm without a price fails at load
 TIMEOUT_S = ENGINE.policies.reliability["tool_timeout_ms"] / 1000
 RETRIES = ENGINE.policies.reliability["tool_retries"]
 MAX_OPTIONS = ENGINE.policies.clarify.max_candidate_transactions
@@ -120,7 +121,7 @@ class Internal(TypedDict, total=False):     # spec 04 §4.1 fields outside TurnR
     seen: Annotated[list, keep]             # the other tool results of the turn the reply states, for grounding
     llm_spent_usd: float                    # the conversation's LLM spend, for the G-OPS-01 cap (task 04f)
     llm_notes: dict[str, str]               # LLM step → "S1: ok" or "S1 -> S0: <reason>", for the trace
-    llm_alerts: list[str]                   # guardrails the LLM steps triggered (G-OPS-01, G-OUT-03)
+    llm_alerts: list[str]                   # guardrails the LLM step triggered (G-OPS-01)
 
 State = TypedDict("State", {**InputState.__annotations__, **OutputState.__annotations__, **Internal.__annotations__},
                   total=False)
@@ -157,7 +158,7 @@ def identity(state: State, config: RunnableConfig) -> dict[str, Any]:
     if state.get("language") not in (None, "es", "pt"):
         raise ValueError(f"language must be es, pt or null, not {state.get('language')!r} (spec 01 §6.4)")
     arm = settings.get("arm") or "S0"       # [assumption] no arm → S0 (no LLM) until spec 15 names the default
-    price(resolve(arm))                     # an unknown arm, or an LLM arm with no price (D-058), fails here
+    resolve(arm)                            # an unknown arm fails here
     mode = settings.get("mode") or "replay"
     today(mode)                             # an unknown mode fails here
     return {**RESET, "session_id": settings["session_id"], "arm": arm, "mode": mode,
@@ -178,7 +179,8 @@ async def greet(state: State, config: RunnableConfig) -> dict[str, Any]:
 
 async def understand(state: State, config: RunnableConfig) -> dict[str, Any]:
     """Language, injection flag, intent and slots with the B0 rules arm; dates against the session's today. Below τ,
-    S1/S2 ask the LLM for intent and slots (never for a flagged or cross-customer message); if it fails, B0 stands."""
+    S1/S2 ask the LLM for intent and slots, only in a verified session and never for a flagged or cross-customer
+    message; if it fails, B0 stands."""
     profile = state.get("profile") or {}
     day = today(state["mode"], profile.get("country"))
     texts = [m.get("content", "") for m in state.get("messages") or [] if m.get("role", "user") == "user"]
@@ -210,8 +212,9 @@ async def understand(state: State, config: RunnableConfig) -> dict[str, Any]:
         intent = msg.TEXT_CHIP_INTENT[chip] or pending
         return {**base, **found, "intent": intent, "intent_confidence": 1.0, "dispute_detected": intent in DISPUTES}
     heard, extra = (None, {})
-    if reading.confidence < TAU and not (found["injection_flagged"] or found["cross_customer"]):
-        heard, extra = await arms.understand(state, config, text, day.isoformat())
+    if reading.confidence < TAU and state["session_state"] == "verified" and not (
+            found["injection_flagged"] or found["cross_customer"]):
+        heard, extra = await arms.understand(state, config, text, day.isoformat(), TAU)
     if heard:                               # D-020: dispute words the rules saw still count
         heard["dispute_detected"] = heard["dispute_detected"] or reading.dispute_detected
     return {**base, **found, "intent": reading.intent, "intent_confidence": reading.confidence,
@@ -667,9 +670,9 @@ def status_unread(tool: str, language: str) -> dict[str, Any]:
     return {"body": [msg.text("status.read_failed", language)], "row": "status_failed", "read_failed": tool}
 
 
-async def respond(state: State, config: RunnableConfig) -> dict[str, Any]:
-    """The TurnResult from templates and §4.5 chips, reworded in S1/S2 where `steps.reword` allows; the run's usage and
-    denials (AC-14); clears the turn's input so the next turn starts clean."""
+def respond(state: State) -> dict[str, Any]:
+    """The TurnResult from templates and §4.5 chips, in every arm (no LLM wording until spec 15's `word` gate), with the
+    run's usage and denials (AC-14); clears the turn's input so the next turn starts clean."""
     language, profile, lines = state["language"], state.get("profile") or {}, []
     if state.get("greet_pending"):          # AC-15: name from the tool, three capabilities, a person reviews
         lines = [msg.text("greet.hello", language, first_name=profile["first_name"])] + [
@@ -683,9 +686,8 @@ async def respond(state: State, config: RunnableConfig) -> dict[str, Any]:
     kept = [line for line in lines + body if not build.bad(line, facts)]
     receipt, handoff, dropped = papers(state, facts)
     dropped += len(lines) + len(body) - len(kept)
-    kept, rejected, llm = await arms.reword(state, config, kept, facts)
-    state, dropped = {**state, **llm}, dropped + rejected
-    alerts = [build.ALERT] * bool(dropped) + state.get("llm_alerts", [])
+    alerts = [build.ALERT] * bool(dropped) + [a for a in state.get("llm_alerts") or []
+                                              if a not in (state.get("guardrails_triggered") or [])]
     turn = TurnResult(
         # [assumption] nothing left to say: the line that states nothing it could not verify
         reply="\n".join(kept) or msg.text("status.read_failed", language), language=language,
@@ -727,12 +729,10 @@ def step(node: str, record: dict[str, Any], read_failed: Optional[str], unconfir
          dropped: int = 0, notes: Optional[dict[str, str]] = None) -> dict[str, Any]:
     """A trace step: the decision record on the node that decided (D-046); a failed read as not_confirmed on the node
     that tried it (retrieve or status), the actions verify could not confirm on verify, on respond how many facts
-    the grounding gate dropped (G-OUT-01), and on an LLM step its arm, or its fall back to S0 as an error (§5)."""
-    llm = (notes or {}).get(node)
+    the grounding gate dropped (G-OUT-01), and on understand its LLM arm, or its fall back to S0 as an error (§5)."""
     if node == "respond" and dropped:
-        detail = f"G-OUT-01: {dropped} ungrounded fact(s) dropped" + (f"; {llm}" if llm else "")
-        return {"node": node, "status": "error", "ms": 0, "detail": detail}
-    if llm:                                 # understand or respond only
+        return {"node": node, "status": "error", "ms": 0, "detail": f"G-OUT-01: {dropped} ungrounded fact(s) dropped"}
+    if llm := (notes or {}).get(node):      # understand only
         return {"node": node, "status": "error" if "-> S0" in llm else "ok", "ms": 0, "detail": llm}
     if node in ("retrieve", "status") and read_failed:
         return {"node": node, "status": "error", "ms": 0, "detail": f"{read_failed}: not_confirmed"}
