@@ -16,6 +16,8 @@ Served as `dispute_intake` in langgraph.json (D-048 applied); the echo graph sta
 """
 # No `from __future__ import annotations`: the state types must resolve when the server loads this file by path.
 import asyncio
+import functools
+import inspect
 import json
 import logging
 import os
@@ -143,8 +145,10 @@ async def call(config: RunnableConfig, tool: str, **args: Any) -> BaseModel:
     try:
         transport = settings.get("mcp_transport")   # tests pass a server object; a URL string is never honoured
         if not transport or isinstance(transport, str):
-            transport = StreamableHttpTransport(os.environ["MCP_URL"],
-                                                headers={"X-API-Key": os.environ.get("MCP_API_KEY", "")})
+            # spec 03 §6: X-Trace-Id is the turn's trace_id, which `traced` hands the node from the state (INT1)
+            trace = settings.get("trace_id")
+            transport = StreamableHttpTransport(os.environ["MCP_URL"], headers={
+                "X-API-Key": os.environ.get("MCP_API_KEY", ""), **({"X-Trace-Id": trace} if trace else {})})
         async with Client(transport, timeout=TIMEOUT_S) as client:
             result = await client.call_tool(tool, {"session_id": settings["session_id"], **args}, raise_on_error=False)
         if result.is_error:
@@ -749,10 +753,31 @@ def step(node: str, record: dict[str, Any], read_failed: Optional[str], unconfir
             "detail": json.dumps(record, sort_keys=True) if node == record.get("node") else None}
 
 
+def traced(node):
+    """A node after identity that takes the run config gets the turn's `trace_id` in it, so `call` sends the state's
+    trace id as X-Trace-Id: one id for every tool call of the turn, also on a run with no run_id (spec 03 §6, INT1)."""
+    if node is identity or "config" not in inspect.signature(node).parameters:
+        return node
+
+    def with_trace(state: State, config: RunnableConfig) -> RunnableConfig:
+        return {**config, "configurable": {**(config.get("configurable") or {}), "trace_id": state.get("trace_id")}}
+
+    if inspect.iscoroutinefunction(node):
+        @functools.wraps(node)
+        async def run_async(state: State, config: RunnableConfig) -> dict[str, Any]:
+            return await node(state, with_trace(state, config))
+        return run_async
+
+    @functools.wraps(node)
+    def run(state: State, config: RunnableConfig) -> dict[str, Any]:
+        return node(state, with_trace(state, config))
+    return run
+
+
 builder = StateGraph(State, input_schema=InputState, output_schema=OutputState)
 for _node in (identity, greet, understand, route, refuse, connect, retrieve, decide, plan, act, verify, duplicate, clarify,
               status, respond):
-    builder.add_node(_node.__name__, _node)
+    builder.add_node(_node.__name__, traced(_node))
 builder.add_edge(START, "identity")
 builder.add_edge("identity", "greet")
 builder.add_edge("greet", "understand")
