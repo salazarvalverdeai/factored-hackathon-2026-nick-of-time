@@ -1,0 +1,18 @@
+# Two hosts, automatic TLS (Let's Encrypt). DNS A records point to the Elastic IP (docs/infrastructure.md).
+
+nickoftime.salazarvalverdeai.com {
+	encode gzip zstd
+
+	# Same origin for the browser: no CORS. The API owns everything under /api.
+	handle /api/* {
+		reverse_proxy api:8000
+	}
+
+	handle {
+		reverse_proxy web:3000
+	}
+}
+
+mcp.nickoftime.salazarvalverdeai.com {
+	reverse_proxy mcp:8001
+}
