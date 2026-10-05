@@ -17,9 +17,10 @@ import {
 } from "@/lib/evaluation";
 
 // Arm colors in fixed order, checked with the palette validator on the light and dark card surfaces (violet and teal
-// as on /analytics, plus one warm step). A fourth arm and beyond use the neutral context color and keep their label.
+// as on /analytics, plus a deep violet on light and a pale violet on dark; amber stays for urgency).
+// A fourth arm and beyond use the neutral context color and keep their label.
 const PALETTE =
-  "[--arm-1:#7c3aed] dark:[--arm-1:#8b5cf6] [--arm-2:#0d9488] [--arm-3:#c2410c] dark:[--arm-3:#ea580c] " +
+  "[--arm-1:#7c3aed] dark:[--arm-1:#8b5cf6] [--arm-2:#0d9488] [--arm-3:#4c1d95] dark:[--arm-3:#c4b5fd] " +
   "[--arm-rest:color-mix(in_oklab,var(--muted-foreground)_70%,transparent)]";
 const armColor = (index: number) => (index < 3 ? `var(--arm-${index + 1})` : "var(--arm-rest)");
 const HEADLINE = ["safe_automated_resolution", "unsafe_outcomes", "pass_4"];
@@ -46,7 +47,7 @@ function RunHeader({ data }: { data: EvaluationData }) {
     ["Cases", String(data.cases)],
     ["Runs per case", String(data.runs_per_case)],
     ["Arms", data.arms.map((a) => a.arm).join(", ")],
-    ["Protocol", data.protocol.status],
+    ["Protocol", data.protocol?.status ?? "UNSEALED"],
     ["Case file sha256", `${data.cases_sha256.slice(0, 12)}…`],
   ];
   return (
@@ -232,7 +233,7 @@ export function EvaluationResults({ file }: { file: Insight<EvaluationData> }) {
   return (
     <div className={`space-y-4 ${PALETTE}`}>
       {notice ? (
-        <p role="note" data-slot="development-notice" className="rounded-lg border border-brand-amber/60 bg-brand-amber/10 px-4 py-3 text-sm font-medium">
+        <p role="note" data-slot="development-notice" className="rounded-lg border border-border bg-muted px-4 py-3 text-sm font-medium text-foreground">
           {notice}
         </p>
       ) : null}
