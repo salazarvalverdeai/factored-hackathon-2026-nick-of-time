@@ -197,6 +197,9 @@ def test_ac_01_a3_reads_are_scoped_to_the_run_and_the_session_customer():
     assert len(reads(mine)) == 1
     assert reads(theirs) == [] and reads(other_run) == []                    # another customer, another run
     assert reads(mine, run_id=None) == [] and reads(mine, run_id="R2") == []
+    for system in (None, ""):                                          # no session customer: not a system read
+        with pytest.raises(ValueError, match="session customer"):
+            reads(mine, customer_id=system)
 
 
 def test_ac_01_a3_a_reevaluation_that_opened_a_related_case_may_claim_either_tool():
@@ -214,6 +217,19 @@ def test_ac_01_a3_a_reevaluation_that_opened_a_related_case_may_claim_either_too
         record = ActionRecord(tool=tool, action_id=reads[0].action_id, state="verified",
                               verification_id=reads[0].verification_id, read_at=reads[0].read_at)
         assert (check_actions([record], reads).status == "passed") is ok
+    handoff = {"actions": [{"tool": "", "action_id": read.action_id, "verified": True,
+                            "verification_id": read.verification_id}]}
+    assert check_actions([], [read], handoff=handoff).observed == {
+        f"handoff:{read.action_id}": "claims , the write was open_case/request_reevaluation"}
+    block = ids.new_id("action")                                       # the related case's card: not a reevaluation
+    store.block_product(again.case_id, again.product_id, action_id=block, actor="agent", trace_id="t")
+    store.record_verification(again.case_id, block, read="get_product_status", run_id=None, customer_id=None,
+                              actor="agent", trace_id="t")
+    (blocked,) = reads_from_store(store, [block], customer_id=CUSTOMER, run_id=None)
+    claim = ActionRecord(tool="request_reevaluation", action_id=block, state="verified",
+                         verification_id=blocked.verification_id, read_at=blocked.read_at)
+    assert check_actions([claim], [blocked]).observed == {
+        block: "claims request_reevaluation, the write was block_card"}
 
 
 def test_ac_01_a3_a_tool_that_is_not_the_write_behind_the_action_is_a_finding():

@@ -95,7 +95,7 @@ Notes on A3–A7 (task 18a):
   the action (every read stays in the trail). A V- id from anywhere else is not evidence, and a record or handoff
   that names a tool other than the write's (`case_opened` also from `request_reevaluation` when the case has a
   `related_case_id`, spec 03 AC-19) is a finding. That the read was the write's `VERIFIED_WITH` read is a store
-  invariant, not re-checked by A3 (task 01g adds `read` to the `action_verified` payload).
+  invariant, not re-checked by A3 (task 01g, PR #82, adds `read` to the `action_verified` payload).
 - **A4** covers numbers, dates and ids; statuses belong to A5. Ids follow the `PATTERN` shapes of `nick_of_time.ids`
   (K-, S-, A-, V-, E-, RC-, N-) and the gold ones (TRX-, PRD-, CLI-). The receipt's own `RC-` id and the session's
   `CLI-` id (`known_ids`) are known ids. Amounts are locale-aware: a last separator followed by

@@ -49,7 +49,7 @@ class ActionRead(BaseModel):
     verification_id: str
     read_at: AwareDatetime
     requested_at: AwareDatetime
-    tools: frozenset[str] = frozenset()
+    tools: frozenset[str]
 
 
 def reads_from_store(store: Store, action_ids: Iterable[str], *, customer_id: str,
@@ -62,7 +62,10 @@ def reads_from_store(store: Store, action_ids: Iterable[str], *, customer_id: st
     the events come from `store.verifications`. An action with no write of that customer in `run_id` yields none,
     so a claim that cites it is a finding.
     """
-    # TODO(01g): the store adds `read` to the `action_verified` payload; then check it against `VERIFIED_WITH` here.
+    # TODO(01g, PR #82): the store adds `read` to the `action_verified` payload; then check it against
+    # `VERIFIED_WITH` here. Until it merges, the store invariant (`record_verification`) is the guard.
+    if not customer_id:
+        raise ValueError("customer_id is the session customer; the auditor never reads as the system")
     reads: list[ActionRead] = []
     for action_id in dict.fromkeys(action_ids):
         write = store.action_write(action_id, run_id=run_id, customer_id=customer_id)
