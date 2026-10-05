@@ -1,0 +1,27 @@
+# Images build with the repo root as context (compose, and `ADD .` in the langgraph build): keep the environment, the
+# dataset, secrets and local notes out of it. Not `**/data`: apps/web/app/data is source. No `!` negations: they would
+# put excluded files back.
+.venv
+**/.venv
+data
+**/data/gold_eval
+**/*.parquet
+**/*.duckdb
+**/*.duckdb.wal
+**/.env*
+**/*.pem
+.git
+.claude
+revision
+node_modules
+**/node_modules
+**/.next
+**/__pycache__
+**/.DS_Store
+# personal drafts and working notes, as in .gitignore
+contexto_construccion.md
+01_manual_claude_code_admin.md
+docs_repo.zip
+habilitar_bedrock.md
+docs/sprint_final.md
+docs/fichas_features.md

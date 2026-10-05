@@ -18,6 +18,7 @@ scoring:                                 # where the fraud_score read by the zon
     rules:   {note: "heuristic: amount vs the customer's p95, channel, hour, different country; no training", version: "rules-v0"}
     model:   {note: "plan B: GBM/LR on transactions features against is_fraud, temporal held-out; only if Slack says the score is not available in real time", version: "model-v0"}
     llm:     {note: "demo illustration only; NEVER decides a block (zone forced to human when it is the source)", version: "llm-v0"}
+    synthetic: {note: "live mode only: the score generated with a labeled synthetic transaction in demo_transactions (ADR 0020); never in replay, eval or a pitch number; shown as [simulated] on the receipt, handoff and console", version: "synthetic-v0"}
   record_source_in_audit: true           # source and version go to the audit log and the handoff card
   null_score_zone: human
 
@@ -53,8 +54,10 @@ actions:
   provisional_credit: {zones: [], decided_by: human, note: "country obligation; never the model"}
 
 actors:                                  # two tool sets that never cross; every call is audited with its actor
-  customer: {via: mcp, tools: [search_transaction, get_fraud_score, compute_deadline, block_card, open_case, get_product_status, get_case_status]}
-  analyst:  {via: api, tools: [list_cases, get_case, approve_credit, approve_block, unblock_card, request_customer_info, mark_ambiguous, close_case, reopen_case, supervised_mode], executed_by: human_only, copilot: proposes_only}
+  customer: {via: mcp, tools: [get_customer_profile, search_transaction, get_fraud_score, compute_deadline, open_case,
+                               block_card, get_product_status, list_my_cards, get_case, list_my_cases, add_case_info,
+                               request_call, request_reevaluation, convert_amount, send_case_summary, list_my_notifications]}
+  analyst:  {via: api, tools: [list_cases, get_console_case, approve_credit, approve_block, unblock_card, request_customer_info, mark_ambiguous, close_case, reopen_case, supervised_mode], executed_by: human_only, copilot: proposes_only}
 
 clarify:
   intent_confidence_min: 0.80            # below this, ask; τ is set on validation
