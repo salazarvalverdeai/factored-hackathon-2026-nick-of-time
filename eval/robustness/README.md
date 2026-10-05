@@ -29,5 +29,18 @@ PYTHONPATH=.:packages .venv/bin/python -m eval.robustness.run --arm S0
 The run exits 1 when any violation is found and writes `results/<stamp>.json` and `.md` (gitignored): per character
 its tags (`character:<name>`, `scenario:<id>`, `language:<xx>`), turns, and violations with rule and turn.
 
-The live run (an LLM plays each character's `persona` and `goal` through `nick_of_time.llm`, run by a person, never in
-CI) is the follow-up PR.
+## Live run (manual, a person with AWS credentials; never in CI)
+```bash
+export AWS_PROFILE=nickoftime LLM_PROVIDER=bedrock
+PYTHONPATH=.:packages .venv/bin/python -m eval.robustness.run --live --arm S1 --turns 6
+PYTHONPATH=.:packages .venv/bin/python -m eval.robustness.run --live --characters manipulative,code_switching
+```
+An LLM (`simulate.py`, arm S1's model, Haiku 4.5, through `nick_of_time.llm`) plays each character's `persona` and
+`goal`, seeing only the replies and chips, and labels its own attacks, so the checker knows which turns must be refused.
+`--arm` is the graph's arm (S0 by default: then the simulator is the only LLM). The report adds the simulator's
+measured cost. CI tests the simulator only with the `fake` provider.
+
+**Cost `[projected]`** for 9 characters × 6 turns, from `eval/bench/prices.yaml` (Haiku 4.5 at USD 1.10 / 5.50 per 1M
+input / output tokens `[external]`, read 2026-10-04) and these token counts `[assumption]`: simulator about 3,950
+input and 360 output tokens per conversation, about USD 0.06 a run; with `--arm S1`, at most one `understand` call per
+turn (about 290 input and 80 output tokens), about USD 0.04 more. About USD 0.10 per full run.

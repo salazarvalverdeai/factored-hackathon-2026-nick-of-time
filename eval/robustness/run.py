@@ -2,8 +2,8 @@
 server of INT1 (tests/local_mcp.py) over a MemoryStore and a fixture gold of the scenario's customer plus another
 customer (the victim). Every turn goes through the deterministic checker; the report lists violations by rule and turn.
 
-The customer is a speaker: `scripted` (the fixed messages of characters.yaml; CI's smoke, offline), or any callable
-with the same shape (the live LLM simulator comes in a follow-up and never runs in CI). Replay mode only.
+The customer is a speaker: `scripted` (the fixed messages of characters.yaml; CI's smoke, offline) or the live
+simulator of `simulate.py` (an LLM through nick_of_time.llm, run by a person; never in CI). Replay mode only.
     PYTHONPATH=.:packages python -m eval.robustness.run [--arm S0] [--characters a,b]
 """
 from __future__ import annotations
@@ -111,13 +111,24 @@ def main(argv: Optional[list[str]] = None) -> int:
     parser = argparse.ArgumentParser(description="Robustness suite: simulated customers vs dispute_intake")
     parser.add_argument("--arm", default="S0", help="the graph's arm: S0, S1 or S2")
     parser.add_argument("--characters", default="", help="comma-separated names; default all")
+    parser.add_argument("--live", action="store_true", help="the LLM simulator (simulate.py) instead of the scripts")
+    parser.add_argument("--turns", type=int, default=6, help="max turns per live conversation")
     parser.add_argument("--out", type=Path, default=HERE / "results")
     args = parser.parse_args(argv)
     config = characters()
     names = [n for n in args.characters.split(",") if n] or list(config["characters"])
-    rows = [converse(name, config["characters"][name], config["victim"], scripted(config["characters"][name]),
-                     arm=args.arm) for name in names]
-    path = report(rows, args.out, arm=args.arm, speaker="scripted")
+    rows, meta = [], {"arm": args.arm, "speaker": "live" if args.live else "scripted"}
+    if args.live:
+        from eval.robustness import simulate
+        sim = simulate.client()
+        meta |= {"simulator": f"{sim.provider}:{sim.model}"}
+    for name in names:
+        character = config["characters"][name]
+        speaker = simulate.Simulator(sim, name, character, config["victim"]) if args.live else scripted(character)
+        rows.append(converse(name, character, config["victim"], speaker, arm=args.arm, turns=args.turns))
+        if args.live:
+            meta["simulator_cost_usd"] = round(meta.get("simulator_cost_usd", 0) + speaker.cost_usd, 6)
+    path = report(rows, args.out, **meta)
     total = sum(len(r["violations"]) for r in rows)
     print(f"{len(rows)} characters, {total} violation(s); report {path}")
     return 1 if total else 0
