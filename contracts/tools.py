@@ -36,10 +36,14 @@ WriteState = Literal["requested"]
 
 
 class _Model(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    """An output, or a part of one. The consumer ignores a field it does not know, so an additive minor version reaches
+    an agent still on the previous one (spec 01 §6.3); the published schema stays closed (`additionalProperties:
+    false`), which is what the server emits."""
+    model_config = ConfigDict(extra="ignore", json_schema_extra={"additionalProperties": False})
 
 
-class _In(_Model):
+class _In(BaseModel):
+    model_config = ConfigDict(extra="forbid")            # inputs stay strict: an unknown argument is refused (G-TOOL-01)
     session_id: str = Field(pattern=PATTERN["session"])   # the customer comes from this session row only
 
 

@@ -208,7 +208,10 @@ shape of `data` is fixed in the producing spec.
   and return it with a `verification_id` only when its post-condition holds; a plain status read returns `read_at`
   only. `search_transaction` returns no `fraud_score` or `split`: the zone comes only
   from `get_fraud_score` (D-026 `[assumption]`). The fake server (`apps/mcp/mcp_server/fake.py`) answers each tool
-  with fixtures built from these models.
+  with fixtures built from these models. **Compatibility:** inputs forbid unknown fields (G-TOOL-01), while a
+  consumer of an output ignores a field it does not know (the published output schema stays closed), so an additive
+  minor version is backward compatible for consumers: the MCP server, deployed on merge, may run one minor version
+  ahead of the agent revision on Platform, deployed by hand, and a new output field never fails an older agent.
 
 - **Errors:** every tool returns `ToolError` (`DENY`, `NOT_FOUND`, `SESSION_EXPIRED`, `UNAVAILABLE`) instead of raising;
   a `DENY` is also written to `policy_denials` with its `policy_id`. A request for another customer's transaction,
