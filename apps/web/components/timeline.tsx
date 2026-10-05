@@ -1,4 +1,4 @@
-import { StatusBadge } from "@/components/badges";
+import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import type { CaseEvent } from "@/lib/types";
 
@@ -15,8 +15,18 @@ const LABEL: Record<CaseEvent["type"], string> = {
   email_confirmed: "E-mail confirmed",
 };
 
+export interface TimelineEvent {
+  id: string;
+  at: string; // ISO timestamp
+  type: CaseEvent["type"];
+  /** The status after this event: a StatusBadge for analysts, the localized status label for customers. */
+  badge: ReactNode;
+  /** Small print under the title: the analyst sees "actor · reason", the customer sees nothing internal. */
+  meta?: string;
+}
+
 /** Vertical timeline of case events, oldest first. A case's status is its last event, so the last row is "now". */
-export function Timeline({ events, className }: { events: CaseEvent[]; className?: string }) {
+export function Timeline({ events, className }: { events: TimelineEvent[]; className?: string }) {
   return (
     <ol data-slot="timeline" className={cn("relative space-y-4 border-l pl-5", className)}>
       {events.map((e, i) => (
@@ -30,11 +40,11 @@ export function Timeline({ events, className }: { events: CaseEvent[]; className
           />
           <div className="flex flex-wrap items-center gap-2 text-sm">
             <span className="font-medium">{LABEL[e.type]}</span>
-            <StatusBadge status={e.status} />
+            {e.badge}
           </div>
           <p className="text-xs text-muted-foreground">
-            {new Date(e.at).toLocaleString()} · {e.actor}
-            {e.reason ? ` · ${e.reason}` : ""}
+            {new Date(e.at).toLocaleString()}
+            {e.meta ? ` · ${e.meta}` : ""}
           </p>
         </li>
       ))}

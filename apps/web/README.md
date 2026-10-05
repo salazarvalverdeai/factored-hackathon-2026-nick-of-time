@@ -49,7 +49,14 @@ await api.approveCredit(id);                            // throws ApiError { cod
   case queue, supervised mode, audit. `[simulated]` — none of it is dataset data.
 - **Live mode:** `NEXT_PUBLIC_API_MODE=live` answers `LIVE_API_NOT_READY` until spec 05 ships the backend. Only
   `lib/api.ts` and `lib/use-query.ts` change then; the pages do not.
-- Spec 01 (integration contract) is not merged yet. When it lands, regenerate `lib/types.ts` from its stubs.
+- **Contract alignment (spec 01 §6.2, D-013):** customer pages get projections only. `api.getCase` returns `CustomerCaseView`
+  (no score, zone, priority, handoff, policy ids, analyst names); the handoff card is `api.getConsoleCase`, analyst session only.
+  The demo picker reads `api.listDemoCustomers()` (`GET /api/demo/customers`): no score. Priority is `normal | high`, dates are
+  raw `YYYY-MM-DD`, `Receipt.issued_at` is UTC ISO-8601, `requestCall` returns `{event_id, expected_contact_by}`.
+  In mock mode the bank-side fixtures (with the score) live inside the mock store only; live mode never has them.
+- **Messages:** the agent's ES/PT texts are `lib/mock/messages.ts`, generated from `contracts/messages.yaml` with
+  `npm run sync:messages`. `npm test` fails when the file drifts. Texts the contract does not have yet (refusal, clarify,
+  cancel) are marked `LOCAL` in `lib/mock/agent.ts` until spec 04 adds them.
 
 ## Style rules
 - **Brand:** follow [`docs/brand/BRAND.md`](../../docs/brand/BRAND.md). Violet `#7C3AED` is the primary, teal `#0F766E` means verified, amber `#D97706` marks deadlines and
@@ -65,5 +72,5 @@ await api.approveCredit(id);                            // throws ApiError { cod
 - Color is never the only signal: badges always carry their text.
 
 ## Tests
-`npm test` runs Node's built-in runner on `lib/**/*.test.ts` (no extra packages). Each test cites the acceptance criterion
+`npm test` checks that `messages.ts` matches the contract, then runs Node's built-in runner on `lib/**/*.test.ts`. Each test cites the acceptance criterion
 it covers, for example `spec 13 AC-03`. A page built from the template must pass `npm run lint` and `npm run build`.

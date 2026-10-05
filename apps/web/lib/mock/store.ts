@@ -10,16 +10,19 @@ import type {
   AuditEntry,
   CaseEvent,
   CaseRecord,
+  CallRequestResult,
   CaseStatus,
-  Customer,
+  CustomerCaseView,
   CustomerSession,
   Deadline,
   HandoffCard,
   Language,
+  MockCustomer,
   NotificationEntry,
   Zone,
 } from "../types.ts";
 import { ANALYSTS, CUSTOMERS, DEADLINE_RULES } from "./fixtures.ts";
+import { MESSAGES } from "./messages.ts";
 
 export const DEMO_TODAY = "2026-06-03"; // ADR 0012: the demo date is frozen
 export const SESSION_TTL_MS = 15 * 60 * 1000;
@@ -60,6 +63,13 @@ export function caseStatus(c: CaseRecord): CaseStatus {
   return c.events[c.events.length - 1].status;
 }
 
+/** messages.yaml status.label: the customer-facing label of a queue status, in the customer's language. */
+export function statusLabel(status: CaseStatus, lang: Language): string {
+  const labels = MESSAGES.status.label;
+  const key = status === "new" ? "received" : status === "resolved" ? "resolved" : status === "closed" ? "closed" : "in_review";
+  return labels[key][lang];
+}
+
 // --- dates (weekends only; bank holidays arrive with the policy engine, spec 02) -------------------------------
 
 export function addBusinessDays(iso: string, days: number): string {
@@ -77,7 +87,7 @@ export function daysBetween(fromIso: string, toIso: string): number {
   return Math.round((Date.parse(`${toIso}T00:00:00Z`) - Date.parse(`${fromIso}T00:00:00Z`)) / 86_400_000);
 }
 
-export function deadlineFor(customer: Pick<Customer, "country" | "product">): Deadline {
+export function deadlineFor(customer: Pick<MockCustomer, "country" | "product">): Deadline {
   const rule = DEADLINE_RULES[`${customer.country}:${customer.product}`];
   return {
     country: customer.country,
@@ -106,7 +116,7 @@ interface CaseSeed {
   id: string;
   customerId: string;
   customerName: string;
-  customer: Pick<Customer, "country" | "product" | "language" | "fraudScore">;
+  customer: Pick<MockCustomer, "country" | "product" | "language" | "fraudScore">;
   zone: Zone;
   request: string;
   openedAt: string;
@@ -169,7 +179,7 @@ export function buildCase(seed: CaseSeed, finalStatus?: CaseStatus): CaseRecord 
     customerName: seed.customerName,
     language: seed.customer.language,
     zone: seed.zone,
-    priority: seed.zone === "high" ? "high" : seed.zone === "medium" ? "normal" : "low",
+    priority: seed.zone === "high" ? "high" : "normal",
     openedAt: seed.openedAt,
     deadline,
     events,
@@ -342,7 +352,7 @@ export class MockStore {
     });
   }
 
-  customerOf(session: CustomerSession): Customer {
+  customerOf(session: CustomerSession): MockCustomer {
     const customer = CUSTOMERS.find((c) => c.id === session.customerId);
     if (!customer) throw new ApiError("NOT_FOUND", 404, "unknown demo customer");
     return customer;
@@ -389,9 +399,38 @@ export class MockStore {
     return { role: "customer", actor: "customer" };
   }
 
+  /** The analyst's case, with the handoff card (GET /api/console/cases/{id}). A customer session cannot read it. */
   getCase(id: string): CaseRecord {
-    this.authorizeCase(id);
+    this.requireAnalyst();
     return this.findCase(this.state, id);
+  }
+
+  /** The customer's projection of their own case (GET /api/cases/{id}): no score, zone, priority, actor names or reasons. */
+  getCustomerCase(id: string): CustomerCaseView {
+    const session = this.requireCustomerSession();
+    const c = this.findCase(this.state, id);
+    if (c.customerId !== session.customerId) throw new ApiError("NOT_FOUND", 404, `case ${id} not found`);
+    const left = c.deadline.creditDeadline ? daysBetween(DEMO_TODAY, c.deadline.creditDeadline) : null;
+    return {
+      case_id: c.id,
+      language: c.language,
+      status_label: statusLabel(caseStatus(c), c.language),
+      created_at: c.openedAt,
+      credit_deadline: c.deadline.creditDeadline,
+      ruling_deadline: null,
+      deadline_source: c.deadline.creditDeadline ? c.deadline.deadlineSource : null,
+      deadline_countdown_days: left,
+      timeline: c.events.map((e) => ({
+        event_id: e.id,
+        type: e.type,
+        created_at: e.at,
+        status_label: statusLabel(e.status, c.language),
+      })),
+      channels: {
+        telegram: this.state.telegram[id]?.linked ?? false,
+        email: this.state.emails[id]?.confirmed ?? false,
+      },
+    };
   }
 
   listCases(): CaseRecord[] {
@@ -400,7 +439,7 @@ export class MockStore {
   }
 
   /** Called by the mock agent after it blocks the card (or decides a person must review). */
-  openCase(customer: Customer, zone: Zone, request: string, guardrails: string[] = []): CaseRecord {
+  openCase(customer: MockCustomer, zone: Zone, request: string, guardrails: string[] = []): CaseRecord {
     const session = this.requireCustomerSession();
     if (session.customerId !== customer.id) throw new ApiError("UNAUTHORIZED", 401, "customer_id comes from the session only");
     return this.mutate((s) => {
@@ -483,11 +522,14 @@ export class MockStore {
 
   // customer actions on /case/{id} (spec 13) -----------------------------------------------------------------------
 
-  requestCall(caseId: string): void {
+  /** POST /api/cases/{id}/call-request (D-008): the date is computed here from the policy window, never by the model. */
+  requestCall(caseId: string): CallRequestResult {
     const who = this.authorizeCase(caseId);
-    this.mutate((s) => {
+    return this.mutate((s) => {
       const c = this.findCase(s, caseId);
       this.append(s, c, "call_requested", who.actor, caseStatus(c));
+      // contracts/policies.yaml contact.callback_within_business_days: 1 [assumption]
+      return { event_id: c.events[c.events.length - 1].id, expected_contact_by: addBusinessDays(DEMO_TODAY, 1) };
     });
   }
 

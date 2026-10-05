@@ -309,7 +309,15 @@ function CaseDetail({
 
         <section aria-label="Timeline">
           <h3 className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">Timeline</h3>
-          <Timeline events={c.events} />
+          <Timeline
+            events={c.events.map((e) => ({
+              id: e.id,
+              at: e.at,
+              type: e.type,
+              badge: <StatusBadge status={e.status} />,
+              meta: `${e.actor}${e.reason ? ` · ${e.reason}` : ""}`,
+            }))}
+          />
         </section>
       </CardContent>
     </Card>

@@ -2,9 +2,12 @@
 // Each test cites the acceptance criterion it covers: "spec 16 AC-03", "spec 07 AC-02", "spec 08 AC-04", "spec 13 AC-03"…
 // The mock enforces the rules the real backend (spec 05) must enforce, so these tests also pin that behavior.
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
+import { parse } from "yaml";
 import { ApiError, createApi } from "./api.ts";
-import { CUSTOMERS } from "./mock/fixtures.ts";
+import { CUSTOMERS, DEMO_CUSTOMERS } from "./mock/fixtures.ts";
+import { MESSAGES } from "./mock/messages.ts";
 import { MockStore, SESSION_TTL_MS, TELEGRAM_TOKEN_TTL_MS, addBusinessDays, caseStatus } from "./mock/store.ts";
 
 const START = Date.parse("2026-06-03T10:00:00Z");
@@ -35,12 +38,12 @@ async function rejects(promise: Promise<unknown>, code: string, status?: number)
 test("spec 16 AC-03: mock mode answers without any backend", async () => {
   const { api } = setup();
   assert.equal(api.mode, "mock");
-  assert.equal((await api.listCustomers()).length, CUSTOMERS.length);
+  assert.equal((await api.listDemoCustomers()).length, CUSTOMERS.length);
 });
 
 test("spec 16 AC-03: live mode says it is not ready instead of faking data", async () => {
   const live = createApi(new MockStore(), { mode: "live", delayMs: 0 });
-  await rejects(live.listCustomers(), "LIVE_API_NOT_READY", 501);
+  await rejects(live.listDemoCustomers(), "LIVE_API_NOT_READY", 501);
 });
 
 test("spec 16 AC-03: weekends do not count in the legal deadline", () => {
@@ -130,10 +133,12 @@ test("spec 07 AC-02: blocking and opening the case returns the receipt with the 
   await customerLogin(api, "demo-ana");
   const reply = await api.chat("No reconozco un cargo de 4,200 pesos");
   assert.ok(reply.receipt);
-  assert.match(reply.receipt.caseId, /^NOT-\d{4}$/);
+  assert.match(reply.receipt.case_id, /^NOT-\d{4}$/);
   assert.equal(reply.receipt.deadline.creditDeadline, "2026-06-05");
   assert.match(reply.receipt.deadline.deadlineSource, /Banxico/);
-  assert.ok(reply.receipt.aiDid.length > 0 && reply.receipt.personWillDo.length > 0);
+  assert.equal(reply.receipt.what_ai_did, MESSAGES.receipt.what_ai_did_blocked.es); // text from contracts/messages.yaml
+  assert.equal(reply.receipt.what_a_person_does, MESSAGES.receipt.what_a_person_does.es);
+  assert.match(reply.receipt.issued_at, /^\d{4}-\d{2}-\d{2}T[\d:.]+Z$/); // UTC ISO-8601, not HH:MM
 });
 
 test("spec 07 AC-03: the trace lists each step and the guardrails that fired", async () => {
@@ -183,7 +188,7 @@ test("spec 08 AC-04: approving the credit changes the status, is audited with th
   const { api, store } = setup();
   await customerLogin(api, "demo-ana");
   const reply = await api.chat("no reconozco este cargo");
-  const id = reply.receipt!.caseId;
+  const id = reply.receipt!.case_id;
   await api.analystLogin("diego", "x");
   await api.approveCredit(id);
   assert.equal(store.getState().audit[0].actor, "diego");
@@ -209,7 +214,7 @@ async function openAnaCase() {
   const ctx = setup();
   await customerLogin(ctx.api, "demo-ana");
   const reply = await ctx.api.chat("no reconozco este cargo");
-  return { ...ctx, caseId: reply.receipt!.caseId };
+  return { ...ctx, caseId: reply.receipt!.case_id };
 }
 
 test("spec 13 AC-01 and AC-02: a status change notifies in-app and, once linked, by Telegram", async () => {
@@ -275,7 +280,7 @@ test("spec 13 AC-07: if a channel fails the notification stays in the log and th
   const latest = (await api.getNotifications(caseId))[0];
   assert.equal(latest.channels.find((c) => c.channel === "telegram")!.delivered, false);
   assert.equal(latest.channels.find((c) => c.channel === "in_app")!.delivered, true);
-  assert.equal(caseStatus(await api.getCase(caseId)), "resolved");
+  assert.equal((await api.getCase(caseId)).status_label, MESSAGES.status.label.resolved.es);
 });
 
 test("spec 13 AC-08: no customer notification carries the score, a policy id or the transcript", async () => {
@@ -294,4 +299,76 @@ test("spec 13: a customer cannot read another customer's case", async () => {
   const { api } = setup();
   await customerLogin(api, "demo-ana");
   await rejects(api.getCase("NOT-0001"), "NOT_FOUND", 404); // belongs to seed-1, not to demo-ana
+});
+
+// --- review of PR #51: the customer side follows the merged contract (spec 01 §6.2, D-013, D-008, D-018) -----------
+
+const PLACEHOLDER = /\{([a-z_0-9]+)\}/g;
+const names = (text: string) => [...text.matchAll(PLACEHOLDER)].map((m) => m[1]).sort();
+
+test("spec 07: agent texts are the ones in contracts/messages.yaml, same ES/PT placeholders", () => {
+  const yaml = parse(readFileSync(new URL("../../../contracts/messages.yaml", import.meta.url), "utf8"));
+  const leaves: [string, { es: string; pt: string }][] = [];
+  const walk = (node: Record<string, unknown>, path: string[]) => {
+    if (typeof node.es === "string" && typeof node.pt === "string") leaves.push([path.join("."), node as { es: string; pt: string }]);
+    else for (const [key, child] of Object.entries(node)) walk(child as Record<string, unknown>, [...path, key]);
+  };
+  walk(MESSAGES, []);
+  assert.ok(leaves.length > 20);
+  for (const [path, leaf] of leaves) {
+    const contract = path.split(".").reduce<Record<string, never>>((node, key) => node[key], yaml) as unknown as { es: string; pt: string };
+    assert.equal(leaf.es, contract.es, `${path}.es drifted from the contract`);
+    assert.equal(leaf.pt, contract.pt, `${path}.pt drifted from the contract`);
+    assert.deepEqual(names(leaf.es), names(leaf.pt), `${path}: es and pt use different placeholders`);
+  }
+});
+
+test("spec 07 AC-01: the demo picker data never carries the bank score or a zone (D-013)", async () => {
+  const { api } = setup();
+  const picker = JSON.stringify(await api.listDemoCustomers()).toLowerCase();
+  assert.ok(!/score|zone|fraud/.test(picker), "no score, zone or fraud in GET /api/demo/customers");
+  assert.deepEqual(Object.keys(DEMO_CUSTOMERS[0]).sort(), ["country", "customer_id", "display_name", "language", "scenario", "segment"]);
+});
+
+test("spec 13 AC-05: the customer's case is a projection: no score, zone, priority, handoff, policy ids or analyst names", async () => {
+  const { api, caseId } = await openAnaCase();
+  await api.analystLogin("diego", "x");
+  await api.approveCredit(caseId); // an analyst name now exists in the internal events
+  await api.analystLogout();
+  await customerLogin(api, "demo-ana");
+  const view = await api.getCase(caseId);
+  const text = JSON.stringify(view).toLowerCase();
+  for (const forbidden of ["score", "zone", "priority", "handoff", "pol-", "diego", "customerid", "customer_id", "reason"]) {
+    assert.ok(!text.includes(forbidden), `the customer view must not contain "${forbidden}"`);
+  }
+  assert.match(view.credit_deadline!, /^\d{4}-\d{2}-\d{2}$/); // raw date (D-018)
+  assert.equal(view.status_label, MESSAGES.status.label.resolved.es);
+});
+
+test("spec 08 AC-01: the handoff card is analyst-only: a customer session cannot read the console case", async () => {
+  const { api, caseId } = await openAnaCase();
+  await rejects(api.getConsoleCase(caseId), "UNAUTHORIZED", 401);
+  await api.analystLogin("diego", "x");
+  const record = await api.getConsoleCase(caseId);
+  assert.ok(record.handoff.zone);
+  assert.ok(["normal", "high"].includes(record.priority), "priority is normal | high (spec 01)");
+});
+
+test("spec 13 AC-05: a call request returns the event id and the expected contact date from the policy window (D-008)", async () => {
+  const { api, caseId } = await openAnaCase();
+  const result = await api.requestCall(caseId);
+  assert.match(result.event_id, /^NOT-\d{4}-E\d+$/);
+  assert.equal(result.expected_contact_by, "2026-06-04"); // Wed 2026-06-03 + 1 business day
+});
+
+test("spec 07 AC-03: what the customer chat shows never mentions the score or the zone", async () => {
+  const { api } = setup();
+  await customerLogin(api, "demo-carlos"); // score 38: medium zone, asks to confirm
+  const ask = await api.chat("No reconozco un cargo");
+  assert.deepEqual(ask.suggestions?.map((c) => c.label), [MESSAGES.suggest.confirm_yes.es, MESSAGES.suggest.confirm_no.es]);
+  const done = await api.chat("Sí, continúa", { pendingRequest: "No reconozco un cargo" });
+  for (const reply of [ask, done]) {
+    const text = JSON.stringify(reply).toLowerCase();
+    assert.ok(!/score|zone=|"zone"/.test(text), "no score or zone in what the customer sees");
+  }
 });

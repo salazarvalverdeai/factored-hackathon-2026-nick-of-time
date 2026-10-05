@@ -1,6 +1,7 @@
 // Scripted stand-in for the LangGraph agent (spec 04) [simulated]. The LLM would only *understand*; here a few regexes do.
 // The rules decide (zone from the bank score), the tools act (block, open case), verification confirms, a person closes.
-import type { AgentReply, Customer, Language, Receipt, TraceStep, Zone } from "../types.ts";
+import type { AgentReply, Language, MockCustomer, Receipt, Suggestion, TraceStep, Zone } from "../types.ts";
+import { MESSAGES, fill } from "./messages.ts";
 import { type MockStore } from "./store.ts";
 
 export interface AgentContext {
@@ -21,28 +22,29 @@ export function zoneFor(score: number | null): Zone {
   return "human";
 }
 
-const T: Record<Language, Record<string, (a?: string) => string>> = {
+// Texts that contracts/messages.yaml does not have yet (refusal, clarify, cancel): spec 04 tasks T2-T7 will add them
+// there [assumption]. Everything else (plan, receipt, deadlines, chips) comes from MESSAGES, copied from the contract.
+const LOCAL: Record<Language, Record<"deny" | "askWhat" | "cancelled", string>> = {
   es: {
-    deny: () => "No puedo ayudarte con eso. Si quieres, cuéntame del cargo que no reconoces en tu propia cuenta.",
-    askWhat: () => "Cuéntame qué cargo no reconoces: comercio, monto y fecha aproximada.",
-    confirm: () => "Antes de bloquear tu tarjeta necesito confirmarlo: ¿reconoces o no este cargo? Responde «sí» para continuar.",
-    cancelled: () => "Entendido, no bloqueé nada. Si cambias de idea, escríbeme de nuevo.",
-    blocked: (id) => `Listo. Bloqueé tu tarjeta y abrí el caso ${id}. Un analista lo revisará; puedes seguirlo en /case/${id}.`,
-    review: (id) => `Abrí el caso ${id}. Un analista lo revisará y te avisaremos de cada paso; todavía no bloqueé la tarjeta.`,
+    deny: "No puedo ayudarte con eso. Si quieres, cuéntame del cargo que no reconoces en tu propia cuenta.",
+    askWhat: "Cuéntame qué cargo no reconoces: comercio, monto y fecha aproximada.",
+    cancelled: "Entendido, no bloqueé nada. Si cambias de idea, escríbeme de nuevo.",
   },
   pt: {
-    deny: () => "Não posso ajudar com isso. Se quiser, conte sobre a cobrança que você não reconhece na sua própria conta.",
-    askWhat: () => "Conte qual cobrança você não reconhece: estabelecimento, valor e data aproximada.",
-    confirm: () => "Antes de bloquear o cartão preciso confirmar: você reconhece ou não esta cobrança? Responda «sim» para continuar.",
-    cancelled: () => "Entendido, não bloqueei nada. Se mudar de ideia, escreva de novo.",
-    blocked: (id) => `Pronto. Bloqueei o seu cartão e abri o caso ${id}. Um analista irá revisá-lo; acompanhe em /case/${id}.`,
-    review: (id) => `Abri o caso ${id}. Um analista irá revisá-lo e avisaremos cada etapa; ainda não bloqueei o cartão.`,
+    deny: "Não posso ajudar com isso. Se quiser, conte sobre a cobrança que você não reconhece na sua própria conta.",
+    askWhat: "Conte qual cobrança você não reconhece: estabelecimento, valor e data aproximada.",
+    cancelled: "Entendido, não bloqueei nada. Se mudar de ideia, escreva de novo.",
   },
 };
 
+function chip(key: "confirm_yes" | "confirm_no" | "report_unrecognized" | "talk_to_person", lang: Language): Suggestion {
+  const label = MESSAGES.suggest[key][lang];
+  return { label, text: label };
+}
+
 function denied(lang: Language, guardrail: string): AgentReply {
   return {
-    text: T[lang].deny(),
+    text: LOCAL[lang].deny,
     deny: true,
     guardrails: [guardrail],
     trace: [
@@ -54,7 +56,7 @@ function denied(lang: Language, guardrail: string): AgentReply {
 
 export function runAgentTurn(store: MockStore, text: string, ctx: AgentContext = {}): AgentReply {
   const session = store.requireCustomerSession(); // customer_id comes only from the session
-  const customer: Customer = store.customerOf(session);
+  const customer: MockCustomer = store.customerOf(session);
   const lang = customer.language;
 
   if (INJECTION.test(text)) return denied(lang, "injection_detector");
@@ -65,19 +67,38 @@ export function runAgentTurn(store: MockStore, text: string, ctx: AgentContext =
 
   if (ctx.pendingRequest) {
     if (!YES.test(text.trim())) {
-      return { text: T[lang].cancelled(), guardrails: [], trace: [{ step: "confirm", result: "customer did not confirm", kind: "ok" }] };
+      return {
+        text: LOCAL[lang].cancelled,
+        guardrails: [],
+        suggestions: [chip("report_unrecognized", lang), chip("talk_to_person", lang)],
+        trace: [{ step: "confirm", result: "customer did not confirm", kind: "ok" }],
+      };
     }
     request = ctx.pendingRequest;
   } else if (!DISPUTE.test(text)) {
-    return { text: T[lang].askWhat(), guardrails: [], trace: [{ step: "understand", result: "intent=unclear", kind: "ok" }] };
+    return {
+      text: LOCAL[lang].askWhat,
+      guardrails: [],
+      suggestions: [chip("report_unrecognized", lang), chip("talk_to_person", lang)],
+      trace: [{ step: "understand", result: "intent=unclear", kind: "ok" }],
+    };
   } else if (zone === "medium") {
     return {
-      text: T[lang].confirm(),
+      // spec 04 AC-16: the plan is stated before acting; the medium zone waits for the customer's confirmation.
+      text: [
+        MESSAGES.plan.intro[lang],
+        fill(MESSAGES.plan.step_block_card, lang, { step_n: 1, last4: customer.last4 }),
+        fill(MESSAGES.plan.step_verify, lang, { step_n: 2 }),
+        fill(MESSAGES.plan.step_deadline, lang, { step_n: 3 }),
+        fill(MESSAGES.plan.step_person, lang, { step_n: 4 }),
+        MESSAGES.plan.confirm_ask[lang],
+      ].join("\n"),
+      suggestions: [chip("confirm_yes", lang), chip("confirm_no", lang)],
       awaitingConfirmation: true,
       guardrails: [],
       trace: [
         { step: "understand", result: `intent=dispute · language=${lang}`, kind: "ok" },
-        { step: "policy", result: "zone=medium → confirm with the customer first", kind: "ok" },
+        { step: "policy", result: "confirm with the customer first", kind: "ok" },
       ],
     };
   }
@@ -86,7 +107,7 @@ export function runAgentTurn(store: MockStore, text: string, ctx: AgentContext =
   const opened = store.openCase(customer, zone, request);
   const trace: TraceStep[] = [
     { step: "understand", result: `intent=dispute · language=${lang}`, kind: "ok" },
-    { step: "policy", result: `zone=${zone} → ${blocks ? "block the card and verify" : "hand off to a person"}`, kind: "ok" },
+    { step: "policy", result: blocks ? "block the card and verify" : "hand off to a person", kind: "ok" },
   ];
   if (blocks) {
     trace.push(
@@ -106,15 +127,32 @@ export function runAgentTurn(store: MockStore, text: string, ctx: AgentContext =
     },
   );
 
+  const issuedAt = new Date(store.clock()).toISOString();
+  const deadlineText = opened.deadline.creditDeadline
+    ? fill(MESSAGES.status.credit_deadline, lang, {
+        credit_deadline: opened.deadline.creditDeadline,
+        deadline_source: opened.deadline.deadlineSource,
+      })
+    : MESSAGES.status.deadline_unknown[lang];
   const receipt: Receipt = {
-    caseId: opened.id,
-    time: new Date(store.clock()).toTimeString().slice(0, 5),
+    case_id: opened.id,
+    language: lang,
+    issued_at: issuedAt,
+    title: fill(MESSAGES.receipt.title, lang, { case_id: opened.id }),
+    card_blocked: blocks
+      ? fill(MESSAGES.receipt.card_blocked, lang, {
+          last4: customer.last4,
+          verification_id: `ver-${opened.id}`,
+          verified_at: issuedAt,
+        })
+      : null,
     deadline: opened.deadline,
-    aiDid: blocks
-      ? ["Blocked your card (verified)", "Opened your case (verified)", "Computed the legal deadline"]
-      : ["Opened your case (verified)", "Computed the legal deadline"],
-    personWillDo: ["Review the evidence", "Decide on the provisional credit", "Close the case"],
+    deadline_text: deadlineText,
+    what_ai_did: (blocks ? MESSAGES.receipt.what_ai_did_blocked : MESSAGES.receipt.what_ai_did_case_only)[lang],
+    what_a_person_does: MESSAGES.receipt.what_a_person_does[lang],
+    case_url: `/case/${opened.id}`,
   };
 
-  return { text: blocks ? T[lang].blocked(opened.id) : T[lang].review(opened.id), trace, guardrails: [], receipt };
+  const replyText = [receipt.what_ai_did, fill(MESSAGES.receipt.case_link, lang, { case_url: receipt.case_url })].join("\n");
+  return { text: replyText, trace, guardrails: [], receipt };
 }

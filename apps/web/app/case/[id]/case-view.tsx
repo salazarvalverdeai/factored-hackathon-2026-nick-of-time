@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { StatusBadge } from "@/components/badges";
 import { PageShell } from "@/components/page-shell";
 import { EmptyState, ErrorState, LoadingState } from "@/components/states";
 import { Timeline } from "@/components/timeline";
@@ -10,14 +9,14 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input, Textarea } from "@/components/ui/input";
 import { ApiError, api } from "@/lib/api";
-import { formatDeadline } from "@/lib/format";
-import { DEMO_TODAY, caseStatus, daysBetween } from "@/lib/mock/store";
-import type { NotificationEntry } from "@/lib/types";
+import { MESSAGES, fill } from "@/lib/mock/messages";
+import { DEMO_TODAY, statusLabel } from "@/lib/mock/store";
+import type { Language, NotificationEntry } from "@/lib/types";
 import { useMockState, useQuery } from "@/lib/use-query";
 
 /** The customer's case page: proof, not promises (ADR 0013). Never shows the score, policy ids or the transcript. */
 export function CaseView({ id }: { id: string }) {
-  const found = useQuery((s) => s.getCase(id));
+  const found = useQuery((s) => s.getCustomerCase(id));
   const notifications = useQuery((s) => s.notificationsFor(id));
   const { telegram, emails } = useMockState();
   const [busy, setBusy] = useState(false);
@@ -51,18 +50,18 @@ export function CaseView({ id }: { id: string }) {
   }
 
   const c = found.data;
-  const status = caseStatus(c);
-  const left = c.deadline.creditDeadline ? daysBetween(DEMO_TODAY, c.deadline.creditDeadline) : null;
+  const left = c.deadline_countdown_days;
   const linked = telegram[id]?.linked ?? false;
   const confirmedEmail = emails[id]?.confirmed ? emails[id].address : null;
 
-  async function act(action: () => Promise<unknown>, done: string) {
+  /** Runs an action; the feedback is the text the action returns, or `done`. */
+  async function act(action: () => Promise<unknown>, done = "") {
     setBusy(true);
     setError(null);
     setFeedback(null);
     try {
-      await action();
-      setFeedback(done);
+      const result = await action();
+      setFeedback(typeof result === "string" ? result : done);
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "unexpected error");
     } finally {
@@ -77,7 +76,7 @@ export function CaseView({ id }: { id: string }) {
           <Card>
             <CardHeader>
               <CardTitle className="flex flex-wrap items-center gap-2">
-                Status <StatusBadge status={status} />
+                Status <span data-slot="status-label" className="inline-flex h-5 items-center rounded-4xl bg-primary/15 px-2 text-xs font-medium text-violet-700 dark:text-violet-300">{c.status_label}</span>
               </CardTitle>
               <CardDescription>A person always closes the case.</CardDescription>
             </CardHeader>
@@ -85,10 +84,18 @@ export function CaseView({ id }: { id: string }) {
               <div data-slot="countdown" className="rounded-lg border border-brand-amber/50 bg-brand-amber/5 p-3">
                 <p className="text-xs uppercase tracking-wide text-muted-foreground">Legal deadline</p>
                 <p className="text-2xl font-semibold text-amber-700 dark:text-amber-400">{left === null ? "Pending" : left <= 0 ? "Due today" : `${left} day${left === 1 ? "" : "s"} left`}</p>
-                <p>{formatDeadline(c.deadline)}</p>
-                <p className="text-xs text-muted-foreground">Source: {c.deadline.deadlineSource} · demo date {DEMO_TODAY} [simulated]</p>
+                <p>{c.credit_deadline ?? "Pending: a person will confirm it"}</p>
+                <p className="text-xs text-muted-foreground">Source: {c.deadline_source ?? "pending"} · demo date {DEMO_TODAY} [simulated]</p>
               </div>
-              <Button disabled={busy} variant="outline" onClick={() => act(() => api.requestCall(id), "We registered your request: an analyst will call you.")}>
+              <Button disabled={busy} variant="outline" onClick={() =>
+                  act(async () => {
+                    const result = await api.requestCall(id);
+                    // messages.yaml connect.requested*: the date comes from the tool (D-008), never computed here.
+                    return result.expected_contact_by
+                      ? fill(MESSAGES.connect.requested, c.language, { expected_contact_by: result.expected_contact_by })
+                      : MESSAGES.connect.requested_no_window[c.language];
+                  })
+                }>
                 Request a call
               </Button>
             </CardContent>
@@ -99,7 +106,14 @@ export function CaseView({ id }: { id: string }) {
               <CardTitle>Timeline</CardTitle>
             </CardHeader>
             <CardContent>
-              <Timeline events={c.events} />
+              <Timeline
+                events={c.timeline.map((e) => ({
+                  id: e.event_id,
+                  at: e.created_at,
+                  type: e.type,
+                  badge: <span className="inline-flex h-5 items-center rounded-4xl bg-muted px-2 text-xs font-medium text-muted-foreground">{e.status_label}</span>,
+                }))}
+              />
             </CardContent>
           </Card>
 
@@ -141,7 +155,7 @@ export function CaseView({ id }: { id: string }) {
               {notifications.status === "ok" && notifications.data.length > 0 ? (
                 <ul className="space-y-2 text-sm">
                   {notifications.data.map((n) => (
-                    <NotificationItem key={n.id} n={n} />
+                    <NotificationItem key={n.id} n={n} lang={c.language} />
                   ))}
                 </ul>
               ) : (
@@ -203,12 +217,12 @@ export function CaseView({ id }: { id: string }) {
   );
 }
 
-function NotificationItem({ n }: { n: NotificationEntry }) {
+function NotificationItem({ n, lang }: { n: NotificationEntry; lang: Language }) {
   return (
     <li className="rounded-lg border p-2">
       <span className="flex items-center justify-between gap-2">
         <span className="font-medium">{n.title}</span>
-        <StatusBadge status={n.status} />
+        <span className="inline-flex h-5 items-center rounded-4xl bg-muted px-2 text-xs font-medium text-muted-foreground">{statusLabel(n.status, lang)}</span>
       </span>
       <span className="mt-1 flex flex-wrap gap-1.5 text-xs">
         {n.channels.map((ch) => (

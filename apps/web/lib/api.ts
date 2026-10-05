@@ -2,9 +2,18 @@
 //  - mock mode (default): answers from lib/mock/store.ts, so every page works without the backend.
 //  - live mode (NEXT_PUBLIC_API_MODE=live): not wired yet, it answers LIVE_API_NOT_READY until spec 05 ships.
 import { type AgentContext, runAgentTurn } from "./mock/agent.ts";
-import { CUSTOMERS } from "./mock/fixtures.ts";
+import { DEMO_CUSTOMERS } from "./mock/fixtures.ts";
 import { ApiError, type MockStore, mockStore } from "./mock/store.ts";
-import type { AgentReply, AnalystSession, CaseRecord, Customer, CustomerSession, NotificationEntry } from "./types.ts";
+import type {
+  AgentReply,
+  AnalystSession,
+  CallRequestResult,
+  CaseRecord,
+  CustomerCaseView,
+  CustomerSession,
+  DemoCustomer,
+  NotificationEntry,
+} from "./types.ts";
 
 export type ApiMode = "mock" | "live";
 export { ApiError };
@@ -31,17 +40,21 @@ export function createApi(store: MockStore, options: ApiOptions = {}) {
     mode,
     store,
     // customer
-    listCustomers: (): Promise<Customer[]> => call(() => CUSTOMERS),
+    /** GET /api/demo/customers (spec 01 §6.2): never carries the score. */
+    listDemoCustomers: (): Promise<DemoCustomer[]> => call(() => DEMO_CUSTOMERS),
     requestOtp: (customerId: string): Promise<string> => call(() => store.requestOtp(customerId)),
     verifyOtp: (otp: string): Promise<CustomerSession> => call(() => store.verifyOtp(otp)),
     logoutCustomer: (): Promise<void> => call(() => store.logoutCustomer()),
     expireCustomerSession: (): Promise<void> => call(() => store.expireCustomerSession()),
     chat: (text: string, ctx?: AgentContext): Promise<AgentReply> => call(() => runAgentTurn(store, text, ctx)),
     // cases
-    getCase: (id: string): Promise<CaseRecord> => call(() => store.getCase(id)),
+    /** GET /api/cases/{id}: the customer's projection. */
+    getCase: (id: string): Promise<CustomerCaseView> => call(() => store.getCustomerCase(id)),
+    /** GET /api/console/cases/{id}: the analyst's case with the handoff card. */
+    getConsoleCase: (id: string): Promise<CaseRecord> => call(() => store.getCase(id)),
     listCases: (): Promise<CaseRecord[]> => call(() => store.listCases()),
     getNotifications: (caseId: string): Promise<NotificationEntry[]> => call(() => store.notificationsFor(caseId)),
-    requestCall: (caseId: string): Promise<void> => call(() => store.requestCall(caseId)),
+    requestCall: (caseId: string): Promise<CallRequestResult> => call(() => store.requestCall(caseId)),
     addCustomerInfo: (caseId: string, text: string): Promise<void> => call(() => store.addCustomerInfo(caseId, text)),
     createTelegramLink: (caseId: string) => call(() => store.createTelegramLink(caseId)),
     /** Mock only: plays the role of Telegram calling the webhook after the customer taps the deep link. */
