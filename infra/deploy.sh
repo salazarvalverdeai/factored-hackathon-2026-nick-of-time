@@ -25,6 +25,10 @@ export AWS_REGION AWS_DEFAULT_REGION="$AWS_REGION"
 
 log() { printf '[deploy %s] %s\n' "$(date -u +%H:%M:%S)" "$*"; }
 
+for tool in aws docker git python3 curl openssl; do   # fail before touching anything if the host lacks a tool
+  command -v "$tool" >/dev/null 2>&1 || { log "missing $tool on the host (aws: snap install aws-cli --classic)" >&2; exit 1; }
+done
+
 ssm_get() {  # prints the parameter value, or nothing if it does not exist
   aws ssm get-parameter --name "$SSM_PREFIX/$1" --with-decryption --query Parameter.Value --output text 2>/dev/null || true
 }
