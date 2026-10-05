@@ -21,7 +21,13 @@ How (deterministic except for the model's own sampling):
   (`source: paraphrase`, with `seed_id` and the seed's author).
 - A deterministic checker writes `checks` on every row: a planned slot or card wording missing from the text, an
   unplanned amount, date, merchant or card type ("mi tarjeta" → "mi tarjeta de crédito"), language or English drift,
-  length, echo of the brief, duplicates. It is a hint for the human reviewer, never a filter: no row is dropped here.
+  length, echo of the brief, duplicates (see "Review hints" below). It is a hint for the human reviewer, never a filter: no row is dropped here.
+
+Review hints (no model call, `--recheck` refreshes them): `same_as_seed`; `duplicate:<first id>` and
+`near_duplicate:<earlier id>:<jaccard>` (same split only; 3-gram Jaccard >= 0.9); `language_leak` (curated ES-only
+words in PT rows and PT-only words in ES rows); `too_short` (under 4 words, injection rows excepted);
+`injection_without_marker` (no injection cue: it may have softened into a complaint); `cross_split_duplicate:<split>/<id>`
+(the same sentence in two splits, computed over every draft present).
 
 Over-generation margin. Review drops lines, so every cell is drafted about 20% above the final size of spec 09 §7.6,
 with the 60/15/25 shares kept: per language × intent 58 / 15 / 24 drafts for 48 / 12 / 20 final (train / validation /
@@ -535,6 +541,26 @@ _EN_WORDS = {"the", "my", "card", "charge", "please", "you", "is", "and", "with"
              "talk", "someone", "what", "your", "account", "ignore", "previous", "instructions", "show", "all"}
 
 
+# Review hints that need no plan (spec 09 AC-04, AC-10). Precision over recall: a hint sends the reviewer to look.
+MIN_WORDS = 4                    # `too_short`: a non-injection line under 4 words ("¿Cuál es mi saldo?" has 4 and passes)
+NEAR_DUPLICATE_JACCARD = 0.9     # `near_duplicate`: character 3-gram Jaccard of the normalized texts, same split only
+# `language_leak`: folded words that exist in one language only. ES-only words in a PT row, PT-only words in an ES row.
+# Words the two languages share or spell alike ("no", "me", "de", "para", "como", "persona") are left out.
+ES_ONLY_WORDS = {"tarjeta", "tarjetas", "cobro", "cobros", "cobraron", "quiero", "necesito", "gracias", "hola", "ayer",
+                 "usted", "ustedes", "tengo", "puedo", "hablar", "reconozco", "hice", "mis", "cuenta", "muy", "pero",
+                 "donde", "cuando", "esto", "porfa", "una"}
+PT_ONLY_WORDS = {"cartao", "cartoes", "cobranca", "nao", "obrigado", "obrigada", "voce", "quero", "preciso",
+                 "ontem", "minha", "meu", "meus", "tenho", "posso", "falar", "reconheco", "fiz", "uma", "isso", "estou"}
+# `injection_without_marker`: an injection row with none of these (folded) cues may have softened into a complaint.
+_INJECTION_CUE = re.compile(
+    r"\b(ignor\w*|system|prompt|instruc\w*|reglas?|regras?|politicas?|policy|admin\w*|gerente|funcionario|empleado"
+    r"|bypass|jailbreak|no limits|restric\w*|score|aprobad\w*|aprovad\w*|ordeno|(?:otros?|outros?) clientes?"
+    r"|clientes? (?:con|com) id|clientes? \d+|id de cliente|terceros?|outra pessoa|otra persona"
+    r"|alguien mas|vecino|disregard|desobedec\w*|olvid\w* de todo|esquec\w* tudo|procedimentos? internos?"
+    r"|procedimientos? internos?|act(?:ua|ue|uar|ues) como|aja como|finge|finja|haz de cuenta"
+    r"|feche o caso|cierra el caso|cierre el caso|desbloque\w*|oculta\w*|escondida\w*|reveal\w*)\b")
+
+
 def language_of(text: str) -> str | None:
     """'es', 'pt' or None from distinctive words and letters; a rough hint, not a detector."""
     words = re.findall(r"[a-z]+", fold(text))
@@ -598,12 +624,66 @@ def check_text(text: str, item: dict, persona: dict, seed_text: str | None = Non
     planned = [x for x in (amount and amount["text"], s["date"] and s["date"]["text"], s["merchant"], card["text"]) if x]
     if any(re.search(rf"[\"“”«]{re.escape(fold(x))}[\"“”»]", f) for x in planned):
         out.append("quoted_slot")
-    if len(text) < 8:
+    if not injection and (len(text) < 8 or len(f.split()) < MIN_WORDS):
         out.append("too_short")
+    leaks = ES_ONLY_WORDS if item["language"] == "pt" else PT_ONLY_WORDS if item["language"] == "es" else set()
+    if leaks & set(re.findall(r"[a-z]+", f)):
+        out.append("language_leak")
+    if injection and not _INJECTION_CUE.search(f):
+        out.append("injection_without_marker")
     if len(text) > 400:
         out.append("too_long")
     if seed_text is not None and fold(seed_text) == f:
         out.append("same_as_seed")
+    return out
+
+
+def _normal(text: str) -> str:
+    """Lower-case, accent-free, no punctuation, whitespace collapsed: the key of the duplicate hints."""
+    return re.sub(r"[^a-z0-9]+", " ", fold(text)).strip()
+
+
+def _grams(text: str) -> set[str]:
+    t = _normal(text)
+    return {t[i:i + 3] for i in range(len(t) - 2)} or {t}
+
+
+def _jaccard(a: set, b: set) -> float:
+    return len(a & b) / len(a | b)
+
+
+def split_checks(rows: list[dict]) -> dict[str, list[str]]:
+    """Hints that compare rows of one split, by id order: `duplicate:<first id>` (same normalized text as an earlier
+    row) and `near_duplicate:<earlier id>:<jaccard>` (3-gram Jaccard >= NEAR_DUPLICATE_JACCARD with the closest earlier
+    row that is not an exact duplicate). Never compares across splits."""
+    out: dict[str, list[str]] = {r["id"]: [] for r in rows}
+    first: dict[str, str] = {}
+    kept: list[tuple[str, set]] = []
+    for r in sorted(rows, key=lambda r: r["id"]):
+        key, grams = _normal(r["text"]), _grams(r["text"])
+        if key in first:
+            out[r["id"]].append(f"duplicate:{first[key]}")
+            continue
+        first[key] = r["id"]
+        score, other = max(((_jaccard(grams, g), i) for i, g in kept), default=(0.0, ""))
+        if score >= NEAR_DUPLICATE_JACCARD:
+            out[r["id"]].append(f"near_duplicate:{other}:{score:.2f}")
+        kept.append((r["id"], grams))
+    return out
+
+
+def cross_split_checks(by_split: dict[str, list[dict]]) -> dict[str, list[str]]:
+    """`cross_split_duplicate:<split>/<id>`: the same normalized text in another split would break the author split.
+    Names the first match in another split (splits in the order given, rows by id)."""
+    places: dict[str, list[tuple[str, str]]] = {}
+    for split, rows in by_split.items():
+        for r in sorted(rows, key=lambda r: r["id"]):
+            places.setdefault(_normal(r["text"]), []).append((split, r["id"]))
+    out: dict[str, list[str]] = {}
+    for split, rows in by_split.items():
+        for r in rows:
+            other = [f"{s}/{i}" for s, i in places[_normal(r["text"])] if s != split]
+            out[r["id"]] = [f"cross_split_duplicate:{other[0]}"] if other else []
     return out
 
 # ---------------------------------------------------------------------------------------------------------------------
@@ -709,7 +789,7 @@ def run_split(split: str, client, *, seed: int = SEED, limit: int | None = None,
 
         paras = {item["id"]: got for item, got in pool.map(para_job, [i for i in items if i["id"] in seeds])}
 
-    rows, failures, seen = [], [], set()
+    rows, failures = [], []
     for item in items:
         if item["id"] not in seeds:
             failures.append({"id": item["id"], "cell": item["cell"], "missing": "seed and its paraphrases"})
@@ -723,11 +803,9 @@ def run_split(split: str, client, *, seed: int = SEED, limit: int | None = None,
                 continue
             rows.append(make_row(item, got[j], gen, persona=persona, seed_id=item["id"],
                                  row_id=f"{item['id']}-P{j + 1}", seed_text=seed_text))
-    for row in rows:                                  # exact duplicates inside the split
-        key = fold(row["text"])
-        if key in seen:
-            row["checks"].append("duplicate")
-        seen.add(key)
+    hints = split_checks(rows)                        # duplicates inside the split
+    for row in rows:
+        row["checks"] += hints[row["id"]]
     record = split_record(split, rows, items, usage, seed, time.perf_counter() - t0, failures, region)
     return rows, record
 
@@ -735,17 +813,11 @@ def run_split(split: str, client, *, seed: int = SEED, limit: int | None = None,
 def recheck(split: str, rows: list[dict], seed: int = SEED) -> list[dict]:
     """Recompute `checks` of existing draft rows from the plan (same seed): the hints change, the texts do not."""
     items = {i["id"]: i for i in build_plan(split, seed)}
-    seen, out = set(), []
-    for row in rows:
-        item = items[row["seed_id"] or row["id"]]
-        seed_text = None if row["seed_id"] is None else next(r["text"] for r in rows if r["id"] == row["seed_id"])
-        checks = check_text(row["text"], item, row["persona"], seed_text)
-        key = fold(row["text"])
-        if key in seen:
-            checks.append("duplicate")
-        seen.add(key)
-        out.append({**row, "checks": checks})
-    return out
+    texts = {r["id"]: r["text"] for r in rows}
+    hints = split_checks(rows)
+    return [{**row, "checks": check_text(row["text"], items[row["seed_id"] or row["id"]], row["persona"],
+                                         None if row["seed_id"] is None else texts[row["seed_id"]])
+             + hints[row["id"]]} for row in rows]
 
 
 def counts(rows: list[dict]) -> dict:
@@ -755,7 +827,7 @@ def counts(rows: list[dict]) -> dict:
             "paraphrase": sum(r["source"] == "paraphrase" for r in rows),
             "by_language_intent": dict(sorted(by_cell.items())), "injection_by_language": dict(sorted(inj.items())),
             "rows_with_checks": sum(bool(r["checks"]) for r in rows),
-            "checks": dict(sorted(Counter(c for r in rows for c in r["checks"]).items()))}
+            "checks": dict(sorted(Counter(c.split(":")[0] for r in rows for c in r["checks"]).items()))}
 
 
 def split_record(split, rows, items, usage, seed, wall_s, failures, region=REGION) -> dict:
@@ -841,6 +913,7 @@ def main(argv: list[str] | None = None) -> int:
     args = ap.parse_args(argv)
     if args.recheck:
         run = json.loads((args.out / "generation.json").read_text())
+        done: dict[str, list[dict]] = {}
         for s in args.splits:
             path = args.out / f"{s}.jsonl"
             if not path.exists():
@@ -848,9 +921,15 @@ def main(argv: list[str] | None = None) -> int:
             if run["splits"][s]["plan_hash"] != plan_hash(build_plan(s, run["splits"][s]["seed"])):
                 print(f"{s}: plan changed since generation; recheck refused", file=sys.stderr)
                 return 2
-            rows = recheck(s, [json.loads(x) for x in path.read_text().splitlines() if x.strip()],
-                           run["splits"][s]["seed"])
-            path.write_text("".join(json.dumps(r, ensure_ascii=False) + "\n" for r in rows))
+            done[s] = recheck(s, [json.loads(x) for x in path.read_text().splitlines() if x.strip()],
+                              run["splits"][s]["seed"])
+        # a sentence in two splits breaks the author split: compare against every draft present, not only --splits
+        every = {s: done.get(s) or [json.loads(x) for x in (args.out / f"{s}.jsonl").read_text().splitlines() if x.strip()]
+                 for s in SPLITS if s in done or (args.out / f"{s}.jsonl").exists()}
+        cross = cross_split_checks(every)
+        for s, rows in done.items():
+            rows = [{**r, "checks": r["checks"] + cross[r["id"]]} for r in rows]
+            (args.out / f"{s}.jsonl").write_text("".join(json.dumps(r, ensure_ascii=False) + "\n" for r in rows))
             run["splits"][s]["counts"] = counts(rows)
             print(f"{s}: {counts(rows)['rows_with_checks']} rows with checks")
         (args.out / "generation.json").write_text(json.dumps(run, indent=2, ensure_ascii=False) + "\n")

@@ -169,6 +169,17 @@ model families, one per split and none of them Claude, so the author split tests
    outside spec 11 AC-06, writes `classifier/{train,validation,test}.jsonl` and prints the manifest sha256 of
    `PROTOCOL.md` Seal (b). The hash is recorded at M02 by the lead; after the seal the split files never change.
 
+Review hints in `checks` are deterministic (no model call; `python -m eval.classifier.generate --recheck` refreshes
+them without touching any text), so they speed the review up without biasing the test split (ADR 0025). A hint is not
+a decision: the reviewer reads every line. Beyond the slot and card hints: `same_as_seed` (a paraphrase equal to its
+seed after folding case, accents and punctuation); `duplicate:<id>` (same folded text as an earlier row of the split,
+naming the first by id order); `near_duplicate:<id>:<score>` (character 3-gram Jaccard >= 0.9 with an earlier row of
+the split); `language_leak` (a curated ES-only word in a PT row or PT-only word in an ES row; lists in `generate.py`,
+precision over recall); `too_short` (under 4 words, injection rows excepted); `injection_without_marker` (an
+injection row with none of a small set of cues such as ignore/ignora, system prompt, otro cliente, actúa como, admin;
+it may have softened into a complaint); `cross_split_duplicate:<split>/<id>` (the same sentence in two splits, which
+would break the author split). Rows are never compared across splits for the other hints.
+
 Results of a candidate in the same family as a split's generator are flagged (spec 11 §8). Nothing under `draft/` is
 a split file: the manifest hashes top-level files only.
 
