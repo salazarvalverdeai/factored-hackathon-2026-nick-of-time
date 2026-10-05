@@ -195,7 +195,7 @@ def fault_server(*down: str) -> FastMCP:
 
 def test_ac_28_ac_18_a_failed_call_request_says_so_promises_no_review_and_offers_a_retry():
     turn = Chat(mcp_transport=fault_server("request_call")).say("Quiero hablar con una persona", language="es")
-    assert last(turn).startswith("No pude registrar tu solicitud") and "revis" not in last(turn)
+    assert last(turn).startswith("No pude confirmar que tu solicitud de llamada quedó registrada") and "revis" not in last(turn)
     assert [(a.tool, a.state, a.verification_id) for a in turn.actions] == [("request_call", "not_confirmed", None)]
     assert turn.suggestions[0].action.type == "request_call"
 
@@ -209,9 +209,19 @@ def test_ac_03_another_customers_data_is_denied_as_cross_customer(text, language
     assert [(d.policy_id, d.guardrail_id) for d in turn.denials] == [("POL-CROSS-CUSTOMER", "G-SES-02")]
 
 
-def test_ac_03_own_card_mentioning_a_relative_is_not_cross_customer():
-    turn = Chat().say("Mi esposa vio un cargo que no reconozco en mi tarjeta", language="es")
-    assert turn.decision is None and not turn.denials
+@pytest.mark.parametrize("text", [
+    "no reconozco la compra de mi hija en Netflix", "Hay compras de mi hijo que no autoricé en mi tarjeta",
+    "Tem uma compra do meu filho que não fiz", "un cargo de mi mamá en mi tarjeta no lo reconozco",
+    "Tengo un cargo de otra persona en mi tarjeta", "Aparece una compra de otro cliente en mi cuenta",
+    "Vi un cargo del cliente 12345 en mi extracto", "Me cobraron en mi tarjeta la compra de otra persona",
+    "Pagué la cuenta de mi amigo en el restaurante y me cobraron dos veces",
+    "Mi tarjeta adicional de mi esposa tiene un cargo que no reconozco",
+    "el cargo de la compra de mi hijo aparece duplicado"])
+def test_ac_03_own_charges_mentioning_someone_else_are_not_cross_customer(text):
+    chat = Chat()
+    turn = chat.say(text)
+    assert not chat.state()["cross_customer"] and not turn.denials
+    assert chat.state()["branch"] == "retrieve"     # a dispute (or a below-τ reading, which asks) takes the dispute path
 
 
 def test_ac_03_a_url_string_as_mcp_transport_is_ignored(monkeypatch):

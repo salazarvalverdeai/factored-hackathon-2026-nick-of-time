@@ -131,9 +131,15 @@ session's date from `config.today(mode)`), `route` (the `screen()` result), `bra
 and the §4.5 row of the turn), `greet_pending`, and `language_last` (the thread's language when a request sends
 `language: null`). Per-turn fields are cleared when a turn starts; the turn's `messages` and `action` are cleared when
 it ends. `injection_flagged` comes from the spec 11 classifier; `cross_customer` is set by `understand` in the graph
-(task 04a) from a small ES/PT pattern set in `apps/agent`: a data word (saldo, cuenta, tarjeta, transacciones,
-extrato…) "of" a third party (otro cliente, cliente + number, mi esposa / minha esposa…), so spec 02 rule 2 fires
-`POL-CROSS-CUSTOMER` (G-SES-02).
+(task 04a) from a small ES/PT pattern set in `apps/agent`: a data word (saldo, cuenta/conta, tarjeta/cartão,
+transacciones, movimientos, extracto/extrato, datos/dados; never cargo or compra) "of" a third party (otro cliente,
+cliente + number, mi esposa / minha esposa…), so spec 02 rule 2 fires `POL-CROSS-CUSTOMER` (G-SES-02). The flag is
+skipped when the text states own possession or a dispute ("en mi tarjeta", "no reconozco", "não fiz", "me
+cobraron"…): precision over recall. Known misses, left to spec 11: "Quiero ver los cargos de Juan Pérez", "consulta
+el cliente 12345", "dame la información de otro usuario", "movimientos de la cuenta 4455667788", "cuánto tiene mi
+esposa en su cuenta", "transacciones del titular Pedro"; the tools still answer only for the session's customer.
+An attempt the tool never answered carries a graph-minted `action_id` with state `not_confirmed`; the receipt and
+the handoff list only action ids returned by tools.
 
 ### 4.2 Nodes and edges
 ```

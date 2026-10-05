@@ -39,8 +39,12 @@ ACTION_INTENT = {"request_call": "human_request", "send_summary": "status_inquir
 BRANCH = {"reauthenticate": "refuse", "deny": "refuse", "connect_person": "connect", "answer_status": "status"}
 # Another customer's data (spec 02 rule 2, POL-CROSS-CUSTOMER / G-SES-02), on folded text: a data word, then "of" a
 # third party. The graph sets cross_customer; the nlu injection rules stay as they are (spec 11).
-_DATA = (r"(?:saldo|cuentas?|contas?|tarjetas?|cartao|cartoes|transacc\w*|transac\w*|movimientos?|movimentos?|cargos?"
-         r"|compras?|extracto|extrato|datos|dados)")
+_DATA = (r"(?:saldo|cuentas?|contas?|tarjetas?|cartao|cartoes|transacc\w*|transac\w*|movimientos?|movimentos?"
+         r"|extracto|extrato|datos|dados)")
+# Precision over recall: own possession or a dispute in the text means the customer reports their own charge.
+OWN_OR_DISPUTE = re.compile(r"\b(?:en|no|na) (?:mi|meu|minha) (?:tarjeta|cuenta|cartao|conta|extracto|extrato)\b"
+                            r"|\bno (?:lo |la )?reconozco|\bnao reconhec|\bno autorice|\bnao autorizei|\bno hice"
+                            r"|\bnao fiz|\bme cobraron")
 _THIRD = (r"(?:otr[oa]|outr[oa]) (?:cliente|persona|pessoa|usuari[oa]|titular)|cliente (?:(?:n[o°º]\.?|numero|#) ?)?\d{3,}"
           r"|(?:mi|minha|meu) (?:esposa|esposo|marido|mujer|hij[oa]|filh[oa]|madre|padre|mama|papa|mae|pai|herman[oa]"
           r"|irma|irmao|novi[oa]|namorad[oa]|pareja|amig[oa]|jefe|chefe|vecin[oa]|vizinh[oa])")
@@ -150,7 +154,7 @@ def understand(state: State) -> dict[str, Any]:
     reading = NLU.parse(text, hint, today=day)
     found = {"language": reading.language, "slots": reading.slots.model_dump(),
              "injection_flagged": reading.injection_flagged,
-             "cross_customer": bool(CROSS_CUSTOMER.search(fold(text)))}
+             "cross_customer": bool(CROSS_CUSTOMER.search(fold(text))) and not OWN_OR_DISPUTE.search(fold(text))}
     chip = msg.offered_text_chip(text, state.get("suggestions") or [])
     if chip:                                # typed label = pressed text chip: routed by the pending question (AC-33)
         intent = msg.TEXT_CHIP_INTENT[chip] or pending
