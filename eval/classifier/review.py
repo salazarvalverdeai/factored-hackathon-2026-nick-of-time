@@ -45,7 +45,7 @@ INJECTION = "injection"
 # ADR 0025: the test split is not reviewed by the classifier's developer. GitHub handles, without "@".
 CLASSIFIER_DEVELOPERS = ("salazarvalverdeai",)
 DECISIONS = ("keep", "fix", "drop")
-# ADR 0025 amendment (lead, 2026-10-05): when no independent person can review the test split before the seal, it may
+# ADR 0028 (lead, 2026-10-05, amends 0025): when no independent person can review the test split before the seal, it may
 # be decided by these fixed rules, signed RULE_REVIEWER, only with `promote --allow-rule-review`. The classifier
 # developer may still never review test. Results on such a split are labeled "without independent human review".
 RULE_REVIEWER = "rules-v1"
