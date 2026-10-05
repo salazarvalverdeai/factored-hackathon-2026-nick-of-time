@@ -359,6 +359,15 @@ def create_live_app(store: Store, *, catalog: Optional[Catalog] = None, verifier
     def _sse(event: str, data: dict) -> str:
         return f"event: {event}\ndata: {json.dumps(data, default=str)}\n\n"
 
+    def progress_event(data: Any) -> Optional[str]:
+        """Spec 04 AC-17: a step label from the run's custom stream leaves only as an in-progress ProgressItem; any
+        other chunk (not a ProgressItem, or one claiming a result, constitution #4) is dropped, never failing the turn."""
+        try:
+            item = ProgressItem.model_validate(data)
+        except ValueError:
+            return None
+        return _sse("progress", item.model_dump(mode="json")) if item.state == "in_progress" else None
+
     @app.post("/api/agent/threads/{thread_id}/runs/stream")
     def agent_stream(thread_id: str, request: Request, payload: dict = Body(default={}),
                      s: dict = Depends(own_thread)):
@@ -369,8 +378,8 @@ def create_live_app(store: Store, *, catalog: Optional[Catalog] = None, verifier
         def events():
             try:
                 for event, data in upstream.stream(thread_id, config, payload):
-                    if event == "progress":
-                        yield _sse("progress", ProgressItem.model_validate(data).model_dump(mode="json"))
+                    if event == "progress" and (item := progress_event(data)):
+                        yield item
                     elif event == "turn":       # only the customer projection leaves the api (D-013)
                         yield _sse("turn", turn_of(data).for_customer().model_dump(mode="json"))
             except (PlatformError, ValueError):

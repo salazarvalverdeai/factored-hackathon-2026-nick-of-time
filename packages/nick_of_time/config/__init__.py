@@ -96,7 +96,7 @@ TIME_ZONES = {"MX": "America/Mexico_City", "AR": "America/Argentina/Buenos_Aires
 def today(mode: str, country: Optional[str] = None, *, env: Mapping[str, str] | None = None,
           now: Optional[dt.datetime] = None) -> dt.date:
     """clock.today(mode, country) (spec 01 section 5): replay is DEMO_TODAY; live is the date in the customer's country
-    time zone. The only place the agent may read the system clock. [assumption] live without a known country uses
+    time zone. With `now` below, the only places the agent may read the system clock. [assumption] live without a known country uses
     UTC, as the api stub does."""
     env = os.environ if env is None else env
     if mode == "replay":
@@ -105,3 +105,9 @@ def today(mode: str, country: Optional[str] = None, *, env: Mapping[str, str] | 
         raise ValueError(f"mode must be replay or live, not {mode!r} (ADR 0020)")
     zone = ZoneInfo(TIME_ZONES.get(country or "", "UTC"))
     return (now.astimezone(zone) if now else dt.datetime.now(zone)).date()
+
+
+def now() -> dt.datetime:
+    """The UTC instant a progress label is streamed (spec 04 AC-17): a display stamp in both modes, never "today", a
+    deadline or a fact the reply states (those come from `today` and the tools)."""
+    return dt.datetime.now(dt.timezone.utc)

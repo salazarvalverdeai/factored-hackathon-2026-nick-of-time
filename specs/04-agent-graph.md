@@ -333,9 +333,14 @@ messages.
       `S1 -> S0: <reason>` and keeps any billed call in `usage`. D-058, availability first: a missing price (`anthropic`
       has none yet `[assumption]`) runs that turn as S0 (`no price (D-058)`); the graph's load only logs it, since S0
       and the echo graph share the Platform server, and CI's `config.check_prices()` test fails when a default
-      production (bedrock) arm has no price row. Open: AC-17
-      (progress stream, P1, D-001); S1/S2 rewording (spec 15 `word` gate); a per-day cap (G-OPS-01) needs a store-side
-      counter
+      production (bedrock) arm has no price row. Task PROG did AC-17: each step that runs streams one in-progress
+      `ProgressItem` (`step` = the stable key, `label` = `messages.yaml` `progress.<key>` in the thread's language) as a
+      LangGraph custom event — greet's profile read, understand (before any LLM call, so the first label comes within
+      1 s), search, decide, each write in act, verify, status, connect and respond; a label never states a result
+      (constitution #4). The api requests `custom` + `values` and forwards each as `event: progress` before the one
+      `event: turn`, dropping a custom chunk that is not an in-progress `ProgressItem`; tests
+      `tests/test_spec04_progress.py`. Open: S1/S2 rewording (spec 15 `word` gate); a per-day cap (G-OPS-01) needs a
+      store-side counter
 - [ ] T7a — Shared LLM client `nick_of_time.llm` (`fake`, `bedrock`, `anthropic`) and `nick_of_time.config.resolve(arm)`:
       forced tool use with the tool → any → auto ladder (D-011), temperature 0 or provider default recorded per arm
       (D-016), usage, latency and cost from a price table, `ProviderUnavailable` for provider errors (graph degrades to
