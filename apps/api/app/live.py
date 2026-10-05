@@ -134,7 +134,7 @@ def create_live_app(store: Store, *, catalog: Optional[Catalog] = None, verifier
                   openapi_url="/api/openapi.json")
     app.state.store, app.state.runs, app.state.now = store, deque(maxlen=200), now
     app.state.charges = {}                          # session id -> its last synthetic charge (AC-19)
-    app.state.personas = {}                         # session id -> its LLM persona openings (AC-20)
+    app.state.personas = persona.Budget()            # LLM openings per session and persona spend per day (AC-20)
     notifier = notifier or HttpNotifier.from_env()
     day_cap = float(os.getenv("DAILY_LLM_CAP_USD") or DAILY_LLM_CAP_USD)   # read once, at app creation
     install_guard(app, lambda: app.state.now())                     # per-IP and global hourly limits (AC-18)
@@ -559,14 +559,18 @@ def create_live_app(store: Store, *, catalog: Optional[Catalog] = None, verifier
         if not hasattr(app.state, "persona_llm"):
             app.state.persona_llm = persona_llm or persona.default_client()
         client, user = app.state.persona_llm, persona.payload(language, body.character, name, charge)
-        cost, used = (persona.estimate(client, user) if client else None), app.state.personas.get(s["session_id"], 0)
-        # G-OPS-01 (AC-18): the day's llm_calls of every run plus this call's worst case, under the same daily cap
-        if cost is not None and used < persona.SESSION_CAP and not over_day_cap({"configurable": run_config(s)}, cost):
-            app.state.personas[s["session_id"]] = used + 1
+        cost, config, now = (persona.estimate(client, user) if client else None), run_config(s), app.state.now()
+        # G-OPS-01 (AC-18): every run's llm_calls today plus this call's worst case under the daily cap, and the
+        # persona's own share of it, so persona traffic never pushes agent turns to S0
+        if (cost is not None and not over_day_cap({"configurable": config}, cost)
+                and app.state.personas.admit(s["session_id"], now, cost, float(config["llm_day_cap_usd"]))):
             message, result = persona.generate(client, user)
+            if message and not persona.acceptable(message, language, body.character, charge):
+                message = None                                  # a suggestion outside the rules: the template
             if result is not None:
                 spent = result.cost_usd or 0.0
-                store.add_llm_call(trace_id=_trace(), provider=result.provider, model=result.model,
+                app.state.personas.spend(now, spent)
+                store.add_llm_call(trace_id="persona-" + uuid.uuid4().hex[:16], provider=result.provider, model=result.model,
                                    tokens_in=result.tokens_in, tokens_out=result.tokens_out,
                                    latency_ms=result.latency_ms, cost_usd=Decimal(str(spent)), run_id=s["run_id"])
         return {"message": message or persona.template(language, name, charge), "language": language,

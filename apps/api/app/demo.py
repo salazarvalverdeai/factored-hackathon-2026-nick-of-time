@@ -86,6 +86,17 @@ def choose(all_scenarios: list[dict[str, Any]], scenario: Optional[str], country
     return secrets.choice(pool) if pool else None
 
 
+# imperative verbs of an instruction to a model, ES/PT/EN, that B0 does not flag in a short name or merchant [assumption]
+INSTRUCTION = re.compile(r"\b(ignora\w*|ignore\w*|olvida\w*|esquece\w*|escrib[ea]\w*|escrev[ae]\w*|respond[ae]\w*|"
+                         r"act[uú]a|finge|finja|aja como|traduc\w*|traduz\w*|repite|repita|di que|diga que|poema|"
+                         r"instrucc\w*|instru[cç][oõ]\w*|prompt|system)\b", re.I)
+
+
+def instruction(text: str) -> bool:
+    """B0's injection patterns or an imperative instruction phrasing (\"Ignora todo lo anterior\", \"Escribe un poema\")."""
+    return injection_flagged(text) or bool(INSTRUCTION.search(text))
+
+
 def clean_name(raw: Optional[str]) -> Optional[str]:
     """The typed name, trimmed, or None when blank; ValueError for anything that is not a plain name of at most 40
     characters: digits (a card number, a document), a URL, an e-mail, control characters or an injection attempt."""
@@ -99,7 +110,7 @@ def clean_name(raw: Optional[str]) -> Optional[str]:
     compat = unicodedata.normalize("NFKC", name) != name             # ², Ⅻ, full-width or ligature look-alikes
     if compat or any(unicodedata.category(ch).startswith("C") for ch in raw) or not NAME.fullmatch(name):
         raise ValueError("display_name must be a plain name: letters, spaces, apostrophes, dots and hyphens only")
-    if injection_flagged(name):
+    if instruction(name):
         raise ValueError("display_name must be a plain name")
     return name
 
@@ -123,7 +134,7 @@ def clean_merchant(raw: str) -> str:
         raise ValueError(f"merchant must be a store name of 1 to {NAME_MAX} characters")
     if (any(unicodedata.category(ch).startswith("C") for ch in raw) or not MERCHANT.fullmatch(name)
             or DIGIT_RUN.search(name) or sum(ch.isdigit() for ch in name) > 4 or DOMAIN.search(name)
-            or injection_flagged(name)):
+            or instruction(name)):
         raise ValueError("merchant must be a plain store name")
     return name
 

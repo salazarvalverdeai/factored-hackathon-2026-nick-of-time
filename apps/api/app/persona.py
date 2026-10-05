@@ -9,10 +9,14 @@ session's cap answers the fixed template instead.
 """
 from __future__ import annotations
 
+import datetime as dt
 import json
+import re
+import threading
 from typing import Any, Literal, Optional
 
 from nick_of_time import llm
+from nick_of_time.nlu.injection import injection_flagged
 
 Character = Literal["aggressive", "passive", "terse", "verbose", "confused", "code_switching"]
 CHARACTERS: dict[str, str] = {
@@ -25,6 +29,13 @@ CHARACTERS: dict[str, str] = {
 LANGUAGE = {"es": "Spanish", "pt": "Brazilian Portuguese"}
 MAX_TOKENS, MAX_CHARS, TIMEOUT_S = 300, 400, 4.0
 SESSION_CAP = 5                       # [assumption] LLM openings per session; later ones get the template
+DAY_SHARE = 0.2                       # [assumption] persona spend per UTC day <= 20% of DAILY_LLM_CAP_USD: agent turns first
+# a cheap language check of the model's text: words only one of the two languages uses [assumption]
+MARKERS = {"es": set("hola cargo reconozco ayuda ayudar pueden puedo tarjeta cobro qué mi yo este esto pero gracias "
+                     "hice usted ustedes ahora oigan".split()),
+           "pt": set("olá oi cobrança reconheço ajuda ajudar podem posso cartão não meu minha eu esse isso mas "
+                     "obrigado obrigada você vocês agora fiz".split())}
+LINK = re.compile(r"https?:|www\.|@|\w\.(?:com|net|org|io|ly|me|br|mx|ar|co)\b", re.I)
 SCHEMA = {"type": "object", "required": ["message"],
           "properties": {"message": {"type": "string", "minLength": 1, "maxLength": MAX_CHARS}}}
 SYSTEM = (
@@ -83,3 +94,41 @@ def default_client() -> Optional[llm.LLMClient]:
         return llm.make_client(cfg, prices=price(cfg), read_timeout_s=TIMEOUT_S, max_attempts=1)
     except Exception:  # noqa: BLE001 - no client: every opening is the template
         return None
+
+
+def acceptable(text: str, language: str, character: str, charge: dict[str, Any]) -> bool:
+    """The model's text as a suggestion: the session language (code-switching may mix), no digits but the charge's own
+    amount and date, no link, e-mail or phone, no injection pattern (B0), at most 400 characters. Else the template."""
+    words = set(re.findall(r"[^\W\d_]+", text.lower()))
+    other = "pt" if language == "es" else "es"
+    if character != "code_switching" and not (words & MARKERS[language]
+                                              and len(words & MARKERS[language]) >= len(words & MARKERS[other])):
+        return False
+    amount = float(charge["amount"])
+    allowed = {g.lstrip("0") or "0" for form in (f"{amount:,.2f}", f"{amount:.2f}", f"{amount:,.0f}", str(charge["date"]))
+               for g in re.findall(r"\d+", form)}
+    digits_ok = all((g.lstrip("0") or "0") in allowed for g in re.findall(r"\d+", text))
+    return digits_ok and not LINK.search(text) and not injection_flagged(text) and 0 < len(text) <= MAX_CHARS
+
+
+class Budget:
+    """Per-session LLM openings and the persona's spend per UTC day, under one lock; idle sessions are pruned. One api
+    worker counts them (as the abuse guard assumes) [assumption]."""
+
+    def __init__(self) -> None:
+        self._lock, self._sessions, self._days = threading.Lock(), {}, {}
+
+    def admit(self, session_id: str, now: dt.datetime, estimate: float, day_cap: float) -> bool:
+        """Reserve one opening for the session when it is under SESSION_CAP and the day's persona spend plus this
+        estimate stays within DAY_SHARE of the daily cap."""
+        with self._lock:
+            self._sessions = {k: v for k, v in self._sessions.items() if now - v[1] < dt.timedelta(hours=1)}
+            used = self._sessions.get(session_id, (0, now))[0]
+            if used >= SESSION_CAP or self._days.get(now.date(), 0.0) + estimate > DAY_SHARE * day_cap:
+                return False
+            self._sessions[session_id] = (used + 1, now)
+            return True
+
+    def spend(self, now: dt.datetime, cost: float) -> None:
+        with self._lock:
+            self._days = {now.date(): self._days.get(now.date(), 0.0) + cost}
