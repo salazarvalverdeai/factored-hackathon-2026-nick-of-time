@@ -228,5 +228,5 @@ def test_ac_06_env_file_carries_the_demo_arm_and_public_links():
     """AC-06 / FR-09: the demo runs S1 (Haiku 4.5) and the links point at the public URL and the real bot."""
     script = (INFRA / "deploy.sh").read_text()
     for needle in ("DEFAULT_ARM=${DEFAULT_ARM:-S1}", "PUBLIC_URL=https://nickoftime.salazarvalverdeai.com",
-                   "TELEGRAM_BOT_NAME=NickOfTimeUpdatesBot", "EMAIL_FROM=", "BEDROCK_MODEL_FAST="):
+                   "TELEGRAM_BOT_NAME=NickOfTimeUpdatesBot", "EMAIL_FROM=", "BEDROCK_MODEL_FAST=", "LLM_PROVIDER=bedrock"):
         assert needle in script, needle
