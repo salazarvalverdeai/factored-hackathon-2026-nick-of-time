@@ -78,7 +78,7 @@ def test_ac_02_an_option_card_picks_only_a_candidate_that_was_shown():
     assert forged.decision == "ask" and not forged.plan
     chat.say("No reconozco un cargo en TIENDA X")
     picked = chat.say(action={"type": "choose_option", "value": "TRX-FIXTURE0000000000002"})
-    assert picked.decision == "block_and_open_case" and "102.00 USD" in picked.plan[0]
+    assert record(picked)["decision"]["decision"] == "block_and_open_case" and "102.00 USD" in picked.plan[0]
 
 
 def test_ac_02_below_tau_asks_and_a_call_request_below_tau_only_registers_the_call(monkeypatch):
@@ -121,7 +121,8 @@ def test_ac_11_a_call_request_that_reports_a_charge_opens_the_case_without_askin
     assert turn.decision == "connect_person" and turn.zone == "medium"
     assert record(turn)["decision"]["request_call"] == "opened_case" and turn.plan       # no confirm question
     assert not any(s.id == "confirm_yes" for s in turn.suggestions)
-    assert [(a.tool, a.state) for a in turn.actions] == [("request_call", "requested")]   # the call is never refused
+    assert [(a.tool, a.state) for a in turn.actions] == [("open_case", "verified"), ("request_call", "requested")]
+    assert turn.case_id == "K-104233" and "Registré tu solicitud en el caso K-104233" in turn.reply   # T4: on the case
 
 
 @pytest.mark.parametrize("answer", [score(12.0), score(None), score(88.0, source="llm"),
@@ -147,15 +148,17 @@ def test_ac_13_after_two_clarifications_it_hands_off_and_registers_a_general_cal
                                   "Quiero hablar con una persona, no reconozco un cargo de 1250 USD en TIENDA X"])
 def test_ac_16_high_zone_states_numbered_steps_that_follow_the_decision(text):
     """The plan lists the block only when decide() allows it (so D-029, which withholds it for a call request, needs
-    no graph change); nothing is executed before T4."""
+    no graph change); the plan comes before the actions, which run exactly the allowed writes (T4)."""
     turn = Chat(mcp_transport=server(get_fraud_score=score(72.0))).say(text, language="es")
     allowed = record(turn)["decision"]["allowed_actions"]
     assert turn.zone == "high" and "open_case" in allowed
     assert turn.plan[0] == "1. Abrir un caso con la información de este cargo (TIENDA X, 1250.00 USD)."
     assert ("2. Bloquear tu tarjeta terminada en 4417." in turn.plan) == ("block_card" in allowed)
     assert [int(step.split(".")[0]) for step in turn.plan] == list(range(1, len(turn.plan) + 1))
-    assert turn.reply.splitlines()[-len(turn.plan) - 1 - bool(turn.actions)] == "Esto es lo que voy a hacer:"
-    assert not [a for a in turn.actions if a.tool != "request_call"]
+    lines = turn.reply.splitlines()
+    start = lines.index("Esto es lo que voy a hacer:")
+    assert lines[start + 1:start + 1 + len(turn.plan)] == turn.plan and start + len(turn.plan) < len(lines) - 1
+    assert [a.tool for a in turn.actions if a.tool != "request_call"] == allowed
 
 
 def test_ac_23_an_active_case_on_the_charge_opens_no_second_case():

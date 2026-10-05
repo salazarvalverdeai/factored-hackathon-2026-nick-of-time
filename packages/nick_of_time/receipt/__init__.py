@@ -43,7 +43,11 @@ ROWS: dict[str, tuple[str, ...]] = {
     "confirm": ("confirm_yes", "confirm_no", "talk_to_person"),
     "case_active": ("view_case", "add_info", "request_call"),                     # AC-23: the existing case
     "read_failed": ("show_recent", "talk_to_person", "check_case"),   # the first chip searches again
-    "planned": ("check_case", "report_another", "talk_to_person"),   # [assumption] a plan with no act yet, until T4
+    "receipt": ("view_case", "send_summary", "request_call"),                    # case opened, actions verified (T4)
+    "handoff": ("view_case", "add_info", "request_call"),
+    "escalate_unconfirmed": ("view_case", "add_info", "request_call"),           # escalate_unconfirmed_action, a case
+    # [assumption] escalate_unconfirmed_action with no verified case: no case link; the first chip asks for a call
+    "case_unconfirmed": ("talk_to_person", "report_unrecognized", "check_case"),
     "deny": ("report_unrecognized", "check_case", "talk_to_person"),
     "reauthenticate": ("reauthenticate", "talk_to_person"),
     "connect_person": ("report_another", "check_case", "report_duplicate"),     # no case: F-007 adds 2 text chips
@@ -71,6 +75,14 @@ def amount_text(amount: float) -> str:
     """The tool's amount as written in replies: two decimals when that is exact, else every digit it has (AC-25)."""
     fixed = f"{amount:.2f}"
     return fixed if float(fixed) == amount else repr(amount)
+
+
+def action_line(tool: str, state: str, language: str, verified_at: Optional[str] = None) -> str:
+    """An action in one of the four states of AC-18 (in_progress, requested, verified, not_confirmed); only "verified"
+    carries a time, the read_at of its post-condition read."""
+    label = text(f"status.action_label.{tool}", language)
+    return text(f"status.action_{state}", language, action_label=label,
+                **({"verified_at": verified_at} if state == "verified" else {}))
 
 
 def option_label(trx: dict[str, Any]) -> str:

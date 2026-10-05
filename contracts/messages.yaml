@@ -359,6 +359,19 @@ clarify:
     es: "No pude consultar tus cargos ahora, así que no hice ningún cambio. Intenta de nuevo en un momento."
     pt: "Não consegui consultar suas cobranças agora, então não fiz nenhuma alteração. Tente novamente em instantes."
 
+act:
+  # Spec 04 task 04c (pending the lead): lines `verify` writes after the post-condition reads (AC-01, AC-04, AC-18).
+  case_opened:
+    # open_case verified by get_case: the case id, the V- id and read_at of that read; the stored deadlines follow
+    # with receipt.ruling_deadline / credit_deadline / deadline_unknown.
+    es: "Caso {case_id} abierto y verificado (verificación {verification_id}, {verified_at})."
+    pt: "Caso {case_id} aberto e verificado (verificação {verification_id}, {verified_at})."
+  case_not_confirmed:
+    # open_case got no answer, or get_case did not confirm it: no case id is given and nobody is said to review it;
+    # the first chip asks for a call.
+    es: "No pude confirmar la apertura de tu caso, así que no te doy datos que no verifiqué. Pide que te llame una persona para revisarlo."
+    pt: "Não consegui confirmar a abertura do seu caso, então não informo dados que não verifiquei. Peça que uma pessoa ligue para você para revisar."
+
 duplicate:
   # Spec 04 task 04b (pending the lead): AC-23. The charge already has an active case (get_case); no second case is
   # opened. The case's stored deadlines follow with status.ruling_deadline / credit_deadline / deadline_unknown.
