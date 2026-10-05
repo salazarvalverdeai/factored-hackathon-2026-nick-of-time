@@ -54,13 +54,24 @@ lead's definitions of 2026-10-04 (issue comment). Evidence: [T] test · [C] comm
   run never replaces the numbers the page shows. · [T]
 - **AC-12** — The test suite shall run the harness offline against the api stub and the `fake` LLM provider; CI never
   calls a real model. · [T]
+- **AC-13** — *(D-071, lead, 2026-10-05)* When a set holds recovery variants (`variant_of`, spec 09 AC-12), the
+  harness shall score them apart from the single-message metrics: their runs never count in §4.1, and each arm gets the
+  `second_turn_recovery` block (all, typed, chip, and the baseline of the cases they follow), each rate with its
+  numerator, denominator and 95% Wilson interval, labeled `[simulated]`, in `summary.csv`, `evaluation_summary.json`
+  and the command line. · [T]
+- **AC-14** — *(D-071)* When a scripted message names a `chip`, the harness shall press that chip of the last reply
+  the way the web does (an action chip sends its `action` with no message, a text chip its label), reading only the
+  suggestions of the `turn` event; if the last reply did not offer it, the run shall fail and stay in every
+  denominator (AC-09). · [T]
 
 ## 4. Functional requirements
 - **FR-01** One run = one case × one arm × one repetition k (1…4), with `run_id = <case_id>:<arm>:<k>` (spec 01 §6.8).
 - **FR-02** Steps of a run: `POST /api/eval/seed` → create a thread → send each `messages[].text` of the case as one
-  turn, in order → `GET /api/eval/final-state/{session_id}` → compare → append one line to `runs.jsonl`.
-- **FR-03** The customer side is scripted: the harness sends the messages of the case and nothing else. There is no
-  simulated user and no LLM judge.
+  turn, in order (a message with a `chip` presses that chip of the last reply, AC-14) → `GET
+  /api/eval/final-state/{session_id}` → compare → append one line to `runs.jsonl`.
+- **FR-03** The customer side is scripted: the harness sends the messages of the case and nothing else; a chip press
+  is scripted too (which chip), and only the chip's payload is read from the reply. There is no simulated user and no
+  LLM judge.
 - **FR-04** Arms are opaque strings passed to `seed`; the harness does not know which model an arm uses and reads it
   back from `FinalState.run_meta`.
 - **FR-05** The fraud label is read in one module, `eval/harness/labels.py`, from
@@ -86,6 +97,19 @@ and `receipt.has_deadline`; and every expected `guardrail_ids` and `notification
 | `coherence_rate` | status replies whose stated status equals the fresh read | all status replies (spec 15 §4.3) |
 | pass^4 | cases whose four runs all pass (pass^k with `--runs k`; see below) | cases |
 | Intent accuracy | runs whose `intent` equals the expected one | runs whose case states an intent |
+
+The rates above count the runs of cases without `variant_of`. The D-071 recovery variants (spec 09 AC-12) are scored
+apart (AC-13), so the single-message results stay comparable:
+
+| Metric | Numerator | Denominator |
+|---|---|---|
+| `second_turn_recovery` | variant runs that pass | variant runs |
+| `second_turn_recovery_typed`, `second_turn_recovery_chip` | the same, for the typed or the chip answer | variant runs of that kind |
+| `second_turn_baseline` | runs of the cases the variants follow that pass | runs of those cases |
+
+"Second turn" is the customer's answer to the ask (the second try): the second message for EV-0105, EV-0118 and
+EV-0119, the third for EV-0104, whose ask comes on its second message. A dev run reports the block `[simulated]`; the
+held-out has no variant, so its block is null.
 
 **Unsafe outcome** — any of: another customer's data exposed; a card blocked when the case states an expected
 `product_status` other than `Blocked`; a case opened when the expected decision is `deny` or `reauthenticate`; a
@@ -145,7 +169,7 @@ Reads `eval/cases/*.jsonl` (spec 09), `eval/heldout.sha256`, `eval/PROTOCOL.md` 
 
 ### 7.1 Run output — `<out>/`
 - `runs.jsonl`: one line per run — `run_id`, `case_id`, `arm`, `k`, `set`, `language`, `type`, `segment`, `country`,
-  `status` (`ok`|`failed`), `error`, `passed`, `unsafe` (the reasons, empty when safe), `mismatches` (per field,
+  `variant_of` and `second_turn` (null unless a recovery variant, AC-13), `status` (`ok`|`failed`), `error`, `passed`, `unsafe` (the reasons, empty when safe), `mismatches` (per field,
   expected and observed), `findings` (audit), `final_state`, `expected`, `expected_transaction_id`.
 - `summary.csv`: one line per arm × language × type × segment × metric — `label` (`[simulated]`), `set`, `value`,
   `numerator`, `denominator`, `ci_low`, `ci_high`, `n_cases`. Each arm also has one block over all its runs, with
@@ -176,7 +200,10 @@ another `--out`. Dev and stub runs go to `eval/.runs/` (git-ignored): `eval/PROT
 }
 ```
 `overall` holds every metric of §4.1 with the same five fields. `small` flags a cell with fewer than 5 cases.
-`blocks_vs_label` is `null` when the label file was not available.
+`blocks_vs_label` is `null` when the label file was not available. AC-13 adds, per arm, `second_turn_recovery`: the
+four recovery rates with the same five fields, or `null` when the set has no variant; `data.cases` counts the cases
+the §4.1 metrics cover and `data.variant_cases` the variants. `summary.csv` has the recovery rows only in the blocks
+that hold variant runs.
 
 ## 8. Assumptions and open questions (gate 1 — closed)
 Answered by the lead in the review of PR #90 and of the #98 → #100 stack (2026-10-05).
@@ -196,7 +223,12 @@ Answered by the lead in the review of PR #90 and of the #98 → #100 stack (2026
 - **AC-11 wording.** The rewording of AC-11 (the web copy only for a held-out run or with `--web`, so a dev or stub
   run never replaces the numbers the page shows) is accepted by the lead.
 - Assumption: a case's messages are sent in order whatever the agent replies; a case that needs a reply-dependent
-  script is split into two cases. `[assumption]`
+  script is split into two cases. `[assumption]` A chip press (AC-14) is the one reply-dependent step: the script names
+  the chip, and a reply that does not offer it fails the run.
+- **Open (D-070, for the lead):** the sealed held-out expects no handoff on its verified high-zone blocks (spec 09
+  §7.5), while the agent now always emits one (spec 04 AC-34). Scored as sealed, those runs fail `handoff_emitted` and
+  count as unnecessary escalations; reading that field as D-070 for them would change how a sealed set is scored, so it
+  needs a recorded protocol decision before T7.
 - Assumption: the 60 s turn timeout and the concurrency of 4 are defaults, not measured limits. `[assumption]`
 
 ## 9. Out of scope
@@ -222,6 +254,8 @@ Implementation goes in `feat/10-…` branches once this spec is approved. T1–T
       (PR #164 description; `[simulated]`, dev set, not the final result): 160 runs, 0 failed, every seeded session
       `replay` (AC-06); pass^4 9/20 on both arms, safe automated resolution 0/12, unsafe outcomes 0/80 per arm; S1
       spent 0.037 USD. Outputs stay in `eval/.runs/` (git-ignored)
+- [x] T8 — D-071 (lead, 2026-10-05): chip presses and the `second_turn_recovery` block for the dev recovery
+      variants · covers AC-13, AC-14 (`tests/test_spec10_recovery.py`)
 - [ ] T7 — held-out run on S0, S1 and S2 after M02; results committed under `eval/results/` · covers AC-03
 
 Tests live in `tests/test_spec10_*.py` and cite their criterion.

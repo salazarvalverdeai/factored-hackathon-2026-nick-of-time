@@ -134,6 +134,7 @@ class Internal(TypedDict, total=False):     # spec 04 §4.1 fields outside TurnR
     selected_transaction: Optional[dict[str, Any]]   # the one candidate, with product_type and last4 of its card
     customer_confirmed: Optional[bool]      # about selected_transaction; None whenever it changes
     unnamed: bool                           # the one candidate came from a search no slot narrowed (D-067)
+    dispute_intent: Optional[str]           # the last dispute intent read: what a confirm or option answer goes on with
     score: Optional[dict[str, Any]]         # get_fraud_score of the selected transaction
     display: Optional[dict[str, Any]]       # convert_amount of it; None without a verified rate (AC-25)
     existing_case: Optional[dict[str, Any]]  # an active case on the selected transaction, read with get_case (AC-23)
@@ -225,7 +226,15 @@ async def greet(state: State, config: RunnableConfig) -> dict[str, Any]:
 async def understand(state: State, config: RunnableConfig) -> dict[str, Any]:
     """Language, injection flag, intent and slots with the B0 rules arm; dates against the session's today. Below τ,
     S1/S2 ask the LLM for intent and slots, only in a verified session and never for a flagged or cross-customer
-    message; if it fails, B0 stands."""
+    message; if it fails, B0 stands. D-071: right after the ask_intent or the confirm question, a reply that names no
+    charge (no amount, date or merchant) is about the charge shown, so `retrieve` keeps it (spec 04 AC-36)."""
+    out = await understood(state, config)
+    intent = out.get("intent")
+    return {**out, "dispute_intent": intent if intent in DISPUTES else state.get("dispute_intent")}
+
+
+async def understood(state: State, config: RunnableConfig) -> dict[str, Any]:
+    """The turn's understanding (see `understand`)."""
     progress(state, "reading_message")      # before any LLM call: the first label comes within 1 s (§5)
     profile = state.get("profile") or {}
     day = today(state["mode"], profile.get("country"))
@@ -237,7 +246,9 @@ async def understand(state: State, config: RunnableConfig) -> dict[str, Any]:
     language = hint or profile.get("language") or "es"
     base = {"today": day.isoformat(), "language": language, "slots": {}, "injection_flagged": False,
             "cross_customer": False, "other_language": False, "intent": None, "intent_confidence": None, "dispute_detected": False}
-    pending = state.get("intent") if state.get("intent") in DISPUTES else "unrecognized_charge"
+    # the dispute being clarified: the last turn's, else the last dispute read (D-071), else an unrecognized charge
+    pending = (state.get("intent") if state.get("intent") in DISPUTES
+               else state.get("dispute_intent") or "unrecognized_charge")
     if action:                              # a pressed action chip or button skips the classifier (AC-32)
         kind, value = action.get("type"), action.get("value")
         answer = {"confirm": value == "yes"} if kind == "confirm" else {"option": value} if kind == "choose_option" else None
@@ -248,6 +259,8 @@ async def understand(state: State, config: RunnableConfig) -> dict[str, Any]:
     if not text:
         return base
     offered = {s.get("id") for s in state.get("suggestions") or []}
+    # D-071: the question the last reply asked about the charge it showed (AC-36)
+    keep = "confirm" if "confirm_yes" in offered else "intent" if offered & msg.INTENT_CHIPS else None
     # D-067: the card's rows take only an exact closed-list reply; the medium-zone confirm row keeps CONFIRM_WORDS
     said = (CHARGE_WORDS.get(" ".join(re.findall(r"\w+", fold(text)))) if "confirm_charge" in offered
             else CONFIRM_WORDS.get(fold(text).strip(" .!¡?¿")) if "confirm_yes" in offered else None)
@@ -262,7 +275,8 @@ async def understand(state: State, config: RunnableConfig) -> dict[str, Any]:
     chip = msg.offered_text_chip(text, state.get("suggestions") or [])
     if chip:                                # typed label = pressed text chip: routed by the pending question (AC-33)
         intent = msg.TEXT_CHIP_INTENT[chip] or pending
-        return {**base, **found, "intent": intent, "intent_confidence": 1.0, "dispute_detected": intent in DISPUTES}
+        return {**base, **found, "intent": intent, "intent_confidence": 1.0, "dispute_detected": intent in DISPUTES,
+                **kept(keep, found["slots"])}
     heard, extra = (None, {})
     if reading.confidence < TAU and state["session_state"] == "verified" and not (
             found["other_language"] or found["injection_flagged"] or found["cross_customer"]):
@@ -272,8 +286,16 @@ async def understand(state: State, config: RunnableConfig) -> dict[str, Any]:
         if heard["intent"] == "human_request" and reading.intent != "human_request":
             heard["intent"] = reading.intent    # D-065 [assumption]: no call on an LLM-only reading; the turn asks
 
-    return {**base, **found, "intent": reading.intent, "intent_confidence": reading.confidence,
-            "dispute_detected": reading.dispute_detected, **(heard or {}), **extra}
+    out = {**base, **found, "intent": reading.intent, "intent_confidence": reading.confidence,
+           "dispute_detected": reading.dispute_detected, **(heard or {}), **extra}
+    return {**out, **kept(keep, out["slots"])}
+
+
+def kept(keep: Optional[str], slots: dict[str, Any]) -> dict[str, Any]:
+    """D-071 (AC-36): the answer that keeps the charge shown, when the last reply asked about it (`keep`) and this
+    message names no charge of its own (a currency alone names none, D-067); else nothing."""
+    named = any((slots or {}).get(key) for key in ("amount", "date", "merchant"))
+    return {"answer": {"keep": keep}} if keep and not named else {}
 
 
 def call_confirmed(state: State, answer: Optional[dict[str, Any]]) -> bool:
@@ -420,6 +442,8 @@ async def retrieve(state: State, config: RunnableConfig) -> dict[str, Any]:
     answer, path, slots = state.get("answer") or {}, state["path"] + ["retrieve"], None
     if "confirm" in answer and state.get("selected_transaction"):
         return {"path": path, "customer_confirmed": answer["confirm"]}
+    if answer.get("keep") and state.get("selected_transaction"):     # D-071: about the charge shown (AC-36)
+        return {"path": path}
     if "option" in answer:                  # "none", or an id never shown: identify it again
         candidates = [c for c in state.get("candidates") or [] if c["transaction_id"] == answer["option"]]
     elif not state["dispute_detected"] and not any((state.get("slots") or {}).values()):
@@ -684,15 +708,24 @@ def duplicate(state: State) -> dict[str, Any]:
 def clarify(state: State) -> dict[str, Any]:
     """Rule 5: one question, nothing done. Up to max_candidate_transactions candidates become option cards; otherwise
     it asks for the details. A charge the customer did not name is one card with the confirm chips (D-067). A declined
-    confirm answers plan.declined and clears the selection (D-039)."""
+    confirm answers plan.declined and clears the selection (D-039). D-071: one charge the customer named, asked about
+    because the intent is below τ, is one card with the ask_intent chips (AC-35); an unclear reply to the confirm
+    question keeps the charge and asks it again with the confirm chips (AC-36)."""
     candidates, language = state.get("candidates") or [], state["language"]
     declined = state.get("customer_confirmed") is False
+    if not declined and (state.get("answer") or {}).get("keep") == "confirm" and state.get("selected_transaction"):
+        return {"body": [msg.text("clarify.confirm_again", language)], "row": "confirm",
+                "clarification_turns": (state.get("clarification_turns") or 0) + 1,
+                "path": state["path"] + ["clarify"]}
     shown = [] if declined or len(candidates) > MAX_OPTIONS else candidates
     # D-067: a charge the customer did not name is shown as a card and confirmed (confirm chips) before anything is done
     unnamed = bool(shown) and unconfirmed(state)
-    key = ("plan.declined" if declined else "clarify.confirm_one" if unnamed else "clarify.pick_one" if shown
-           else "clarify.ask_what")
-    row = "confirm_charge" if unnamed else "ask_options" if shown else "ask_details"
+    # D-071: one named charge and still an ask: the intent is what is unclear, so the chips state it
+    intent = len(shown) == 1 and not unnamed and bool(state.get("selected_transaction"))
+    key = ("plan.declined" if declined else "clarify.confirm_one" if unnamed else "clarify.ask_intent" if intent
+           else "clarify.pick_one" if shown else "clarify.ask_what")
+    row = ("confirm_charge" if unnamed else "ask_intent" if intent else "ask_options" if shown
+           else "ask_details")
     return {"body": [msg.text(key, language)], "row": row,
             "options": [{"id": c["transaction_id"], "label": msg.option_label(c)} for c in shown],
             "clarification_turns": (state.get("clarification_turns") or 0) + 1, "path": state["path"] + ["clarify"],

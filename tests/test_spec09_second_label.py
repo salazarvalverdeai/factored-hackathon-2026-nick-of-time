@@ -8,7 +8,9 @@ import pytest
 
 from eval import second_label as sl
 
-DEV_IDS = [json.loads(line)["id"] for line in sl.DEV.read_text(encoding="utf-8").splitlines()]
+# the 20 dev cases; the D-071 recovery variants (`variant_of`) came after the second labeling and are not in its sample
+DEV_IDS = [case["id"] for case in map(json.loads, sl.DEV.read_text(encoding="utf-8").splitlines())
+           if not case.get("variant_of")]
 
 
 def _export(tmp_path):

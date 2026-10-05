@@ -13,6 +13,7 @@ from jsonschema import Draft202012Validator, FormatChecker
 
 from eval import demo_index
 from eval.derive_expected import CASES, expected_for, heldout_sha256, read_jsonl
+from nick_of_time import receipt as msg
 from nick_of_time.policy import PolicyEngine
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -29,7 +30,14 @@ COVERAGE = {"dev": {"normal": 4, "human": 4, "ambiguous": 3, "customer_returns":
                         "unauthorized_access": 6, "session_expired": 4, "tool_failure": 4, "missing_data": 3,
                         "late_arrival": 2, "out_of_scope": 3}}
 ID_RANGE = {"dev": (101, 120), "heldout": (201, 280)}
+VARIANT_IDS = (121, 128)           # D-071: the dev recovery variants follow the 20 dev cases (§7.4)
+RECOVERED = ("EV-0104", "EV-0105", "EV-0118", "EV-0119")
 each_set = pytest.mark.parametrize("name", sorted(SETS))
+
+
+def originals(name: str) -> list[dict]:
+    """The cases of a set without the D-071 recovery variants (`variant_of`)."""
+    return [item for item in SETS[name] if not item.get("variant_of")]
 
 
 def case(type_="normal", score=72.0, amount=100.0, messages=1, fixtures=1, country="MX", **state) -> dict:
@@ -49,8 +57,9 @@ def outcome(expected: dict) -> tuple:
 
 
 def test_ac_03_both_sets_exist_with_the_held_out_language_mix():
-    """AC-03: 20 dev and 80 held-out cases; the held-out has 50 ES and 30 PT, every country and segment in both."""
-    assert (len(SETS["dev"]), len(SETS["heldout"])) == (20, 80)
+    """AC-03: 20 dev and 80 held-out cases (plus the 8 dev recovery variants of AC-12); the held-out has 50 ES and 30
+    PT, every country and segment in both."""
+    assert (len(originals("dev")), len(SETS["dev"]), len(SETS["heldout"])) == (20, 28, 80)
     held = SETS["heldout"]
     assert Counter(item["language"] for item in held) == {"es": 50, "pt": 30}
     for language in ("es", "pt"):
@@ -85,11 +94,12 @@ def test_ac_05_heldout_hash_file_is_the_sha256_of_the_case_file():
 
 @each_set
 def test_ac_03_cases_validate_against_the_schema_with_the_agreed_coverage(name):
-    """AC-03: every case validates against eval_case.schema.json and the set has the coverage of §7.4."""
-    cases = SETS[name]
-    for item in cases:
+    """AC-03: every case validates against eval_case.schema.json and the set has the coverage of §7.4 (the D-071
+    recovery variants, AC-12, are counted apart)."""
+    for item in SETS[name]:
         assert not [error.message for error in SCHEMA.iter_errors(item)], item["id"]
         assert item["set"] == name and item["origin"] == "team-generated" and item["labeler"]
+    cases = originals(name)
     first, last = ID_RANGE[name]
     assert [item["id"] for item in cases] == [f"EV-{n:04d}" for n in range(first, last + 1)]
     assert dict(Counter(item["type"] for item in cases)) == COVERAGE[name]
@@ -142,11 +152,13 @@ def test_ac_08_case_files_and_scripts_never_touch_the_labels():
 @each_set
 def test_ac_09_expected_is_what_the_policy_engine_derives(name):
     """AC-09: the committed `expected` of every case equals expected_for() on that case with the intent of its plan line,
-    so none is typed by hand and the intent label is the team's, not the case file's."""
+    so none is typed by hand and the intent label is the team's, not the case file's. The sealed held-out keeps the
+    rule it was sealed with (before D-070); the dev set follows D-070."""
     plans = {plan["id"]: plan for plan in read_jsonl(CASES / "plan" / f"{name}.jsonl")}
     assert set(plans) == {item["id"] for item in SETS[name]}
     for item in SETS[name]:
-        assert item["expected"] == expected_for(item, plans[item["id"]].get("intent"), ENGINE), item["id"]
+        assert item["expected"] == expected_for(item, plans[item["id"]].get("intent"), ENGINE,
+                                                sealed=name == "heldout"), item["id"]
 
 
 @each_set
@@ -157,7 +169,8 @@ def test_ac_09_only_the_messages_are_team_written(name):
     for item in SETS[name]:
         plan, state = plans[item["id"]], item["initial_state"]
         anchor = INDEX[plan["anchor"]]
-        assert [m["text"] for m in item["messages"]] == plan["messages"]
+        assert [m["text"] if "chip" not in m else {"text": m["text"], "chip": m["chip"]}
+                for m in item["messages"]] == plan["messages"]
         assert (state["customer_id"], item["country"], item["segment"]) == (
             anchor["customer_id"], anchor["country"], anchor["segment"])
         assert "expected" not in plan and "fixtures" not in plan.get("case", {})
@@ -177,7 +190,8 @@ def test_ac_09_only_the_messages_are_team_written(name):
 
 @pytest.mark.parametrize("built, intent, expected", [
     # the rows of spec 09 §7.5: decision, product_status, case_open, queue_status, handoff_emitted, receipt issued
-    (case(score=72.0), "unrecognized_charge", ("block_and_open_case", "Blocked", True, "verification", False, True)),
+    # D-070: a verified high-zone block is handed to a person too (an analyst closes every case)
+    (case(score=72.0), "unrecognized_charge", ("block_and_open_case", "Blocked", True, "verification", True, True)),
     (case(score=72.0, amount=5000.01), "unrecognized_charge", ("handoff", "Active", True, "review", True, True)),
     (case(score=41.0), "wrongful_charge", ("confirm", "Active", False, None, False, False)),
     (case(score=41.0, messages=2), "wrongful_charge", ("handoff", "Active", True, "review", True, True)),
@@ -206,6 +220,51 @@ def test_ac_09_only_the_messages_are_team_written(name):
 def test_ac_09_engine_reproduces_the_rows_of_the_expected_table(built, intent, expected):
     """AC-09: expected_for() gives the rows of spec 09 §7.5 from the record and the policy engine."""
     assert outcome(expected_for(built, intent, ENGINE)) == expected
+
+
+def test_ac_09_d_070_the_sealed_held_out_keeps_the_rule_it_was_sealed_with():
+    """AC-09 (D-070): `sealed` is the pre-D-070 rule the held-out was derived with: the verified block was no handoff;
+    every other row is the same under both rules."""
+    blocked = case(score=72.0)
+    assert outcome(expected_for(blocked, "unrecognized_charge", ENGINE, sealed=True))[4] is False
+    assert outcome(expected_for(blocked, "unrecognized_charge", ENGINE))[4] is True
+    for other in (case(score=12.0), case(score=41.0), case(fixtures=3), case("injection", fixtures=0),
+                  case("tool_failure", tool_faults=["block_card"]), case("tool_failure", tool_faults=["open_case"])):
+        assert expected_for(other, "unrecognized_charge", ENGINE, sealed=True) == expected_for(
+            other, "unrecognized_charge", ENGINE)
+
+
+def test_ac_12_d_071_each_recovery_variant_is_its_case_plus_one_answer_typed_or_by_chip():
+    """AC-12 (D-071): EV-0121 to EV-0128 are two variants (typed, chip) of each of EV-0104, EV-0105, EV-0118 and
+    EV-0119: the same state, type, language and intent label, the original messages plus one answer to the ask, and the
+    same expected outcome; the originals stay as they were."""
+    dev = {item["id"]: item for item in SETS["dev"]}
+    plans = {plan["id"]: plan for plan in read_jsonl(CASES / "plan" / "dev.jsonl")}
+    variants = [item for item in SETS["dev"] if item.get("variant_of")]
+    first, last = VARIANT_IDS
+    assert [item["id"] for item in variants] == [f"EV-{n:04d}" for n in range(first, last + 1)]
+    assert Counter((item["variant_of"], item["second_turn"]) for item in variants) == {
+        (base, how): 1 for base in RECOVERED for how in ("typed", "chip")}
+    same = ("type", "language", "country", "segment", "initial_state", "expected")
+    for item in variants:
+        base = dev[item["variant_of"]]
+        assert not base.get("variant_of") and "chip" not in json.dumps(base["messages"])
+        assert {key: item[key] for key in same} == {key: base[key] for key in same}, item["id"]
+        assert plans[item["id"]]["intent"] == plans[base["id"]]["intent"]
+        assert item["messages"][:-1] == base["messages"]
+        answer = item["messages"][-1]
+        assert ("chip" in answer) == (item["second_turn"] == "chip") and answer["text"].strip()
+
+
+def test_ac_12_d_071_a_chip_answer_presses_a_chip_of_the_row_the_ask_offers_by_its_label():
+    """AC-12 (D-071, spec 04 AC-35, AC-36): a chip answer presses a chip of the row the ask offers (the confirm row
+    again, or the ask_intent row), and its text is that chip's label in messages.yaml."""
+    for item in SETS["dev"]:
+        if item.get("second_turn") != "chip":
+            continue
+        answer, row = item["messages"][-1], "confirm" if item["variant_of"] == "EV-0104" else "ask_intent"
+        assert answer["chip"] in msg.ROWS[row], item["id"]
+        assert answer["text"] == msg.text(f"suggest.{answer['chip']}", item["language"]), item["id"]
 
 
 def test_ac_09_status_question_on_an_existing_case_changes_nothing():

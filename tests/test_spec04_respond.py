@@ -44,6 +44,18 @@ def test_ac_21_ac_01_ev_0001_receipt_has_last4_verification_case_deadline_and_ne
     assert "copilot_proposal" not in turn.handoff     # the block is verified: nothing to approve (M30)
 
 
+def test_ac_34_d_070_a_verified_high_zone_block_still_hands_the_case_to_an_analyst():
+    """AC-34 (D-070): the block and the case are verified, and the analyst still gets the handoff card, because a person
+    closes every case; it proposes nothing (the block is done) and lists both verified actions."""
+    turn = Chat(mcp_transport=server()).say(EV_0001, language="es")
+    assert (turn.decision, turn.zone, [a.state for a in turn.actions]) == ("block_and_open_case", "high",
+                                                                           ["verified", "verified"])
+    card = turn.handoff                              # TurnResult validated it against handoff.schema.json
+    assert (card["case_id"], card["zone"]) == (turn.case_id, "high") and "copilot_proposal" not in card
+    assert [(a["tool"], a["verified"]) for a in card["actions"]] == [("open_case", True), ("block_card", True)]
+    assert "handoff_reason" not in card and card["open_questions"] == []
+
+
 @pytest.mark.parametrize("source", ["dataset", "synthetic"])
 def test_ac_12_human_zone_hands_off_a_card_that_validates_with_requires_human(source):
     turn = Chat(mcp_transport=server(get_fraud_score=score(12.0, source))).say(EV_0001, language="es")
