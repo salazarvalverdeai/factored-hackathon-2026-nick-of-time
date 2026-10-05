@@ -16,27 +16,16 @@ from nick_of_time.policy.model import MODES, POLICIES_PATH, ApprovalMode, Polici
 CARDS = get_args(ProductType)
 GOLD_PRODUCT = {"Tarjeta Débito": "debit", "Tarjeta Crédito": "credit"}      # gold products.product_type (§4.3)
 HandoffReason = Literal["zone_human", "zone_medium", "supervised_mode", "amount_over_case_gate", "identity_unverified",
-                        "clarification_exhausted", "tool_failure", "language_low_confidence"]   # handoff.schema.json
+                        "clarification_exhausted", "tool_failure", "language_low_confidence",
+                        "person_requested"]                                   # handoff.schema.json
 CallRequest = Literal["active_or_general", "opened_case", "general"]          # where request_call registers the call
 ZONE_RULE: dict[str, str] = {"high": "POL-ZONE-HIGH", "medium": "POL-ZONE-MEDIUM", "human": "POL-ZONE-HUMAN"}
 EMITTED = {*ZONE_RULE.values(), "POL-SESSION", "POL-INJECTION", "POL-CROSS-CUSTOMER", "POL-HUMAN-REQUEST", "POL-STATUS",
            "POL-OUT-OF-SCOPE", "POL-CLARIFY", "POL-CLARIFY-EXHAUSTED", "POL-SCORE-NULL", "POL-SCORE-LLM",
            "POL-SCORE-SOURCE", "POL-TICKET-ALWAYS", "POL-AMOUNT-GATE", "POL-AMOUNT-UNKNOWN", "POL-SUPERVISED",
            "POL-DEFAULT-DENY"}
-REASONS = {"zone_human", "zone_medium", "supervised_mode", "amount_over_case_gate", "clarification_exhausted"}
-# D-029 (default, pending the lead; do not flip without the lead): a call request that reports a high-zone charge still
-# blocks, like a confirmed dispute (None). Setting here the handoff reason that case carries in review flips it to "open
-# the case and call, no block" in the engine (one line; a reason that is not a handoff trigger stops the engine at
-# start). A real flip also needs:
-#   - a new handoff trigger: none of the current ones describes "the customer asked for a person" on a high-zone case,
-#     so handoff.schema.json, policies.yaml handoff.triggers and HandoffReason change together (a contracts/ PR);
-#   - new POL-HUMAN-REQUEST and POL-ZONE-HIGH texts, or a new POL- id, because both say the high zone blocks;
-#   - a decision on who enforces it: check("block_card", "high", ...) still allows the block on those inputs, so either
-#     the graph alone withholds it or check() learns about the call; the AC-05 agreement test was relaxed to
-#     "allowed ⊆ checked" for this;
-#   - the 4 tests that pin the default: rows 3a-charge-high and 3a-charge-at-tau, the "never removes protection"
-#     property at score 72 below the gate, and the first assertion of the D-029 flip test.
-D029_CALL_WITHHOLDS_BLOCK_REASON: Optional[HandoffReason] = None
+REASONS = {"zone_human", "zone_medium", "supervised_mode", "amount_over_case_gate", "clarification_exhausted",
+           "person_requested"}
 
 
 class _Frozen(BaseModel):
@@ -111,7 +100,6 @@ class Deny(_Verdict):
 class PolicyEngine:
     def __init__(self, policies: Policies):
         missing = (EMITTED - set(policies.rules)) | (REASONS - set(policies.handoff.triggers))
-        missing |= {D029_CALL_WITHHOLDS_BLOCK_REASON} - {None, *policies.handoff.triggers}
         if missing:
             raise ValueError(f"policies.yaml lacks rule ids or handoff triggers the engine emits: {sorted(missing)}")
         self.policies, self.version = policies, policies.version
@@ -157,18 +145,23 @@ class PolicyEngine:
             raised += [rule for rule in by if rule not in raised]
         return modes, raised
 
-    def check(self, action: str, zone: str, *, supervised_mode: bool, amount: Optional[float] = None,
-              currency: Optional[str] = None, country: Optional[str] = None) -> Union[Allow, Deny]:
+    def check(self, action: str, zone: str, *, supervised_mode: bool, call_requested: bool,
+              amount: Optional[float] = None, currency: Optional[str] = None,
+              country: Optional[str] = None) -> Union[Allow, Deny]:
         """May an automated caller (agent or customer tool) run `action` now? human_required is denied here: only a
-        person runs it, through the analyst api. supervised_mode is required and must be a bool: a switch read as
-        None is not "off" (fail closed)."""
-        if not isinstance(supervised_mode, bool):
-            raise TypeError(f"supervised_mode must be a bool, got {supervised_mode!r}")
+        person runs it, through the analyst api. supervised_mode and call_requested (the customer asked for a person
+        in that turn) are required bools: a value read as None is not "off" (fail closed). A call request withholds
+        the money actions, so the tool's re-check enforces D-029: the analyst decides the block after the call."""
+        for name, flag in (("supervised_mode", supervised_mode), ("call_requested", call_requested)):
+            if not isinstance(flag, bool):
+                raise TypeError(f"{name} must be a bool, got {flag!r}")
         if action not in self.policies.approval.per_action or zone not in ZONE_RULE:
             return self._deny(action, "POL-DEFAULT-DENY", [])
         mode, raised = self._mode(action, zone, amount, currency, country, supervised_mode)
         if mode == "human_required":
             return self._deny(action, raised[-1] if raised else "POL-DEFAULT-DENY", raised)
+        if call_requested and action in self.policies.approval.money_actions:
+            return self._deny(action, "POL-HUMAN-REQUEST", [])
         rule = "POL-TICKET-ALWAYS" if action == "open_case" else ZONE_RULE[zone]
         return Allow(action=action, mode=mode, rule_ids=[rule, *raised], policies_version=self.version)
 
@@ -225,8 +218,9 @@ class PolicyEngine:
 
     def _call_and_case(self, inp: DecisionInput) -> PolicyDecision:
         """Rule 3a with a charge (D-020, D-029): the call goes on the case opened for the one card transaction the
-        customer did not reject, and that case follows its zone, so the high zone still blocks. Below τ (D-031), or
-        with no such transaction, only the call, on the active case or a general one: nothing is opened or blocked."""
+        customer did not reject, and that case waits in review: nothing is blocked in that turn, so in the high zone
+        the analyst decides the block after the call. Below τ (D-031), or with no such transaction, only the call, on
+        the active case or a general one: nothing is opened or blocked."""
         accepted = inp.intent_confidence >= self.policies.clarify.intent_confidence_min
         if not accepted or inp.candidates != 1 or inp.product_type not in CARDS or inp.customer_confirmed is False:
             return self._result("connect_person", ["POL-HUMAN-REQUEST"], request_call="active_or_general")
@@ -238,15 +232,14 @@ class PolicyEngine:
     def _open(self, inp: DecisionInput, zone: Zone, modes: dict[str, ApprovalMode], rules: list[str],
               held: Decision, **call) -> PolicyDecision:
         """Rules 7–9 once the case is opened (§4.2): the high zone blocks when no person must approve the block (case in
-        verification); otherwise the decision `held` leaves the case in review with the reason a person looks at it."""
-        blocks = zone == "high" and modes["block_card"] != "human_required"
-        withheld = D029_CALL_WITHHOLDS_BLOCK_REASON if held == "connect_person" else None   # D-029, see the constant
-        if blocks and withheld is None:
-            return self._result("block_and_open_case", rules, zone=zone, approval_modes=modes,
-                                allowed_actions=["open_case", "block_card"],
-                                queue_status_after=self.policies.approval.manual_check_leaves_case_in, **call)
-        if blocks:
-            reason = withheld
+        verification) and the customer did not ask for a person; otherwise the decision `held` leaves the case in
+        review with the reason a person looks at it."""
+        if zone == "high" and modes["block_card"] != "human_required":
+            if held != "connect_person":
+                return self._result("block_and_open_case", rules, zone=zone, approval_modes=modes,
+                                    allowed_actions=["open_case", "block_card"],
+                                    queue_status_after=self.policies.approval.manual_check_leaves_case_in, **call)
+            reason = "person_requested"                   # D-029: the analyst decides the block after the call
         elif zone == "high":                              # per_action makes the block manual_check: a raiser stopped it
             over = self.amount_tier(inp.amount, inp.currency, inp.country) == "human_required"
             reason = "amount_over_case_gate" if over else "supervised_mode"

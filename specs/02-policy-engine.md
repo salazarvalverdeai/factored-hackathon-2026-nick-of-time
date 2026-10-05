@@ -91,7 +91,7 @@ AC-01 to AC-06 come from issue #4 with the same numbers; AC-07 onward are added 
 | 1 | `POL-SESSION` | session expired or unverified | `reauthenticate` | G-SES-01 |
 | 2 | `POL-INJECTION` | input flagged by the injection detector (spec 11) | `deny` | G-IN-01, logged |
 | 3 | `POL-CROSS-CUSTOMER` | request targets another customer's data | `deny` | G-SES-02, logged |
-| 3a | `POL-HUMAN-REQUEST` | intent `human_request` | `connect_person` | `request_call` on the active case, or a general request; never refused (CFPB 2023). If the message also reports a charge (`dispute_detected`), 3a is not terminal (D-020): the call goes on the case opened for the one card transaction, and that case follows rules 6–9 like a confirmed dispute, so a person request adds a call and never removes protection (D-029, default pending the lead; the engine keeps it in one constant, `D029_CALL_WITHHOLDS_BLOCK_REASON`). Flipping it to "open the case and call, no block" is one engine line plus 4 tests, but it also needs: a new handoff trigger, because none of the current ones fits a high-zone case the customer asked a person about (`handoff.schema.json`, `handoff.triggers` and `HandoffReason` together, a `contracts/` PR); new `POL-HUMAN-REQUEST` / `POL-ZONE-HIGH` texts or a new `POL-` id; and a choice of enforcer, since `check()` would still allow `block_card` on those inputs, so either the graph alone withholds the block or `check()` learns about the call (the AC-05 test checks only allowed ⊆ checked there). τ gates this case-opening branch (D-031, default pending the lead): below τ only the call is registered (`active_or_general`), and nothing is opened or blocked (spec 04 AC-02). High zone: `block_and_open_case`, case in `verification`; when the block needs a person (amount tier, supervised mode), `connect_person` with the case in `review` and that reason. Medium and human zones: `connect_person`, `open_case` only (never a block, no confirmation asked), case in `review` with `zone_medium` / `zone_human`. With no single card transaction, or one the customer rejected (`customer_confirmed` false), only the call (`active_or_general`) |
+| 3a | `POL-HUMAN-REQUEST` | intent `human_request` | `connect_person` | `request_call` on the active case, or a general request; never refused (CFPB 2023). If the message also reports a charge (`dispute_detected`), 3a is not terminal (D-020): the call goes on the case opened for the one card transaction, and that case follows rules 6–9 like a confirmed dispute, except that nothing is blocked in that turn (D-029, decided 2026-10-04): the analyst decides the block after the call. `check()` enforces it on the tool side: with `call_requested=True` it denies `block_card` citing `POL-HUMAN-REQUEST`. τ gates this case-opening branch (D-031, default pending the lead): below τ only the call is registered (`active_or_general`), and nothing is opened or blocked (spec 04 AC-02). High zone: `connect_person`, `open_case` only, case in `review` with `person_requested`; when the block needs a person anyway (amount tier, supervised mode), that reason instead. Medium and human zones: `connect_person`, `open_case` only (never a block, no confirmation asked), case in `review` with `zone_medium` / `zone_human`. With no single card transaction, or one the customer rejected (`customer_confirmed` false), only the call (`active_or_general`) |
 | 3b | `POL-STATUS` | intent `status_inquiry` | `answer_status` | read-only: the agent re-reads cards or cases (spec 04 AC-19); no case is opened. With `dispute_detected` and `active_case` false (the customer has no active case), 3b is not terminal: the turn goes on like a dispute (rules 4–9), citing `POL-STATUS` first (D-020). With an active case, or `active_case` not known (null), the status is answered |
 | 4 | `POL-OUT-OF-SCOPE` | intent `out_of_scope` with confidence ≥ τ and no reported charge (below τ, rule 5 asks; D-024), or the one identified transaction's product is not a card | `deny` (polite abstention) | G-IN-04. Never for `human_request`. With `dispute_detected` the intent branch is off and rule 5 asks: a message that reports a charge never gets an abstention for its label alone (D-032, the D-020 default pending the lead); the product branch still applies. `product_type` also takes the gold labels `Tarjeta Débito` / `Tarjeta Crédito`; one candidate without a product type is an input error |
 | 5 | `POL-CLARIFY` | confidence < τ, or candidates > 1 (≤ 3), or candidates = 0, or intent `out_of_scope` with a reported charge (D-032) | `ask` (≤ 2 turns) | then rule 5b |
@@ -116,7 +116,7 @@ strict bools: `0`, `1`, `"off"` or `"true"` are input errors, as in `check()`.
 ### 4.2 Approval modes and what happens to the case
 | Zone | `block_card` mode (policies) | Effective mode = stricter of mode, amount tier, supervised | Case status after the turn |
 |---|---|---|---|
-| high | `manual_check` | `manual_check` → block now, verify, case in `verification` · `human_required` → no block, handoff | `verification` or `review` |
+| high | `manual_check` | `manual_check` → block now, verify, case in `verification`, unless the customer asked for a person in that turn: no block, `review` with `person_requested`, and the analyst decides the block after the call (D-029) · `human_required` → no block, handoff | `verification` or `review` |
 | medium | `human_required` | after the customer confirms: open case + handoff proposing `approve_block` | `review` |
 | human | not allowed | — | `review` |
 | any | `provisional_credit`: `human_required` | always a person (AC-09) | — |
@@ -131,10 +131,12 @@ When the tier or supervised mode makes a money action stricter than `approval.pe
 an amount missing, negative or not finite, or a currency other than the entry's or USD) the mode is `human_required` and
 the result cites `POL-AMOUNT-UNKNOWN`. A result carries a `handoff_reason` exactly when it is a `handoff` or it leaves a
 case in `review` (D-024, and the rule 3a cases of D-020, so every handoff card in the analyst queue has a reason):
-`zone_human`, `zone_medium`, `amount_over_case_gate` (over the gate or no tier), `supervised_mode` or
-`clarification_exhausted` (a handoff with no case). `check()` answers for automated callers and requires
-`supervised_mode` as a bool (`None` raises `TypeError`, never "off"): `human_required` is a `Deny` citing the rule that
-raised the mode, else `POL-DEFAULT-DENY`.
+`zone_human`, `zone_medium`, `amount_over_case_gate` (over the gate or no tier), `supervised_mode`,
+`person_requested` (a high-zone call request, D-029) or `clarification_exhausted` (a handoff with no case). `check()`
+answers for automated callers and requires `supervised_mode` and `call_requested` (the customer asked for a person in
+that turn) as bools (`None` or a missing flag raises `TypeError`, never "off"): `human_required` is a `Deny` citing the
+rule that raised the mode, else `POL-DEFAULT-DENY`; with `call_requested=True` a money action is a `Deny` citing
+`POL-HUMAN-REQUEST` (D-029).
 
 ### 4.3 Regulatory clock (LATAM, data-driven)
 The clock is a **table of verified country entries** in `policies.yaml`, not code. Each entry carries the regulator, the
@@ -233,7 +235,8 @@ decision: PolicyDecision = engine.decide(DecisionInput(
 #   "general"           - rule 5b: a general request (RequestCallIn.case_id = null); no case was opened
 engine.screen(input) -> PolicyDecision | None              # rules 1–4 only; None = a dispute, go on (spec 04 route)
 engine.amount_tier(amount=1250.0, currency="USD", country="MX") -> "auto" | "manual_check" | "human_required"
-engine.check(action="block_card", zone="high", supervised_mode=False, amount=..., currency=..., country=...) -> Allow | Deny
+engine.check(action="block_card", zone="high", supervised_mode=False, call_requested=False,
+             amount=..., currency=..., country=...) -> Allow | Deny   # call_requested: a person asked for (D-029)
 today: date = clock.today(mode="replay", country="MX")     # 2026-06-01 in replay; the real local date in live
 add_by: date = clock.add_business_days(country="MX", start=today, n=1)   # 2026-06-02 in replay (D-008)
 # callback date for request_call; task 02b implements it in T3 with a unit test (2026-06-01 + 1 → 2026-06-02)
@@ -255,6 +258,8 @@ fx.convert(amount=1250.0, from_currency="USD", to_currency="MXN") -> {amount, ra
   `zone_medium` and `supervised_mode` (also in `contracts/handoff.schema.json`), per-country `time_zone`,
   `display_currency` and `fx_reference`, the `reevaluation` section, and `version: 2`; validates
   `contact.callback_within_business_days` (D-008, task 02b). No threshold changes.
+- `contracts/handoff.schema.json` and `handoff.triggers` gain the reason `person_requested` (D-029), mirrored by
+  `HandoffReason` in the engine.
 - `contracts/handoff.schema.json` also gains the optional `score_source` (the `GetFraudScoreOut.source` values) and
   `score_version` (D-033, default pending the lead), so `record_source_in_audit` reaches the analyst's card.
 - The loader (FR-01) also refuses a file that breaks a firm rule: `default` other than `deny`, `open_case` not `auto`
@@ -294,6 +299,11 @@ fx.convert(amount=1250.0, from_currency="USD", to_currency="MXN") -> {amount, ra
   alike (ADR 0023, which replaces the earlier 48 h rationale); `live` uses the real date with labeled
   synthetic transactions (in October every gold charge is more than 90 days old, so only these show the
   business-day-2 credit). The clock receives "today" from the mode (AC-16).
+- **D-029 — a call request in the high zone (decided by the lead, 2026-10-04):** a call request that reports a
+  high-zone charge does not block the card. The agent opens the case and registers the call; the case waits in
+  `review` with `person_requested`, and the analyst decides the block after the call. Medium and human zones do not
+  change. `check(call_requested=True)` withholds the block on the tool side too. `POL-HUMAN-REQUEST` and
+  `POL-ZONE-HIGH` state the exception.
 - Assumption: MXN 18.0 per USD for the MX amount tiers (`[assumption]`, already in `policies.yaml`); it is never shown to
   a customer — customer-facing conversions use the official reference rate of §4.4.
 - Assumption: holiday lists are verified against official sources while implementing; each file cites its URL.
