@@ -50,12 +50,15 @@ A customer shall not read another customer's case · [T] ("spec 13: a customer c
   until the real bot exists (spec 05).
 - Open question: notifications become `GET /api/notifications` (session-wide, filtered by `case_id` on the client).
 - `[assumption]` (EV1, pending the lead): the agent's own writes are told by the MCP read that verifies them
-  (constitution #4). The first `get_case` that verifies an `open_case`, and the first `get_product_status` that verifies
-  a `block_card`, write the `case_opened` / `card_blocked` notification once per case and event (`store.once`): the
-  in-app `log` row (`delivered`) always, plus a `queued` row on each confirmed channel the `policies.yaml` template
-  lists, never in a demo run (ADR 0026); the api's notifier sends queued rows. The text is that Spanish template filled
-  with stored facts (`{deadline}` = the ruling deadline, else the credit one, else "—"); Portuguese text needs a
-  `messages.yaml` contract change.
+  (constitution #4). Once the first `get_case` that verifies an `open_case`, or the first `get_product_status` that
+  verifies a `block_card`, has its answer, it writes the `case_opened` / `card_blocked` in-app `log` notification
+  (`delivered`) once per case and event (`store.once`, key prefix `notify:`, which the gate refuses from a tool call);
+  a failure is logged and never changes the read's answer. The text is the Spanish `policies.yaml` template filled with
+  stored facts; `{deadline}` is the case page's earliest stored deadline, else "—". Portuguese text waits for D-073.
+- Pending (follow-up for @gianzk): Telegram and e-mail delivery of `case_opened` / `card_blocked`. No component sends
+  queued rows yet, so no external row is written for these two events (a queued row would show "Notificación enviada"
+  for a message never sent). Any future sender shall skip rows older than N minutes `[assumption]`, so a backlog is
+  never mass-sent.
 
 ## 9. Out of scope
 - Real WhatsApp.
@@ -66,7 +69,7 @@ A customer shall not read another customer's case · [T] ("spec 13: a customer c
 - [x] Task 2 — notification rules and templates · covers AC-01, AC-07, AC-08 · done when: the tests pass
 - [x] Task 3 — Telegram link and e-mail confirmation (mock) · covers AC-02, AC-03, AC-04 · done when: the tests pass
 - [ ] Task 4 — real webhook, Telegram bot and Resend · covers AC-01 to AC-04 · done when: same flow on the public URL
-- [x] Task 4b (EV1) — `case_opened` / `card_blocked` notifications from the verifying reads · covers AC-01, AC-08 ·
+- [x] Task 4b (EV1) — in-app `case_opened` / `card_blocked` notifications from the verifying reads · AC-01, AC-08 ·
       `apps/mcp/mcp_server/{notify,case_reads}.py`, `tests/test_spec13_case_notifications.py` on both backends
 - [ ] Task 5 — update the flow diagrams · covers AC-09 · done when: the diagrams show receipt, case page and channels
 

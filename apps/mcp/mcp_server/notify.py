@@ -12,11 +12,11 @@ from __future__ import annotations
 import datetime as dt
 import logging
 from collections.abc import Callable
-from typing import Optional, Protocol
+from typing import Any, Optional, Protocol
 
 from contracts import tools as t
 from mcp_server.followups import NOT_FOUND, PROBE, _Refused
-from mcp_server.gate import ACTOR, Call, Handler
+from mcp_server.gate import ACTOR, NOTIFY_KEY_PREFIX, Call, Handler
 from mcp_server.gold import Gold
 from mcp_server.reads import mask
 from nick_of_time import ids
@@ -49,35 +49,39 @@ def _utc_now() -> dt.datetime:
 VERIFIED_EVENTS = frozenset({"case_opened", "card_blocked"})   # policies.yaml notifications.events told on a V- read
 
 
-def notify_verified(store: Store, policies: Policies, case: CaseRecord, event: str, *, last4: Optional[str],
-                    trace_id: str) -> None:
-    """Spec 13 AC-01 (EV1): the automatic `case_opened` / `card_blocked` notification, written by the read that just
-    verified the write (constitution #4: told only once verified), once per (case, event) through `store.once`, so a
-    repeated verifying read writes nothing. The in-app `log` row always; a `queued` row per confirmed channel the
-    template lists, never in a demo run (ADR 0026). The text is the `policies.yaml` template filled with stored facts
-    only (never score, policy ids or transcript). A failure is logged and never changes the read's answer."""
-    spec = policies.notifications["events"].get(event)
-    if event not in VERIFIED_EVENTS or spec is None:
-        return
-    deadline = case.ruling_deadline or case.credit_deadline   # [assumption] the ruling deadline first; none: "—"
-    body = spec["template"].format_map({"case_id": case.case_id, "deadline": deadline.isoformat() if deadline else "—",
-                                        "product_last4": last4 or "••••"})
+def _render(policies: Policies, event: str, case: CaseRecord, last4: Optional[str]) -> str:
+    """The `policies.yaml` template with stored facts only (AC-08). `{deadline}` is the case page's: the earliest
+    stored deadline (`app.live` `deadline`), else "—" (no clock entry, no invented date)."""
+    deadline = min((d for d in (case.credit_deadline, case.ruling_deadline) if d), default=None)
+    return policies.notifications["events"][event]["template"].format_map(
+        {"case_id": case.case_id, "deadline": deadline.isoformat() if deadline else "—", "product_last4": last4 or "••••"})
 
-    def write() -> dict:
-        rows = [store.add_notification(case.case_id, event=event, channel="log", masked_address=None, text=body,
-                                       trigger="auto", actor="system", trace_id=trace_id)]
-        store.add_delivery(rows[0].notification_id, "delivered")
-        if not is_demo_run(case.run_id):                     # a demo customer's channels belong to no visitor
-            rows += [store.add_notification(case.case_id, event=event, channel=c.channel,
-                                            masked_address=mask(c.channel, c.address), text=body, trigger="auto",
-                                            actor="system", trace_id=trace_id)
-                     for c in store.channels(case.customer_id) if c.confirmed and c.channel in spec["channels"]]
-        return {"notification_ids": [n.notification_id for n in rows]}   # telegram/e-mail stay queued for the api
+
+def notify_verified(store: Store, policies: Policies, cards: Any, call: Call, action_id: str) -> None:
+    """Spec 13 AC-01 (EV1): the automatic `case_opened` / `card_blocked` notice, written after the read that verified
+    the write has its final answer (constitution #4), once per (case, event) through `store.once` under a key no tool
+    call can use (`NOTIFY_KEY_PREFIX`), so a repeated verifying read writes nothing. Only the in-app `log` row
+    (`delivered`): no Telegram or e-mail row while no sender exists (spec 13 §8). Every step (lookups, rendering,
+    writes) is in one `try`: a failure is logged by its type and never changes the read's answer."""
+    session = call.session
     try:
-        store.once(f"auto-{event}:{case.case_id}", action="auto_notification", customer_id=case.customer_id,
-                   run_id=case.run_id, arguments={"case_id": case.case_id, "event": event}, write=write)
-    except Exception as error:                               # the type only: never the text or an address
-        log.error("%s notification of %s not written: %s", event, case.case_id, type(error).__name__)
+        write = store.action_write(action_id, run_id=session.run_id, customer_id=session.customer_id)
+        if write is None or write.type not in VERIFIED_EVENTS:
+            return
+        case = store.get_case(write.case_id, run_id=session.run_id, customer_id=session.customer_id)
+        card = cards.card(session.customer_id, write.payload.get("product_id") or case.product_id)
+        body = _render(policies, write.type, case, card.last4 if card else None)
+
+        def once() -> dict:
+            row = store.add_notification(case.case_id, event=write.type, channel="log", masked_address=None,
+                                         text=body, trigger="auto", actor="system", trace_id=call.trace_id)
+            store.add_delivery(row.notification_id, "delivered")
+            return {"notification_id": row.notification_id}
+        store.once(f"{NOTIFY_KEY_PREFIX}{write.type}:{case.case_id}", action="auto_notification",
+                   customer_id=case.customer_id, run_id=case.run_id,
+                   arguments={"case_id": case.case_id, "event": write.type}, write=once)
+    except Exception as error:                               # the type only: never the text
+        log.error("notification after %s not written: %s", action_id, type(error).__name__)
 
 
 def notify_handlers(store: Store, gold: Optional[Gold] = None, *, sender: Optional[Sender] = None,

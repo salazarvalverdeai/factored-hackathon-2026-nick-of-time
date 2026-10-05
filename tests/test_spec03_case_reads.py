@@ -123,8 +123,8 @@ def test_ac_16_get_case_returns_stored_facts_label_timeline_and_verifies_its_ope
                                                          ("card_blocked", "Bloqueo de la tarjeta solicitado"),
                                                          ("status_changed", "Estado actualizado"),
                                                          ("block_verified", "Bloqueo de la tarjeta verificado"),
-                                                         ("notification_sent", "Notificación enviada"),   # spec 13
-                                                         ("notification_sent", "Notificación enviada")]   # AC-01
+                                                         ("notification_sent", "Notificación enviada")]   # spec 13
+    # AC-01: the block's notice; this read's own case_opened notice is written after its answer
     assert plain(run("get_case", case_id=opened.case_id))
 
 
