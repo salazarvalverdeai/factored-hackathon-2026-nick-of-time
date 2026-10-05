@@ -45,6 +45,13 @@ INJECTION = "injection"
 # ADR 0025: the test split is not reviewed by the classifier's developer. GitHub handles, without "@".
 CLASSIFIER_DEVELOPERS = ("salazarvalverdeai",)
 DECISIONS = ("keep", "fix", "drop")
+# ADR 0025 amendment (lead, 2026-10-05): when no independent person can review the test split before the seal, it may
+# be decided by these fixed rules, signed RULE_REVIEWER, only with `promote --allow-rule-review`. The classifier
+# developer may still never review test. Results on such a split are labeled "without independent human review".
+RULE_REVIEWER = "rules-v1"
+RULE_DROP = ("duplicate", "same_as_seed", "near_duplicate", "language_leak", "injection_without_marker")
+RULE_SLOT_MISSING = {"amount_missing": "fixed_amount", "currency_missing": "fixed_currency", "date_missing": "fixed_date",
+                     "merchant_missing": "fixed_merchant", "card_missing": "fixed_card"}
 SLOT_FIELDS = ("amount", "currency", "date", "merchant")
 FIXED = ("fixed_text", "fixed_intent", "fixed_also_dispute", "fixed_amount", "fixed_currency", "fixed_date",
          "fixed_merchant", "fixed_card")
@@ -88,6 +95,52 @@ def export(root: Path = ROOT, split: str = "train", force: bool = False) -> Path
     return out
 
 
+def _fold(text: str) -> str:
+    import unicodedata
+    return "".join(c for c in unicodedata.normalize("NFD", (text or "").casefold()) if unicodedata.category(c) != "Mn")
+
+
+def rule_decision(draft: dict) -> dict:
+    """RULE_REVIEWER decision: drop copies, language leaks and unmarked injections; null a planned slot the text does not
+    carry; take the card type the text names; keep the rest. Deterministic, no model."""
+    hints = {h.split(":")[0] for h in draft.get("checks", [])}
+    if hints & set(RULE_DROP):
+        return {"decision": "drop"}
+    text, digits = _fold(draft["text"]), re.sub(r"\D", "", draft["text"])
+    slots, fixed = draft["slots"], {}
+    for hint, col in RULE_SLOT_MISSING.items():
+        if hint in hints:
+            fixed[col] = "null"
+    amount = (slots.get("amount") or "").split(".")[0]
+    if amount and re.sub(r"\D", "", amount) not in digits:
+        fixed["fixed_amount"], fixed["fixed_currency"] = "null", "null"
+    if slots.get("merchant") and _fold(slots["merchant"]).split()[0] not in text:
+        fixed["fixed_merchant"] = "null"
+    named = "credit" if "credito" in text else ("debit" if "debito" in text else None)
+    if draft.get("card") and named != draft["card"]:
+        fixed["fixed_card"] = named or "null"
+    elif not draft.get("card") and named:
+        fixed["fixed_card"] = named
+    if "dispute_missing" in hints:
+        fixed["fixed_also_dispute"] = "false"
+    return {"decision": "fix", **fixed} if fixed else {"decision": "keep"}
+
+
+def auto_review(root: Path = ROOT, split: str = "test", force: bool = False) -> Path:
+    """Fill draft/review_<split>.csv with RULE_REVIEWER decisions (ADR 0025 fallback, test only)."""
+    out = export(root, split, force)
+    with out.open(newline="", encoding="utf-8") as fh:
+        rows = list(csv.DictReader(fh))
+    by_id = {d["id"]: d for d in _drafts(root, split)}
+    for r in rows:
+        r.update(rule_decision(by_id[r["id"]]), reviewer=RULE_REVIEWER, note="rules-v1: no independent human review")
+    with out.open("w", newline="", encoding="utf-8") as fh:
+        w = csv.DictWriter(fh, fieldnames=CSV_FIELDS)
+        w.writeheader()
+        w.writerows(rows)
+    return out
+
+
 def _handle(name: str) -> str:
     return name.strip().lstrip("@").lower()
 
@@ -104,7 +157,7 @@ def _slot_value(field: str, raw: str, row_id: str):
     return raw.strip()
 
 
-def apply_review(draft: dict, rev: dict, split: str) -> dict | None:
+def apply_review(draft: dict, rev: dict, split: str, allow_rule_review: bool = False) -> dict | None:
     """The promoted row for one reviewed draft line, or None when it is dropped."""
     rid = draft["id"]
     decision = (rev.get("decision") or "").strip().lower()
@@ -115,6 +168,8 @@ def apply_review(draft: dict, rev: dict, split: str) -> dict | None:
         raise ReviewError(f"{split} {rid}: no reviewer")
     if split == "test" and _handle(reviewer) in CLASSIFIER_DEVELOPERS:
         raise ReviewError(f"test {rid}: reviewed by {reviewer}, the classifier developer (ADR 0025)")
+    if _handle(reviewer) == RULE_REVIEWER and not (split == "test" and allow_rule_review):
+        raise ReviewError(f"{split} {rid}: {RULE_REVIEWER} decides test only, with promote --allow-rule-review")
     if decision == "drop":
         return None
     row = {k: v for k, v in draft.items() if k != "checks"}
@@ -157,7 +212,7 @@ def apply_review(draft: dict, rev: dict, split: str) -> dict | None:
     return row
 
 
-def _reviewed(root: Path, split: str) -> list[dict]:
+def _reviewed(root: Path, split: str, allow_rule_review: bool = False) -> list[dict]:
     path = _paths(root)[1] / f"review_{split}.csv"
     if not path.exists():
         raise ReviewError(f"no reviewed file {path}")
@@ -172,7 +227,7 @@ def _reviewed(root: Path, split: str) -> list[dict]:
     if missing or unknown:
         raise ReviewError(f"{split}: {len(missing)} draft rows missing from {path.name} {missing[:3]}, "
                           f"{len(unknown)} unknown ids {unknown[:3]}")
-    return [r for d in drafts if (r := apply_review(d, by_id[d["id"]], split)) is not None]
+    return [r for d in drafts if (r := apply_review(d, by_id[d["id"]], split, allow_rule_review)) is not None]
 
 
 def validate(rows: dict[str, list[dict]]) -> dict:
@@ -219,7 +274,7 @@ def _sealed(root: Path) -> bool:
     return bool(block and re.search(r"^- Status: SEALED\s*$", block.group(1), re.M))
 
 
-def promote(root: Path = ROOT, dry_run: bool = False, force: bool = False) -> dict:
+def promote(root: Path = ROOT, dry_run: bool = False, force: bool = False, allow_rule_review: bool = False) -> dict:
     """Validate the three reviewed CSVs and write eval/classifier/{train,validation,test}.jsonl (all or nothing)."""
     if _sealed(root):
         raise ReviewError("eval/PROTOCOL.md is sealed: the split files are frozen (ADR 0021); a new set needs a new seal")
@@ -227,7 +282,7 @@ def promote(root: Path = ROOT, dry_run: bool = False, force: bool = False) -> di
     existing = sorted(out_dir.glob("*.jsonl"))
     if existing and not force and not dry_run:
         raise ReviewError(f"split files already exist ({', '.join(p.name for p in existing)}); use --force")
-    rows = {s: _reviewed(root, s) for s in SPLITS}
+    rows = {s: _reviewed(root, s, allow_rule_review) for s in SPLITS}
     counts = validate(rows)
     blobs = {f"eval/classifier/{s}.jsonl": "".join(json.dumps(r, ensure_ascii=False) + "\n" for r in rows[s]).encode()
              for s in SPLITS}
@@ -236,7 +291,9 @@ def promote(root: Path = ROOT, dry_run: bool = False, force: bool = False) -> di
             (root / rel).write_bytes(data)
     return {**counts, "manifest_sha256": manifest_sha256(blobs), "files": sorted(blobs), "written": not dry_run,
             "status": {s: {k: sum(r["review_status"] == k for r in v) for k in ("kept", "fixed")}
-                       for s, v in rows.items()}}
+                       for s, v in rows.items()},
+            "test_review": ("rules-v1: no independent human review (ADR 0025 amendment)"
+                            if any(r["reviewer"] == RULE_REVIEWER for r in rows["test"]) else "human")}
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -248,13 +305,20 @@ def main(argv: list[str] | None = None) -> int:
     pr = sub.add_parser("promote", help="validate the reviewed CSVs and write the split files")
     pr.add_argument("--dry-run", action="store_true")
     pr.add_argument("--force", action="store_true")
+    pr.add_argument("--allow-rule-review", action="store_true", help="accept a test split decided by rules-v1 (ADR 0025)")
+    ar = sub.add_parser("auto-review", help="decide the test split by the fixed rules (ADR 0025 fallback)")
+    ar.add_argument("--split", choices=("test",), default="test")
+    ar.add_argument("--force", action="store_true")
     args = ap.parse_args(argv)
     try:
         if args.cmd == "export":
             for split in args.split or SPLITS:
                 print(export(ROOT, split, args.force).relative_to(ROOT))
             return 0
-        result = promote(ROOT, args.dry_run, args.force)
+        if args.cmd == "auto-review":
+            print(auto_review(ROOT, args.split, args.force).relative_to(ROOT))
+            return 0
+        result = promote(ROOT, args.dry_run, args.force, args.allow_rule_review)
     except ReviewError as exc:
         print(f"refused: {exc}", file=sys.stderr)
         return 2
