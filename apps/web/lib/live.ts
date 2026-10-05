@@ -9,6 +9,7 @@
 import type { ApiClient, ChatContext } from "./client.ts";
 import { MESSAGES, fill } from "./mock/messages.ts";
 import { ApiError } from "./mock/store.ts";
+import { traceFromTurn } from "./trace.ts";
 import type {
   AgentReply,
   AnalystSession,
@@ -25,7 +26,6 @@ import type {
   Receipt,
   SessionSnapshot,
   Suggestion,
-  TraceStep,
   TurnAction,
 } from "./types.ts";
 
@@ -49,8 +49,11 @@ interface WireTurn {
   reply: string;
   language: Language;
   decision?: string | null;
+  intent?: string | null;
+  case_id?: string | null;
+  plan?: string[];
   progress?: WireProgress[];
-  actions?: { tool: string; state: string; verification_id?: string | null }[];
+  actions?: { tool: string; state: string; verification_id?: string | null; read_at?: string | null }[];
   suggestions: { id: string; label: string; kind: "text" | "action" | "link"; action?: TurnAction | null; href?: string | null }[];
   receipt?: WireReceipt | null;
   guardrails_triggered?: string[];
@@ -78,6 +81,7 @@ interface WireCaseSummary {
   priority: "normal" | "high";
 }
 interface WireCaseView extends WireCaseSummary {
+  mode?: "replay" | "live";
   deadline_countdown_days: number | null;
   deadline_source: string | null;
 }
@@ -144,20 +148,11 @@ export async function* readSse(body: ReadableStream<Uint8Array>): AsyncGenerator
   if (rest) yield rest;
 }
 
-/** The api's turn as the page shows it. Constitution #4: a step is `verified` only when the api says so. */
-export function replyFromTurn(turn: WireTurn): AgentReply {
-  const kind = (state: string): TraceStep["kind"] =>
-    state === "verified" ? "verified" : state === "requested" ? "accepted" : state === "not_confirmed" ? "not_confirmed" : "ok";
-  const progress = turn.progress ?? [];
-  const trace: TraceStep[] = progress.length
-    ? progress.map((p) => ({ step: p.step, result: p.label, kind: kind(p.state) }))
-    : (turn.actions ?? []).map((a) => ({
-        step: a.tool,
-        result: a.verification_id ? `${a.state} (${a.verification_id})` : a.state,
-        kind: kind(a.state),
-      }));
+/** The api's turn as the page shows it, with the progress labels streamed during the run (spec 07 AC-08).
+ *  Constitution #4: a step is `verified` only when the api says so. */
+export function replyFromTurn(turn: WireTurn, streamed: WireProgress[] = []): AgentReply {
+  const trace = traceFromTurn(turn, streamed);
   const denied = (turn.denials ?? []).length > 0 || turn.decision === "deny";
-  for (const d of turn.denials ?? []) trace.push({ step: d.guardrail_id ?? "guardrail", result: d.detail, kind: "deny" });
   const suggestions: Suggestion[] = turn.suggestions.map((s) => ({
     label: s.label,
     text: s.label,
@@ -422,16 +417,20 @@ export function createLiveApi(options: LiveOptions = {}): ApiClient {
       });
       if (!res.body) throw new ApiError("UNAVAILABLE", 502, "The agent sent no answer.");
       let turn: WireTurn | null = null;
+      const streamed: WireProgress[] = [];
       for await (const { event, data } of readSse(res.body)) {
         if (event === "progress") {
           const p = data as WireProgress;
-          if (p && typeof p.label === "string") ctx.onProgress?.({ step: p.step, label: p.label });
+          if (p && typeof p.label === "string" && typeof p.step === "string") {
+            streamed.push(p);
+            ctx.onProgress?.({ step: p.step, label: p.label });
+          }
         } else if (event === "turn") {
           turn = data as WireTurn;
         }
       }
       if (!turn) throw new ApiError("UNAVAILABLE", 502, "The agent did not finish the turn.");
-      return replyFromTurn(turn);
+      return replyFromTurn(turn, streamed);
     },
 
     // cases
@@ -461,7 +460,14 @@ export function createLiveApi(options: LiveOptions = {}): ApiClient {
           zone: r.zone,
           priority: r.priority,
           status: r.queue_status,
-          deadline: { country: r.country, product: "", creditDeadline: r.credit_deadline, deadlineSource: "", daysLeft: null },
+          deadline: {
+            country: r.country,
+            product: "",
+            creditDeadline: r.credit_deadline,
+            rulingDeadline: r.ruling_deadline,
+            deadlineSource: "",
+            daysLeft: null,
+          },
         })),
       );
     },
@@ -480,6 +486,7 @@ export function createLiveApi(options: LiveOptions = {}): ApiClient {
         country: c.country,
         product: h.deadline?.product ?? "",
         creditDeadline: c.credit_deadline,
+        rulingDeadline: c.ruling_deadline,
         deadlineSource: c.deadline_source ?? h.deadline?.deadline_source ?? "",
         daysLeft: c.deadline_countdown_days,
       };
@@ -495,6 +502,7 @@ export function createLiveApi(options: LiveOptions = {}): ApiClient {
         deadline,
         events: out.events.map((e) => ({ id: e.event_id, at: e.created_at, type: e.type, actor: e.actor })),
         handoffEmitted: emitted,
+        ...(c.mode ? { mode: c.mode } : {}),
         handoff: {
           case_id: c.case_id,
           language,

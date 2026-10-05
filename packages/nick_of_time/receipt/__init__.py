@@ -42,6 +42,8 @@ ROWS: dict[str, tuple[str, ...]] = {
     "greet": ("report_unrecognized", "report_duplicate", "check_case"),
     "ask_details": ("show_recent", "dont_remember_amount", "talk_to_person"),
     "ask_options": ("none_of_these", "show_recent", "talk_to_person"),            # candidates shown as cards
+    # D-071: one charge the customer named, intent below τ: the chips state what happened with it (AC-35)
+    "ask_intent": ("intent_unrecognized", "intent_wrongful", "talk_to_person"),
     "confirm": ("confirm_yes", "confirm_no", "talk_to_person"),
     "confirm_charge": ("confirm_charge", "confirm_no", "talk_to_person"),    # D-067: one charge the customer did not name
     "confirm_call": ("confirm_charge", "confirm_no"),          # D-067: the same card after a general call request
@@ -76,7 +78,10 @@ TEXT_CHIP_INTENT: dict[str, Optional[str]] = {
     "report_another": "unrecognized_charge", "check_case": "status_inquiry",
     "add_info": "status_inquiry",               # adds information to the active case (add_case_info, T6)
     "show_recent": None, "dont_remember_amount": None,
+    # D-071: the ask_intent row; the turn goes on with the charge shown (spec 04 AC-35, AC-36)
+    "intent_unrecognized": "unrecognized_charge", "intent_wrongful": "wrongful_charge",
 }
+INTENT_CHIPS = frozenset({"intent_unrecognized", "intent_wrongful"})
 
 
 def amount_text(amount: float) -> str:

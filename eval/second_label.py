@@ -38,6 +38,12 @@ def _read(path: Path) -> list[dict]:
     return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
 
 
+def _dev() -> list[dict]:
+    """The 20 dev cases of the sample: the D-071 recovery variants (`variant_of`), added after the second labeling,
+    repeat a case's state and outcome, so they are not part of it."""
+    return [case for case in _read(DEV) if not case.get("variant_of")]
+
+
 def _state_summary(case: dict) -> str:
     s = case["initial_state"]
     parts = [f"country {case['country']}", f"segment {case['segment']}", f"session {s['session']}"]
@@ -64,7 +70,7 @@ def _messages(case: dict) -> str:
 
 def export_rows() -> list[dict]:
     rows = []
-    for case in _read(DEV):
+    for case in _dev():
         rows.append({"id": case["id"], "language": case["language"],
                      "messages": _messages(case), "state": _state_summary(case),
                      "intent": "", "decision": "", "handoff": "", "case_open": "", "labeler": "", "note": ""})
@@ -86,7 +92,7 @@ def first_labels() -> dict[str, dict[str, str]]:
     intents = {p["id"]: p.get("intent") or NO_INTENT for p in _read(PLAN)}
     yn = lambda v: "yes" if v else "no"  # noqa: E731
     labels = {}
-    for case in _read(DEV):
+    for case in _dev():
         exp = case["expected"]
         labels[case["id"]] = {"intent": intents[case["id"]], "decision": exp["decision"],
                               "handoff": yn(exp["final_state"].get("handoff_emitted", False)),  # absent on status answers: false,
@@ -110,7 +116,7 @@ def cohen_kappa(a: list[str], b: list[str]) -> float:
 def read_sheet(path: Path = SHEET) -> dict[str, dict[str, str]]:
     with path.open(encoding="utf-8", newline="") as fh:
         rows = list(csv.DictReader(fh))
-    expected_ids = [c["id"] for c in _read(DEV)]
+    expected_ids = [c["id"] for c in _dev()]
     if sorted(r["id"] for r in rows) != sorted(expected_ids):
         raise SystemExit("the sheet must have exactly the 20 dev case ids")
     problems = []
@@ -133,7 +139,7 @@ def agreement(sheet: Path = SHEET, report: Path | None = REPORT) -> dict:
     second = read_sheet(sheet)
     first = first_labels()
     ids = sorted(first)
-    types = {c["id"]: c["type"] for c in _read(DEV)}
+    types = {c["id"]: c["type"] for c in _dev()}
     out = {"sample": "dev", "n_cases": len(ids), "labelers": sorted({v["labeler"] for v in second.values()}),
            "fields": {}}
     for f in FIELDS:

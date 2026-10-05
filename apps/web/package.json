@@ -7,14 +7,16 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "node scripts/sync-messages.mjs --check && node --test \"lib/**/*.test.ts\"",
-    "sync:messages": "node scripts/sync-messages.mjs"
+    "test": "node scripts/sync-messages.mjs --check && node scripts/sync-agent.mjs --check && node --test \"lib/**/*.test.ts\"",
+    "sync:messages": "node scripts/sync-messages.mjs",
+    "sync:agent": "node scripts/sync-agent.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.8.0",
     "class-variance-authority": "^0.7.1",
     "cn": "^0.4.0",
     "lucide-react": "^1.49.0",
+    "motion": "^14.0.0",
     "next": "16.3.8",
     "next-themes": "^0.4.6",
     "react": "19.2.8",

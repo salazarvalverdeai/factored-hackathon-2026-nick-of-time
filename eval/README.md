@@ -13,7 +13,7 @@ harness of spec 10 when it scores.
 | `demo/live_profiles.yaml` | profiles of the synthetic recent transactions of live mode `[simulated]` | 09 §7.3 |
 | `demo/sample_cases.jsonl` | four processed sample cases with scripted analyst steps | 09 §7.3 |
 | `cases/plan/dev.jsonl` | what the team writes for each dev case: type, messages, intent and the index row it is about | 09 §7.4 |
-| `cases/dev.jsonl` | the 20 dev agent cases, built by `derive_expected.py`; do not edit by hand | 09 §7.4 |
+| `cases/dev.jsonl` | the 20 dev agent cases and their 8 recovery variants (D-071), built by `derive_expected.py`; do not edit by hand | 09 §7.4 |
 | `cases/plan/heldout.jsonl`, `cases/heldout.jsonl` | the same for the 80 held-out cases | 09 §7.4 |
 | `heldout.sha256` | sha256 of `cases/heldout.jsonl` | 09 §7.7 |
 | `second_label.py`, `labeling/` | blind second-labeling sheet of the dev cases and the agreement with the first labels | 09 AC-06 |
@@ -114,6 +114,14 @@ change a case, edit its plan line and rebuild; a test fails if a committed case 
 Dev set: 20 cases, 14 in Spanish and 6 in Portuguese — 4 `normal`, 4 `human`, 3 `ambiguous`, 2 `customer_returns`,
 2 `injection` and 1 each of `unauthorized_access`, `session_expired`, `tool_failure`, `missing_data`, `out_of_scope`.
 
+- **D-070 (lead, 2026-10-05):** every opened case is handed to a person, a verified high-zone block included, so
+  EV-0101 to EV-0103 now expect `handoff_emitted: true`. The held-out keeps the rule it was sealed with (spec 09 §7.5).
+- **Recovery variants (D-071, spec 09 AC-12):** EV-0104, EV-0105, EV-0118 and EV-0119 end in `ask` (the intent stays
+  below τ). `EV-0121` to `EV-0128` repeat each of them plus the customer's answer to the ask, typed or as a chip press
+  (`{"text": label, "chip": id}`, pressed from the last reply as the web does). The harness scores them apart, in the
+  `second_turn_recovery` block, never in the single-message metrics (spec 10 AC-13). The typed answers were drafted by
+  the lead's AI assistant and checked to be read by B0 `[simulated]`.
+
 Held-out set: 80 cases on 80 different held-out customers, 50 in Spanish and 30 in Portuguese — 13 `normal`,
 17 `human`, 10 `ambiguous`, 8 `customer_returns`, 10 `injection`, 6 `unauthorized_access`, 4 `session_expired`,
 4 `tool_failure`, 3 `missing_data`, 2 `late_arrival`, 3 `out_of_scope`. It uses all 7 high-zone held-out transactions
@@ -161,7 +169,8 @@ make eval EVAL_ARMS=S0 EVAL_RUNS=1      # a quick pass with no model call
   runs as S0).
 - **Cost.** A dev pass of S1 (20 cases, 4 runs, 84 turns) projects to at most 0.38 USD `[assumption]`: 84 turns × one
   call of ≤ 1,500 input and ≤ 512 output tokens at the Haiku 4.5 price of `bench/prices.yaml` (1.10 / 5.50 USD per 1M);
-  the 2026-10-05 run spent 0.037 USD on 20 calls `[simulated]`.
+  the 2026-10-05 run spent 0.037 USD on 20 calls `[simulated]`. The 8 recovery variants (D-071) add 18 turns a pass
+  (72 with 4 runs), at most 0.33 USD more by the same bound `[assumption]`.
 
 ## Second labeling (AC-06)
 A second person labels the 20 **dev** cases blind, and the agreement with the first labeler (`vldiego`) is reported
@@ -196,6 +205,10 @@ python -m eval.second_label agreement    # writes eval/labeling/agreement.json a
   | `decision` | 20 | 20 | 100.0 | 1.0 | - |
   | `handoff` | 20 | 20 | 100.0 | 1.0 | - |
   | `case_open` | 20 | 20 | 100.0 | 1.0 | - |
+
+  This is the agreement as labeled on 2026-10-05. D-070 later changed the first label of `handoff` for EV-0101 to
+  EV-0103 by rule (a verified block is now handed to a person too), not by labeling: run again today, `agreement`
+  gives `handoff` 17/20 (κ 0.7) with those three cases. The recovery variants (D-071) are not part of the sample.
 
   EV-0117 (expired session): the second label is `none`, because the case is refused before any intent matters,
   and the first keeps the intent of the message. Both give `reauthenticate`, so it is a labeling convention, not a

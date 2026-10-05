@@ -11,13 +11,15 @@ import subprocess
 import sys
 from pathlib import Path
 
+import jsonschema
 import pytest
 
 from nick_of_time.config import HAIKU, check_prices, price, resolve
 from nick_of_time.contracts import TurnResult
 from nick_of_time.llm import FakeClient, ProviderUnavailable, steps
+from nick_of_time.llm.base import TOOL_DESCRIPTION
 from nick_of_time.receipt import build
-from tests.test_spec04_graph import PERSON, Chat, intake
+from tests.test_spec04_graph import PERSON, Chat, fake, intake
 
 ROOT = Path(__file__).resolve().parents[1]
 SLOTS = {"amount": None, "currency": None, "date": None, "merchant": None}
@@ -215,3 +217,40 @@ def test_ac_14_g_ops_01_the_environment_cap_applies_when_the_run_carries_none(mo
     llm = client()
     turn = run(Chat(arm="S1", llm_client=llm, llm_day_spent_usd=0.5), "hola")
     assert llm.calls == [] and detail(turn, "understand") == ("error", "S1 -> S0: daily cap")
+
+
+def test_ac_14_d_078_the_intent_schema_requires_the_reading_but_not_the_slot_keys():
+    """D-078: intent, confidence, dispute_detected and the slots object stay required; the four slot keys do not."""
+    schema = steps.INTENT_SCHEMA
+    assert schema["required"] == ["intent", "confidence", "dispute_detected", "slots"]
+    assert "required" not in schema["properties"]["slots"]
+    assert set(schema["properties"]["slots"]["properties"]) == set(SLOTS)
+    jsonschema.validate({**HEARD, "slots": {}}, schema)
+    for key in schema["required"]:
+        with pytest.raises(jsonschema.ValidationError):
+            jsonschema.validate({k: v for k, v in HEARD.items() if k != key}, schema)
+
+
+def test_ac_14_d_078_missing_slot_keys_read_as_null_in_the_s1_step():
+    """D-078: a reply that leaves out slot keys is a valid reading; the `nlu.Slots` defaults fill them with null."""
+    llm = client({**HEARD, "slots": {"amount": "45.00"}})
+    state = {"arm": "S1", "session_id": fake.SESSION_ID}
+    heard, extra = asyncio.run(steps.understand(state, {"configurable": {"llm_client": llm}}, "x", "2026-06-01",
+                                                intake.TAU))
+    assert llm.calls[0]["schema"] is steps.INTENT_SCHEMA and extra["llm_notes"]["understand"] == "S1: ok"
+    assert heard["slots"] == {**SLOTS, "amount": "45.00"}
+
+
+def test_ac_14_d_082_the_understand_prompt_puts_a_person_request_first_in_es_and_pt():
+    """D-082 (spec 11 AC-10 and the §8 intent order): human_request is defined first, with ES and PT person words, and
+    wins over every other intent; the fixed request text is shorter than before the iteration (spec 11 rule 3)."""
+    prompt = steps.UNDERSTAND
+    person = prompt[prompt.index("human_request:"):prompt.index("unrecognized_charge:")]
+    assert "wins over every other intent" in person and "reports a charge" in person
+    assert all(word in person for word in ("persona", "asesor", "llamada", "pessoa", "atendente", "ligação"))
+    others = ("unrecognized_charge:", "wrongful_charge:", "status_inquiry:", "out_of_scope:")
+    assert prompt.index("human_request:") < min(prompt.index(name) for name in others)
+    # spec 15's tokenizer-free proxy (characters / 4): 1,531 characters before D-082 (prompt, schema, tool name and
+    # description), recorded in ADR 0027
+    fixed = len(prompt) + len(json.dumps(steps.INTENT_SCHEMA)) + len("record_intent" + TOOL_DESCRIPTION)
+    assert fixed < 1531

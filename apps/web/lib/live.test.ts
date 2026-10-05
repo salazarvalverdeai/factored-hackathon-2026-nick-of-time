@@ -233,6 +233,23 @@ test("spec 04 AC-17: progress labels reach the page as the run goes, then the tu
   assert.equal(reply.text, TURN.reply);
 });
 
+test("spec 07 AC-08: a live turn with no actions fills the trace from the streamed labels and the decision", async () => {
+  const { api } = setup({
+    ...SESSION_ROUTES,
+    "POST /api/agent/threads": () => jsonResponse({ thread_id: "th-1" }),
+    "POST /api/agent/threads/th-1/runs/stream": () =>
+      sse(
+        ["progress", { step: "reading_message", label: "Leyendo tu mensaje…", state: "in_progress" }],
+        ["progress", { step: "searching", label: "Buscando el cargo…", state: "in_progress" }],
+        ["turn", { ...TURN, decision: "ask", progress: [], actions: [], receipt: null, guardrails_triggered: ["G-IN-03"] }],
+      ),
+  });
+  await customerLogin(api);
+  const reply = await api.chat("No reconozco un cargo");
+  assert.deepEqual(reply.trace.map((t) => t.step), ["reading_message", "searching", "decide"]);
+  assert.deepEqual(reply.guardrails, ["G-IN-03"]);
+});
+
 test("spec 04 AC-17: a stream that ends without a turn is an error, not a made-up answer", async () => {
   const { api } = setup({
     ...SESSION_ROUTES,
@@ -254,7 +271,8 @@ test("spec 05 AC-18: the abuse guard's 429 reaches the page with its calm messag
 
 test("constitution #4: only a verified step is shown as verified; a requested one is only accepted", () => {
   const reply = replyFromTurn(TURN as never);
-  assert.deepEqual(reply.trace.map((t) => [t.step, t.kind]), [["open_case", "verified"], ["block_card", "accepted"]]);
+  assert.deepEqual(reply.trace.slice(0, 2).map((t) => [t.step, t.kind]), [["open_case", "verified"], ["block_card", "accepted"]]);
+  assert.deepEqual(reply.trace.filter((t) => t.step === "verify").map((t) => t.kind), ["verified"], "1 of 1 action verified");
   const none = replyFromTurn({ ...TURN, progress: [{ step: "block_card", label: "x", state: "not_confirmed" }], receipt: null } as never);
   assert.equal(none.trace[0].kind, "not_confirmed");
 });

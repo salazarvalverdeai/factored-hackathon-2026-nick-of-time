@@ -106,7 +106,7 @@ def test_ac_11_sample_cases_share_no_transaction_or_customer_with_the_agent_case
     so a replay evaluation never meets a case the demo seeded."""
     cases = [json.loads(line) for name in ("dev", "heldout")
              for line in (CASES / f"{name}.jsonl").read_text(encoding="utf-8").splitlines() if line.strip()]
-    assert len(cases) == 100
+    assert len(cases) == 108                       # 20 dev + 8 dev recovery variants (D-071) + 80 held-out
     transactions = {f["transaction_id"] for c in cases for f in c["initial_state"]["fixtures"]}
     customers = {c["initial_state"]["customer_id"] for c in cases}
     for case in SAMPLES:

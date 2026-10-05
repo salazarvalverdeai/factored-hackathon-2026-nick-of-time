@@ -36,6 +36,8 @@ export interface Deadline {
   product: string;
   /** ISO date (YYYY-MM-DD) or null while the policy engine (spec 02) does not provide it. */
   creditDeadline: string | null;
+  /** Live: the ruling date (YYYY-MM-DD), when the country's clock has one. The countdown counts to the nearer date. */
+  rulingDeadline?: string | null;
   deadlineSource: string;
   /** Live: days left as the api counted them (null = no countdown). Absent in the mock, which counts from the frozen demo date. */
   daysLeft?: number | null;
@@ -159,6 +161,8 @@ export interface ConsoleCase extends CaseListItem {
   handoff: HandoffCard;
   /** Live only: the handoff card is empty until the graph emits it (spec 05 console_case). */
   handoffEmitted?: boolean;
+  /** Live only: the case's time mode (ADR 0020). The mock runs on the frozen demo date, like replay. */
+  mode?: "replay" | "live";
 }
 
 export interface NotificationEntry {
@@ -202,7 +206,7 @@ export interface SessionSnapshot {
 export interface TraceStep {
   step: string;
   result: string;
-  kind: "ok" | "accepted" | "verified" | "not_confirmed" | "guardrail" | "deny";
+  kind: "ok" | "in_progress" | "accepted" | "verified" | "not_confirmed" | "guardrail" | "deny";
 }
 
 /** One step label of a running agent turn (spec 04 AC-17): in progress only, never a result. */
