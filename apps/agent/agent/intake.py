@@ -1,14 +1,17 @@
-"""Graph `dispute_intake` (spec 04 §4.1–§4.2), skeleton of task 04a (T1, T2): identity → greet → understand → route.
+"""Graph `dispute_intake` (spec 04 §4.1–§4.2), tasks 04a (T1, T2) and 04b (T3).
 
-`route` runs spec 02 rules 1–4 (`engine.screen()`): reauthenticate/deny → refuse, connect_person → connect,
-answer_status → status, a dispute → retrieve. Done here: identity, greet, understand (B0 rules arm and injection rules
-in every arm; the LLM path of S1/S2 lands in T7, so no arm calls an LLM yet), route, refuse, connect (a general call
-request only; T6 puts it on the active case and verifies it) and respond (templates and §4.5 chips). `retrieve` and
-`status` are placeholders until T3 and T6: they call no tool and claim nothing. Tools are reached only through MCP
+identity → greet → understand → route. `route` runs spec 02 rules 1–4 (`engine.screen()`): reauthenticate/deny →
+refuse, connect_person → connect, answer_status → status, a dispute → retrieve → decide. `decide` runs
+`engine.decide()` on tool facts only and the graph follows its result: ask → clarify, deny → refuse, a case to open
+(or confirm) → plan, a call with no case to open → connect. `plan` states the numbered steps and stops there until T4
+adds act → verify. understand uses the B0 rules arm in every arm (the S1/S2 LLM path lands in T7, so no arm calls an
+LLM yet). `status` is a placeholder until T6: it calls no tool and claims nothing. Tools are reached only through MCP
 with the session of the run config (constitution #3); "today" comes from `config.today(mode)` (AC-27, ADR 0020).
 Served as `dispute_intake_next` (langgraph.json) until it replaces the echo graph [assumption].
 """
 # No `from __future__ import annotations`: the state types must resolve when the server loads this file by path.
+import asyncio
+import json
 import os
 import re
 import uuid
@@ -27,16 +30,20 @@ from nick_of_time.contracts import TurnResult
 from nick_of_time.ids import new_id
 from nick_of_time.nlu import load_nlu
 from nick_of_time.nlu.text import fold
-from nick_of_time.policy import DecisionInput, PolicyEngine
+from nick_of_time.policy import DecisionInput, PolicyDecision, PolicyEngine
 
 ENGINE, NLU = PolicyEngine.load(), load_nlu("B0")
 TIMEOUT_S = ENGINE.policies.reliability["tool_timeout_ms"] / 1000
+MAX_OPTIONS = ENGINE.policies.clarify.max_candidate_transactions
 DISPUTES = ("unrecognized_charge", "wrongful_charge")
 # [assumption] until T3–T6: a press of these actions reads as this intent; confirm and choose_option keep the pending
 # dispute. Pressing an action chip skips the classifier (AC-32).
 ACTION_INTENT = {"request_call": "human_request", "send_summary": "status_inquiry",
                  "request_reevaluation": "status_inquiry", "verify_now": "status_inquiry"}
 BRANCH = {"reauthenticate": "refuse", "deny": "refuse", "connect_person": "connect", "answer_status": "status"}
+# [assumption] a typed yes or no (or a confirm chip's label) answers the confirm question only right after it was asked.
+CONFIRM_WORDS = {"si": True, "sim": True, "si, continua": True, "sim, continue": True, "no": False, "nao": False,
+                 "no es ese cargo": False, "nao e essa cobranca": False}
 # Another customer's data (spec 02 rule 2, POL-CROSS-CUSTOMER / G-SES-02), on folded text: a data word, then "of" a
 # third party. The graph sets cross_customer; the nlu injection rules stay as they are (spec 11).
 _DATA = (r"(?:saldo|cuentas?|contas?|tarjetas?|cartao|cartoes|transacc\w*|transac\w*|movimientos?|movimentos?"
@@ -79,13 +86,25 @@ class Internal(TypedDict, total=False):     # spec 04 §4.1 fields outside TurnR
     body: list[str]
     row: Optional[str]                      # §4.5 row of this turn's chips
     language_last: Optional[str]            # the thread's language, kept when a request sends language null
+    answer: Optional[dict[str, Any]]        # this turn's answer to a confirm question or an option card (task 04b)
+    candidates: list[dict[str, Any]]        # search_transaction's last candidates
+    selected_transaction: Optional[dict[str, Any]]   # the one candidate, with product_type and last4 of its card
+    customer_confirmed: Optional[bool]      # about selected_transaction; None whenever it changes
+    score: Optional[dict[str, Any]]         # get_fraud_score of the selected transaction
+    display: Optional[dict[str, Any]]       # convert_amount of it; None without a verified rate (AC-25)
+    existing_case: Optional[dict[str, Any]]  # an active case on the selected transaction, read with get_case (AC-23)
+    clarification_turns: int                # clarification questions already sent (spec 02 rule 5b)
+    decision_record: Optional[dict[str, Any]]   # D-046: {node, input, decision} for the auditor's A1 (spec 18)
+    next_node: str                          # where decide sends the turn
+    path: list[str]                         # nodes run after route, for the trace
 
 
 State = TypedDict("State", {**InputState.__annotations__, **OutputState.__annotations__, **Internal.__annotations__},
                   total=False)
 # Per-turn fields, cleared when a turn starts so nothing from the previous turn leaks into this one.
 RESET = {"decision": None, "zone": None, "case_id": None, "actions": [], "denials": [], "guardrails_triggered": [],
-         "body": [], "row": None, "route": None, "active_case": None, "greet_pending": False}
+         "body": [], "row": None, "route": None, "active_case": None, "greet_pending": False, "plan": [], "options": [],
+         "answer": None, "decision_record": None, "path": []}
 
 
 async def call(config: RunnableConfig, tool: str, **args: Any) -> BaseModel:
@@ -147,10 +166,16 @@ def understand(state: State) -> dict[str, Any]:
             "cross_customer": False, "intent": None, "intent_confidence": None, "dispute_detected": False}
     pending = state.get("intent") if state.get("intent") in DISPUTES else "unrecognized_charge"
     if action:                              # a pressed action chip or button skips the classifier (AC-32)
-        intent = ACTION_INTENT.get(action.get("type"), pending)
-        return {**base, "intent": intent, "intent_confidence": 1.0, "dispute_detected": intent in DISPUTES}
+        kind, value = action.get("type"), action.get("value")
+        intent = ACTION_INTENT.get(kind, pending)
+        answer = {"confirm": value == "yes"} if kind == "confirm" else {"option": value} if kind == "choose_option" else None
+        return {**base, "intent": intent, "intent_confidence": 1.0, "dispute_detected": intent in DISPUTES,
+                "answer": answer}
     if not text:
         return base
+    said = CONFIRM_WORDS.get(fold(text).strip(" .!¡?¿"))
+    if said is not None and any(s.get("id") == "confirm_yes" for s in state.get("suggestions") or []):
+        return {**base, "intent": pending, "intent_confidence": 1.0, "dispute_detected": True, "answer": {"confirm": said}}
     reading = NLU.parse(text, hint, today=day)
     found = {"language": reading.language, "slots": reading.slots.model_dump(),
              "injection_flagged": reading.injection_flagged,
@@ -173,15 +198,36 @@ async def route(state: State, config: RunnableConfig) -> dict[str, Any]:
         cases = await call(config, "list_my_cases")   # rule 3b needs to know whether a case is active
         if not isinstance(cases, ToolError):
             active = any(c.queue_status not in ("resolved", "closed") for c in cases.cases)
-    decision = ENGINE.screen(DecisionInput(
+    understood = {**state, "active_case": active, "selected_transaction": None, "candidates": [], "score": None,
+                  "customer_confirmed": None}          # this turn's reading only: no transaction facts read yet
+    decision = ENGINE.screen(inputs := decision_input(understood))
+    if decision is None:
+        return {"branch": "retrieve", "active_case": active}
+    return {"branch": BRANCH[decision.decision], "active_case": active, **outcome("route", inputs, decision)}
+
+
+def decision_input(state: State) -> DecisionInput:
+    """The understood turn plus tool facts only: candidates, score, amount and card come from MCP results, the country
+    from get_customer_profile, never from the text (constitution #3, spec 02 FR-03)."""
+    trx, score = state.get("selected_transaction") or {}, state.get("score") or {}
+    # [assumption] supervised_mode is not passed to the graph yet; policies.yaml approval.supervised_mode still applies
+    return DecisionInput(
         session_state=state["session_state"], intent=state.get("intent") or "out_of_scope",
         intent_confidence=float(state.get("intent_confidence") or 0), dispute_detected=state["dispute_detected"],
         injection_flagged=state["injection_flagged"], cross_customer=state["cross_customer"], supervised_mode=False,
-        active_case=active))
-    if decision is None:
-        return {"branch": "retrieve", "active_case": active}
-    return {"branch": BRANCH[decision.decision], "route": decision.model_dump(mode="json"), "active_case": active,
-            "decision": decision.decision, "guardrails_triggered": decision.guardrail_ids}
+        active_case=state.get("active_case"), clarification_turns=state.get("clarification_turns") or 0,
+        candidates=1 if trx else len(state.get("candidates") or []), score=score.get("score"),
+        score_source=score.get("source"), amount=trx.get("amount"), currency=trx.get("currency"),
+        country=(state.get("profile") or {}).get("country"), product_type=trx.get("product_type"),
+        customer_confirmed=state.get("customer_confirmed"))
+
+
+def outcome(node: str, inputs: DecisionInput, decision: PolicyDecision) -> dict[str, Any]:
+    """The policy result on the turn, with the pair the auditor's A1 re-runs (D-046, spec 18 §6)."""
+    return {"route": decision.model_dump(mode="json"), "decision": decision.decision, "zone": decision.zone,
+            "guardrails_triggered": decision.guardrail_ids,
+            "decision_record": {"node": node, "input": inputs.model_dump(mode="json"),
+                                "decision": decision.model_dump(mode="json")}}
 
 
 def refuse(state: State) -> dict[str, Any]:
@@ -190,32 +236,145 @@ def refuse(state: State) -> dict[str, Any]:
     key = "refuse.deny" if decision == "deny" else (
         "connect.general_contact" if state.get("intent") == "human_request" else "refuse.reauthenticate")  # AC-28
     denial = {"policy_id": rule, "guardrail_id": ENGINE.policies.rules[rule].guardrail, "detail": decision}
-    return {"body": [msg.text(key, state["language"])], "row": decision, "denials": [denial]}
+    return {"body": [msg.text(key, state["language"])], "row": decision, "denials": [denial],
+            "path": state["path"] + ["refuse"]}
 
 
 async def connect(state: State, config: RunnableConfig) -> dict[str, Any]:
-    """A general call request (spec 02 request_call, D-026): it stays "requested", as no read verifies it."""
-    key = f"{state['session_id']}:none:request_call:{state['trace_id']}"
-    out, language = await call(config, "request_call", idempotency_key=key), state["language"]
+    """A call request (spec 02 request_call): on the active case of the disputed charge when the turn found one
+    (AC-23), else a general one (D-026). It stays "requested" (T6 verifies it); lines already set this turn stay."""
+    case, language, before, path = state.get("case_id"), state["language"], state.get("body") or [], state["path"]
+    key = f"{state['session_id']}:{case or 'none'}:request_call:{state['trace_id']}"
+    out = await call(config, "request_call", idempotency_key=key, **({"case_id": case} if case else {}))
     if isinstance(out, ToolError):          # never refuse (AC-28), never claim it (AC-18): say it failed, offer a retry
         # [assumption] the graph's own id for an attempt the tool never accepted; no tool returned one
-        return {"body": [msg.text("connect.request_failed", language)], "row": "connect_failed",
-                "actions": [{"tool": "request_call", "action_id": new_id("action"), "state": "not_confirmed"}]}
-    when = out.expected_contact_by
-    body = (msg.text("connect.requested", language, expected_contact_by=when.isoformat()) if when
-            else msg.text("connect.requested_no_window", language))
-    return {"body": [body], "row": "connect_person",
-            "actions": [{"tool": "request_call", "action_id": out.action_id, "state": "requested"}]}
+        return {"body": [*before, msg.text("connect.request_failed", language)], "row": "connect_failed",
+                "actions": [{"tool": "request_call", "action_id": new_id("action"), "state": "not_confirmed"}],
+                "path": path + ["connect"]}
+    when, suffix = out.expected_contact_by, "_case" if out.case_id else ""
+    body = (msg.text(f"connect.requested{suffix}", language, case_id=out.case_id, expected_contact_by=when.isoformat())
+            if when else msg.text(f"connect.requested{suffix}_no_window", language, case_id=out.case_id))
+    return {"body": [*before, body], "row": "connect_person_case" if out.case_id else "connect_person",
+            "actions": [{"tool": "request_call", "action_id": out.action_id, "state": "requested"}],
+            "path": path + ["connect"]}
 
 
-def retrieve(state: State) -> dict[str, Any]:
-    """Placeholder until T3 (retrieve, decide, plan, clarify): asks what the charge is and acts on nothing."""
-    return {"body": [msg.text("clarify.ask_what", state["language"])], "row": "ask_details"}
+async def retrieve(state: State, config: RunnableConfig) -> dict[str, Any]:
+    """Finds the customer's transaction with search_transaction; for exactly one, reads its card, score, display
+    amount and any active case on it. A confirm answer keeps what the customer was shown; an option card picks one of
+    the candidates shown, never an id the tool did not return."""
+    answer, path = state.get("answer") or {}, state["path"] + ["retrieve"]
+    if "confirm" in answer and state.get("selected_transaction"):
+        return {"path": path, "customer_confirmed": answer["confirm"]}
+    if "option" in answer:                  # "none", or an id never shown: identify it again
+        candidates = [c for c in state.get("candidates") or [] if c["transaction_id"] == answer["option"]]
+    elif not state["dispute_detected"] and not any((state.get("slots") or {}).values()):
+        candidates = []                     # [assumption] nothing reported ("hola" below τ): ask, search nothing
+    else:
+        slots = state.get("slots") or {}
+        query = {"amount": float(slots["amount"]) if slots.get("amount") else None, "currency": slots.get("currency"),
+                 "approx_date": slots.get("date"), "merchant": slots.get("merchant")}
+        found = await call(config, "search_transaction", **{k: v for k, v in query.items() if v is not None})
+        candidates = [] if isinstance(found, ToolError) else [c.model_dump(mode="json") for c in found.candidates]
+    fresh = {"path": path, "candidates": candidates, "selected_transaction": None, "customer_confirmed": None,
+             "score": None, "display": None, "existing_case": None}
+    if len(candidates) != 1:
+        return fresh
+    trx = candidates[0]
+    card, score, fx, cases = await asyncio.gather(
+        call(config, "get_product_status", product_id=trx["product_id"]),
+        call(config, "get_fraud_score", transaction_id=trx["transaction_id"]),
+        call(config, "convert_amount", amount=trx["amount"], currency=trx["currency"]), call(config, "list_my_cases"))
+    if isinstance(card, ToolError):         # [assumption] no card read: not identified, so ask, then a person (rule 5b)
+        return {**fresh, "candidates": []}
+    return {**fresh, "selected_transaction": {**trx, "product_type": card.type, "last4": card.last4},
+            # a failed score read is a null score: zone human (POL-SCORE-NULL)
+            "score": None if isinstance(score, ToolError) else score.model_dump(mode="json"),
+            "display": None if isinstance(fx, ToolError) or not fx.converted else fx.converted.model_dump(mode="json"),
+            "existing_case": await active_case_on(config, cases, trx["transaction_id"])}
+
+
+async def active_case_on(config: RunnableConfig, cases: BaseModel, transaction_id: str) -> Optional[dict[str, Any]]:
+    """The active case on this transaction, read with get_case (AC-23). A failed read finds none: open_case still
+    answers the existing case as duplicate_of and writes nothing (spec 03 AC-15)."""
+    if isinstance(cases, ToolError):
+        return None
+    for item in cases.cases:
+        if item.queue_status in ("resolved", "closed"):
+            continue
+        case = await call(config, "get_case", case_id=item.case_id)
+        if not isinstance(case, ToolError) and case.transaction.transaction_id == transaction_id:
+            return case.model_dump(mode="json", include={"case_id", "credit_deadline", "ruling_deadline",
+                                                          "deadline_source"})
+    return None
+
+
+def decide(state: State) -> dict[str, Any]:
+    """spec 02 `engine.decide()` on the turn's tool facts; the graph runs whatever it returns, never a rule of its own."""
+    decision = ENGINE.decide(inputs := decision_input(state))
+    opens = "open_case" in decision.allowed_actions or decision.decision == "confirm"
+    nxt = {"ask": "clarify", "deny": "refuse"}.get(decision.decision) or (
+        ("duplicate" if state.get("existing_case") else "plan") if opens else "connect")   # connect: a call, no case
+    exhausted = decision.handoff_reason == "clarification_exhausted"                      # rule 5b (AC-13)
+    return {**outcome("decide", inputs, decision), "next_node": nxt, "path": state["path"] + ["decide"],
+            "clarification_turns": (state.get("clarification_turns") or 0) if decision.decision == "ask" else 0,
+            "body": [msg.text("clarify.exhausted", state["language"])] if exhausted else []}
+
+
+def plan(state: State) -> dict[str, Any]:
+    """Numbered steps before acting (AC-16), from the decision's allowed actions and handoff; in the confirm state it
+    asks before anything is done (AC-11). The amount is the tool's exact amount, plus convert_amount's (AC-25)."""
+    trx, policy, language = state["selected_transaction"], state["route"], state["language"]
+    confirm = policy["decision"] == "confirm"
+    keys = ["step_open_case" if trx["merchant"] else "step_open_case_no_merchant"]
+    keys += ["step_block_card", "step_verify"] if "block_card" in policy["allowed_actions"] else []
+    keys += ["step_deadline", *(["step_person"] if policy["handoff_reason"] or confirm else [])]
+    facts = {"amount": msg.amount_text(trx["amount"]), "currency": trx["currency"], "merchant": trx["merchant"],
+             "last4": trx["last4"]}
+    steps = [msg.text(f"plan.{key}", language, step_n=n, **facts) for n, key in enumerate(keys, 1)]
+    fx = state.get("display")
+    shown = [msg.text("receipt.transaction_display", language, display_amount=fx["amount"],
+                      display_currency=fx["currency"], rate=fx["rate"], rate_source=fx["rate_source"],
+                      as_of=fx["as_of"])] if fx and fx["currency"] != trx["currency"] else []
+    ask = [msg.text("plan.confirm_ask", language)] if confirm else []
+    # [assumption] until T4 adds act → verify, a plan that executes ends the turn with the "planned" chips
+    return {"plan": steps, "body": [msg.text("plan.intro", language), *steps, *shown, *ask],
+            "row": "confirm" if confirm else "planned", "path": state["path"] + ["plan"]}
+
+
+def duplicate(state: State) -> dict[str, Any]:
+    """AC-23: the charge already has an active case, so nothing is opened; the case id and its stored deadlines come
+    from get_case. [assumption] No new write either (no block): the person on that case decides."""
+    case, language = state["existing_case"], state["language"]
+    lines = [msg.text("duplicate.case_exists", language, case_id=case["case_id"])]
+    lines += [msg.text(f"status.{key}", language, **case) for key in ("ruling_deadline", "credit_deadline")
+              if case.get(key)] or [msg.text("status.deadline_unknown", language)]
+    return {"body": lines, "row": "case_active", "case_id": case["case_id"], "path": state["path"] + ["duplicate"]}
+
+
+def clarify(state: State) -> dict[str, Any]:
+    """Rule 5: one question, nothing done. Up to max_candidate_transactions candidates become option cards; otherwise
+    it asks for the details. A declined confirm answers plan.declined and clears the selection (D-039)."""
+    candidates, language = state.get("candidates") or [], state["language"]
+    declined = state.get("customer_confirmed") is False
+    shown = [] if declined or len(candidates) > MAX_OPTIONS else candidates
+    key = "plan.declined" if declined else "clarify.pick_one" if shown else "clarify.ask_what"
+    return {"body": [msg.text(key, language)], "row": "ask_options" if shown else "ask_details",
+            "options": [{"id": c["transaction_id"], "label": msg.option_label(c)} for c in shown],
+            "clarification_turns": (state.get("clarification_turns") or 0) + 1, "path": state["path"] + ["clarify"],
+            **({"selected_transaction": None, "customer_confirmed": None} if declined else {})}
+
+
+def call_or_respond(state: State) -> str:
+    """After plan or duplicate: a call request that reports a charge also registers the call (rule 3a, AC-28). T4
+    inserts act → verify before it."""
+    return "connect" if (state.get("route") or {}).get("request_call") else "respond"
 
 
 def status(state: State) -> dict[str, Any]:
     """Placeholder until T6: no reading yet, so it says it could not verify and states no status (AC-19)."""
-    return {"body": [msg.text("status.read_failed", state["language"])], "row": "deny"}
+    return {"body": [msg.text("status.read_failed", state["language"])], "row": "deny",
+            "path": state["path"] + ["status"]}
 
 
 def respond(state: State) -> dict[str, Any]:
@@ -227,21 +386,24 @@ def respond(state: State) -> dict[str, Any]:
                                                             "human_review")]
     row = state.get("row") or ("greet" if lines else "ask_details")
     body = state.get("body") or ([] if lines else [msg.text("clarify.ask_what", language)])
-    branch = state.get("branch", "respond")
-    nodes = ["identity", "greet", "understand", "route", *([branch] if branch != "respond" else []), "respond"]
+    nodes = ["identity", "greet", "understand", "route", *(state.get("path") or []), "respond"]
+    record = state.get("decision_record") or {}
     turn = TurnResult(
         reply="\n".join(lines + body), language=language, decision=state.get("decision"), intent=state.get("intent"),
-        intent_confidence=state.get("intent_confidence"), case_id=state.get("case_id"),
+        intent_confidence=state.get("intent_confidence"), case_id=state.get("case_id"), zone=state.get("zone"),
+        plan=state.get("plan") or [], options=state.get("options") or [],
         actions=state.get("actions") or [], suggestions=msg.suggestions(row, language, state.get("case_id")),
         guardrails_triggered=state.get("guardrails_triggered") or [], denials=state.get("denials") or [],
         mode=state["mode"], trace_id=state["trace_id"],
-        trace=[{"node": n, "status": "deny" if n == "refuse" else "ok", "ms": 0} for n in nodes])
+        trace=[{"node": n, "status": "deny" if n == "refuse" else "ok", "ms": 0,      # D-046: the decision record
+                "detail": json.dumps(record, sort_keys=True) if n == record.get("node") else None} for n in nodes])
     return {**turn.model_dump(mode="json"), "messages": [], "action": None, "greet_pending": False,
             "language_last": language}
 
 
 builder = StateGraph(State, input_schema=InputState, output_schema=OutputState)
-for _node in (identity, greet, understand, route, refuse, connect, retrieve, status, respond):
+for _node in (identity, greet, understand, route, refuse, connect, retrieve, decide, plan, duplicate, clarify, status,
+              respond):
     builder.add_node(_node.__name__, _node)
 builder.add_edge(START, "identity")
 builder.add_edge("identity", "greet")
@@ -249,7 +411,12 @@ builder.add_edge("greet", "understand")
 builder.add_edge("understand", "route")
 builder.add_conditional_edges("route", lambda state: state["branch"],
                               ["refuse", "connect", "retrieve", "status", "respond"])
-for _node in ("refuse", "connect", "retrieve", "status"):
+builder.add_edge("retrieve", "decide")
+builder.add_conditional_edges("decide", lambda state: state["next_node"],
+                              ["clarify", "refuse", "plan", "duplicate", "connect"])
+builder.add_conditional_edges("plan", call_or_respond, ["connect", "respond"])
+builder.add_conditional_edges("duplicate", call_or_respond, ["connect", "respond"])
+for _node in ("refuse", "connect", "clarify", "status"):
     builder.add_edge(_node, "respond")
 builder.add_edge("respond", END)
 graph = builder.compile(name="dispute_intake")   # Platform adds its own checkpointer; tests compile `builder` with one

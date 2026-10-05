@@ -15,13 +15,14 @@
 # - Optional facts: a template that needs a fact the tool did not return is not rendered (null merchant uses the
 #   *_no_merchant variants; a null deadline uses the deadline_unknown lines).
 # - Tasks T2-T7 of spec 04 extend this file (clarify, refuse, progress labels AC-17, duplicate case AC-23,
-#   re-evaluation AC-24, reversed charge); each extension is a contract change approved by the lead.
+#   re-evaluation AC-24, reversed charge); each extension is a contract change approved by the lead. Task 04b
+#   (T3) added clarify.pick_one, clarify.exhausted and duplicate.case_exists.
 # - Chips: `kind` is static here; the action payload ({type}, spec 01 §6.4) is set by the server code.
 # - Never a placeholder or text for the fraud score, policy ids, rule ids, zones or the transcript
 #   (notifications.never_send in policies.yaml).
 # - Never promise an outcome or a provisional credit: a person reviews and decides (CLAUDE.md rule 6).
 # - Dates are absolute (YYYY-MM-DD) and come from tools; the template never computes them.
-version: "0.2.0"
+version: "0.3.0"
 
 greet:
   # AC-15: first name from get_customer_profile, at most 3 capabilities, a person reviews what needs it.
@@ -328,3 +329,20 @@ clarify:
   ask_what:
     es: "¿Qué cargo quieres reportar? Cuéntame el comercio, el monto y la fecha aproximada."
     pt: "Qual cobrança você quer informar? Me conte o estabelecimento, o valor e a data aproximada."
+  pick_one:
+    # Spec 04 task 04b (pending the lead): 1 to max_candidate_transactions candidates, shown as option cards with
+    # their amount, date and merchant from search_transaction. Nothing is done until the customer picks one.
+    es: "Encontré estos cargos en tu cuenta. ¿Cuál quieres reportar?"
+    pt: "Encontrei estas cobranças na sua conta. Qual você quer informar?"
+  exhausted:
+    # Spec 04 task 04b (pending the lead): AC-13, rule 5b. No single charge after the clarification turns; a general
+    # call request follows in the same reply (connect.requested*). No case is opened without a charge.
+    es: "No pude identificar un solo cargo con estos datos. Una persona te ayudará a encontrarlo."
+    pt: "Não consegui identificar uma única cobrança com esses dados. Uma pessoa vai ajudar você a encontrá-la."
+
+duplicate:
+  # Spec 04 task 04b (pending the lead): AC-23. The charge already has an active case (get_case); no second case is
+  # opened. The case's stored deadlines follow with status.ruling_deadline / credit_deadline / deadline_unknown.
+  case_exists:
+    es: "Este cargo ya está en tu caso {case_id}, que sigue abierto, así que no hace falta abrir otro."
+    pt: "Esta cobrança já está no seu caso {case_id}, que continua aberto, então não é preciso abrir outro."

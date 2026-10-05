@@ -129,7 +129,13 @@ verification_id, read_at}], `case`, `receipt`, `handoff`, `reply`, `progress` [l
 `guardrails_triggered`, `denials`, `usage`, `trace`. Internal fields kept on the thread (task 04a): `today` (the
 session's date from `config.today(mode)`), `route` (the `screen()` result), `branch`, `body` and `row` (the reply lines
 and the §4.5 row of the turn), `greet_pending`, and `language_last` (the thread's language when a request sends
-`language: null`). Per-turn fields are cleared when a turn starts; the turn's `messages` and `action` are cleared when
+`language: null`). Task 04b adds `answer` (this turn's reply to a confirm question or an option card), `existing_case`
+(an active case on the selected transaction, AC-23), `display` (the `convert_amount` result), `decision_record`,
+`next_node` and `path` (the nodes run after `route`, for the trace); `route` then holds the policy result of
+`screen()` or `decide()`. `decision_record` (D-046, pending the lead; default) is `{node, input, decision}`: the
+`DecisionInput` the graph built and the full `PolicyDecision` it got, on every turn that reaches `route`'s terminal
+rules or `decide`; it goes into the `detail` of that node's `trace` step as JSON, so the auditor's A1 (spec 18) re-runs
+`decide()` on it. Per-turn fields are cleared when a turn starts; the turn's `messages` and `action` are cleared when
 it ends. `injection_flagged` comes from the spec 11 classifier; `cross_customer` is set by `understand` in the graph
 (task 04a) from a small ES/PT pattern set in `apps/agent`: a data word (saldo, cuenta/conta, tarjeta/cartão,
 transacciones, movimientos, extracto/extrato, datos/dados; never cargo or compra) "of" a third party (otro cliente,
@@ -145,7 +151,10 @@ the handoff list only action ids returned by tools.
 ```
 identity ─► greet ─► understand ─► route ─┬─► retrieve ─► decide ─┬─► plan ─► act ─► verify ─┬─► respond
                                           │                       │                         └─► connect ─► respond   (request_call = opened_case: the call on the case just opened, D-020)
-                                          │                       ├─► clarify ─────────────► respond   (ask / confirm)
+                                          │                       ├─► plan ────────────────► respond   (confirm: the steps and the question; nothing acted)
+                                          │                       ├─► duplicate ─┬─────────► respond   (AC-23: an active case on the charge; nothing opened)
+                                          │                       │              └─► connect ─► respond   (rule 3a: the call on that case)
+                                          │                       ├─► clarify ─────────────► respond   (ask: options or a request for details)
                                           │                       ├─► connect ─────────────► respond   (no case to open: rule 3a call, or rule 5b general call)
                                           │                       └─► refuse ──────────────► respond   (deny / reauthenticate)
                                           ├─► status ──────────────────────────────────────► respond   (answer_status: cards, cases, notifications)
@@ -158,14 +167,15 @@ identity ─► greet ─► understand ─► route ─┬─► retrieve ─�
 | `greet` | First turn of a verified session only: name, capabilities, human reachable, starter chips | `get_customer_profile` · `messages.yaml greet.*` |
 | `understand` | Language; injection detector; intent + slots with the arm's classifier; relative dates against the mode's "today"; an action chip skips the classifier (AC-32); a typed label of an offered text chip is read as that chip (AC-33) | spec 11 · LLM only in S1/S2 below τ |
 | `route` | Runs spec 02 rules 1–4 with `engine.screen()` on the understood input: `reauthenticate`/`deny` → refuse; `connect_person` → connect (never refused); `answer_status` → status; nothing (a dispute, a call request that reports a charge, or a status question that reports a charge from a customer with no active case) → retrieve, then `decide` applies rules 5–9 (D-020). For a status question that reports a charge, `route` first reads the customer's cases and passes `active_case` (false when none is active), so the engine, not the graph, decides whether the dispute path goes on | `engine.screen()` · `list_my_cases` |
-| `retrieve` | Finds the transaction; gets the score; converts amounts for display | `search_transaction` · `get_fraud_score` · `convert_amount` |
-| `decide` | The decision with rule ids. With `request_call = "opened_case"` (rule 3a with a charge, D-020) the turn runs plan → act → verify like a dispute (the high zone still blocks), then `connect`; `connect_person` with no case to open, and the rule 5b handoff, go straight to `connect` | spec 02 `engine.decide()` |
-| `plan` | Numbered steps shown to the customer | `messages.yaml plan.*` |
+| `retrieve` | Finds the transaction with the slots (no search when the turn reports no charge and has no slot); an option card picks only a candidate the tool returned; a confirm answer keeps the transaction shown. For exactly one candidate it reads, in parallel, its card (`product_type`, `last4`), the score, the display amount and the customer's cases, then `get_case` on each active one to find a case on this transaction (AC-23). A failed card read leaves the charge unidentified (ask, then rule 5b); a failed score read is a null score (zone human) | `search_transaction` · `get_product_status` · `get_fraud_score` · `convert_amount` · `list_my_cases` · `get_case` |
+| `decide` | The decision with rule ids, on tool facts only (score, amount, card and country from tools, never from the text); the graph runs what it returns: ask → `clarify`, deny → `refuse`, a case to open or `confirm` → `plan` (or `duplicate` when the charge has an active case), a call with no case to open (`connect_person` below τ, the rule 5b handoff) → `connect`. With `request_call = "opened_case"` (rule 3a with a charge, D-020) the turn runs plan → act → verify like a dispute, then `connect`; whether the high zone blocks there is decided by the engine (D-029), never by the graph. Records the decision pair (D-046, §4.1) | spec 02 `engine.decide()` |
+| `plan` | Numbered steps shown to the customer, built from the decision: open the case; block and verify only when `block_card` is in `allowed_actions`; the deadline; a person when the case goes to review or in `confirm`. The exact tool amount (two decimals when exact) plus the `convert_amount` line when it returned a rate in another currency (AC-25). In `confirm` it ends with `plan.confirm_ask` and the confirm chips; a typed yes/no right after that question counts as the chip. Until T4 adds act → verify, a plan that executes ends the turn with the `planned` chips (check case, report another, a person) `[assumption]` | `messages.yaml plan.*` |
+| `duplicate` | AC-23: says the charge is already in the active case, with its id and stored deadlines from `get_case`; opens nothing and runs no other write (no block: the person on that case decides) `[assumption]`; a call request goes on that case | `messages.yaml duplicate.*`, `status.*_deadline` |
 | `act` | `open_case` (dedupe, related case), then `block_card` when allowed; idempotency key `session:transaction:action:run` | MCP |
 | `verify` | Post-conditions; 2 retries, 800 ms timeout; failure → `not_confirmed` + escalation | `get_product_status` · `get_case` |
 | `status` | Re-reads cards, cases or notifications and answers with the reading time | `list_my_cards` · `get_case` · `list_my_cases` · `list_my_notifications` |
 | `connect` | Registers a call request where spec 02 `request_call` says: `active_or_general` → on the active case, or a general one; `opened_case` → on the case `open_case` returned this turn and `verify` confirmed (the existing case when it returned `duplicate_of`), so the reply names that case; if `open_case` or its verify fails, the call falls back to `active_or_general` and is still registered (AC-28: never refuse), while the case is reported as not confirmed (AC-18); `general` → a general request with no case (rule 5b). It says the call request is registered and when to expect the call, using `expected_contact_by` from `request_call` (D-008); when it is `null`, the reply promises no time. Without a verified session, the bank's general contact path with no data | `request_call` · `messages.yaml connect.*` |
-| `clarify` | Options (≤ 3 candidates) or a request for amount/date; counts turns | templates; LLM wording in S1/S2 |
+| `clarify` | Options (1 to `max_candidate_transactions` candidates, as cards labelled amount · date · merchant) or a request for amount/date; counts turns; a declined confirm answers `plan.declined` and clears the selection | templates; LLM wording in S1/S2 |
 | `refuse` | DENY or re-authenticate with no data and a way forward | templates |
 | `respond` | Receipt and handoff from verified facts; reply from templates (S1/S2 may reword, then the grounding check runs); suggestion chips from §4.5 | `nick_of_time.receipt` · `send_case_summary` · `request_call` · `request_reevaluation` · `add_case_info` · `messages.yaml suggest.*` |
 
@@ -245,12 +255,16 @@ messages.
 ## 10. Plan, tasks and verification
 - [ ] T1 — State and graph skeleton on the spec 01 echo graph; `langgraph dev` locally · AC-07, AC-27. Task 04a: state,
       skeleton and AC-27 done in `apps/agent/agent/intake.py`, served as `dispute_intake_next` next to the echo
-      `dispute_intake` until the dispute path lands (T3–T5); `retrieve` and `status` are placeholders that call no
-      tool and claim nothing. Open: a `langgraph dev` run and AC-07 on Platform (T8)
+      `dispute_intake` until the dispute path lands (T3–T5); `status` is a placeholder that calls no tool and
+      claims nothing (`retrieve` landed in T3). Open: a `langgraph dev` run and AC-07 on Platform (T8)
 - [x] T2 — `greet`, `understand` (rules arm + injection rules), `route` · AC-03, AC-09, AC-10, AC-15 (task 04a, with
       `refuse`, a general-call `connect` (AC-28 part; T6 puts the call on the active case) and AC-33 (proposed);
       tests `tests/test_spec04_graph.py`)
-- [ ] T3 — `retrieve`, `decide`, `plan`, `clarify`, `refuse` · AC-02, AC-11, AC-12, AC-13, AC-16, AC-23, AC-25
+- [x] T3 — `retrieve`, `decide`, `plan`, `clarify`, `refuse` · AC-02, AC-11, AC-12, AC-13, AC-16, AC-23, AC-25
+      (task 04b, with `duplicate` and the D-046 decision record; tests `tests/test_spec04_decide.py`). AC-02, AC-13
+      and AC-23 done. Finished by later tasks: opening the case after the plan (AC-11, AC-12, AC-16: T4), the
+      handoff card with `approve_block` / `requires_human` (AC-11, AC-12: T5) and the display amount on the receipt
+      (AC-25: T5). Q4 (a reversed charge opens no case) is not handled yet
 - [ ] T4 — `act`, `verify` with retries, the four-state vocabulary and the unconfirmed path · AC-01, AC-04, AC-18
 - [ ] T5 — `respond`: receipt, handoff, grounding check, suggestion chips · AC-05, AC-20, AC-21, AC-22, AC-26,
       AC-29, AC-30, AC-31, AC-32
