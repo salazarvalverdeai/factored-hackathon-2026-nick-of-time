@@ -16,6 +16,7 @@ import secrets
 import threading
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
+from decimal import Decimal
 from typing import Any, Literal, Optional, get_args
 
 import psycopg
@@ -24,8 +25,8 @@ from psycopg.types.json import Jsonb
 
 from nick_of_time import ids
 from nick_of_time.contracts import AnalystActionIn, AnalystActionOut, QueueStatus
-from nick_of_time.store import (CUSTOMER_VISIBLE, RESERVED_EVENTS, UNDELIVERED, VERIFIED_WITH, WRITE_EVENTS, WRITE_TOOL,
-                                CallRequest, CaseEvent, CaseRecord, Channel, DeliveryStatus, EventType, NewCase, Notification,
+from nick_of_time.store import (DEMO_RUN_PREFIX, CUSTOMER_VISIBLE, RESERVED_EVENTS, UNDELIVERED, VERIFIED_WITH, WRITE_EVENTS, WRITE_TOOL,
+                                CallRequest, CaseEvent, CaseRecord, Channel, DemoTransaction, DeliveryStatus, EventType, NewCase, Notification,
                                 NotVerified, ProductOverride, StoreError, VerifyingRead, _check_writer, _json,
                                 _utc_now, check_action_id, check_actor, check_business_date, check_text, check_transition,
                                 insert_with_fresh_case_id)
@@ -37,6 +38,13 @@ from nick_of_time.store.accounts import (CHANNEL_CASE_EVENT, CHANNEL_ID, DENIAL_
 WRITES = sorted(WRITE_EVENTS)
 EVENT = "event_id, case_id, seq, type, actor, payload, customer_visible, trace_id, created_at"
 FACTS, VALUES = ", ".join(NewCase.model_fields), ", ".join(f"%({f})s" for f in NewCase.model_fields)
+
+
+def _demo(demo_runs: bool) -> dict[str, Any]:
+    """The CASES parameters that also match every demo session run (the analyst console, ADR 0026)."""
+    return {"demo_runs": demo_runs, "demo_prefix": DEMO_RUN_PREFIX}
+
+
 # A case with the action of its case_opened, the V- id of that action's latest read and its status (the last change).
 CASES = """
 select c.*, o.payload ->> 'action_id' as action_id, v.verification_id, coalesce(s.status, 'new') as status
@@ -47,7 +55,8 @@ left join lateral (select payload ->> 'verification_id' as verification_id from 
                      and payload ->> 'action_id' = o.payload ->> 'action_id' order by seq desc limit 1) v on true
 left join lateral (select payload ->> 'to' as status from case_events
                    where case_id = c.case_id and type = 'status_changed' order by seq desc limit 1) s on true
-where c.run_id is not distinct from %(run_id)s and (%(customer_id)s::text is null or c.customer_id = %(customer_id)s)
+where (c.run_id is not distinct from %(run_id)s or (%(demo_runs)s and starts_with(c.run_id, %(demo_prefix)s)))
+  and (%(customer_id)s::text is null or c.customer_id = %(customer_id)s)
 """
 
 
@@ -95,21 +104,22 @@ class PostgresStore:
                 self._append(related, "related_case_opened", actor, case.trace_id, {"case_id": case_id})
             return self.get_case(case_id, run_id=case.run_id, customer_id=None)
 
-    def get_case(self, case_id: str, *, run_id: Optional[str], customer_id: Optional[str]) -> Optional[CaseRecord]:
+    def get_case(self, case_id: str, *, run_id: Optional[str], customer_id: Optional[str],
+                 demo_runs: bool = False) -> Optional[CaseRecord]:
         rows = self._rows(CASES + "and c.case_id = %(case_id)s",
-                          {"case_id": case_id, "run_id": run_id, "customer_id": customer_id})
+                          {"case_id": case_id, "run_id": run_id, "customer_id": customer_id, **_demo(demo_runs)})
         return _record(rows[0]) if rows else None
 
     def list_cases(self, customer_id: str, *, run_id: Optional[str]) -> list[CaseRecord]:
         return self._listed(run_id, customer_id)
 
-    def list_all_cases(self, *, run_id: Optional[str]) -> list[CaseRecord]:
-        return self._listed(run_id, None)
+    def list_all_cases(self, *, run_id: Optional[str], demo_runs: bool = False) -> list[CaseRecord]:
+        return self._listed(run_id, None, demo_runs)
 
-    def _listed(self, run_id: Optional[str], customer_id: Optional[str]) -> list[CaseRecord]:
+    def _listed(self, run_id: Optional[str], customer_id: Optional[str], demo_runs: bool = False) -> list[CaseRecord]:
         rows = self._rows(CASES + "order by coalesce(s.status, 'new') = 'closed', c.created_at desc, "
                           "c.case_id collate \"C\" desc",
-                          {"run_id": run_id, "customer_id": customer_id})
+                          {"run_id": run_id, "customer_id": customer_id, **_demo(demo_runs)})
         return [_record(r) for r in rows]
 
     # ---------- events ----------
@@ -292,6 +302,20 @@ class PostgresStore:
                           (check_key(customer_id), check_key(run_id)))
         return [CallRequest(**r) for r in rows]
 
+    def add_demo_transaction(self, row: DemoTransaction) -> DemoTransaction:
+        check_text(*row.model_dump().values())
+        with self._tx():
+            if self._rows("select 1 from demo_transactions where transaction_id = %s", (row.transaction_id,)):
+                raise StoreError(f"transaction {row.transaction_id} already exists")
+            self._insert("demo_transactions", row.model_dump())
+        return row
+
+    def demo_transactions(self, customer_id: str, *, run_id: str) -> list[DemoTransaction]:
+        rows = self._rows(f"select {', '.join(DemoTransaction.model_fields)} from demo_transactions where "
+                          "customer_id = %s and run_id = %s order by generated_at, transaction_id collate \"C\"",
+                          (check_key(customer_id), check_key(run_id)))
+        return [DemoTransaction(**r) for r in rows]
+
     # ---------- internals ----------
     @contextmanager
     def _tx(self, case_id: Optional[str] = None) -> Iterator[None]:
@@ -444,6 +468,10 @@ class PostgresStore:
             "and (%s::text is null or trace_id = %s) order by created_at, call_id collate \"C\"",
             (check_key(run_id), check_key(trace_id), trace_id))
         return [LLMCall(**r) for r in rows]
+
+    def llm_spend_since(self, since: dt.datetime) -> Decimal:
+        return self._rows("select coalesce(sum(cost_usd), 0) as total from llm_calls where created_at >= %s",
+                          (since,))[0]["total"]
 
     def add_channel_event(self, case_id: str, channel: LinkedChannel, address: str, event: ChannelEvent, *,
                           actor: str, trace_id: str) -> CustomerChannel:

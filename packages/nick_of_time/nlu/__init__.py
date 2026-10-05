@@ -34,6 +34,7 @@ class NLUResult(BaseModel):
     slots: Slots
     language: Language
     injection_flagged: bool
+    other_language: bool = False          # G-IN-03 [assumption]: a clear non-ES/PT sentence with no ES/PT intent
     dispute_detected: bool                # required: dispute words seen even if human_request or status wins (D-020)
     arm: Literal["B0", "B1", "B2", "B3"]
     version: str

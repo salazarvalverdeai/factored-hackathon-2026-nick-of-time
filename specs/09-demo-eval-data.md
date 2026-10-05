@@ -3,8 +3,8 @@
 - **Feature:** real gold customers and transactions for the demo and the evaluation, with team-written ES/PT messages
   ("synthetic message over real state"): the demo index, the demo customers, the agent cases and the classifier set
   (written by three model families and reviewed line by line, ADR 0025).
-- **Status:** Draft
-- **Owner:** @vldiego · **Priority:** P0 · **Size:** M
+- **Status:** In progress
+- **Owner:** @vldiego (follow-ups from 2026-10-05: @salazarvalverdeai) · **Priority:** P0 · **Size:** M
 - **Challenge dimension:** Data Analytics, Machine Learning
 - **Depends on:** gold v1 (`contracts/gold_contract.md`) · **Enables:** 04 (tests), 10, 11, 15, M02 (protocol seal) ·
   **ADRs:** 0007, 0015, 0020, 0021, 0025
@@ -186,7 +186,8 @@ generator model id), `source` (`written` for a generator's seed, `paraphrase`), 
 versioned prompt), `persona` (formality, country, mood, typos, length, code switch), `review_status`.
 
 - **Drafts** add `checks` (the generator's hints for the reviewer: a planned slot or card wording missing, an
-  unplanned amount, date, merchant or card type, language or English drift, duplicates) and have
+  unplanned amount, date, merchant or card type, language or English drift, and the deterministic text hints `same_as_seed`, `duplicate`, `near_duplicate`,
+  `language_leak`, `too_short`, `injection_without_marker`, `cross_split_duplicate`; a hint is not a decision) and have
   `review_status: pending`.
 - **Promoted rows** drop `checks` and carry `review_status` `kept` or `fixed`, `reviewer` (GitHub handle) and, on
   fixed rows only, `original` (the draft values the reviewer replaced). Dropped rows are not written.
@@ -232,7 +233,9 @@ holds by construction. Model-generated sentences are `[simulated]`.
 - **Q4 (@salazarvalverdeai) — split function** of §7.1 (md5-based): OK for `Transaction.split`?
 - **Q5 (@salazarvalverdeai) — PT cases.** The dataset has no BR customers. Default: PT cases use real MX, CO and AR
   customers with a Portuguese message and keep their real country; no case is labeled `BR`.
-- **Q6 (all) — second labeler** for AC-06 (20 cases, about 20 minutes): who?
+- **Q6 (all) — second labeler** for AC-06 (20 cases, about 20 minutes). **Decided (lead, 2026-10-05):** the lead is the
+  second labeler; the sample is the 20 dev cases, because the lead develops the agent and must not read the held-out
+  before the seal. Tooling: `eval/second_label.py`.
 - **Q7 — paraphrase model.** **Decided by ADR 0025 (lead, 2026-10-05):** each split's generator writes its own seeds
   and paraphrases; results of a candidate of the same family as the generator of the split being scored are flagged
   (spec 11 §8), and the Llama and Gemma arms already fail the structured-output smoke test (F-013).

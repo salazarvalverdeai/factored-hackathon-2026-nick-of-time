@@ -14,7 +14,7 @@ from datetime import date
 from decimal import Decimal, InvalidOperation
 from typing import Optional
 
-from .dates import parse_date
+from .dates import _MONTHS, parse_date
 from .injection import injection_flagged
 from .text import fold
 
@@ -51,6 +51,10 @@ _INTENT_RULES: list[tuple[str, list[str]]] = [
         r"^(?:un |una |um |uma |o |a |el |la )?" + _STAFF + r"(?: humano| real)?(?:,? por favor)?[.!? ]*$",
         r"\b(?:atienda|atiende|atenda|atendid[oa] por) (?:\w+ )?" + _PERSON,
         r"\b(?:atencion|atendimento) (?:humana|humano|personal)\b",
+        # English (the customer must always reach a person, whatever the language): "can I talk to a person please?"
+        r"\b(?:talk|speak|chat|connect|transfer|put) (?:\w+ ){0,3}(?:to|with|through) (?:a |an |the |some |my )?(?:real |live |human )?"
+        r"(?:person|human|agent|representative|rep|someone|somebody|operator|advisor|supervisor|manager)\b",
+        r"\b(?:want|need|get|give) (?:\w+ ){0,2}(?:a |an |the )?(?:real |live )?(?:human|person|agent|representative|operator)\b",
     ]),
     ("status_inquiry", [
         r"\b(?:como va|como esta|como anda|en que va|en que esta|como esta indo|status|estado(?! de cuenta)|andamento|novedades|"
@@ -139,7 +143,9 @@ _NUM = r"\d{1,3}(?:[.,\s]\d{3})+(?:[.,]\d{1,2})?|\d+(?:[.,]\d{1,2})?"
 _AMOUNT_BEFORE = re.compile(rf"(?<![\w/-])({_CUR})\s*({_NUM})(?![\d/-])")
 _AMOUNT_AFTER = re.compile(rf"(?<![\w/-])({_NUM})\s*({_CUR})(?!\w)")
 _AMOUNT_CUE = re.compile(rf"\b(?:cargo|compra|cobro|cobranca|monto|importe|valor|por|de|pagos?)\s+({_NUM})(?![\d/-])")
-_DATE_NOISE = re.compile(r"\d{4}-\d{2}-\d{2}|\d{1,2}/\d{1,2}/\d{4}|\d{1,2} de [a-zç]+(?: de \d{4})?", re.I)
+# "13 abril" (day + month name, no "de") is a date too, so its day never reads as an amount ("pesos 13 abril")
+_DATE_NOISE = re.compile(r"\d{4}-\d{2}-\d{2}|\d{1,2}/\d{1,2}/\d{4}|\d{1,2} de [a-zç]+(?: de \d{4})?|\b\d{1,2} (?:" + "|".join(_MONTHS)
+                         + r")\b", re.I)
 _MERCHANT = re.compile(r"\b(?:en|em|de|do|da)\s+((?:[A-ZÁÉÍÓÚÑÃÕÇ][\w&'.-]*)(?:\s+[A-ZÁÉÍÓÚÑÃÕÇ][\w&'.-]*){0,3})(?![\w$])")
 _THOUSANDS = re.compile(r"(\d+(?:[.,]\d{1,2})?) ?mil\b")
 _MIL_COMPOUND = re.compile(r"\d[.,]\d{3}(?:[.,]\d+)? ?mil\b|\bmil (?:e|y) \d")   # "2,500 mil", "15 mil e 500": unsafe
@@ -220,6 +226,28 @@ def detect_language(text: str, hint: Optional[str] = None) -> str:
     return "pt" if pt > es else "es"
 
 
+# [assumption] G-IN-03: a clear sentence in another language (English, French, German) is answered by rule, never by a
+# model. Words of those languages only, none shared with ES/PT; it takes 3 of them, more than the ES/PT words seen, so
+# a loanword ("Amazon Prime", "ok", "thank you") inside Spanish or Portuguese never counts.
+_OTHER_WORDS = {"i", "my", "the", "you", "your", "is", "are", "was", "were", "this", "that", "with", "from", "have", "has",
+                "not", "don't", "didn't", "did", "what", "why", "and", "to", "of", "need", "help", "want", "card", "charge",
+                "recognize", "unauthorized", "bank", "please", "hello", "hi", "lost", "can", "could", "would", "me",
+                "je", "mon", "ma", "pas", "est", "les", "des", "une", "pour", "et", "carte", "bonjour", "ne", "reconnais",
+                "ich", "nicht", "und", "der", "die", "das", "ist", "ein", "eine", "kann", "mein", "meine", "karte", "hallo",
+                "habe", "kenne"}
+_OTHER_WORDS -= {"me", "ma", "to", "ne", "e"}              # "me" is ES/PT, "ma" PT-adjacent, "to" and "ne" too short
+_SHARED_WORDS = {"de", "que", "no", "la", "lo", "se", "su", "por", "para", "me", "te", "a", "e", "o", "es", "mas", "muy",
+                 "com", "como", "tengo", "tenho", "una", "uma", "un", "um"}
+
+
+def other_language(text: str) -> bool:
+    """True only for a clear non-ES/PT sentence: at least 4 words, 3 of another language and more of them than ES/PT."""
+    words = re.findall(r"[a-z']+", fold(text))
+    foreign = sum(w in _OTHER_WORDS for w in words)
+    known = sum(w in _PT_WORDS or w in _ES_WORDS or w in _SHARED_WORDS for w in words)
+    return len(words) >= 4 and foreign >= 3 and foreign > known
+
+
 def _refused(t: str, m: re.Match) -> bool:
     """A person request right after a refusal is no request, unless it is a question or a correction follows."""
     if not (r := _REFUSAL.search(t[:m.start()])):
@@ -257,9 +285,10 @@ def parse_rules(text: str, language_hint: Optional[str], today: date) -> dict:
     intent, confidence, dispute = classify_intent(text)
     amount, currency = _amount(text)
     found = parse_date(text, today)
+    foreign = intent == "out_of_scope" and other_language(text)
     return {
         "intent": intent, "confidence": confidence, "dispute_detected": dispute, "language": detect_language(text, language_hint),
         "slots": {"amount": amount, "currency": currency, "date": found.isoformat() if found else None,
                   "merchant": _merchant(text)},
-        "injection_flagged": injection_flagged(text), "arm": ARM, "version": VERSION,
+        "injection_flagged": injection_flagged(text), "other_language": foreign, "arm": ARM, "version": VERSION,
     }

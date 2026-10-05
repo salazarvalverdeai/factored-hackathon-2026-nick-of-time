@@ -93,8 +93,10 @@ def same_deadline(turn, mcp: L.LocalMCP, sid: str, transaction_id: str) -> None:
     deadline = turn.receipt.deadline
     assert (deadline.country, deadline.product, deadline.credit_deadline, deadline.ruling_deadline) == (
         legal.country, legal.product, legal.credit_deadline, legal.ruling_deadline)
+    # DLANG (contract 1.5.0): the customer reads the source in the session's language, as compute_deadline labels it
     assert (deadline.deadline_source, deadline.source_url, deadline.verified_on) == (
-        legal.deadline_source, legal.source_url, legal.verified_on)
+        legal.deadline_source_label, legal.source_url, legal.verified_on)
+    assert legal.deadline_source_label == legal.deadline_source or legal.deadline_source not in turn.reply
     for day in filter(None, (legal.credit_deadline, legal.ruling_deadline)):
         assert day.isoformat() in turn.reply
 
@@ -225,6 +227,36 @@ def test_ac_28_d029_a_person_request_on_a_high_zone_charge_opens_the_case_and_re
     assert mcp.store.queue_status(turn.case_id) == "review"
     assert mcp.tool("get_product_status", sid, product_id=fixture["product_id"]).status == "Active"
     assert turn.case_id in turn.reply.splitlines()[-1]                  # "Registré tu solicitud en el caso K-…"
+
+
+def test_ac_28_d_067_a_person_request_with_an_unnamed_charge_then_its_confirm_holds_the_block_on_the_case(
+        serve, tmp_path):
+    """Task 04h (D-067 [assumption], orchestrator decision pending the lead) on EV-0001's charge, high zone: a call
+    request that does not name the charge registers a general call and shows the card (no case, card Active). The
+    confirm runs D-029: the case opens, request_call goes ON the case (call_requested, queue review), so the D-042 hold
+    is active: a later block_card is denied with POL-HUMAN-REQUEST and the card stays Active. The first turn's general
+    call_requests row stays (follow-up: RequestCallIn cannot link it to the case)."""
+    case = CASES["EV-0001"]
+    fixture, customer = case["initial_state"]["fixtures"][0], case["initial_state"]["customer_id"]
+    mcp = serve(L.fixture_gold(tmp_path / "gold", case))
+    sid, chat = session(mcp, case)
+    first = checked(chat.say("Quiero hablar con una persona, no reconozco un cargo", language="es"))
+    assert first.decision == "connect_person" and first.case_id is None
+    assert [(a.tool, a.state) for a in first.actions] == [("request_call", "requested")]
+    assert [o.label for o in first.options] and [s.id for s in first.suggestions] == ["confirm_charge", "confirm_no"]
+    run = f"{case['id']}:S0:1"
+    assert len(mcp.store.call_requests(customer, run_id=run)) == 1 and not mcp.store.list_cases(customer, run_id=run)
+    done = checked(chat.say("Sí, es ese cargo"))
+    assert (done.decision, done.zone) == ("connect_person", "high") and done.case_id
+    assert [(a.tool, a.state) for a in done.actions] == [("open_case", "verified"), ("request_call", "verified")]
+    events = [e.type for e in mcp.store.events(done.case_id)]
+    assert "call_requested" in events and "card_blocked" not in events
+    assert mcp.store.queue_status(done.case_id) == "review"
+    held = mcp.tool("block_card", sid, product_id=fixture["product_id"], reason="high_zone_dispute",
+                    idempotency_key=f"{sid}:int1:block-after-call")
+    assert isinstance(held, ToolError) and held.code == "DENY" and held.policy_id == "POL-HUMAN-REQUEST"
+    assert mcp.tool("get_product_status", sid, product_id=fixture["product_id"]).status == "Active"
+    assert len(mcp.store.call_requests(customer, run_id=run)) == 1     # the unread duplicate general row (follow-up)
 
 
 def test_ac_18_with_a_wrong_mcp_key_every_call_is_refused_and_nothing_is_claimed(serve, tmp_path, monkeypatch):

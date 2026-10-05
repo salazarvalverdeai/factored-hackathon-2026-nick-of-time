@@ -10,15 +10,16 @@ import datetime as dt
 import threading
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
+from decimal import Decimal
 from typing import Any, Literal, Optional, get_args
 
 from nick_of_time import ids
 from nick_of_time.contracts import AnalystActionIn, AnalystActionOut, QueueStatus
 from nick_of_time.store import (CUSTOMER_VISIBLE, RESERVED_EVENTS, UNDELIVERED, VERIFIED_WITH, WRITE_EVENTS, WRITE_TOOL,
-                                CallRequest, CaseEvent, CaseRecord, Channel, DeliveryStatus, EventType, NewCase, Notification,
+                                CallRequest, CaseEvent, CaseRecord, DemoTransaction, Channel, DeliveryStatus, EventType, NewCase, Notification,
                                 NotVerified, ProductOverride, StoreError, VerifyingRead, _check_writer, _json,
                                 _utc_now, check_action_id, check_actor, check_business_date, check_text, check_transition,
-                                insert_with_fresh_case_id)
+                                in_runs, insert_with_fresh_case_id)
 from nick_of_time.store.accounts import (CHANNEL_CASE_EVENT, CHANNEL_ID, DENIAL_ID, LLM_CALL_ID, ChannelEvent, CustomerChannel,
                                          LinkedChannel, LLMCall, NewDenial, NewLLMCall, NewSession, Once, PolicyDenial,
                                          SessionRecord, check_channel_event, check_denial_session, check_key,
@@ -42,6 +43,7 @@ class MemoryStore:
         self._once: dict[str, tuple[str, Optional[str], str, dict[str, Any]]] = {}   # key -> (action, run, args, result)
         self._serial = threading.RLock()
         self._calls: list[CallRequest] = []
+        self._demo_trx: dict[str, DemoTransaction] = {}
 
     # ---------- cases ----------
     def create_case(self, case: NewCase, *, actor: str, action_id: str) -> CaseRecord:
@@ -67,17 +69,18 @@ class MemoryStore:
             self._append(related, "related_case_opened", actor, case.trace_id, {"case_id": case_id})
         return self._cases[case_id]
 
-    def get_case(self, case_id: str, *, run_id: Optional[str], customer_id: Optional[str]) -> Optional[CaseRecord]:
+    def get_case(self, case_id: str, *, run_id: Optional[str], customer_id: Optional[str],
+                 demo_runs: bool = False) -> Optional[CaseRecord]:
         case = self._cases.get(case_id)
-        if case is None or case.run_id != run_id or customer_id not in (None, case.customer_id):
+        if case is None or not in_runs(case.run_id, run_id, demo_runs) or customer_id not in (None, case.customer_id):
             return None
         return self._read(case)
 
     def list_cases(self, customer_id: str, *, run_id: Optional[str]) -> list[CaseRecord]:
         return self._listed(lambda c: c.customer_id == customer_id and c.run_id == run_id)
 
-    def list_all_cases(self, *, run_id: Optional[str]) -> list[CaseRecord]:
-        return self._listed(lambda c: c.run_id == run_id)
+    def list_all_cases(self, *, run_id: Optional[str], demo_runs: bool = False) -> list[CaseRecord]:
+        return self._listed(lambda c: in_runs(c.run_id, run_id, demo_runs))
 
     def _listed(self, keep: Callable[[CaseRecord], bool]) -> list[CaseRecord]:
         mine = [c for c in self._cases.values() if keep(c)]
@@ -238,6 +241,19 @@ class MemoryStore:
         mine = [c for c in self._calls if c.customer_id == check_key(customer_id) and c.run_id == check_key(run_id)]
         return sorted(mine, key=lambda c: (c.created_at, c.event_id))           # as in Postgres
 
+    def add_demo_transaction(self, row: DemoTransaction) -> DemoTransaction:
+        check_text(*row.model_dump().values())
+        with self._serial:
+            if row.transaction_id in self._demo_trx:
+                raise StoreError(f"transaction {row.transaction_id} already exists")
+            self._demo_trx[row.transaction_id] = row
+        return row
+
+    def demo_transactions(self, customer_id: str, *, run_id: str) -> list[DemoTransaction]:
+        mine = [r for r in self._demo_trx.values() if r.customer_id == check_key(customer_id)
+                and r.run_id == check_key(run_id)]
+        return sorted(mine, key=lambda r: (r.generated_at, r.transaction_id))      # as in Postgres
+
     # ---------- internals ----------
     def _case(self, case_id: str) -> CaseRecord:
         if case_id not in self._cases:
@@ -354,6 +370,9 @@ class MemoryStore:
         check_key(trace_id)
         rows = [c for c in self._llm_calls if c.run_id == run_id and trace_id in (None, c.trace_id)]
         return [c.model_copy(deep=True) for c in sorted(rows, key=lambda c: (c.created_at, c.call_id))]
+
+    def llm_spend_since(self, since: dt.datetime) -> Decimal:
+        return sum((c.cost_usd for c in self._llm_calls if c.created_at >= since), Decimal(0))
 
     def add_channel_event(self, case_id: str, channel: LinkedChannel, address: str, event: ChannelEvent, *,
                           actor: str, trace_id: str) -> CustomerChannel:

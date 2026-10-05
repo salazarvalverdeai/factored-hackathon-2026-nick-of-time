@@ -11,6 +11,7 @@ import yaml
 from pydantic import ValidationError
 
 from nick_of_time.nlu import injection_flagged, load_nlu, parse_date
+from nick_of_time.nlu.rules import parse_rules
 
 TODAY = date(2026, 6, 1)        # a Monday; replay today per ADR 0020
 
@@ -797,3 +798,30 @@ def test_ac_04_pt_and_es_policy_override_headers_and_staff_role_play_are_flagged
 ])
 def test_ac_04_normal_complaints_that_mention_policies_or_roles_are_not_flagged(text):
     assert not injection_flagged(text)
+
+
+# ---------- 11e: LATAM amount formats, "13 abril", English person request (AC-08, AC-09, AC-10) ----------
+@pytest.mark.parametrize("text,amount,currency", [
+    ("1.230.906,80 pesos 13 abril tienda don jose no lo reconozco", "1230906.80", None),
+    ("cargo de 1,230,906.80 usd", "1230906.80", "USD"),
+    ("cobraron 1 230 906,80 pesos", "1230906.80", None),
+    ("cargo de $ 1.250", "1250", None),
+    ("compra de R$ 1.250,00", "1250.00", "BRL"),
+    ("cobro de COP 250.000", "250000", "COP"),
+    ("cargo de 1,25 dolares", "1.25", "USD"),
+    ("pesos 13 abril", None, None),
+])
+def test_ac_09_latam_amount_formats(text, amount, currency):
+    got = parse_rules(text, None, TODAY)["slots"]
+    assert (got["amount"], got["currency"]) == (amount, currency)
+
+
+def test_ac_08_day_and_month_name_without_de():
+    assert parse_date("el 13 abril no lo reconozco", TODAY) == date(2026, 4, 13)
+    assert parse_date("dia 28 maio", TODAY) == date(2026, 5, 28)
+
+
+@pytest.mark.parametrize("text", ["Can I talk to a person please?", "I want to speak to a human",
+                                  "I want to speak to an agent", "can you connect me with a representative"])
+def test_ac_10_english_person_request_is_human_request(text):
+    assert parse_rules(text, None, TODAY)["intent"] == "human_request"

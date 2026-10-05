@@ -170,7 +170,8 @@ def receipt(f: dict[str, Any]) -> Optional[dict[str, Any]]:
     if f["dispute"] != "unrecognized_charge":   # D-030 (ADR 0023 item 5): a wrongful charge shows the ruling date only
         dates["credit_deadline"] = None
     deadline = {"country": opened["country"], "product": trx["product_type"], **dates,
-                "deadline_source": case["deadline_source"], "source_url": case["deadline_source_url"],
+                "deadline_source": case.get("deadline_source_label") or case["deadline_source"],   # DLANG
+                "source_url": case["deadline_source_url"],
                 "verified_on": case["deadline_verified_on"]} if any(dates.values()) else None
     tried_block = any(a["tool"] == "block_card" for a in f["actions"]) and not f["held"]
     did = "blocked" if card else "block_unconfirmed" if tried_block else "case_only"

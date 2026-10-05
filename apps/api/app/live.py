@@ -14,36 +14,42 @@ import datetime as dt
 import hashlib
 import hmac
 import json
+import logging
 import os
 import re
 import secrets
 import uuid
 from collections import deque
 from typing import Any, Literal, Optional
+from zoneinfo import ZoneInfo
 
 from fastapi import Body, Cookie, Depends, FastAPI, Header, Query, Request, Response
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse, RedirectResponse, StreamingResponse
+from pydantic import ValidationError
 
+from app import demo
 from app.auth import AuthError, CognitoVerifier
 from app.catalog import Catalog, FixtureCatalog, catalog_from_env
+from app.guard import install as install_guard
 from app.main import (COOKIE, SESSION_TTL, AckOut, ApiError, CallIn, CallOut, ConsoleCaseOut, EmailIn,
                       EmailOut, EventOut, HealthOut, InfoIn, NotificationOut, PrefsIn, PrefsOut, ReevalIn, ReevalOut,
-                      SessionIn, SessionOut, SettingsIn, SettingsOut, TelegramOut, ThreadOut, VerifyIn,
-                      VerifyOut, DemoCustomerOut, _is_analyst_path, today)
+                      RecentTransactionOut, ScenarioOut, SessionIn, SessionOut, SettingsIn, SettingsOut,
+                      SyntheticChargeIn, SyntheticChargeOut, TelegramOut,
+                      ThreadOut, VerifyIn, VerifyOut, DemoCustomerOut, TIME_ZONES, _is_analyst_path, today)
 from app.notify import ChannelFailed, HttpNotifier, Notifier, mask_chat, mask_email
 from app.platform import HttpPlatform, Platform, PlatformError
 from nick_of_time import CONTRACT_VERSION, ids
 from nick_of_time.contracts import (AnalystActionIn, AnalystActionOut, CaseSummary, CaseView, CustomerCaseSummary,
                                     CustomerCaseView, CustomerReceipt, CustomerTurn, ProductView, ProgressItem,
-                                    TurnResult)
+                                    Suggestion, TurnAction, TurnResult)
 from nick_of_time.policy import queue
 from nick_of_time.policy.calendars import CalendarNotCovered, add_business_days
 from nick_of_time.policy.clock import deadline
 from nick_of_time.policy.engine import Deny
 from nick_of_time.policy.model import load_policies
 from nick_of_time.receipt import messages
-from nick_of_time.store import CaseRecord, NewCase, Store, StoreError
+from nick_of_time.store import CaseRecord, NewCase, Store, StoreError, is_demo_run
 
 STATUS_LABEL = {"new": "Case opened", "verification": "Verifying the block", "review": "Under review by a person",
                 "resolved": "Resolved", "closed": "Closed"}
@@ -57,6 +63,9 @@ NO_REASON_NEEDED = {"take", "approve_credit", "approve_block"}        # AnalystA
 TEMPLATE_EVENT = {"take": "in_review", "reopen_case": "in_review", "resolve": "resolved"}   # status change -> template
 ZONE_ORDER = {"high": 0, "medium": 1, "human": 2}
 TELEGRAM_TTL, EMAIL_TTL = dt.timedelta(minutes=15), dt.timedelta(hours=24)
+DAILY_LLM_CAP_USD = 5.0     # [assumption] G-OPS-01 per day across every session; env DAILY_LLM_CAP_USD overrides it
+
+log = logging.getLogger("nick_of_time.api")
 
 
 class Denied(Exception):
@@ -122,7 +131,10 @@ def create_live_app(store: Store, *, catalog: Optional[Catalog] = None, verifier
     app = FastAPI(title="Nick of Time api", docs_url="/api/docs", redoc_url=None, swagger_ui_oauth2_redirect_url=None,
                   openapi_url="/api/openapi.json")
     app.state.store, app.state.runs, app.state.now = store, deque(maxlen=200), now
+    app.state.charges = {}                          # session id -> its last synthetic charge (AC-19)
     notifier = notifier or HttpNotifier.from_env()
+    day_cap = float(os.getenv("DAILY_LLM_CAP_USD") or DAILY_LLM_CAP_USD)   # read once, at app creation
+    install_guard(app, lambda: app.state.now())                     # per-IP and global hourly limits (AC-18)
 
     @app.exception_handler(ApiError)
     async def _api_error(request: Request, e: ApiError):
@@ -206,8 +218,21 @@ def create_live_app(store: Store, *, catalog: Optional[Catalog] = None, verifier
         found = [e.payload.get(key) for e in events if e.type == kind and isinstance(e.payload.get(key), dict)]
         return found[-1] if found else None
 
+    def run_charges(customer_id: str, run_id: Optional[str], mode: str) -> list:
+        """A live demo run's synthetic charges [simulated], newest first; none in replay or production (AC-19)."""
+        if mode != "live" or not is_demo_run(run_id):
+            return []
+        return [demo.charge_view(r) for r in reversed(store.demo_transactions(customer_id, run_id=run_id))]
+
+    def charge_of(record: CaseRecord) -> Optional[dict]:
+        """The case's charge: gold's, else its demo run's synthetic charge (spec 03 AC-14)."""
+        return catalog.transaction(record.transaction_id) or next(
+            ({k: v for k, v in t.items() if k != "product_id"}
+             for t in run_charges(record.customer_id, record.run_id, record.mode)
+             if t["transaction_id"] == record.transaction_id), None)
+
     def view(record: CaseRecord) -> CaseView:
-        txn = catalog.transaction(record.transaction_id)
+        txn = charge_of(record)
         if txn is None:
             raise ApiError(503, "UNAVAILABLE", "Transaction data unavailable")
         events, status = store.events(record.case_id), store.queue_status(record.case_id)
@@ -221,7 +246,7 @@ def create_live_app(store: Store, *, catalog: Optional[Catalog] = None, verifier
                 receipt = CustomerReceipt.model_validate(raw)
             except ValueError:
                 receipt = None                                    # a receipt that fails its contract is never shown
-        channels = store.channels(record.customer_id)
+        channels = [] if is_demo_run(record.run_id) else store.channels(record.customer_id)   # ADR 0026
         notes = [n for n in store.list_notifications(record.customer_id, run_id=record.run_id)
                  if n.case_id == record.case_id]
         deadline = min((d for d in (record.credit_deadline, record.ruling_deadline) if d), default=None)
@@ -266,6 +291,8 @@ def create_live_app(store: Store, *, catalog: Optional[Catalog] = None, verifier
         failing channel leaves its row `failed` and changes nothing else (AC-07)."""
         spec = policies.notifications["events"][event]
         trace = _trace()
+        if is_demo_run(record.run_id):        # a demo customer's channels belong to no visitor: in-app only (ADR 0026)
+            return
         for ch in store.channels(record.customer_id):
             if ch.channel not in spec["channels"] or not ch.confirmed:
                 continue
@@ -298,15 +325,44 @@ def create_live_app(store: Store, *, catalog: Optional[Catalog] = None, verifier
     def demo_customers():
         return catalog.customers()
 
+    def demo_scenarios() -> list[dict]:
+        """Built once per app (gold is read-only at runtime, ADR 0004); a customer gold does not serve is not listed."""
+        if not hasattr(app.state, "scenarios"):
+            customers = catalog.customers()
+            built = demo.scenarios(customers, {c["customer_id"]: catalog.first_name(c["customer_id"]) for c in customers})
+            app.state.scenarios = [s for s in built if s["customer_name"] is not None]
+        return app.state.scenarios
+
+    @app.get("/api/demo/scenarios", response_model=list[ScenarioOut])
+    def scenarios(country: Optional[str] = None, language: Optional[Literal["es", "pt"]] = None):
+        return [demo.public(s) for s in demo_scenarios()
+                if country in (None, s["country"]) and language in (None, s["language"])]
+
     @app.post("/api/sessions", status_code=201, response_model=SessionOut)
     def create_session(body: SessionIn):
-        customer = catalog.customer(body.customer_id)
+        try:
+            name = demo.clean_name(body.display_name)
+        except ValueError as error:
+            raise ApiError(422, "INVALID", str(error)) from None
+        if body.customer_id is not None:                         # the original picker, until the web uses scenarios
+            if body.scenario or body.country:
+                raise ApiError(422, "INVALID", "Send a scenario or a customer, not both")
+            customer = catalog.customer(body.customer_id)
+        else:                                                    # D-068: the customer is chosen here, never sent (#3)
+            if body.language is None:
+                raise ApiError(422, "INVALID", "language is required for a demo session")
+            picked = demo.choose(demo_scenarios(), body.scenario, body.country, body.language)
+            if picked is None:
+                raise ApiError(404, "NOT_FOUND", "Unknown scenario")
+            customer = catalog.customer(picked["customer_id"])
         if customer is None:
             raise ApiError(404, "NOT_FOUND", "Unknown customer")
+        run_id = demo.new_run_id(app.state.now())               # every public session is isolated (ADR 0026)
         mode = body.mode or os.getenv("DEFAULT_SESSION_MODE") or "live"
         otp = os.getenv("OTP_FIXED") or f"{secrets.randbelow(10**6):06d}"            # mock OTP, shown on screen (ADR 0017)
-        row = store.create_session(customer_id=body.customer_id, otp_hash=_sha(otp),
-                                   expires_at=app.state.now() + SESSION_TTL, language=customer["language"], mode=mode,
+        row = store.create_session(customer_id=customer["customer_id"], otp_hash=_sha(otp), run_id=run_id,
+                                   expires_at=app.state.now() + SESSION_TTL, language=body.language or
+                                   customer["language"], mode=mode, display_name=name,
                                    arm=os.getenv("DEFAULT_ARM") or None)   # demo sessions: S1 in prod; eval seeds set their own
         return {"session_id": row.session_id, "mode": mode, "today": today(mode, customer["country"]),
                 "otp_demo": otp, "expires_at": row.expires_at}
@@ -345,9 +401,49 @@ def create_live_app(store: Store, *, catalog: Optional[Catalog] = None, verifier
         return bool(policies.approval.supervised_mode) if value is None else bool(value)
 
     def run_config(s: dict) -> dict:
-        """The §6.4 configurable, built here and nowhere else; the client's body never contributes to it."""
+        """The §6.4 configurable, built here and nowhere else; the client's body never contributes to it. The day's
+        LLM spend is the sum of every `llm_calls` row since 00:00 UTC (any run: real money either way), which this api
+        writes from each turn's usage; the graph compares it with the cap before calling (G-OPS-01, spec 04 §5)."""
+        midnight = app.state.now().astimezone(dt.timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
         return {"session_id": s["session_id"], "session_state": session_state(s), "mode": s["mode"], "arm": s["arm"],
-                "case_id": None, "supervised_mode": supervised()}
+                "case_id": None, "supervised_mode": supervised(),
+                "llm_day_spent_usd": float(store.llm_spend_since(midnight)), "llm_day_cap_usd": day_cap}
+
+    def run_input(payload: dict, s: dict) -> dict:
+        """The §6.4 input rebuilt from the body: only the customer's text and a valid chip press; the language is the
+        session's (spec 01 AC-06), so nothing else a client sends (arm, mode, run_id, customer_id) reaches the graph."""
+        raw = payload.get("input") if isinstance(payload.get("input"), dict) else {}
+        said = raw.get("messages") if isinstance(raw.get("messages"), list) else []
+        texts = [m["content"] for m in said if isinstance(m, dict) and isinstance(m.get("content"), str)
+                 and m.get("role", "user") in ("user", "human")]
+        try:
+            action = TurnAction.model_validate(raw["action"]).model_dump() if raw.get("action") else None
+        except ValidationError:
+            action = None
+        return {"messages": [{"role": "user", "content": t} for t in texts],
+                "language": s["language"] if s["language"] in ("es", "pt") else None, "action": action}
+
+    def log_usage(turn: TurnResult, s: dict) -> None:
+        """One `llm_calls` row per billed call of the turn (spec 04 AC-14, D-023), once per trace: a trace already
+        written is skipped. A failed write never fails the turn."""
+        try:
+            if turn.usage and not store.list_llm_calls(run_id=s["run_id"], trace_id=turn.trace_id):
+                for u in turn.usage:
+                    store.add_llm_call(trace_id=turn.trace_id, provider=u.provider, model=u.model,
+                                       tokens_in=u.tokens_in, tokens_out=u.tokens_out, latency_ms=u.latency_ms,
+                                       cost_usd=u.cost_usd, run_id=s["run_id"])
+        except StoreError as error:
+            log.error("llm_calls write failed trace_id=%s error=%s", turn.trace_id, error)
+
+    def reconcile(thread_id: str, s: dict) -> None:
+        """A stream that ended without a logged turn (client gone, Platform failure): log the usage of the thread's
+        latest state if its trace is not written yet (the same dedupe), best effort."""
+        try:
+            raw = need_platform().state(thread_id)
+            if raw is not None:
+                log_usage(turn_of(raw), s)
+        except Exception as error:  # noqa: BLE001 — bookkeeping only, never the turn's failure
+            log.error("usage reconcile failed thread=%s error=%s", thread_id, type(error).__name__)
 
     @app.post("/api/agent/threads", response_model=ThreadOut)
     def agent_thread(s: dict = Depends(known_session)):
@@ -359,22 +455,61 @@ def create_live_app(store: Store, *, catalog: Optional[Catalog] = None, verifier
     def _sse(event: str, data: dict) -> str:
         return f"event: {event}\ndata: {json.dumps(data, default=str)}\n\n"
 
+    def progress_event(data: Any) -> Optional[str]:
+        """Spec 04 AC-17: a step label from the run's custom stream leaves only as an in-progress ProgressItem; any
+        other chunk (not a ProgressItem, or one claiming a result, constitution #4) is dropped, never failing the turn."""
+        try:
+            item = ProgressItem.model_validate(data)
+        except ValueError:
+            return None
+        return _sse("progress", item.model_dump(mode="json")) if item.state == "in_progress" else None
+
+    def unavailable_turn(s: dict, trace_id: str) -> str:
+        """A normal `turn` for a Platform failure (customer text from messages.yaml, nothing internal)."""
+        lang, msgs = s.get("language") or "es", messages()
+        turn = CustomerTurn(
+            reply=msgs["system"]["agent_unavailable"][lang], language=lang, mode=s["mode"], trace_id=trace_id,
+            suggestions=[Suggestion(id="retry", label=msgs["system"]["retry_chip"][lang], kind="text"),
+                         Suggestion(id="talk_to_person", label=msgs["suggest"]["talk_to_person"][lang], kind="action",
+                                    action={"type": "request_call"})])
+        return _sse("turn", turn.model_dump(mode="json"))
+
     @app.post("/api/agent/threads/{thread_id}/runs/stream")
     def agent_stream(thread_id: str, request: Request, payload: dict = Body(default={}),
-                     s: dict = Depends(own_thread)):
-        config = run_config(s)
+                     s: dict = Depends(known_session)):
+        trace_id = _trace()
+        try:
+            owner = need_platform().thread_session(thread_id)
+        except (PlatformError, ApiError) as error:           # Platform down before the run: a turn, not a 503
+            log.error("platform unavailable (thread check) trace_id=%s error=%s", trace_id, error)
+            return StreamingResponse(iter([unavailable_turn(s, trace_id)]), media_type="text/event-stream")
+        if owner != s["session_id"]:                               # unknown or foreign: the same 404
+            raise ApiError(404, "NOT_FOUND", "Thread not found")
+        config, payload = run_config(s), {"input": run_input(payload, s)}
         request.app.state.runs.append(config)
         upstream = need_platform()
 
         def events():
+            turned = False
             try:
                 for event, data in upstream.stream(thread_id, config, payload):
-                    if event == "progress":
-                        yield _sse("progress", ProgressItem.model_validate(data).model_dump(mode="json"))
+                    if event == "progress" and (item := progress_event(data)):
+                        yield item
                     elif event == "turn":       # only the customer projection leaves the api (D-013)
-                        yield _sse("turn", turn_of(data).for_customer().model_dump(mode="json"))
-            except (PlatformError, ValueError):
-                yield _sse("error", {"code": "UNAVAILABLE", "message": "The agent is not available"})
+                        turn = turn_of(data)
+                        log_usage(turn, s)
+                        turned = True
+                        yield _sse("turn", turn.for_customer().model_dump(mode="json"))
+            except (PlatformError, ValueError) as error:
+                log.error("platform stream failed trace_id=%s error=%s", trace_id, error)
+                turned = None
+            finally:
+                if not turned:              # the run may have billed calls anyway: log them from the thread's state
+                    reconcile(thread_id, s)
+            if not turned:                  # failed, dropped mid-run or ended with no turn
+                if turned is not None:
+                    log.error("platform run ended without a turn trace_id=%s", trace_id)
+                yield unavailable_turn(s, trace_id)
 
         return StreamingResponse(events(), media_type="text/event-stream")
 
@@ -397,6 +532,53 @@ def create_live_app(store: Store, *, catalog: Optional[Catalog] = None, verifier
                  "masked_address": n.masked_address, "text": n.text, "delivery_status": n.delivery_status,
                  "created_at": n.created_at}
                 for n in store.list_notifications(s["customer_id"], run_id=s["run_id"])]
+
+    @app.get("/api/sessions/{session_id}/recent-transactions", response_model=list[RecentTransactionOut])
+    def recent_transactions(session_id: str, limit: int = Query(10, ge=1, le=20), s: dict = Depends(session)):
+        """D-068: the session's own customer's latest card transactions up to its `today`, for the visitor to pick;
+        only the session in the cookie, and no score or label (D-013, constitution #7)."""
+        if session_id != s["session_id"]:
+            raise ApiError(404, "NOT_FOUND", "Unknown session")
+        last4 = {p["product_id"]: p["last4"] for p in catalog.products(s["customer_id"])}
+        rows = [*run_charges(s["customer_id"], s["run_id"], s["mode"]),        # dated today: the newest
+                *catalog.recent_transactions(s["customer_id"], today(s["mode"], s["country"]), limit)][:limit]
+        return [{**{k: v for k, v in t.items() if k != "product_id"}, "last4": last4.get(t["product_id"])}
+                for t in rows]
+
+    @app.post("/api/sessions/{session_id}/synthetic-charge", status_code=201, response_model=SyntheticChargeOut)
+    def synthetic_charge(session_id: str, body: SyntheticChargeIn, s: dict = Depends(session)):
+        """Demo type C (AC-19): one synthetic charge [simulated] for a live demo session's own run, dated today in its
+        currency, with the fixed synthetic score (D-027); never gold, replay or production, never a visitor's score."""
+        if session_id != s["session_id"]:
+            raise ApiError(404, "NOT_FOUND", "Unknown session")
+        if s["mode"] != "live" or not is_demo_run(s["run_id"]):
+            raise ApiError(403, "DENY", "Synthetic charges exist only in a live demo session")
+        gate = policies.amount_gate.by_country.get(s["country"])
+        if gate is None:                                       # PE, CL: no amount gate, no currency for a demo charge
+            raise ApiError(422, "INVALID", "Test charges are not supported in this country's demo")
+        try:
+            merchant, amount = demo.clean_merchant(body.merchant), demo.charge_amount(body.amount, gate.high)
+        except ValueError as error:
+            raise ApiError(422, "INVALID", str(error)) from None
+        # the card the run may still charge: its overlay status (a block this run made), else gold's
+        cards = [c for c in catalog.products(s["customer_id"]) if (getattr(
+            store.product_status(c["product_id"], run_id=s["run_id"]), "status", None) or c["status"]) == "Active"]
+        if not cards:
+            raise ApiError(409, "INVALID", "No active card in this demo session")
+        now, card = app.state.now(), cards[0]
+        with store.serialize(f"synthetic-charge:{s['run_id']}"):    # the count and the insert, one at a time
+            last, mine = app.state.charges.get(s["session_id"]), store.demo_transactions(s["customer_id"],
+                                                                                          run_id=s["run_id"])
+            if (last and now - last < demo.CHARGE_EVERY) or len(mine) >= demo.CHARGES_PER_SESSION:
+                raise ApiError(429, "DENY", "One synthetic charge per minute, three per session")
+            row = store.add_demo_transaction(demo.synthetic_charge(
+                customer_id=s["customer_id"], run_id=s["run_id"], card=card, amount=amount, currency=gate.currency,
+                usd_rate=gate.usd_rate, merchant=merchant, generated_at=now,
+                local_now=now.astimezone(ZoneInfo(TIME_ZONES.get(s["country"], "UTC"))),
+                taken=lambda i: catalog.transaction(i) is not None or any(r.transaction_id == i for r in mine)))
+            app.state.charges = {k: v for k, v in app.state.charges.items() if now - v < demo.CHARGE_EVERY}
+            app.state.charges[s["session_id"]] = now
+        return {**{k: v for k, v in demo.charge_view(row).items() if k != "product_id"}, "last4": card["last4"]}
 
     @app.get("/api/me/products", response_model=list[ProductView])
     def products(s: dict = Depends(session)):
@@ -476,7 +658,7 @@ def create_live_app(store: Store, *, catalog: Optional[Catalog] = None, verifier
                       if c.related_case_id == record.case_id and store.queue_status(c.case_id) != "closed"), None)
         if again is not None:                                     # a double click returns the case already opened
             return {"event_id": store.events(again.case_id)[0].event_id, "case_id": again.case_id}
-        txn = catalog.transaction(record.transaction_id)
+        txn = charge_of(record)
         if txn is None:
             raise ApiError(503, "UNAVAILABLE", "Transaction data unavailable")
         # A closed case is not reopened by the customer: a related case is opened (§6.3) with the deadlines of the new
@@ -494,15 +676,25 @@ def create_live_app(store: Store, *, catalog: Optional[Catalog] = None, verifier
             raise ApiError(409, "DENY", str(error)) from None
         return {"event_id": store.events(fresh.case_id)[0].event_id, "case_id": fresh.case_id}
 
+    def no_demo_channel(record: CaseRecord, s: dict) -> None:
+        """ADR 0026: a demo customer is shared by every visitor, so a demo run links no Telegram chat or inbox."""
+        if is_demo_run(record.run_id):
+            store.add_denial(trace_id=_trace(), session_id=s["session_id"], actor="customer",
+                             policy_id="POL-DEFAULT-DENY", run_id=s["run_id"], detail={"case_id": record.case_id})
+            raise ApiError(403, "DENY", "Telegram and e-mail are off in the demo; this page shows every update",
+                           "POL-DEFAULT-DENY")
+
     @app.post("/api/cases/{case_id}/channels/telegram", status_code=201, response_model=TelegramOut)
-    def telegram(record: CaseRecord = Depends(own_case)):
+    def telegram(record: CaseRecord = Depends(own_case), s: dict = Depends(session)):
+        no_demo_channel(record, s)
         expires = app.state.now() + TELEGRAM_TTL
         bot = os.getenv("TELEGRAM_BOT_NAME", "nick_of_time_bot")
         return {"deep_link": f"https://t.me/{bot}?start={tokens.make('tg', record.case_id, expires)}",
                 "expires_at": expires}
 
     @app.post("/api/cases/{case_id}/channels/email", status_code=202, response_model=EmailOut)
-    def email(body: EmailIn, record: CaseRecord = Depends(own_case)):
+    def email(body: EmailIn, record: CaseRecord = Depends(own_case), s: dict = Depends(session)):
+        no_demo_channel(record, s)
         address = body.email.strip()
         if not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", address):
             raise ApiError(400, "INVALID", "Not an e-mail address")
@@ -572,7 +764,7 @@ def create_live_app(store: Store, *, catalog: Optional[Catalog] = None, verifier
     @app.get("/api/console/cases", response_model=list[CaseSummary])
     def console_cases(status: Optional[str] = None, zone: Optional[str] = None, country: Optional[str] = None,
                       _: str = Depends(analyst)):
-        rows = [summary(r) for r in store.list_all_cases(run_id=None)]
+        rows = [summary(r) for r in store.list_all_cases(run_id=None, demo_runs=True)]
         rows = [r for r in rows if status in (None, r.queue_status) and zone in (None, r.zone)
                 and country in (None, r.country)]
         far = dt.datetime.max.replace(tzinfo=dt.timezone.utc)                  # §6.2: SLA due first, then zone
@@ -580,7 +772,7 @@ def create_live_app(store: Store, *, catalog: Optional[Catalog] = None, verifier
 
     @app.get("/api/console/cases/{case_id}", response_model=ConsoleCaseOut)
     def console_case(case_id: str, _: str = Depends(analyst)):
-        record = store.get_case(case_id, run_id=None, customer_id=None)
+        record = store.get_case(case_id, run_id=None, customer_id=None, demo_runs=True)
         if record is None:
             raise ApiError(404, "NOT_FOUND", "Case not found")
         events = store.events(case_id)
@@ -591,7 +783,7 @@ def create_live_app(store: Store, *, catalog: Optional[Catalog] = None, verifier
 
     @app.post("/api/cases/{case_id}/action", response_model=AnalystActionOut)
     def analyst_action(case_id: str, body: AnalystActionIn, sub: str = Depends(analyst)):
-        record = store.get_case(case_id, run_id=None, customer_id=None)
+        record = store.get_case(case_id, run_id=None, customer_id=None, demo_runs=True)
         if record is None:
             raise ApiError(404, "NOT_FOUND", "Case not found")
         if body.case_id != case_id:

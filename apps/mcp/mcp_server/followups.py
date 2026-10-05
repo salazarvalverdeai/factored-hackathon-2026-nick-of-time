@@ -18,7 +18,7 @@ from pydantic import BaseModel
 from contracts import tools as t
 from mcp_server.cards import cards_of
 from mcp_server.gate import ACTOR, Call, Handler
-from mcp_server.gold import Gold
+from mcp_server.gold import Gold, Synthetic, find, synthetic_from
 from mcp_server.reads import COUNTRY
 from nick_of_time import ids
 from nick_of_time.nlu.text import fold
@@ -106,12 +106,12 @@ def gold_country(gold: Gold) -> Callable[[str], Optional[str]]:
     return country_of
 
 
-def gold_deadline(gold: Gold, policies: Policies,
-                  transaction_country: Optional[TransactionCountry]) -> Callable[[CaseRecord, dt.date], Optional[Deadline]]:
-    """A related case's deadline from the new notice over its gold charge, `abroad` as open_case derives it. A charge
-    not in gold gets none."""
+def gold_deadline(gold: Gold, policies: Policies, transaction_country: Optional[TransactionCountry],
+                  synthetic: Optional[Synthetic] = None) -> Callable[[CaseRecord, dt.date], Optional[Deadline]]:
+    """A related case's deadline from the new notice over its gold charge, or its live demo run's synthetic charge
+    (spec 03 AC-14: the case carries its mode, run and customer), `abroad` as open_case derives it; else none."""
     def deadline_of(case: CaseRecord, on: dt.date) -> Optional[Deadline]:
-        trx = gold.transaction(case.customer_id, case.transaction_id)
+        trx = find(gold, synthetic, case, case.transaction_id)
         if trx is None:
             return None
         where = transaction_country(case.customer_id, case.transaction_id) if transaction_country else None
@@ -134,7 +134,8 @@ def followups_handlers(store: Store, policies: Policies, gold: Optional[Gold] = 
     reevaluation_allowed = reevaluation_allowed or policy_window(policies)
     if gold is not None:
         country_of = country_of or gold_country(gold)
-        deadline_of = deadline_of or gold_deadline(gold, policies, transaction_country or cards_of(gold).transaction_country)
+        deadline_of = deadline_of or gold_deadline(gold, policies, transaction_country or cards_of(gold).transaction_country,
+                                                  synthetic_from(store))
     contact = policies.contact.callback_within_business_days if policies.contact else None
 
     def owned(call: Call, case_id: str) -> CaseRecord:

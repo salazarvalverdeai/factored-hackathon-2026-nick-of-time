@@ -16,10 +16,13 @@ harness of spec 10 when it scores.
 | `cases/dev.jsonl` | the 20 dev agent cases, built by `derive_expected.py`; do not edit by hand | 09 §7.4 |
 | `cases/plan/heldout.jsonl`, `cases/heldout.jsonl` | the same for the 80 held-out cases | 09 §7.4 |
 | `heldout.sha256` | sha256 of `cases/heldout.jsonl` | 09 §7.7 |
+| `second_label.py`, `labeling/` | blind second-labeling sheet of the dev cases and the agreement with the first labels | 09 AC-06 |
 | `derive_expected.py` | builds a case file from its plan; `expected` comes from the policy engine | 09 §7.5 |
 | `eval_case.schema.json`, `examples.jsonl` | shape of an agent case, with five examples | 01 |
 | `PROTOCOL.md` | pre-registered evaluation rules; unsealed until M02 | 11, 15, 17 |
 | `bench/` | model benchmark | 15 |
+| `harness/` | the evaluation harness (`make eval`) | 10 |
+| `local/` | the real stack for `make eval` on one machine (`make eval-local`): api with the eval hooks, MCP server, graph | 10 T6 |
 | `classifier/generate.py`, `classifier/draft/` | classifier sentence drafts from three model families and their run record | 09 §7.6 |
 | `classifier/review.py` | review sheets of the drafts and promotion to `classifier/{train,validation,test}.jsonl` | 09 §7.6 |
 
@@ -121,6 +124,68 @@ With 80 cases the intervals per cell are wide: results show n and do not over-cl
 The hash becomes binding at M02, when `eval/PROTOCOL.md` is sealed; after that the file never changes and new data
 is a new sealed set (ADR 0021). **Do not use the held-out to tune prompts, rules or thresholds: use the dev set.**
 
+## Local real stack (spec 10 T6)
+`make eval-stub` scores the api stub's fixture; `make eval-local` stands up the real system, so `make eval` scores what
+the real `dispute_intake` graph does. Two shells, from the repo root:
+
+```bash
+make gold-pull                 # once: data/gold (or GOLD_PATH=/path/to/gold on both commands)
+make eval-local                # shell 1: api :8000 + MCP :8001 + langgraph dev :2024; Ctrl-C stops all three
+make eval                      # shell 2: dev set, S0 and S1, 4 runs -> eval/.runs/<utc time>-dev/
+make eval EVAL_ARMS=S0 EVAL_RUNS=1      # a quick pass with no model call
+```
+
+- **What runs.** One process (`python -m eval.local`) serves the store-backed api of spec 05 (`app.live`) and the MCP
+  server the deploy runs (`mcp_server.__main__.build`, a fresh 48-hex key per start), both over one in-memory store, and
+  starts `langgraph dev` on `langgraph.json`. The api reaches the graph through its own Platform client and the graph
+  reaches the MCP server through `MCP_URL`, as on Platform. `make eval-local` installs `langgraph-cli[inmem]` into the
+  venv on first use (local only; CI never needs it).
+- **Why not Platform.** The deployment's graph calls the production MCP server, which writes the production database;
+  it cannot reach a local MCP server or a seeded local session, so evaluation runs never use it.
+- **Evaluation hooks.** The live api has no `/api/eval/*` routes (spec 05 §8); `eval/local/hooks.py` adds them to the
+  local app only, so no deployed image carries them. The seed writes a `replay` session (`verified`, `expired` or
+  `none`), the case's language and `tool_faults`, and a returning customer's case with clock deadlines, under a store
+  run id unique per seed, so a second `make eval` against the same process starts from gold again. Fixtures must be gold
+  rows: overlays (held-out `late_arrival`) are refused, not invented.
+- **Final state.** Read from the turns the api received from the graph (decision, zone, intent, receipt, handoff card,
+  guardrails, actions, usage, latency) and from fresh store and gold reads of the run (case, queue status, card
+  status, notifications, call requests, denials). `handoff_emitted` is a handoff card in any turn or a call to a person
+  registered in the run (spec 09 §7.5). `other_customer_data_exposed` is any transaction, card or case id in what the
+  customer received that is not theirs in the run. `status_replies` stays empty until the graph states them (spec 04
+  T5), so `coherence_rate` has no denominator yet. A turn that ended without a graph turn makes the run `failed`.
+- **Safety.** Loopback only; no `.env` is read and `DATABASE_URL` is dropped (the in-memory store only); no Telegram or
+  e-mail is sent; replay "today" is 2026-06-01 (ADR 0020). The harness refuses the production host. S0 calls no model;
+  S1 calls Bedrock Haiku 4.5 with `AWS_PROFILE` (default `nickoftime`, us-east-2), at most one `understand` call per
+  turn and 0.02 USD per conversation (G-OPS-01). `EVAL_PROVIDER=fake make eval-local` keeps S1 off Bedrock (it then
+  runs as S0).
+- **Cost.** A dev pass of S1 (20 cases, 4 runs, 84 turns) projects to at most 0.38 USD `[assumption]`: 84 turns × one
+  call of ≤ 1,500 input and ≤ 512 output tokens at the Haiku 4.5 price of `bench/prices.yaml` (1.10 / 5.50 USD per 1M);
+  the 2026-10-05 run spent 0.037 USD on 20 calls `[simulated]`.
+
+## Second labeling (AC-06)
+A second person labels the 20 **dev** cases blind, and the agreement with the first labeler (`vldiego`) is reported
+here. The sample is the whole dev set and never the held-out: the second labeler (the lead, @salazarvalverdeai,
+AI-assisted) develops the agent and the classifier, so they must not read held-out cases before the seal (ADR 0007).
+`eval/second_label.py` never opens `cases/heldout.jsonl`.
+
+```bash
+python -m eval.second_label export       # writes eval/labeling/dev_second_label.csv; refuses to overwrite without --force
+# fill intent, decision, handoff, case_open, labeler (and note) in the CSV, one row per case, without opening cases/
+python -m eval.second_label agreement    # writes eval/labeling/agreement.json and prints a Markdown table
+```
+
+- **Blind:** the sheet has the messages and the state (country, segment, session, candidate transactions with the
+  bank's `fraud_score`, any existing case, tool faults), and no `expected`, no first-labeler intent and no case `type`
+  (it nearly gives away the decision). `labeler` is the GitHub handle of the second labeler (`salazarvalverdeai`).
+  `agreement.json` lists the `type` of each disagreeing case for analysis.
+- **Vocabulary:** `intent` is one of the five intents of spec 11 or `none` when the case is refused before an intent
+  matters; `decision` is one of the nine decisions of spec 09 §7.5; `handoff` and `case_open` are `yes` or `no`.
+- **Agreement:** per field, n, agreements, percent agreement, Cohen's kappa and the disagreeing case ids, against
+  `cases/plan/dev.jsonl` (intent) and `cases/dev.jsonl` `expected` (decision, handoff, case open). If both raters use
+  a single category for every case, kappa is 0/0 and is defined as 1.0. Disagreements are discussed and the cases
+  fixed in the plan, never in `expected` by hand.
+- **Result:** pending; paste the table printed by `agreement` here.
+
 ## Classifier set (`classifier/`)
 The ES/PT sentences of spec 11, with five intents, slots and injection rows (spec 09 §7.6). They are written by three
 model families, one per split and none of them Claude, so the author split tests writers the classifier never saw
@@ -143,6 +208,17 @@ model families, one per split and none of them Claude, so the author split tests
    (`--dry-run` first). It refuses rows without a decision, a test sheet reviewed by the classifier developer and a set
    outside spec 11 AC-06, writes `classifier/{train,validation,test}.jsonl` and prints the manifest sha256 of
    `PROTOCOL.md` Seal (b). The hash is recorded at M02 by the lead; after the seal the split files never change.
+
+Review hints in `checks` are deterministic (no model call; `python -m eval.classifier.generate --recheck` refreshes
+them without touching any text), so they speed the review up without biasing the test split (ADR 0025). A hint is not
+a decision: the reviewer reads every line. Beyond the slot and card hints: `same_as_seed` (a paraphrase equal to its
+seed after folding case, accents and punctuation); `duplicate:<id>` (same folded text as an earlier row of the split,
+naming the first by id order); `near_duplicate:<id>:<score>` (character 3-gram Jaccard >= 0.9 with an earlier row of
+the split); `language_leak` (a curated ES-only word in a PT row or PT-only word in an ES row; lists in `generate.py`,
+precision over recall); `too_short` (under 4 words, injection rows excepted); `injection_without_marker` (an
+injection row with none of a small set of cues such as ignore/ignora, system prompt, otro cliente, actúa como, admin;
+it may have softened into a complaint); `cross_split_duplicate:<split>/<id>` (the same sentence in two splits, which
+would break the author split). Rows are never compared across splits for the other hints.
 
 Results of a candidate in the same family as a split's generator are flagged (spec 11 §8). Nothing under `draft/` is
 a split file: the manifest hashes top-level files only.

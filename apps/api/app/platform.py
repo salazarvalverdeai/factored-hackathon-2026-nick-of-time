@@ -5,6 +5,8 @@ sent only in the `x-api-key` header of the api's own requests. A thread belongs 
 metadata, written server-side when the thread is created; the run's `configurable` is built by the api (`live.py`),
 never taken from the request. `stream` yields `(event, data)` pairs already normalized: `progress` items and one final
 `turn` (the graph's last `values`), so the caller projects the turn for the customer before anything leaves the api.
+A run's `event: error` raises PlatformError, and the `values` LangGraph emits before the first node (the thread's
+previous turn) is never yielded as this run's turn: a final state with that same `trace_id` is stale (spec 05 AC-18).
 """
 from __future__ import annotations
 
@@ -68,6 +70,7 @@ class HttpPlatform:
         body = {"assistant_id": self.assistant_id, "input": payload.get("input") or {},
                 "config": {"configurable": configurable}, "stream_mode": ["custom", "values"]}
         last: Optional[dict[str, Any]] = None
+        before: Optional[dict[str, Any]] = None
         try:
             with self._client.stream("POST", f"/threads/{thread_id}/runs/stream", json=body) as response:
                 if response.status_code >= 400:
@@ -76,15 +79,18 @@ class HttpPlatform:
                 for line in response.iter_lines():
                     if line.startswith("event:"):
                         event = line[6:].strip()
+                    elif line.startswith("data:") and event == "error":
+                        raise PlatformError("platform run error")
                     elif line.startswith("data:") and event in ("custom", "values"):
                         data = json.loads(line[5:])
                         if event == "custom":
                             yield "progress", data
                         else:
+                            before = data if before is None else before
                             last = data
         except httpx.HTTPError as error:
             raise PlatformError(type(error).__name__) from None
-        if last is not None:
+        if last is not None and last is not before and last.get("trace_id") != before.get("trace_id"):
             yield "turn", last
 
     def state(self, thread_id: str) -> Optional[dict[str, Any]]:

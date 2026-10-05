@@ -26,6 +26,11 @@ currency, date, merchant) and whether the message is an **injection**. The inten
 | `human_request` | "quiero hablar con una persona" / "quero falar com um atendente" | request a call |
 | `out_of_scope` | anything else (loans, balance, small talk) | refuse with what it can do |
 
+**Other language (G-IN-03, `[assumption]`).** B0 sets `other_language` for a clear non-ES/PT sentence: at least 4 words, at
+least 3 English/French/German stopwords outnumbering the ES/PT words seen, and only when B0 reads `out_of_scope`. Loanwords,
+merchant names, numbers, short inputs and ES/PT code-switching never set it. The graph answers it by rule in a verified
+session, with no LLM (S1 is skipped) and no case (spec 04 `route`).
+
 `unrecognized_charge` and `wrongful_charge` come from the complaint categories of the dataset
 (`docs/eda/workflows/W3_disputes.md`) and `dispute_type` in `contracts/tools.py`. `status_inquiry` replaces the former
 `inquiry` so that a returning customer gets a fresh reading. `human_request` exists so that a customer who asks for a
@@ -149,6 +154,7 @@ is written once by the evaluation script (T6) from the frozen test split, never 
   "arms": [
     {"arm": "B1", "version": "…", "p50_ms": null, "p95_ms": null, "cost_per_1000_usd": null,
      "meets_floors": null, "mcnemar_p_vs_best": null, "human_request_answered_out_of_scope": null,
+     "same_family_as_generator": null,
      "by_language": {
        "es": {"macro_f1": null, "macro_f1_ci": [null, null],
               "per_class_f1": {"unrecognized_charge": null, "wrongful_charge": null, "status_inquiry": null,
@@ -168,7 +174,9 @@ is written once by the evaluation script (T6) from the frozen test split, never 
   target of 0.95 is `[assumption]`. `chosen_arm` is one of B0–B3 by the rule of §4.1.
 - `arms[]` (AC-02, AC-03): `arm` B0–B3; `p50_ms` and `p95_ms` in milliseconds per message; `cost_per_1000_usd` in USD
   per 1,000 messages; `meets_floors` bool; `mcnemar_p_vs_best` p-value of the paired test; `human_request_answered_out_of_scope`
-  integer count of person requests the arm answered `out_of_scope` (AC-10, must be 0).
+  integer count of person requests the arm answered `out_of_scope` (AC-10, must be 0); `same_family_as_generator` bool,
+  true when the arm's LLM is of the family that wrote the test split (DeepSeek V3.2), so its result is flagged (ADR
+  0025; false for B0 and B1).
 - `by_language` is keyed `es` and `pt`: `macro_f1` with its 95% bootstrap interval, `per_class_f1`, `dispute_recall`,
   `dispute_detected_recall` (recall of the `dispute_detected` flag, D-020 (d)), `human_request_recall`, `slot_accuracy`,
   `coverage_at_tau`, `precision_at_tau` as rate objects, and `ece` (0–1). All `[simulated]`.
@@ -254,6 +262,10 @@ Fine-tuning; embeddings + LR (P2); Jev (benchmarked in spec 15); the agent's use
   Task 11d (B0 injection, PT/ES): policy-override imperatives, "SISTEMA:" headers, "novas regras:", bank-staff
   role-play, admin modes and requests for the fraud score or internal rules are flagged (found by INT1 on EV-0115);
   ordinary complaints that mention policies or a job stay clean · AC-04
+  Task 11e (B0 amounts, dates, English): a day plus month name without "de" ("13 abril") is a date and never an amount
+  ("pesos 13 abril" no longer reads 13); an English person request ("can I talk to a person", "I want to speak to a
+  human") is `human_request`. [assumption] "1.250" reads as 1250 (3 digits after the separator are thousands) and
+  "1,25" as 1.25; B0 has no session country, so the MX ambiguity stays with `search_transaction` · AC-08, AC-09, AC-10
 - [ ] T3 — B1 training with calibration; τ on validation · AC-02, AC-07
 - [ ] T4 — B2 structured-output prompt (Haiku 4.5) · AC-02
 - [ ] T5 — injection detector, both arms · AC-04 (rules arm done in 11a, `nlu.injection`; LR arm and AC-04 numbers pending spec 09)

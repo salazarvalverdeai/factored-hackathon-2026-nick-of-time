@@ -1,0 +1,22 @@
+{
+  "generated_at": "2026-10-05T00:00:00Z",
+  "git_sha": "fixture",
+  "source": "test fixture [simulated] — spec 14 §7.4 shape, not a run of the ops job",
+  "data": {
+    "label": "[simulated]",
+    "mode": "replay",
+    "days": [
+      {
+        "day": "2026-06-01",
+        "cases": 3,
+        "receipt_rate": {"value": 0.3333333333333333, "numerator": 1, "denominator": 3},
+        "escalation_rate": {"value": 0.6666666666666666, "numerator": 2, "denominator": 3},
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0042,
+        "latency_p95_ms": 2000,
+        "denials": 1
+      }
+    ],
+    "feedback": {"decided": 2, "agreed": 1}
+  }
+}

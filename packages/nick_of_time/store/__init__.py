@@ -24,6 +24,7 @@ import json
 import re
 from collections.abc import Callable, Iterator
 from contextlib import AbstractContextManager
+from decimal import Decimal
 from typing import Any, Literal, Optional, Protocol, get_args, runtime_checkable
 
 import yaml
@@ -75,6 +76,18 @@ DeliveryStatus = Literal["queued", "sent", "delivered", "bounced", "failed"]
 # [assumption] D-035, pending the lead: a summary send is verified only while its latest delivery is not one of these.
 UNDELIVERED: frozenset[str] = frozenset({"bounced", "failed"})
 MAX_CASE_ID_ATTEMPTS = 8      # 10^6 case ids; at 1% occupancy, 8 straight conflicts happen once in 10^16 inserts
+
+
+DEMO_RUN_PREFIX = "demo-"            # a public demo session's run (ADR 0026): `demo-<UTC yyyymmddThhmmssZ>-<6 base32>`
+
+
+def is_demo_run(run_id: Optional[str]) -> bool:
+    """A public demo session's run: isolated like an eval run, and with no Telegram or e-mail channel (ADR 0026)."""
+    return (run_id or "").startswith(DEMO_RUN_PREFIX)
+
+
+def in_runs(case_run: Optional[str], run_id: Optional[str], demo_runs: bool) -> bool:
+    return case_run == run_id or (demo_runs and is_demo_run(case_run))
 
 
 class StoreError(Exception):
@@ -163,6 +176,30 @@ class Notification(_Row):
     provider_message_id: Optional[str] = None
     created_at: AwareDatetime
     delivery_status: DeliveryStatus = "queued"              # read from its latest notification_deliveries row
+
+
+class DemoTransaction(_Row):
+    """A `demo_transactions` row (spec 01 §6.5, spec 03 AC-14): one synthetic card charge a live demo visitor
+    registered [simulated]. It lives only in Postgres, scoped to its demo `run_id`, and never reaches gold, the
+    lakehouse, the evaluation or a pitch number (ADR 0020 rule 2); `fraud_score` is the synthetic score (D-027)."""
+    transaction_id: str = Field(pattern=ids.GOLD_PATTERN["transaction"])
+    transaction_date: dt.datetime                           # naive local time of the customer's country, as gold
+    process_date: dt.date
+    product_id: str = Field(pattern=ids.GOLD_PATTERN["product"])
+    product_type: Literal["Tarjeta Débito", "Tarjeta Crédito"]
+    customer_id: str = Field(pattern=ids.GOLD_PATTERN["customer"])
+    transaction_type: str = "Compra"
+    amount: float = Field(gt=0)
+    currency: str = Field(pattern=r"^[A-Z]{3}$")
+    amount_usd: Optional[float] = None
+    merchant_name: Optional[str] = Field(None, max_length=60)
+    transaction_country: Optional[str] = None
+    transaction_status: Literal["Approved", "Pending"] = "Approved"
+    fraud_score: Optional[float] = Field(None, ge=0, le=100)
+    synthetic: Literal[True] = True
+    scenario: str = Field(min_length=1)
+    run_id: str = Field(pattern=r"^demo-")                  # a demo session's run only (ADR 0026)
+    generated_at: AwareDatetime
 
 
 class CallRequest(_Row):
@@ -304,16 +341,18 @@ class Store(Protocol):
         set (a closed case of the same customer and run), `related_case_opened` on that case, all in one operation. A
         write has no V- id: only `record_verification` mints one (D-025). A used `action_id` is refused."""
 
-    def get_case(self, case_id: str, *, run_id: Optional[str], customer_id: Optional[str]) -> Optional[CaseRecord]:
+    def get_case(self, case_id: str, *, run_id: Optional[str], customer_id: Optional[str],
+                 demo_runs: bool = False) -> Optional[CaseRecord]:
         """The case if it belongs to `run_id` (None = production) and to `customer_id` (None = analyst console),
-        with the V- id of the latest `action_verified` of its `case_opened` action."""
+        with the V- id of the latest `action_verified` of its `case_opened` action. `demo_runs` (the analyst console
+        only, ADR 0026) also matches a case of any demo session run (`DEMO_RUN_PREFIX`)."""
 
     def list_cases(self, customer_id: str, *, run_id: Optional[str]) -> list[CaseRecord]:
         """The customer's cases in `run_id`: active (not closed) first, newest first within each group."""
 
-    def list_all_cases(self, *, run_id: Optional[str]) -> list[CaseRecord]:
-        """Spec 05: every customer's cases in `run_id`, in the order of `list_cases`. Only the analyst console calls it,
-        so a customer route can never widen its scope by passing no customer."""
+    def list_all_cases(self, *, run_id: Optional[str], demo_runs: bool = False) -> list[CaseRecord]:
+        """Spec 05: every customer's cases in `run_id` (and, with `demo_runs`, of every demo session run), in the order
+        of `list_cases`. Only the analyst console calls it, so a customer route can never widen its scope."""
 
     def append_event(self, case_id: str, type: EventType, *, actor: str, trace_id: str,
                      payload: Optional[dict[str, Any]] = None) -> CaseEvent:
@@ -393,6 +432,12 @@ class Store(Protocol):
     def call_requests(self, customer_id: str, *, run_id: Optional[str]) -> list[CallRequest]:
         """The customer's call requests with no case in `run_id`, oldest first."""
 
+    def add_demo_transaction(self, row: DemoTransaction) -> DemoTransaction:
+        """Insert one synthetic charge of a live demo run (spec 03 AC-14); a used `transaction_id` is refused."""
+
+    def demo_transactions(self, customer_id: str, *, run_id: str) -> list[DemoTransaction]:
+        """The customer's synthetic charges of that demo run only, oldest first; never another run's."""
+
     # ---------- sessions, policy denials and customer channels (task 01g, store/accounts.py) ----------
     def create_session(self, *, customer_id: Optional[str], otp_hash: str, expires_at: dt.datetime,
                        language: str, mode: Mode, verified_at: Optional[dt.datetime] = None,
@@ -445,6 +490,10 @@ class Store(Protocol):
     def list_llm_calls(self, *, run_id: Optional[str], trace_id: Optional[str] = None) -> list[LLMCall]:
         """The calls of `run_id` (None = production), only `trace_id`'s when given, oldest first (`created_at`, then
         `call_id`), so a run's tokens and cost sum alone."""
+
+    def llm_spend_since(self, since: dt.datetime) -> Decimal:
+        """The summed `cost_usd` of every `llm_calls` row of any run created at or after `since` (aware), 0 when none:
+        the day's LLM spend the G-OPS-01 daily cap reads (spec 04 §5)."""
 
     def add_channel_event(self, case_id: str, channel: LinkedChannel, address: str, event: ChannelEvent, *,
                           actor: str, trace_id: str) -> CustomerChannel:

@@ -2,7 +2,7 @@
 
 - **Feature:** the contract the three of us build against — folders, REST API, MCP tools, graph I/O, Postgres schema,
   customer receipt, evaluation hooks — plus stubs so nobody waits for anybody.
-- **Status:** Draft (contract 1.4.0, updated 2026-10-05: 16 customer tools, two time modes, action states, delivery
+- **Status:** Draft (contract 1.7.0, updated 2026-10-05: 16 customer tools, two time modes, action states, delivery
   status, the store's §6.5 rules, the lead's 2026-10-05 follow-ups)
 - **Owner:** @salazarvalverdeai · **Priority:** P0 · **Size:** M
 - **Challenge dimension:** AI Engineering, Technical Judgment
@@ -10,7 +10,7 @@
   0020
 - **Issue:** #3 · **Approval:** all three (@salazarvalverdeai, @gianzk, @vldiego)
 
-> Full profile: this spec *is* the contract. Contract version **1.4.0** (1.0.0 was the first review draft; 1.1.0 adds
+> Full profile: this spec *is* the contract. Contract version **1.7.0** (1.0.0 was the first review draft; 1.1.0 adds
 > the approved improvements #12–#16 before approval; 1.2.0 is additive: the handoff rules of §6.4, `GOLD_PATTERN`, the
 > `zone_medium` and `supervised_mode` handoff reasons; 1.3.0 is additive, from task 01c, §6.5: the `action_verified`
 > event type, `cases.opened_on` and the `on` business date of `status_changed` (D-023), an `action_id` on each customer
@@ -27,7 +27,16 @@
 > lands with PR #80; (5) the store's §6.5 additions of tasks 01g2 and 01g3 (PRs #87, #99): `idempotency` append-only
 > with `args_hash` (a key replayed with other arguments is refused), `row_no` and the latest-row rule (highest
 > `row_no`, never the latest `created_at`), `read` on `action_verified`, and the refusal of NUL and lone surrogates; and
-> D-033's `score_source` and `score_version` in `handoff.schema.json`, already on main).
+> D-033's `score_source` and `score_version` in `handoff.schema.json`, already on main); 1.5.0 is additive, task DLANG:
+> `deadline_source_label` on `ComputeDeadlineOut` and on the case deadlines of `get_case` (`open_case` leaves it
+> null), the clock entry's `source_label` (`policies.yaml`) in the session's language, `es` by default, so the customer
+> reads the legal source in Spanish or Portuguese from a tool result; `deadline_source` keeps the analyst's name;
+> 1.6.0 is additive, D-068 (ADR 0026): the demo fields of `POST /api/sessions` (`display_name`,
+> `language`, `country`, `scenario`), `GET /api/demo/scenarios` and `GET /api/sessions/{id}/recent-transactions`
+> (§6.2), `sessions.display_name` and the `demo-…` `run_id` of every public session (§6.5), and demo runs with no
+> Telegram or e-mail channel (§6.8); 1.7.0 is additive, demo type C (DEMOCD, ADR 0026): `POST
+> /api/sessions/{id}/synthetic-charge` and `synthetic` on the recent transactions (§6.2), and `demo_transactions.run_id`
+> and `product_type` (§6.5): a live demo run's synthetic charges belong to that run only.
 > Any change after approval is a PR that all three approve and that bumps the version (minor = additive, major =
 > breaking).
 
@@ -131,7 +140,10 @@ OpenAPI is generated from the code at `/api/docs` (schema at `/api/openapi.json`
 |---|---|---|---|---|
 | GET | `/api/health` | — | `{status, version, contract_version, git_sha, gold_version, policies_version, platform_revision, models: {graph, fast}, prompt_hash, classifier_version, today: {replay, live}}` | 200 |
 | GET | `/api/demo/customers` | — | `[{customer_id, display_name, country, segment, scenario, language}]` (6 demo customers, spec 09) | 200 |
-| POST | `/api/sessions` | `{customer_id, mode: "replay"\|"live"}` (default `live`) | `{session_id, mode, today, otp_demo, expires_at}` — the OTP is shown on screen (mock, ADR 0017) | 201 / 404 |
+| GET | `/api/demo/scenarios` | `?country=MX\|CO\|AR&language=es\|pt` | `[{scenario_id, title, country, language, segment, customer_name, cases, tags}]` — one per demo customer gold serves, tagged with its spec 09 dev/sample case ids (never held-out); no `customer_id`, score or zone (1.6.0, live app) | 200 |
+| POST | `/api/sessions` | `{display_name?, language: "es"\|"pt", country?, scenario?: <scenario_id>\|"auto", mode?}`; the original `{customer_id, mode}` still works (1.6.0) | `{session_id, mode, today, otp_demo, expires_at}` — the OTP is shown on screen (mock, ADR 0017); the server chooses the customer from the scenario and every session gets a fresh `demo-…` `run_id` (ADR 0026) | 201 / 400 / 404 / 422 |
+| GET | `/api/sessions/{session_id}/recent-transactions` | `?limit=1..20` (default 10) | `[{transaction_id, date, amount, currency, merchant, last4, synthetic}]` — the cookie session's own latest card transactions up to its `today`, its run's synthetic charges first (`synthetic: true`, 1.7.0), no score (1.6.0, live app) | 200 / 401 / 404 |
+| POST | `/api/sessions/{session_id}/synthetic-charge` | `{amount, merchant}` (amount in the currency of the customer's country) | `{transaction_id, date, amount, currency, merchant, last4, synthetic: true, label: "[simulated]"}` — one synthetic charge for a live demo session's own run, dated today, with the fixed synthetic score (never shown, never the visitor's); replay or production → 403, no `Active` card left in the run → 409, one per minute and three per session → 429 (1.7.0, live app) | 201 / 401 / 403 / 404 / 409 / 422 / 429 |
 | POST | `/api/sessions/{session_id}/verify` | `{otp}` | `{verified, expires_at}` + sets `not_session` cookie | 200 / 401 / 404 / 410 |
 | * | `/api/agent/...` | LangGraph Server protocol subset: `POST threads`, `POST threads/{id}/runs/stream`, `GET threads/{id}/state` | proxied to Platform; `configurable.session_id` injected from the cookie; any client `session_id`/`customer_id` is dropped (AC-06); the stream carries SSE events `progress` (`ProgressItem`), `turn` (`CustomerTurn`) and `error` (the standard error shape), and `threads/{id}/state` returns the last `CustomerTurn`, never the raw thread state (D-013). A thread belongs to the session that created it: an unknown or foreign thread is 404. `[assumption]` (pending the lead) the two POST routes answer 401 `UNAUTHENTICATED` only for a missing or unknown cookie; a known session in any state is forwarded with `configurable.session_state` = `verified\|expired\|unverified` and the graph decides `reauthenticate` (spec 02 AC-07), whose turn carries no case, receipt or action claim, only the session line and the chips per spec 04 §4.5 (G-SES-01). `GET threads/{id}/state` is not forwarded: an expired session gets 401 `SESSION_EXPIRED` and an unverified one 401 `UNAUTHENTICATED`, with no turn | 200 / 401 / 404 |
 | GET | `/api/notifications` | — | `[{notification_id, case_id, event, channel, masked_address, text, delivery_status, created_at}]` for the session's customer ("My notifications"); `delivery_status` = `queued\|sent\|delivered\|bounced\|failed` | 200 / 401 |
@@ -184,12 +196,12 @@ shape of `data` is fixed in the producing spec.
 | `get_customer_profile` | R | First name, language, country, display currency, confirmed channels | — | — |
 | `search_transaction` | R | Find the disputed charge (gold; plus `demo_transactions` in `live`) | — | — |
 | `get_fraud_score` | R | The bank's score with its source and version | — | — |
-| `compute_deadline` | R | Legal deadline for a new case, with `source_url` and `verified_on` | — | — |
+| `compute_deadline` | R | Legal deadline for a new case, with `source_url`, `verified_on` and `deadline_source_label` in the session's language (1.5.0) | — | — |
 | `open_case` | W | Open the case; no duplicate active case; closed case → new case with `related_case_id` | `cases`, `case_events` (`case_opened`) | `get_case` |
 | `block_card` | W | Block the card | `product_overrides`, `case_events` (`card_blocked`) | `get_product_status` |
 | `get_product_status` | R | One card: type, last 4, status, `read_at`; `action_id` + `verification_id` only when called with a write's `action_id` (D-025) | — | — |
 | `list_my_cards` | R | The customer's cards with status; never a `V-` (plain reads); the listing's own `read_at`, set even with no cards (1.4.0) | — | — |
-| `get_case` | R | Customer view of a case: status label, stored deadlines with source and `deadline_verified_on`, visible timeline, `taken_by_person`, `related_case_id`, `read_at` (replaces `get_case_status`) | — | — |
+| `get_case` | R | Customer view of a case: status label, stored deadlines with source, `deadline_source_label` in the session's language (1.5.0) and `deadline_verified_on`, visible timeline, `taken_by_person`, `related_case_id`, `read_at` (replaces `get_case_status`) | — | — |
 | `list_my_cases` | R | The customer's cases | — | — |
 | `add_case_info` | W | Customer adds information to an active case | `case_events` (`customer_info_added`) | `get_case` |
 | `request_call` | W | Customer asks a person to call; with no `case_id` it is reported only as `requested`, since no read verifies it (D-026) | `case_events` (`call_requested`); with no case, a `call_requests` row (task 03d) | `get_case` |
@@ -208,7 +220,10 @@ shape of `data` is fixed in the producing spec.
   and return it with a `verification_id` only when its post-condition holds; a plain status read returns `read_at`
   only. `search_transaction` returns no `fraud_score` or `split`: the zone comes only
   from `get_fraud_score` (D-026 `[assumption]`). The fake server (`apps/mcp/mcp_server/fake.py`) answers each tool
-  with fixtures built from these models.
+  with fixtures built from these models. **Compatibility:** inputs forbid unknown fields (G-TOOL-01), while a
+  consumer of an output ignores a field it does not know (the published output schema stays closed), so an additive
+  minor version is backward compatible for consumers: the MCP server, deployed on merge, may run one minor version
+  ahead of the agent revision on Platform, deployed by hand, and a new output field never fails an older agent.
 
 - **Errors:** every tool returns `ToolError` (`DENY`, `NOT_FOUND`, `SESSION_EXPIRED`, `UNAVAILABLE`) instead of raising;
   a `DENY` is also written to `policy_denials` with its `policy_id`. A request for another customer's transaction,
@@ -234,7 +249,8 @@ shape of `data` is fixed in the producing spec.
   — `action` carries a button or chip press and skips the classifier (`confirm` takes `yes|no`, `choose_option` takes a
   transaction id or `none`). **Config** (injected by the api, never by the client):
   `configurable.session_id` (required), `configurable.session_state`, `configurable.mode`, `configurable.arm` and
-  `configurable.case_id` (optional, for a returning customer).
+  `configurable.case_id` (optional, for a returning customer); `configurable.llm_day_spent_usd` and
+  `configurable.llm_day_cap_usd` (optional: the day's `llm_calls` spend and the G-OPS-01 daily cap, spec 05 AC-18).
 - **Output state** (`TurnResult`, also the last item of a streamed run):
 
 ```json
@@ -296,9 +312,9 @@ actor CHECKs so no server locale changes it; their `(?p)` keeps a newline out of
 
 | Table | Columns (type) | Notes |
 |---|---|---|
-| `sessions` | `session_id` text PK · `customer_id` text null · `otp_hash` text · `verified_at` timestamptz null · `expires_at` timestamptz · `language` text · `mode` text (`replay\|live`) · `display_currency` text null · `tool_faults` text[] · `run_id` text null · `arm` text null · `created_at` | TTL 15 min; `mode` fixed at creation; `run_id`/`arm` set only by the eval seed |
+| `sessions` | `session_id` text PK · `customer_id` text null · `otp_hash` text · `verified_at` timestamptz null · `expires_at` timestamptz · `language` text · `mode` text (`replay\|live`) · `display_currency` text null · `tool_faults` text[] · `run_id` text null · `arm` text null · `display_name` text null · `created_at` | TTL 15 min; `mode` fixed at creation; `run_id` set by the eval seed or, as `demo-…`, by every public session (ADR 0026, 1.6.0); `arm` by the eval seed or `DEFAULT_ARM`; `display_name` is the name a demo visitor typed (1.6.0) |
 | `cases` **AO** | `case_id` text PK · `customer_id` · `transaction_id` · `product_id` · `country` · `product_type` · `zone` · `dispute_type` · `opened_on` date · `credit_deadline` date null · `ruling_deadline` date null · `deadline_source` text null · `deadline_source_url` text null · `deadline_verified_on` date null · `related_case_id` text null · `mode` text · `run_id` text null · `trace_id` · `created_at` | static facts only, insert-only (spec 03 AC-16; AO `[assumption]` D-023); `opened_on` is the business date of the notice (`clock.today(mode, country)`; the eval seed passes `initial_state.case.opened_on`) and `created_at` the audit time in every mode `[assumption]` (D-023); `deadline_verified_on` `[assumption]` (D-014), null only when both dates are null, like `deadline_source` (never empty) and `deadline_source_url` (always `https://` and a host, no whitespace); `mode`, `zone`, `product_type` and `dispute_type` take only the store model's values; `case_id` from `ids.new_id("case")` has 10^6 values, so the insert retries on a PK conflict (T9, §10) |
-| `demo_transactions` | same columns as gold `transactions`, `transaction_id` PK · `synthetic` bool (always true) · `scenario` text · `generated_at` | `live` mode only; deleted and regenerated by "Reset demo"; never copied to gold, lakehouse or eval. `transaction_id` follows `ids.GOLD_PATTERN["transaction"]` and is drawn again if it clashes with gold; rows are told apart by `synthetic`, not by an id prefix (32 gold ids already start with `TRX-SYN` `[data]`) |
+| `demo_transactions` | same columns as gold `transactions`, `transaction_id` PK · `product_type` text null (the card type of `transactions_enriched`, 1.7.0) · `synthetic` bool (always true) · `scenario` text · `run_id` text null (1.7.0) · `generated_at` | `live` mode only; a visitor's charge carries its demo session's `run_id` and is read only by that run (spec 03 AC-14, migration 0003); deleted and regenerated by "Reset demo"; never copied to gold, lakehouse or eval. `transaction_id` follows `ids.GOLD_PATTERN["transaction"]` and is drawn again if it clashes with gold; rows are told apart by `synthetic`, not by an id prefix (32 gold ids already start with `TRX-SYN` `[data]`) |
 | `case_events` **AO** | `event_id` text PK · `case_id` FK · `seq` int · `type` text · `actor` text · `payload` jsonb · `customer_visible` bool · `trace_id` · `created_at` | unique (`case_id`, `seq`), `seq` ≥ 1; `actor` is `agent\|customer\|system\|analyst:<sub>` (sub not blank); `customer_visible` follows the ✓ list; `status_changed` needs `payload.to` (a status of `case_queue.transitions`); the five write types other than `notification_sent`, `action_verified` and `block_verified` need `payload.action_id`, every `payload.action_id` is an `A-` id and `action_verified` carries a `V-` `verification_id`; `analyst_action`, `assigned` and a `status_changed` to `resolved` or `closed` need an `analyst:` actor; `payload->>'action_id'` unique over the six write types (`case_opened`, `card_blocked`, `customer_info_added`, `call_requested`, `reevaluation_requested`, `notification_sent`), so one read never verifies two actions `[assumption]` (D-025) |
 | `product_overrides` **AO** | `override_id` PK · `product_id` · `status` · `case_id` · `actor` · `run_id` text null · `created_at` · `row_no` bigint identity | `status` is `Active\|Blocked\|Closed\|Suspended` and `actor` as in `case_events`; current status = latest row **for the same `run_id`**, else gold; `override_id` is the `action_id` of the write `[assumption]` (D-025) |
 | `notifications` **AO** | `notification_id` PK · `case_id` · `customer_id` · `event` · `channel` (`log\|telegram\|email`) · `masked_address` null · `text` · `trigger` (`auto\|on_request`) · `provider_message_id` null · `created_at` | |
@@ -377,7 +393,7 @@ and never the address (task 01g).
   "mode": "replay | live", "product_last4": "4417",
   "amount": {"original": {"amount": "1250.00", "currency": "USD"}, "display": {"amount": "22500", "currency": "MXN", "rate": "18.0", "rate_source": "…", "as_of": "YYYY-MM-DD"} },
   "actions": [{"label": "Tarjeta bloqueada", "action_id": "A-…", "state": "verified", "verification_id": "V-…", "verified_at": "ISO-8601"}],
-  "deadline": {"country": "MX", "product": "debit", "credit_deadline": "YYYY-MM-DD", "ruling_deadline": "YYYY-MM-DD", "deadline_source": "Banxico Circular 3/2012, as amended by Circular 14/2018", "source_url": "https://…", "verified_on": "YYYY-MM-DD"},
+  "deadline": {"country": "MX", "product": "debit", "credit_deadline": "YYYY-MM-DD", "ruling_deadline": "YYYY-MM-DD", "deadline_source": "Banxico, Circular 3/2012, arts. 19 Bis 3 y 19 Bis 4 (modificada por la Circular 14/2018)", "source_url": "https://…", "verified_on": "YYYY-MM-DD"},
   "what_ai_did": "string (template)", "what_a_person_does": "string (template)",
   "next_steps": ["string"], "case_url": "https://nickoftime.salazarvalverdeai.com/case/K-…"
 }
@@ -385,7 +401,8 @@ and never the address (task 01g).
 Required: `receipt_id, case_id, language, issued_at, verified_facts, actions, deadline, what_ai_did,
 what_a_person_does`. Never contains score, policy ids or transcript (`notifications.never_send`). `amount.display` is
 an approximation from `convert_amount` and is omitted when no verified rate exists (ADR 0019); `deadline` is null for a
-country without a verified clock entry (`POL-CLOCK-UNKNOWN`). Optional fields may be null or absent, except
+country without a verified clock entry (`POL-CLOCK-UNKNOWN`), and its `deadline_source` is the source in the receipt's
+language, `get_case`'s `deadline_source_label` (1.5.0), not the analyst's `source`. Optional fields may be null or absent, except
 `next_steps`, an array that is empty by default. Structural rules, in the schema and the model alike:
 - accepted ≠ verified: an action with `state: "verified"` carries a `V-` `verification_id` and `verified_at`;
 - a non-null `deadline` has at least one non-null date, an `https://` `source_url` and `verified_on`;
@@ -420,6 +437,14 @@ their case, `policy_denials`, `llm_calls`; D-023 `[assumption]`), and every read
 session's `run_id` (product status = latest override for the same `run_id`, else gold). Rows are never reset or
 deleted, so the append-only rule holds and each of the four runs starts from the same gold state. The harness uses
 `run_id = <case_id>:<arm>:<k>` (k = 1…4).
+
+**Public demo sessions (1.6.0, D-068, ADR 0026).** Every session the public `POST /api/sessions` opens gets its own
+`run_id = demo-<UTC yyyymmddThhmmssZ>-<6 base32>` and follows the same isolation, so two visitors of one demo
+customer never see each other's cases, blocks, notifications or idempotency keys. `customer_channels` is per customer,
+not per run, so a demo run has no external channel: the Telegram and e-mail link routes refuse a demo-run case,
+`get_customer_profile` lists no channel, `send_case_summary` answers `DENY`, and an analyst action on a demo-run case
+writes only the in-app notification. The analyst console lists and acts on demo-run cases (`demo_runs=True`), never
+on eval runs.
 
 **Arms (system configurations).** One deployment serves every arm: `seed` stores `arm` in the session and the api
 injects it as `configurable.arm`; the graph resolves it with `nick_of_time.config.resolve(arm)`.
@@ -530,7 +555,8 @@ Implementation goes in one `feat/01-*` branch per task (for example `feat/01-pac
       (concurrent writers and first reads, the unique-index backstop). Owners of the other §6.5 accessors: `sessions`
       (read), `policy_denials` (insert), `customer_channels` and `idempotency` → task 01g's second PR
       (`feat/01-store-accessors`); `llm_calls` → task 01h (`add_llm_call` and
-      `list_llm_calls(run_id, trace_id?)` on both backends, `store/accounts.py`, `tests/test_spec01_store_llm_calls.py`:
+      `list_llm_calls(run_id, trace_id?)` on both backends, plus `llm_spend_since(since)`, the summed `cost_usd` of
+      every run's rows created at or after `since`, which the api reads for the G-OPS-01 daily cap (spec 05 AC-18), `store/accounts.py`, `tests/test_spec01_store_llm_calls.py`:
       a store-made `LC-` id `[assumption]`, non-negative integer counts, a finite `cost_usd` in [0, 10^6] per call
       `[assumption]` with a scale Postgres `numeric` holds, kept as a decimal (`-0` stored as `0`), `run_id` required
       with no default so `None` (production) is passed on purpose (D-023), no update or delete, oldest first; the api
