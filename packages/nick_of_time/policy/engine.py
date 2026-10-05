@@ -8,7 +8,7 @@ from decimal import Decimal
 from pathlib import Path
 from typing import Literal, Optional, Union, get_args
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, StrictBool, field_validator, model_validator
 
 from nick_of_time.contracts import Decision, Intent, ProductType, QueueStatus, Zone
 from nick_of_time.policy.model import MODES, POLICIES_PATH, ApprovalMode, Policies, load_policies
@@ -24,6 +24,10 @@ EMITTED = {*ZONE_RULE.values(), "POL-SESSION", "POL-INJECTION", "POL-CROSS-CUSTO
            "POL-SCORE-SOURCE", "POL-TICKET-ALWAYS", "POL-AMOUNT-GATE", "POL-AMOUNT-UNKNOWN", "POL-SUPERVISED",
            "POL-DEFAULT-DENY"}
 REASONS = {"zone_human", "zone_medium", "supervised_mode", "amount_over_case_gate", "clarification_exhausted"}
+# D-029 (default, pending the lead): a call request that reports a high-zone charge still blocks, like a confirmed
+# dispute (None). To flip it to "open the case and call, no block", set here the handoff reason that case then carries
+# in review (it must be a handoff trigger, or the engine refuses to start) and update the 3a-charge-high rows.
+D029_CALL_WITHHOLDS_BLOCK_REASON: Optional[HandoffReason] = None
 
 
 class _Frozen(BaseModel):
@@ -33,14 +37,15 @@ class _Frozen(BaseModel):
 class DecisionInput(_Frozen):
     """One understood turn. No customer_id: it lives only in the session (constitution #3). The score and its source
     come only from get_fraud_score, never from the customer's text (FR-03). The four flags have no default: a caller
-    that forgets one gets an error, never "not flagged" (fail closed)."""
+    that forgets one gets an error, never "not flagged" (fail closed). Flags are strict bools: 0, 1, "off" or "true"
+    are input errors, as in check()."""
     session_state: str                                    # only "verified" passes rule 1
     intent: Intent
     intent_confidence: float = Field(ge=0, le=1)
-    dispute_detected: bool                                # the message also reports a charge (rule 3a, D-020)
-    injection_flagged: bool
-    cross_customer: bool
-    supervised_mode: bool
+    dispute_detected: StrictBool                          # the message also reports a charge (rules 3a, 3b, 4; D-020)
+    injection_flagged: StrictBool
+    cross_customer: StrictBool
+    supervised_mode: StrictBool
     candidates: int = Field(0, ge=0)
     clarification_turns: int = Field(0, ge=0)             # clarification questions already sent to the customer
     score: Optional[float] = Field(None, ge=0, le=100)
@@ -49,8 +54,8 @@ class DecisionInput(_Frozen):
     currency: Optional[str] = Field(None, pattern=r"^[A-Z]{3}$")
     country: Optional[str] = Field(None, pattern=r"^[A-Z]{2}$")
     product_type: Optional[str] = None                    # debit | credit, or the gold label; anything else is not a card
-    customer_confirmed: Optional[bool] = None             # medium zone; None = not asked yet; False = "not that charge"
-    active_case: Optional[bool] = None                    # the customer has an active case (rule 3b); None = not read
+    customer_confirmed: Optional[StrictBool] = None       # on the selected transaction (§6); None = not asked yet
+    active_case: Optional[StrictBool] = None              # the customer has an active case (rule 3b); None = not read
 
     @field_validator("product_type")
     @classmethod
@@ -97,6 +102,7 @@ class Deny(_Verdict):
 class PolicyEngine:
     def __init__(self, policies: Policies):
         missing = (EMITTED - set(policies.rules)) | (REASONS - set(policies.handoff.triggers))
+        missing |= {D029_CALL_WITHHOLDS_BLOCK_REASON} - {None, *policies.handoff.triggers}
         if missing:
             raise ValueError(f"policies.yaml lacks rule ids or handoff triggers the engine emits: {sorted(missing)}")
         self.policies, self.version = policies, policies.version
@@ -180,7 +186,8 @@ class PolicyEngine:
                 (inp.cross_customer, "deny", "POL-CROSS-CUSTOMER"),
                 (call and not carried, "connect_person", "POL-HUMAN-REQUEST"),
                 (inp.intent == "status_inquiry" and not carried, "answer_status", "POL-STATUS"),
-                (not call and ((inp.intent == "out_of_scope" and confident)       # D-024: below τ, rule 5 asks
+                (not call and ((inp.intent == "out_of_scope" and confident        # D-024: below τ, rule 5 asks
+                                and not inp.dispute_detected)                     # D-032: with a charge, rule 5 asks
                                or (inp.candidates == 1 and inp.product_type not in CARDS)),
                  "deny", "POL-OUT-OF-SCOPE")):
             if hit:                                       # rules 1–3 come before 3a/3b, so only rule 4 cites them
@@ -195,7 +202,8 @@ class PolicyEngine:
         if inp.intent == "human_request":
             return self._call_and_case(inp)
         carried = self._carried(inp)
-        if inp.intent_confidence < self.policies.clarify.intent_confidence_min or inp.candidates != 1:
+        if (inp.intent_confidence < self.policies.clarify.intent_confidence_min or inp.candidates != 1
+                or inp.intent == "out_of_scope"):         # D-032: an out_of_scope reading that reports a charge
             return self._clarify(inp, carried)
         zone, rules = self._zone(inp)
         modes, raised = self._modes(zone, inp)
@@ -208,9 +216,10 @@ class PolicyEngine:
 
     def _call_and_case(self, inp: DecisionInput) -> PolicyDecision:
         """Rule 3a with a charge (D-020, D-029): the call goes on the case opened for the one card transaction the
-        customer did not reject, and that case follows its zone, so the high zone still blocks; with no such
-        transaction, only the call, on the active case or a general one."""
-        if inp.candidates != 1 or inp.product_type not in CARDS or inp.customer_confirmed is False:
+        customer did not reject, and that case follows its zone, so the high zone still blocks. Below τ (D-031), or
+        with no such transaction, only the call, on the active case or a general one: nothing is opened or blocked."""
+        accepted = inp.intent_confidence >= self.policies.clarify.intent_confidence_min
+        if not accepted or inp.candidates != 1 or inp.product_type not in CARDS or inp.customer_confirmed is False:
             return self._result("connect_person", ["POL-HUMAN-REQUEST"], request_call="active_or_general")
         zone, rules = self._zone(inp)
         modes, raised = self._modes(zone, inp)
@@ -221,11 +230,15 @@ class PolicyEngine:
               held: Decision, **call) -> PolicyDecision:
         """Rules 7–9 once the case is opened (§4.2): the high zone blocks when no person must approve the block (case in
         verification); otherwise the decision `held` leaves the case in review with the reason a person looks at it."""
-        if zone == "high" and modes["block_card"] != "human_required":
+        blocks = zone == "high" and modes["block_card"] != "human_required"
+        withheld = D029_CALL_WITHHOLDS_BLOCK_REASON if held == "connect_person" else None   # D-029, see the constant
+        if blocks and withheld is None:
             return self._result("block_and_open_case", rules, zone=zone, approval_modes=modes,
                                 allowed_actions=["open_case", "block_card"],
                                 queue_status_after=self.policies.approval.manual_check_leaves_case_in, **call)
-        if zone == "high":                                # per_action makes the block manual_check: a raiser stopped it
+        if blocks:
+            reason = withheld
+        elif zone == "high":                              # per_action makes the block manual_check: a raiser stopped it
             over = self.amount_tier(inp.amount, inp.currency, inp.country) == "human_required"
             reason = "amount_over_case_gate" if over else "supervised_mode"
         else:

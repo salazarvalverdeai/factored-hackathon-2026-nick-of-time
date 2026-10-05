@@ -87,10 +87,10 @@ AC-01 to AC-06 come from issue #4 with the same numbers; AC-07 onward are added 
 | 1 | `POL-SESSION` | session expired or unverified | `reauthenticate` | G-SES-01 |
 | 2 | `POL-INJECTION` | input flagged by the injection detector (spec 11) | `deny` | G-IN-01, logged |
 | 3 | `POL-CROSS-CUSTOMER` | request targets another customer's data | `deny` | G-SES-02, logged |
-| 3a | `POL-HUMAN-REQUEST` | intent `human_request` | `connect_person` | `request_call` on the active case, or a general request; never refused (CFPB 2023). If the message also reports a charge (`dispute_detected`), 3a is not terminal (D-020): the call goes on the case opened for the one card transaction, and that case follows rules 6–9 like a confirmed dispute, so a person request adds a call and never removes protection (D-029, default pending the lead). High zone: `block_and_open_case`, case in `verification`; when the block needs a person (amount tier, supervised mode), `connect_person` with the case in `review` and that reason. Medium and human zones: `connect_person`, `open_case` only (never a block, no confirmation asked), case in `review` with `zone_medium` / `zone_human`. With no single card transaction, or one the customer rejected (`customer_confirmed` false), only the call (`active_or_general`) |
+| 3a | `POL-HUMAN-REQUEST` | intent `human_request` | `connect_person` | `request_call` on the active case, or a general request; never refused (CFPB 2023). If the message also reports a charge (`dispute_detected`), 3a is not terminal (D-020): the call goes on the case opened for the one card transaction, and that case follows rules 6–9 like a confirmed dispute, so a person request adds a call and never removes protection (D-029, default pending the lead; the engine keeps it in one constant, `D029_CALL_WITHHOLDS_BLOCK_REASON`, so "open the case and call, no block" is a one-line change plus these rows). τ gates this case-opening branch (D-031, default pending the lead): below τ only the call is registered (`active_or_general`), and nothing is opened or blocked (spec 04 AC-02). High zone: `block_and_open_case`, case in `verification`; when the block needs a person (amount tier, supervised mode), `connect_person` with the case in `review` and that reason. Medium and human zones: `connect_person`, `open_case` only (never a block, no confirmation asked), case in `review` with `zone_medium` / `zone_human`. With no single card transaction, or one the customer rejected (`customer_confirmed` false), only the call (`active_or_general`) |
 | 3b | `POL-STATUS` | intent `status_inquiry` | `answer_status` | read-only: the agent re-reads cards or cases (spec 04 AC-19); no case is opened. With `dispute_detected` and `active_case` false (the customer has no active case), 3b is not terminal: the turn goes on like a dispute (rules 4–9), citing `POL-STATUS` first (D-020). With an active case, or `active_case` not known (null), the status is answered |
-| 4 | `POL-OUT-OF-SCOPE` | intent `out_of_scope` with confidence ≥ τ (below τ, rule 5 asks; D-024), or the one identified transaction's product is not a card | `deny` (polite abstention) | G-IN-04. Never for `human_request`. `product_type` also takes the gold labels `Tarjeta Débito` / `Tarjeta Crédito`; one candidate without a product type is an input error |
-| 5 | `POL-CLARIFY` | confidence < τ, or candidates > 1 (≤ 3), or candidates = 0 | `ask` (≤ 2 turns) | then rule 5b |
+| 4 | `POL-OUT-OF-SCOPE` | intent `out_of_scope` with confidence ≥ τ and no reported charge (below τ, rule 5 asks; D-024), or the one identified transaction's product is not a card | `deny` (polite abstention) | G-IN-04. Never for `human_request`. With `dispute_detected` the intent branch is off and rule 5 asks: a message that reports a charge never gets an abstention for its label alone (D-032, the D-020 default pending the lead); the product branch still applies. `product_type` also takes the gold labels `Tarjeta Débito` / `Tarjeta Crédito`; one candidate without a product type is an input error |
+| 5 | `POL-CLARIFY` | confidence < τ, or candidates > 1 (≤ 3), or candidates = 0, or intent `out_of_scope` with a reported charge (D-032) | `ask` (≤ 2 turns) | then rule 5b |
 | 5b | `POL-CLARIFY-EXHAUSTED` | clarification turns already sent ≥ `clarify.max_clarification_turns` (2) | `handoff` (`clarification_exhausted`) + a general call request (`RequestCallIn.case_id = null`) so a person gets it (D-024) | |
 | 6 | `POL-SCORE-NULL` / `POL-SCORE-LLM` / `POL-SCORE-SOURCE` | score null, source `llm`, or a source not in `scoring.deciding_sources` (`dataset`, `rules`, `model`, `synthetic`) | zone `human` | case is still opened. A `synthetic` score (live mode) decides and is labeled `[simulated]` (§7, D-027) |
 | 7 | `POL-ZONE-HIGH` | score ≥ 50 | `block_and_open_case` | block mode from §4.2 |
@@ -106,7 +106,8 @@ rules 4 (intent branch) and 5; rules 3a and 3b match the intent label at any con
 the clarification questions already sent to the customer. `[assumption]` (7) A `clarification_exhausted` handoff opens
 no case (there is no single transaction) and registers a general call instead. (8) Rule 1 passes only when
 `session_state` is exactly `verified`. `injection_flagged`, `cross_customer`, `supervised_mode` and `dispute_detected`
-have no default: a caller that omits one gets an error (fail closed).
+have no default: a caller that omits one gets an error (fail closed). They and `customer_confirmed` / `active_case` are
+strict bools: `0`, `1`, `"off"` or `"true"` are input errors, as in `check()`.
 
 ### 4.2 Approval modes and what happens to the case
 | Zone | `block_card` mode (policies) | Effective mode = stricter of mode, amount tier, supervised | Case status after the turn |
@@ -204,6 +205,8 @@ decision: PolicyDecision = engine.decide(DecisionInput(
     customer_confirmed=None, supervised_mode=False,
     active_case=None,                                       # rule 3b: False = no active case; None = not read yet
 ))
+# customer_confirmed refers to the currently selected transaction: None = not asked, False = "not that charge".
+#   Spec 04 resets it to None whenever selected_transaction changes, so a stale rejection never reaches a new charge.
 # PolicyDecision: decision (contracts.Decision), zone, approval_modes {action: mode}, allowed_actions, handoff_reason,
 #           request_call, queue_status_after, rule_ids [..], guardrail_ids [..], policies_version
 # request_call: where to register the call request (RequestCallIn), or None for no call:

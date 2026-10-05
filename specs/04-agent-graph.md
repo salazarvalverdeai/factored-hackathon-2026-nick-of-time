@@ -38,7 +38,8 @@ AC-01 to AC-08 come from issue #6 with the same numbers; the rest are added by t
 - **AC-01** — When EV-0001 runs (MX, debit, high score, historical mode), the final state shall be: card Blocked and
   verified, case open, MX deadline visible, receipt with a date. · [T]
 - **AC-02** — When intent confidence is below τ, or there is more than one candidate transaction, the agent shall ask
-  with options and not act. · [T]
+  with options and not act; a call request below τ still registers the call and opens nothing (spec 02 rule 3a,
+  D-031). · [T]
 - **AC-03** — If the message carries an injection or asks for another customer's data, then the agent shall answer DENY
   with the guardrail id and report it for `policy_denials`. · [T]
 - **AC-04** — If `block_card` does not answer after the retries, then the agent shall escalate with "action NOT
@@ -57,7 +58,8 @@ AC-01 to AC-08 come from issue #6 with the same numbers; the rest are added by t
 
 **Zones and handoff**
 - **AC-11** — When the zone is medium, the agent shall show its plan and ask for confirmation; once confirmed, it shall
-  open the case and hand it off with the proposal `approve_block`. · [T]
+  open the case and hand it off with the proposal `approve_block`. Exception: a call request that reports a charge
+  opens the case without asking (never a block) and registers the call on it (spec 02 rule 3a, D-020). · [T]
 - **AC-12** — When the zone is human, the agent shall open the case and emit a handoff card that validates against
   `handoff.schema.json`, with `copilot_proposal.requires_human = true`. · [T]
 - **AC-13** — After 2 clarification turns without a single transaction, the agent shall hand off with reason
@@ -69,7 +71,8 @@ AC-01 to AC-08 come from issue #6 with the same numbers; the rest are added by t
 - **AC-15** — The first reply of a session shall greet the customer by first name from `get_customer_profile` (never from
   the text), say what the assistant can do in at most 3 bullets, and say that a person reviews cases that need it. · [T]
 - **AC-16** — Before acting, the agent shall state its plan as numbered steps; in the high zone it then executes, in the
-  medium zone it waits for confirmation. · [T]
+  medium zone it waits for confirmation, except for a call request that reports a charge, which opens the case at once
+  (AC-11; in the high zone it blocks as usual, D-029). · [T]
 - **AC-17** — While a run is in progress, the stream shall emit one customer-facing progress label per step (ES/PT, no
   internal terms). · [T]
 - **AC-18** — Every action shown to the customer shall carry one of four states — in progress, requested, verified (with
@@ -114,10 +117,11 @@ AC-01 to AC-08 come from issue #6 with the same numbers; the rest are added by t
 ### 4.1 State (typed)
 `messages`, `language`, `session_id`, `session_state`, `mode` (`replay`|`live`), `arm`, `profile` {first_name,
 display_currency, channels}, `case_id_in`, `intent`, `intent_confidence`, `slots` {amount, currency, date, merchant},
-`injection_flagged`, `candidates`, `selected_transaction`, `score`, `decision` (spec 02), `plan` [steps],
-`clarification_turns`, `customer_confirmed`, `actions` [{tool, action_id, state, verification_id, read_at}], `case`,
-`receipt`, `handoff`, `reply`, `progress` [labels], `suggestions` [chips], `guardrails_triggered`, `denials`, `usage`,
-`trace`.
+`injection_flagged`, `cross_customer`, `dispute_detected`, `active_case`, `candidates`, `selected_transaction`,
+`score`, `decision` (spec 02), `plan` [steps], `clarification_turns`, `customer_confirmed` (about the selected
+transaction; reset to null whenever `selected_transaction` changes), `actions` [{tool, action_id, state,
+verification_id, read_at}], `case`, `receipt`, `handoff`, `reply`, `progress` [labels], `suggestions` [chips],
+`guardrails_triggered`, `denials`, `usage`, `trace`.
 
 ### 4.2 Nodes and edges
 ```
@@ -142,7 +146,7 @@ greet ─► understand ─► identity ─► route ─┬─► retrieve ─�
 | `act` | `open_case` (dedupe, related case), then `block_card` when allowed; idempotency key `session:transaction:action:run` | MCP |
 | `verify` | Post-conditions; 2 retries, 800 ms timeout; failure → `not_confirmed` + escalation | `get_product_status` · `get_case` |
 | `status` | Re-reads cards, cases or notifications and answers with the reading time | `list_my_cards` · `get_case` · `list_my_cases` · `list_my_notifications` |
-| `connect` | Registers a call request where spec 02 `request_call` says: `active_or_general` → on the active case, or a general one; `opened_case` → on the case `open_case` returned this turn and `verify` confirmed (the existing case when it returned `duplicate_of`), so the reply names that case; `general` → a general request with no case (rule 5b). It says the call request is registered and when to expect the call, using `expected_contact_by` from `request_call` (D-008); when it is `null`, the reply promises no time. Without a verified session, the bank's general contact path with no data | `request_call` · `messages.yaml connect.*` |
+| `connect` | Registers a call request where spec 02 `request_call` says: `active_or_general` → on the active case, or a general one; `opened_case` → on the case `open_case` returned this turn and `verify` confirmed (the existing case when it returned `duplicate_of`), so the reply names that case; if `open_case` or its verify fails, the call falls back to `active_or_general` and is still registered (AC-28: never refuse), while the case is reported as not confirmed (AC-18); `general` → a general request with no case (rule 5b). It says the call request is registered and when to expect the call, using `expected_contact_by` from `request_call` (D-008); when it is `null`, the reply promises no time. Without a verified session, the bank's general contact path with no data | `request_call` · `messages.yaml connect.*` |
 | `clarify` | Options (≤ 3 candidates) or a request for amount/date; counts turns | templates; LLM wording in S1/S2 |
 | `refuse` | DENY or re-authenticate with no data and a way forward | templates |
 | `respond` | Receipt and handoff from verified facts; reply from templates (S1/S2 may reword, then the grounding check runs); suggestion chips from §4.5 | `nick_of_time.receipt` · `send_case_summary` · `request_call` · `request_reevaluation` · `add_case_info` · `messages.yaml suggest.*` |
