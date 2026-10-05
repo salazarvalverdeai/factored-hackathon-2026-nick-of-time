@@ -169,8 +169,11 @@ and writes Postgres through `nick_of_time.store`: `sessions` (read), `demo_trans
   the case has a `call_requested` event **or** was opened with `handoff_reason` `person_requested`, and no
   `approve_block`, `resolve` or `close_case` on that case followed. The second condition covers spec 04's `connect`
   fallback: when `open_case` or its verify fails, the call is registered as a general request with no case, so a case
-  already written in `review` with `person_requested` may have no `call_requested` event, and it must stay held. So a
-  later plain-dispute turn about the same transaction is denied with `POL-HUMAN-REQUEST`. The hold is per case: a
+  already written in `review` with `person_requested` may have no `call_requested` event, and it must stay held.
+  `[assumption]` (pending lead decision D-055): 03c reads the opening reason from the `handoff_emitted` event of the
+  opening turn (a store event type already in spec 01 §6.5, not customer-visible), whose payload carries
+  `handoff_reason`; if that event is absent the hold is not open. No field is added to `OpenCaseIn` or any contract.
+  So a later plain-dispute turn about the same transaction is denied with `POL-HUMAN-REQUEST`. The hold is per case: a
   different charge opens a new case, which has no hold unless its own turn asked for a person. In the turn of the call
   request the order is spec 04's `act` → `verify` → `connect` (`open_case`, then `request_call` on that case); until
   that write, `decide()` leaving `block_card` out of `allowed_actions` is the guard.

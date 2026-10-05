@@ -151,8 +151,8 @@ Reads the sentence set of spec 09 (`eval/classifier/*.jsonl`). Writes `models/in
   - (b) `human_request` with `dispute_detected`: the dispute path with `open_case` only (POL-TICKET-ALWAYS, mode
     `auto`, no block in that turn; in the high zone too, D-029 and ADR 0024: the analyst decides the block after the
     call), then `request_call` on the case just opened, in spec 04's order (`act` → `verify` → `connect`). A person is
-    never blocked (AC-10): if `open_case` or its verify fails, the call is still registered on the active case or as a
-    general request (spec 04 AC-28). If the transaction is not identified in that turn, the call stays a general
+    never blocked (AC-10): if `open_case` or its verify fails, the call is still registered as a general request with
+    no case, never on another charge's active case (spec 04 `connect`, AC-28). If the transaction is not identified in that turn, the call stays a general
     request and the dispute continues on the next turn.
   - (c) Spec 02: the engine input (`DecisionInput`, spec 02 §6) gains `dispute_detected: bool`, and rule 3a
     (`POL-HUMAN-REQUEST`) stops being terminal when it is true, so rules 5–9 still run. Task 02a implements it.
