@@ -256,3 +256,61 @@ def test_ac_10_only_the_first_decisive_action_is_matched():
     # D-038: asking the customer is decisive only when it is the proposal; otherwise the later decision is matched
     assert lifecycle(["take", "request_customer_info", "approve_block"], "approve_block") == [None, None, True]
     assert lifecycle(["mark_ambiguous", "request_customer_info", "resolve"], "request_customer_info") == [None, True, None]
+
+
+def _stub_boto(monkeypatch):
+    import sys
+    import types
+    seen = {}
+    boto3 = types.SimpleNamespace(client=lambda svc, region_name=None, config=None: seen.update(cfg=config))
+    monkeypatch.setitem(sys.modules, "boto3", boto3)
+    return seen
+
+
+def test_ac_11_bedrock_defaults_unchanged_and_configured_timeout_reaches_botocore(monkeypatch):
+    from nick_of_time.llm.bedrock import BedrockClient
+    seen = _stub_boto(monkeypatch)
+    BedrockClient("m")
+    assert (seen["cfg"].read_timeout, seen["cfg"].retries["total_max_attempts"]) == (15, 2)
+    BedrockClient("m", read_timeout_s=7, max_attempts=1)
+    assert (seen["cfg"].read_timeout, seen["cfg"].retries["total_max_attempts"]) == (7, 1)
+
+
+def test_ac_11_anthropic_defaults_unchanged_and_configured_timeout_reaches_sdk(monkeypatch):
+    import anthropic
+    from nick_of_time.llm.anthropic import AnthropicClient
+    seen = {}
+    monkeypatch.setattr(anthropic, "Anthropic", lambda **k: seen.update(k))
+    AnthropicClient("m")
+    assert seen == {"timeout": 15.0, "max_retries": 1}
+    AnthropicClient("m", read_timeout_s=6, max_attempts=1)
+    assert seen == {"timeout": 6, "max_retries": 0}
+
+
+def test_ac_11_fake_ignores_timeouts_and_config_passes_them_through():
+    from nick_of_time.config import ArmConfig
+    from nick_of_time.llm import make_client
+    c = make_client(ArmConfig("S1", "fake", "m", read_timeout_s=3, max_attempts=1))
+    assert (c.read_timeout_s, c.max_attempts) == (3, 1)
+    assert make_client(ArmConfig("S1", "fake", "m")).read_timeout_s is None
+
+
+def test_ac_11_judge_client_read_timeout_does_not_exceed_its_timeout(monkeypatch):
+    from nick_of_time.audit.judge import TIMEOUT_S, judge_client
+    from nick_of_time.config import ArmConfig
+    seen = _stub_boto(monkeypatch)
+    c = judge_client(ArmConfig("S1", "bedrock", "m"), prices=PRICES)
+    assert c.read_timeout_s <= TIMEOUT_S and seen["cfg"].read_timeout <= TIMEOUT_S
+    assert seen["cfg"].retries["total_max_attempts"] == 1
+    assert judge_client(ArmConfig("S1", "fake", "m"), timeout_s=4).read_timeout_s == 4
+
+
+def test_ac_11_non_positive_read_timeout_is_rejected():
+    for bad in (0, -1):
+        with pytest.raises(ValueError):
+            FakeClient(read_timeout_s=bad)
+
+
+def test_ac_11_max_attempts_below_one_is_rejected():
+    with pytest.raises(ValueError):
+        FakeClient(max_attempts=0)
