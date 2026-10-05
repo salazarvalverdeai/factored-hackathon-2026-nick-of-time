@@ -270,7 +270,18 @@ Implementation goes in one `feat/03-*` branch per task (T1: `feat/03-mcp-server`
       transaction is not closed, a new request answers `already_in_progress` with that case's `case_opened` (AC-15),
       checked and written under `open_case`'s `serialize` key, so concurrent calls of either tool open one case; the result has `case_id` = the new case and
       `related_case_id` = the closed one; a write on a closed case is `DENY POL-DEFAULT-DENY`
-- [ ] T7 — `send_case_summary`, `list_my_notifications` · AC-21, AC-22
+- [x] T7 — `send_case_summary`, `list_my_notifications` · AC-21, AC-22 · `apps/mcp/mcp_server/notify.py`
+      (`notify_handlers`, wired by name by T8), `tests/test_spec03_notify.py` on both backends. The send is written
+      once per idempotency key (notification, `queued` delivery, `notification_sent`); the sender runs after that
+      write commits and only on a first call, never on a replay, and its result is one more delivery row: `sent` with
+      the provider's message id (`provider_event.provider_message_id`, so a later bounce can be matched, D-035) or
+      `failed`. D-035 stays as decided: a `queued` or `sent` send verifies (`V-`); the agent says "sent" only from
+      `delivery_status` `sent` or `delivered`, never from the `V-` (spec 04, AC-26). `[assumption]`s: the summary is
+      the `receipt.*` lines whose facts the store and gold hold (title, charge, stored deadlines or `deadline_unknown`,
+      what the assistant did by the verified block, what a person does); no card or `V-` line, which spec 04's receipt
+      owns; the sender is injected (none: the notification stays `queued` for the api's notifier, spec 13); the store's
+      `summary_sends` backs the gate's 3-per-hour limit per session; an unconfirmed channel or the store limit is
+      `DENY POL-DEFAULT-DENY`; a read with another tool's or another customer's `action_id` is plain
 - [ ] T8 — entry point, Dockerfile and compose service `mcp` · AC-02, AC-06, AC-12 · `apps/mcp/mcp_server/__main__.py`,
       `apps/mcp/Dockerfile`, `tests/test_spec03_entrypoint.py`. Done (task 03d2): `python -m mcp_server` reads
       `MCP_API_KEY` (deploy writes it from SSM `/nickoftime/prod/MCP_API_KEY`; under 32 characters the server refuses
