@@ -61,32 +61,20 @@ def test_check_mode_passes_when_fresh_and_fails_when_stale(tmp_path, capsys):
 
 
 def test_every_adr_file_is_a_node():
-    nodes = {
-        n["id"]
-        for n in json.loads(
-            (ROOT / "docs/decisions/graph.json").read_text(encoding="utf-8")
-        )["nodes"]
-    }
+    nodes = {n["id"] for n in _graph()["nodes"]}
     assert len(ADR_FILES) >= 27
     for f in ADR_FILES:
         assert f"adr-{f.name[:4]}" in nodes, f.name
 
 
 def test_every_spec_file_is_a_node():
-    nodes = {
-        n["id"]
-        for n in json.loads(
-            (ROOT / "docs/decisions/graph.json").read_text(encoding="utf-8")
-        )["nodes"]
-    }
+    nodes = {n["id"] for n in _graph()["nodes"]}
     for f in sorted((ROOT / "specs").glob("[0-9][0-9]-*.md")):
         assert f"spec-{f.name[:2]}" in nodes, f.name
 
 
 def test_amended_and_superseded_edges_match_the_headers():
-    edges = json.loads(
-        (ROOT / "docs/decisions/graph.json").read_text(encoding="utf-8")
-    )["edges"]
+    edges = _graph()["edges"]
     amends = {(e["from"], e["to"]) for e in edges if e["kind"] == "amends"}
     supersedes = {(e["from"], e["to"]) for e in edges if e["kind"] == "supersedes"}
     want_amends, want_supersedes = set(), set()
