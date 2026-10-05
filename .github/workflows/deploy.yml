@@ -73,8 +73,14 @@ jobs:
           tags: |
             ${{ env.IMAGE_REPO }}/${{ matrix.service }}:${{ env.DEPLOY_SHA }}
             ${{ env.IMAGE_REPO }}/${{ matrix.service }}:latest
+          # NEXT_PUBLIC_* are public values the web build inlines (spec 16 Task 5): set the repository variables
+          # NEXT_PUBLIC_API_MODE=live and NEXT_PUBLIC_COGNITO_CLIENT_ID once the api runs on Postgres (spec 05 Task 7).
+          # Unset, the web keeps the mock and the deploy is unchanged. The other services ignore these args.
           build-args: |
             GIT_SHA=${{ env.DEPLOY_SHA }}
+            NEXT_PUBLIC_API_MODE=${{ vars.NEXT_PUBLIC_API_MODE || 'mock' }}
+            NEXT_PUBLIC_COGNITO_CLIENT_ID=${{ vars.NEXT_PUBLIC_COGNITO_CLIENT_ID }}
+            NEXT_PUBLIC_COGNITO_REGION=${{ vars.NEXT_PUBLIC_COGNITO_REGION || 'us-east-2' }}
           cache-from: type=gha,scope=${{ matrix.service }}
           cache-to: type=gha,mode=max,scope=${{ matrix.service }}
 

@@ -37,22 +37,26 @@ export interface Deadline {
   /** ISO date (YYYY-MM-DD) or null while the policy engine (spec 02) does not provide it. */
   creditDeadline: string | null;
   deadlineSource: string;
+  /** Live: days left as the api counted them (null = no countdown). Absent in the mock, which counts from the frozen demo date. */
+  daysLeft?: number | null;
 }
+
+export type CaseEventType =
+  | "case_opened"
+  | "card_blocked"
+  | "verification_started"
+  | "sent_to_review"
+  | "credit_approved"
+  | "case_closed"
+  | "call_requested"
+  | "customer_info_added"
+  | "telegram_linked"
+  | "email_confirmed";
 
 export interface CaseEvent {
   id: string;
   at: string; // ISO timestamp
-  type:
-    | "case_opened"
-    | "card_blocked"
-    | "verification_started"
-    | "sent_to_review"
-    | "credit_approved"
-    | "case_closed"
-    | "call_requested"
-    | "customer_info_added"
-    | "telegram_linked"
-    | "email_confirmed";
+  type: CaseEventType;
   actor: string; // "agent", "customer" or an analyst user name
   status: CaseStatus; // status after this event: a case's status is its last event
   reason?: string;
@@ -79,7 +83,8 @@ export interface HandoffCard {
 /** An event as the customer sees it: no actor name, no internal reason. */
 export interface CustomerTimelineItem {
   event_id: string;
-  type: CaseEvent["type"];
+  /** The mock uses `CaseEventType`; the live api sends the store's event type (a string). */
+  type: string;
   created_at: string; // ISO timestamp
   /** Customer-facing status after this event (messages.yaml status.label), localized. */
   status_label: string;
@@ -99,6 +104,8 @@ export interface CustomerCaseView {
   deadline_countdown_days: number | null;
   timeline: CustomerTimelineItem[];
   channels: { telegram: boolean; email: boolean };
+  /** Live only: `replay` runs on the frozen demo date, `live` on the real one. Absent in the mock (frozen date). */
+  mode?: "replay" | "live";
 }
 
 /** What `POST /api/cases/{id}/call-request` returns (D-008). */
@@ -120,6 +127,38 @@ export interface CaseRecord {
   deadline: Deadline;
   events: CaseEvent[];
   handoff: HandoffCard;
+}
+
+/** A case as the inbox lists it: enough to pick one, no handoff. `CaseRecord` (mock) satisfies it. */
+export interface CaseListItem {
+  id: string;
+  customerName: string;
+  zone: Zone;
+  priority: Priority;
+  deadline: Deadline;
+  /** The queue status: the last event (spec 05 AC-02). */
+  status: CaseStatus;
+}
+
+/** One event in the analyst's timeline. Live events do not carry the status they led to, so it is optional. */
+export interface ConsoleEvent {
+  id: string;
+  at: string;
+  type: string;
+  actor: string;
+  status?: CaseStatus;
+  reason?: string;
+}
+
+/** The analyst's case with its handoff card (`GET /api/console/cases/{id}`). */
+export interface ConsoleCase extends CaseListItem {
+  customerId: string;
+  language: Language;
+  openedAt: string;
+  events: ConsoleEvent[];
+  handoff: HandoffCard;
+  /** Live only: the handoff card is empty until the graph emits it (spec 05 console_case). */
+  handoffEmitted?: boolean;
 }
 
 export interface NotificationEntry {
@@ -151,10 +190,31 @@ export interface AnalystSession {
   displayName: string;
 }
 
+/** What the pages read about who is signed in and the console's own settings: the same in mock and live mode. */
+export interface SessionSnapshot {
+  customerSession: CustomerSession | null;
+  analystSession: AnalystSession | null;
+  supervised: boolean;
+  /** The actions taken in this console session (live: this browser; the case timeline holds the server's record). */
+  audit: AuditEntry[];
+}
+
 export interface TraceStep {
   step: string;
   result: string;
-  kind: "ok" | "accepted" | "verified" | "guardrail" | "deny";
+  kind: "ok" | "accepted" | "verified" | "not_confirmed" | "guardrail" | "deny";
+}
+
+/** One step label of a running agent turn (spec 04 AC-17): in progress only, never a result. */
+export interface ProgressLabel {
+  step: string;
+  label: string;
+}
+
+/** What a chat turn may carry besides text: a chip press (`TurnAction`, spec 01 §6.4) skips the classifier. */
+export interface TurnAction {
+  type: "confirm" | "choose_option" | "verify_now" | "request_call" | "request_reevaluation" | "send_summary";
+  value?: string;
 }
 
 /** The verified receipt (spec 01 §6.7, shape of CustomerReceipt): texts come from contracts/messages.yaml in the customer's language. */
@@ -171,12 +231,19 @@ export interface Receipt {
   what_ai_did: string;
   what_a_person_does: string;
   case_url: string;
+  /** Live: the verified facts and actions of the contract's receipt, shown as they are. */
+  facts?: string[];
+  actions?: { label: string; state: string; verification_id?: string }[];
 }
 
 export interface Suggestion {
   label: string;
   /** What is sent when the chip is chosen. */
   text: string;
+  /** Live: an action chip sends this instead of text (skips the classifier). */
+  action?: TurnAction;
+  /** Live: a link chip opens this path on our own host. */
+  href?: string;
 }
 
 export interface AgentReply {
