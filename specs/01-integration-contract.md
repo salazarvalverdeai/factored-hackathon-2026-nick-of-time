@@ -81,7 +81,7 @@ Copied from issue #3 (same numbers). Evidence: [T] test · [C] command · [U] sc
 ```
 apps/
   web/                    Next.js app — @gianzk (page content: see specs 12, 04, E1)
-  api/                    FastAPI app, package `api` — @gianzk
+  api/                    FastAPI app, package `app` (`apps/api/app`) — @gianzk
     migrations/           Postgres schema (Alembic) — @gianzk, schema fixed by §6.5
   mcp/                    FastMCP server, package `mcp_server` — @salazarvalverdeai
   agent/                  LangGraph graph, package `agent` — @salazarvalverdeai
@@ -115,14 +115,14 @@ OpenAPI is generated from the code at `/api/docs` (schema at `/api/openapi.json`
 | GET | `/api/demo/customers` | — | `[{customer_id, display_name, country, segment, scenario, language}]` (6 demo customers, spec 09) | 200 |
 | POST | `/api/sessions` | `{customer_id, mode: "replay"\|"live"}` (default `live`) | `{session_id, mode, today, otp_demo, expires_at}` — the OTP is shown on screen (mock, ADR 0017) | 201 / 404 |
 | POST | `/api/sessions/{session_id}/verify` | `{otp}` | `{verified, expires_at}` + sets `not_session` cookie | 200 / 401 / 404 / 410 |
-| * | `/api/agent/...` | LangGraph Server protocol subset: `POST threads`, `POST threads/{id}/runs/stream`, `GET threads/{id}/state` | proxied to Platform; `configurable.session_id` injected from the cookie; any client `session_id`/`customer_id` is dropped (AC-06); the stream carries only `CustomerTurn` items and progress events, and `threads/{id}/state` returns the last `CustomerTurn`, never the raw thread state (D-013) | 200 / 401 |
+| * | `/api/agent/...` | LangGraph Server protocol subset: `POST threads`, `POST threads/{id}/runs/stream`, `GET threads/{id}/state` | proxied to Platform; `configurable.session_id` injected from the cookie; any client `session_id`/`customer_id` is dropped (AC-06); the stream carries SSE events `progress` (`ProgressItem`), `turn` (`CustomerTurn`) and `error` (the standard error shape), and `threads/{id}/state` returns the last `CustomerTurn`, never the raw thread state (D-013). A thread belongs to the session that created it: an unknown or foreign thread is 404. `[assumption]` (pending the lead) 401 `UNAUTHENTICATED` only for a missing or unknown cookie; a known session in any state is forwarded with `configurable.session_state` = `verified\|expired\|unverified` and the graph decides `reauthenticate` (spec 02 AC-07) | 200 / 401 / 404 |
 | GET | `/api/notifications` | — | `[{notification_id, case_id, event, channel, masked_address, text, delivery_status, created_at}]` for the session's customer ("My notifications"); `delivery_status` = `queued\|sent\|delivered\|bounced\|failed` | 200 / 401 |
 | GET | `/api/me/products` | — | `[ProductView]` (§6.6) — "My cards", read fresh on each call | 200 / 401 |
 | GET | `/api/me/cases` | — | `[CustomerCaseSummary]` (§6.6) — the customer's cases, active first | 200 / 401 |
 | PUT | `/api/me/preferences` | `{display_currency?, language?}` | the stored preferences (kept in the session) | 200 / 400 / 401 |
 | GET | `/api/cases/{case_id}` | — | `CustomerCaseView` (§6.6) if the case belongs to the session's customer | 200 / 403 / 404 / 401 |
 | POST | `/api/cases/{case_id}/info` | `{text}` | `{event_id}` → event `customer_info_added` | 201 / 403 / 404 / 401 |
-| POST | `/api/cases/{case_id}/call-request` | `{preferred_time?}` | `{event_id}` → event `call_requested` | 201 / 403 / 404 / 401 |
+| POST | `/api/cases/{case_id}/call-request` | `{preferred_time?}` | `{event_id, expected_contact_by}` (D-008: `YYYY-MM-DD` or null) → event `call_requested` | 201 / 403 / 404 / 401 |
 | POST | `/api/cases/{case_id}/reevaluation` | `{reason}` | `{event_id, case_id}` — a resolved case returns to `review`; a closed case gets a new case with `related_case_id` (spec 03) | 201 / 403 / 404 / 409 / 401 |
 | POST | `/api/cases/{case_id}/channels/telegram` | — | `{deep_link, expires_at}` (one-time token, TTL 15 min) | 201 / 403 / 404 / 401 |
 | POST | `/api/cases/{case_id}/channels/email` | `{email}` | `{confirmation_sent: true}` — confirmation link to that address | 202 / 400 / 403 / 404 / 401 |
@@ -131,7 +131,7 @@ OpenAPI is generated from the code at `/api/docs` (schema at `/api/openapi.json`
 | POST | `/api/resend/webhook` | Resend e-mail event (`email.sent`, `email.delivered`, `email.bounced`, `email.failed`, …); headers `svix-id`, `svix-timestamp`, `svix-signature` verified with `RESEND_WEBHOOK_SECRET` | `{ok: true}` → row in `notification_deliveries` | 200 / 401 |
 
 An expired session returns the standard `401` with `code: "SESSION_EXPIRED"` in the error body; a missing session returns
-`401` with `code: "UNAUTHENTICATED"`. The UI reads `code` to show "verify again" instead of a login screen.
+`401` with `code: "UNAUTHENTICATED"`. The UI reads `code` to show "verify again" instead of a login screen. Errors on customer routes always carry `policy_id: null` (D-013, `notifications.never_send`); the id is logged server-side. Validation errors answer `400 INVALID`.
 
 `[assumption]` (D-013, default pending the lead) Customer routes emit only customer projections, so score, policy ids
 and transcript never reach the browser (`notifications.never_send`): `CustomerTurn` (§6.4) and `CustomerCaseView`
@@ -338,6 +338,8 @@ Transaction and product ids come from gold, or from `demo_transactions` in `live
 | POST | `/api/eval/seed` | `{initial_state: eval_case.initial_state, run_id: str, arm: str}` | `{session_id, thread_id, run_id, arm, mode: "replay"}` — the mode is always `replay` (ADR 0020); always returns a `session_id`: `verified` (OTP done), `expired` (expires_at in the past) or `none` (row with no customer and no verification, so every tool answers `SESSION_EXPIRED` and the expected decision is `reauthenticate`). Applies `fixtures` as overlays and `tool_faults` |
 | GET | `/api/eval/final-state/{session_id}` | — | `FinalState` below |
 
+`[assumption]` (D-019, pending the lead) The harness sends the seeded `session_id` as the `not_session` cookie, the same way as a browser; there is no header alternative.
+
 **Isolation between runs (pass^4).** Every row written while serving a seeded session carries its `run_id`
 (`sessions`, `cases`, `case_events` through their case, `product_overrides`, `idempotency`, `notifications`,
 `policy_denials`, `llm_calls`), and every read of mutable state filters by the session's `run_id` (product status =
@@ -429,13 +431,13 @@ Implementation goes in one `feat/01-*` branch per task (for example `feat/01-pac
       view models, customer projections), `ids.py` · covers AC-01 · `tests/test_spec01_contracts.py`
 - [x] T2 — `contracts/customer_receipt.schema.json` + `eval_case.schema.json` minor change + example cases updated ·
       covers AC-01, AC-04 (receipt half; the echo graph is T5) · `tests/test_spec01_contracts.py`
-- [ ] T3 — api stub: every route of §6.2 and §6.8 returning fixtures validated by the models; `mode` on sessions ·
+- [x] T3 — api stub: every route of §6.2 and §6.8 returning fixtures validated by the models; `mode` on sessions ·
       covers AC-02, AC-06, AC-07
 - [ ] T4 — `contracts/tools.py` v1.1 and `policies.yaml` `actors.customer.tools` with the 16 tools; fake MCP server
       returning fixtures from those models, `synthetic` rows in `live` · covers AC-03, AC-08
 - [ ] T5 — echo graph `dispute_intake` returning a `TurnResult` with a sample receipt; `langgraph.json` sets
       `"python_version": "3.13"` (§6.1) · covers AC-04
-- [ ] T6 — `infra/compose.dev.yml` (api stub, mcp stub, postgres) and `.env.example` names of §6.9 · covers AC-02
+- [x] T6 — `infra/compose.dev.yml` (api stub, mcp stub, postgres) and `.env.example` names of §6.9 · covers AC-02
 - [x] T7 — remove the empty `apps/api/{audit,classifier,graph,policy,tools}` folders
 - [ ] T8 — tests `tests/test_spec01_*.py` citing AC-02, AC-03, AC-04, AC-06, AC-07, AC-08
 - [ ] T9 — the store's case insert retries with a fresh `ids.new_id("case")` on a `case_id` primary-key conflict
