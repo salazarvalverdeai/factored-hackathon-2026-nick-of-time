@@ -254,6 +254,10 @@ Fine-tuning; embeddings + LR (P2); Jev (benchmarked in spec 15); the agent's use
   Task 11d (B0 injection, PT/ES): policy-override imperatives, "SISTEMA:" headers, "novas regras:", bank-staff
   role-play, admin modes and requests for the fraud score or internal rules are flagged (found by INT1 on EV-0115);
   ordinary complaints that mention policies or a job stay clean · AC-04
+  Task 11e (B0 amounts, dates, English): a day plus month name without "de" ("13 abril") is a date and never an amount
+  ("pesos 13 abril" no longer reads 13); an English person request ("can I talk to a person", "I want to speak to a
+  human") is `human_request`. [assumption] "1.250" reads as 1250 (3 digits after the separator are thousands) and
+  "1,25" as 1.25; B0 has no session country, so the MX ambiguity stays with `search_transaction` · AC-08, AC-09, AC-10
 - [ ] T3 — B1 training with calibration; τ on validation · AC-02, AC-07
 - [ ] T4 — B2 structured-output prompt (Haiku 4.5) · AC-02
 - [ ] T5 — injection detector, both arms · AC-04 (rules arm done in 11a, `nlu.injection`; LR arm and AC-04 numbers pending spec 09)
