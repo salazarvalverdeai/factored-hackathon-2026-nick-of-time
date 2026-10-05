@@ -31,7 +31,7 @@ create table cases (                                                 -- AO, inse
   credit_deadline date null,                                         -- stored once, never recomputed
   ruling_deadline date null,
   deadline_source text null check (deadline_source <> ''),
-  deadline_source_url text null check (deadline_source_url is null or deadline_source_url like 'https://_%'),
+  deadline_source_url text null check (deadline_source_url is null or deadline_source_url ~ '^https://\S+$'),
   deadline_verified_on date null,                                    -- [assumption] D-014
   related_case_id text null,
   mode text not null check (mode in ('replay', 'live')),
@@ -79,19 +79,27 @@ create table case_events (                                           -- AO
     'status_changed', 'handoff_emitted', 'assigned', 'analyst_action', 'customer_info_added', 'call_requested',
     'reevaluation_requested', 'related_case_opened', 'notification_sent', 'receipt_issued', 'telegram_linked',
     'email_confirmed')),
-  actor text not null check (actor in ('agent', 'customer', 'system')
-                             or (actor like 'analyst:%' and trim(substr(actor, 9)) <> '')),
+  actor text not null check (actor in ('agent', 'customer', 'system') or actor ~ '^analyst:.*\S.*$'),
   payload jsonb not null default '{}',
   customer_visible boolean not null,
   trace_id text not null,
   created_at timestamptz not null default now(),
   unique (case_id, seq),
-  -- the store's rules as rows (D-025): a write always carries its action id (a summary send only on request), a
-  -- status change always names its status, and visibility follows the §6.5 ✓ list
-  check (type not in ('case_opened', 'card_blocked', 'customer_info_added', 'call_requested', 'reevaluation_requested')
+  -- the store's rules as rows (D-025, D-034). Every pattern is anchored: DuckDB's ~ matches the whole string.
+  -- An action id is always an A- id; the writes (a summary send only on request) and the two reads always carry one,
+  -- and a read always carries its V- id.
+  check ((payload ->> 'action_id') is null or (payload ->> 'action_id') ~ '^A-[0-9A-F]{12}$'),
+  check (type not in ('case_opened', 'card_blocked', 'customer_info_added', 'call_requested', 'reevaluation_requested',
+                      'action_verified', 'block_verified')
          or (payload ->> 'action_id') is not null),
+  check (type <> 'action_verified' or coalesce(payload ->> 'verification_id', '') ~ '^V-[0-9A-F]{12}$'),
+  -- a status change names its status; only a person acts, takes, resolves and closes (constitution #6)
   check (type <> 'status_changed'
          or coalesce(payload ->> 'to', '') in ('verification', 'review', 'resolved', 'closed')),
+  check (type not in ('analyst_action', 'assigned') or actor like 'analyst:%'),
+  check (type <> 'status_changed' or coalesce(payload ->> 'to', '') not in ('resolved', 'closed')
+         or actor like 'analyst:%'),
+  -- visibility follows the §6.5 ✓ list
   check (customer_visible = (type not in ('action_verified', 'handoff_emitted', 'analyst_action')))
 );
 
@@ -100,8 +108,7 @@ create table product_overrides (                                     -- AO; stat
   product_id text not null,
   status text not null check (status in ('Active', 'Blocked', 'Closed', 'Suspended')),
   case_id text not null,
-  actor text not null check (actor in ('agent', 'customer', 'system')
-                             or (actor like 'analyst:%' and trim(substr(actor, 9)) <> '')),
+  actor text not null check (actor in ('agent', 'customer', 'system') or actor ~ '^analyst:.*\S.*$'),
   run_id text null,
   created_at timestamptz not null default now()
 );
@@ -156,8 +163,7 @@ create table policy_denials (                                        -- AO
   denial_id text primary key,
   trace_id text not null,
   session_id text null,                                              -- null for api and analyst denials (D-023)
-  actor text not null check (actor in ('agent', 'customer')
-                             or (actor like 'analyst:%' and trim(substr(actor, 9)) <> '')),
+  actor text not null check (actor in ('agent', 'customer') or actor ~ '^analyst:.*\S.*$'),
   policy_id text not null,
   guardrail_id text not null,                                        -- a rule-only denial cites G-POL-01
   detail jsonb not null,

@@ -16,7 +16,7 @@ import duckdb
 import pytest
 
 from data.pipeline import contracts as gold
-from nick_of_time.store import (CUSTOMER_VISIBLE, TRANSITIONS, WRITE_EVENTS, EventType, NewCase,
+from nick_of_time.store import (ACTOR, CUSTOMER_VISIBLE, TRANSITIONS, WRITE_EVENTS, EventType, NewCase,
                                 ProductOverride)
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -45,6 +45,7 @@ DELIVERY = ("insert into notification_deliveries (delivery_id, notification_id, 
 DENIAL = ("insert into policy_denials (denial_id, trace_id, actor, policy_id, guardrail_id, detail) "
           "values ('{id}', 't', '{actor}', 'POL-QUEUE-TRANSITION', 'G-POL-01', '{{}}')")
 SOURCE = "'Banxico', 'https://www.banxico.org.mx/', '2026-10-04'"
+READ = '{"action_id": "A-000000000001", "verification_id": "V-000000000001", "read_at": "2026-06-01T15:00:00+00:00"}'
 
 
 def case(id: str, dates: str = CREDIT, source: str = SOURCE, product: str = "debit", zone: str = "high",
@@ -64,10 +65,12 @@ GOOD = [case("K-000001"),
         case("K-000011", dates=NO_DATES, source="null, null, null", product="credit", zone="human",
              dispute="wrongful_charge", mode="live"),                         # no legal date, no provenance
         event("E-1", "K-000001", 1, "case_opened", ACTION.format(n=1)),
-        event("E-5", "K-000001", 2, "action_verified", ACTION.format(n=1)),
+        event("E-5", "K-000001", 2, "action_verified", READ),
         event("E-6", "K-000001", 3, "handoff_emitted"),
         event("E-10", "K-000001", 4, "status_changed", '{"from": "new", "to": "review"}', actor="analyst:sub-1"),
         event("E-11", "K-000001", 5, "notification_sent", '{"notification_id": "N-1"}', actor="system"),
+        event("E-20", "K-000001", 6, "status_changed", '{"from": "review", "to": "resolved"}', actor="analyst:sub-1"),
+        event("E-21", "K-000001", 7, "block_verified", ACTION.format(n=1)),
         NOTIFICATION.format(id="N-1", channel="log", trigger="auto"),
         OVERRIDE.format(id="A-000000000009", status="Blocked", actor="agent"),
         DENIAL.format(id="P-0", actor="analyst:sub-1")]                   # no session: an analyst-side denial
@@ -83,8 +86,21 @@ BAD = [event("E-2", "K-000001", 1, "handoff_emitted"),                       # d
        event("E-15", "K-000011", 1, "handoff_emitted", actor="analyst:"),
        event("E-16", "K-000011", 1, "handoff_emitted", actor="analyst: "),
        event("E-17", "K-000011", 1, "handoff_emitted", actor="bot"),
-       event("E-18", "K-000011", 1, "action_verified", ACTION.format(n=3), visible=True),
+       event("E-18", "K-000011", 1, "action_verified", READ, visible=True),
        event("E-19", "K-000011", 1, "receipt_issued", visible=False),
+       event("E-22", "K-000011", 1, "handoff_emitted", actor="analyst:\t"),
+       # an action id is an A- id; a read carries its action and V- id; only a person acts, takes, resolves, closes
+       event("E-23", "K-000011", 1, "customer_info_added", '{"action_id": ""}'),
+       event("E-24", "K-000011", 1, "customer_info_added", '{"action_id": "x"}'),
+       event("E-34", "K-000011", 1, "customer_info_added", '{"action_id": "A-000000000001x"}'),
+       event("E-25", "K-000011", 1, "notification_sent", '{"notification_id": "N-1", "action_id": "A-1"}'),
+       event("E-26", "K-000011", 1, "action_verified", ACTION.format(n=1)),
+       event("E-27", "K-000011", 1, "action_verified", '{"action_id": "A-000000000001", "verification_id": "V-1"}'),
+       event("E-28", "K-000011", 1, "block_verified", '{"product_id": "PRD-1"}'),
+       event("E-29", "K-000011", 1, "analyst_action", '{"action": "take"}'),
+       event("E-30", "K-000011", 1, "assigned", actor="customer"),
+       event("E-31", "K-000011", 1, "status_changed", '{"from": "review", "to": "resolved"}'),
+       event("E-32", "K-000011", 1, "status_changed", '{"from": "resolved", "to": "closed"}', actor="system"),
        # D-014: a legal date travels with its source, an https URL and verified_on; none is ever empty or http
        case("K-000002", source="null, null, null"),
        case("K-000003", source="'Banxico', 'http://www.banxico.org.mx/', '2026-10-04'"),
@@ -95,12 +111,16 @@ BAD = [event("E-2", "K-000001", 1, "handoff_emitted"),                       # d
        case("K-000008", dates=NO_DATES, source="'', null, null"),
        case("K-000009", dates=NO_DATES, source="null, 'http://www.banxico.org.mx/', null"),
        case("K-000012", source="'Banxico', 'https://', '2026-10-04'"),         # a URL with no host
+       case("K-000017", source="'Banxico', 'https:// x', '2026-10-04'"),       # a space in the URL
+       case("K-000018", source="'Banxico', 'https://a b', '2026-10-04'"),
        # the NewCase Literals
        case("K-000013", mode="demo"), case("K-000014", zone="low"), case("K-000015", product="prepaid"),
        case("K-000016", dispute="other"),
        OVERRIDE.format(id="A-00000000000A", status="Gone", actor="agent"),
        OVERRIDE.format(id="A-00000000000B", status="Blocked", actor="analyst:"),
+       OVERRIDE.format(id="A-00000000000C", status="Blocked", actor="analyst:\t"),
        DENIAL.format(id="P-3", actor="analyst: "),
+       DENIAL.format(id="P-6", actor="analyst:\t"),
        DENIAL.format(id="P-4", actor="system"),                                  # the denial actors are a closed list
        "insert into sessions (session_id, otp_hash, expires_at, language, mode) "
        "values ('S-1', 'h', now(), 'es', 'demo')",
@@ -113,8 +133,13 @@ BAD = [event("E-2", "K-000001", 1, "handoff_emitted"),                       # d
        DENIAL.format(id="P-1", actor="bot"),
        DENIAL.format(id="P-2", actor="analyst:")]                                # an analyst with no sub
 # Postgres only (DuckDB has no partial index): a write's action id cannot come back in another write (D-025).
-BAD_ON_POSTGRES = [event("E-8", "K-000001", 6, "card_blocked", ACTION.format(n=1)),
+BAD_ON_POSTGRES = [event("E-8", "K-000001", 8, "card_blocked", ACTION.format(n=1)),
                    event("E-9", "K-000010", 1, "customer_info_added", ACTION.format(n=1))]
+# Postgres only: DuckDB's RE2 \S takes a no-break space as a character; Postgres and the store's ACTOR do not.
+NBSP_SUB = "analyst: "
+BAD_ACTORS_ON_POSTGRES = [event("E-33", "K-000011", 1, "handoff_emitted", actor=NBSP_SUB),
+                          OVERRIDE.format(id="A-00000000000D", status="Blocked", actor=NBSP_SUB),
+                          DENIAL.format(id="P-5", actor=NBSP_SUB)]
 
 
 def spec_table() -> dict[str, dict]:
@@ -206,7 +231,8 @@ def test_d025_schema_vocabularies_match_the_store_models():
     """Each SQL list is the model's own: the always-write types, the status targets of case_queue.transitions, the
     hidden events, the override statuses and the NewCase Literals."""
     assert sql_list(r"check \(type not in \((.*?)\)\s+or \(payload ->> 'action_id'\) is not null\)") == \
-        WRITE_EVENTS - {"notification_sent"}                                  # a summary send only on request
+        WRITE_EVENTS - {"notification_sent"} | {"action_verified", "block_verified"}   # a summary only on request
+    assert re.fullmatch(ACTOR, NBSP_SUB) is None and re.fullmatch(ACTOR, "analyst:sub-1")   # the SQL mirrors ACTOR
     targets = {to for allowed in TRANSITIONS.values() for to in allowed}
     assert sql_list(r"coalesce\(payload ->> 'to', ''\) in \((.*?)\)\)") == targets
     assert sql_list(r"customer_visible = \(type not in \((.*?)\)\)\)") == set(get_args(EventType)) - CUSTOMER_VISIBLE
@@ -242,6 +268,9 @@ def test_ac_01_schema_sql_on_postgres_keeps_constraints_and_refuses_changes():
                     con.execute(statement)
             for statement in BAD_ON_POSTGRES:
                 with pytest.raises(psycopg.errors.UniqueViolation, match="case_events_action_id_once"):
+                    con.execute(statement)
+            for statement in BAD_ACTORS_ON_POSTGRES:
+                with pytest.raises(psycopg.errors.CheckViolation):
                     con.execute(statement)
             for table in sorted(append_only_tables()):
                 for op in (f"update {table} set created_at = created_at", f"delete from {table}", f"truncate {table}"):
