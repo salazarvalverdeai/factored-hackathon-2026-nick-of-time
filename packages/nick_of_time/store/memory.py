@@ -5,6 +5,7 @@ go through JSON, as psycopg's `Jsonb` would send them.
 """
 from __future__ import annotations
 
+import copy
 import datetime as dt
 from collections.abc import Callable
 from typing import Any, Literal, Optional, get_args
@@ -19,7 +20,7 @@ from nick_of_time.store import (CUSTOMER_VISIBLE, RESERVED_EVENTS, UNDELIVERED, 
 from nick_of_time.store.accounts import (CHANNEL_CASE_EVENT, CHANNEL_ID, DENIAL_ID, ChannelEvent, CustomerChannel,
                                          LinkedChannel, NewDenial, NewSession, Once, PolicyDenial,
                                          SessionRecord, check_channel_event, check_denial_session, check_key,
-                                         check_replay, idempotency_key, json_object, new_row_id, parse, window_start)
+                                         arguments_hash, check_replay, idempotency_key, json_object, new_row_id, parse, window_start)
 
 
 class MemoryStore:
@@ -34,7 +35,7 @@ class MemoryStore:
         self._sessions: dict[str, SessionRecord] = {}
         self._denials: list[PolicyDenial] = []
         self._channels: list[CustomerChannel] = []
-        self._once: dict[str, tuple[str, Optional[str], dict[str, Any]]] = {}   # stored key -> (action, run, result)
+        self._once: dict[str, tuple[str, Optional[str], str, dict[str, Any]]] = {}   # key -> (action, run, args, result)
 
     # ---------- cases ----------
     def create_case(self, case: NewCase, *, actor: str, action_id: str) -> CaseRecord:
@@ -311,11 +312,16 @@ class MemoryStore:
         return [latest[name] for name in sorted(latest)]
 
     def once(self, key: str, *, action: str, customer_id: Optional[str], run_id: Optional[str],
-             write: Callable[[], dict[str, Any]]) -> Once:
-        stored = idempotency_key(key, action, customer_id, run_id)
+             arguments: dict[str, Any], write: Callable[[], dict[str, Any]]) -> Once:
+        stored, args = idempotency_key(key, action, customer_id, run_id), arguments_hash(arguments)
         if stored in self._once:
-            check_replay(*self._once[stored][:2], action, run_id)
-            return Once(result=_json(self._once[stored][2]), replayed=True)
-        result = json_object(write())                             # a refused write raises and stores nothing
-        self._once[stored] = (action, run_id, result)
+            check_replay(self._once[stored][:3], action, run_id, args)
+            return Once(result=_json(self._once[stored][3]), replayed=True)
+        before = copy.deepcopy({k: v for k, v in vars(self).items() if k != "_now"})
+        try:
+            result = json_object(write())
+        except BaseException:                               # a refused write leaves nothing, as a rolled-back transaction
+            vars(self).update(before)
+            raise
+        self._once[stored] = (action, run_id, args, result)
         return Once(result=_json(result), replayed=False)

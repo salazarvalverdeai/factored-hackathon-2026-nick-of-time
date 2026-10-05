@@ -408,8 +408,10 @@ class Store(Protocol):
 
     # ---------- idempotency (task 01g, store/accounts.py) ----------
     def once(self, key: str, *, action: str, customer_id: Optional[str], run_id: Optional[str],
-             write: Callable[[], dict[str, Any]]) -> Once:
-        """Spec 03 AC-15: the first call with this `key` (of this action, customer and run) runs `write()`, stores its
-        JSON result and returns it; every later one returns the stored result with `replayed` and writes nothing.
-        On Postgres a concurrent second call waits for the first. A `write` that raises stores nothing; a key used
-        for another action is a StoreError. `customer_id` None is the api's analyst actions (`AnalystActionIn`)."""
+             arguments: dict[str, Any], write: Callable[[], dict[str, Any]]) -> Once:
+        """Spec 03 AC-03 and spec 01 §6.3 Idempotency: the first call with this `key` (of this action, customer and
+        run) runs `write()`, stores its JSON result and returns it; every later one returns the stored result with
+        `replayed` and writes nothing. On Postgres a concurrent second call waits for the first. A `write` that raises
+        stores nothing and leaves none of its writes (both backends); a key used for another action or with other
+        `arguments` (the call's JSON arguments, hashed) is a StoreError. `customer_id` None is the api's analyst
+        actions (`AnalystActionIn`)."""
