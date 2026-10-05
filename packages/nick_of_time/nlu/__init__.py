@@ -34,7 +34,7 @@ class NLUResult(BaseModel):
     slots: Slots
     language: Language
     injection_flagged: bool
-    dispute_detected: bool = False        # dispute words present even when human_request or status_inquiry wins (D-020)
+    dispute_detected: bool                # required: dispute words seen even if human_request or status wins (D-020)
     arm: Literal["B0", "B1", "B2", "B3"]
     version: str
 

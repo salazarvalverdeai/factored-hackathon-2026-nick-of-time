@@ -15,7 +15,7 @@ from .text import fold
 
 _WEEKDAYS = {"lunes": 0, "martes": 1, "miercoles": 2, "jueves": 3, "viernes": 4, "sabado": 5, "domingo": 6,
              "segunda": 0, "terca": 1, "quarta": 2, "quinta": 3, "sexta": 4}
-_PT_ORDINALS = {"segunda", "terca", "quarta", "quinta", "sexta"}   # also ordinals ("a quinta compra"): need -feira or na/no
+_PT_ORDINALS = {"segunda", "terca", "quarta", "quinta", "sexta"}   # also ordinals ("a quinta compra"): need a marker
 _MONTHS = {"enero": 1, "febrero": 2, "marzo": 3, "abril": 4, "mayo": 5, "junio": 6, "julio": 7, "agosto": 8,
            "septiembre": 9, "setiembre": 9, "octubre": 10, "noviembre": 11, "diciembre": 12,
            "janeiro": 1, "fevereiro": 2, "marco": 3, "maio": 5, "junho": 6, "setembro": 9, "outubro": 10,
@@ -28,8 +28,9 @@ _DMY = re.compile(r"\b(\d{1,2})/(\d{1,2})/(\d{4})\b")
 _DAY_MONTH = re.compile(r"\b(\d{1,2}) de (" + "|".join(_MONTHS) + r")(?: de (\d{4}))?\b")
 _AGO = re.compile(r"\b(?:hace|ha) (\d{1,3}) dias?\b")
 _WEEKDAY = re.compile(r"(?:\b(na|no|nesta|neste|desta|deste|dessa|desse|ultima|ultimo) )?\b(" + "|".join(_WEEKDAYS)
-                      + r")(-feira)?\b")
-_NOT_A_DAY = re.compile(r" (?:vez|compra|parcela|cobranca|transacao)\b")   # "a quinta compra", "na segunda vez"
+                      + r")(-feira| passad[ao])?\b")
+_NOT_A_DAY = re.compile(r" (?:vez|compra|parcela|cobranca|transacao|tentativa|fatura|via|mensalidade|assinatura|etapa"
+                        r"|opcao)\b")                    # "a quinta compra", "na segunda vez", "na segunda fatura"
 
 
 def _safe(year: int, month: int, day: int) -> Optional[date]:

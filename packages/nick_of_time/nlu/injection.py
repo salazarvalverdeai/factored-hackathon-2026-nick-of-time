@@ -1,8 +1,8 @@
 """Injection rules (spec 11 §4, AC-04; guardrail G-IN-01).
 
 ES/PT/EN patterns for the instruction-override, prompt-reveal, role-play and other-customer attempts listed in OWASP
-LLM01. The rules only flag text. They never decide an action: a flag sends the turn to the human zone and the policy
-engine decides (constitution rules 1 and 3).
+LLM01. The rules only flag text. They never decide an action: the policy engine decides (spec 02 rule 2,
+POL-INJECTION; constitution rules 1 and 3).
 """
 from __future__ import annotations
 
@@ -26,10 +26,10 @@ _PATTERNS = [re.compile(p) for p in (
     r"\byou are now\b|\bahora eres\b|\bagora voce e\b|\bmodo (?:desarrollador|developer|desenvolvedor|dios|deus)\b"
     r"|\bdeveloper mode\b|\bjailbreak\b",
     # other customers' data
-    r"\b(?:muestra|muestrame|dame|mostre|mostra|show|give me)\w* " + _SKIP +
+    r"\b(?:muestra|muestrame|dame|mostre|mostra|show|give me)\w* (?:\w+ ){0,4}"
     r"(?:cuenta|conta|tarjeta|cartao|datos|dados|saldo|movimientos|account|card|data) "
     r"(?:de|del|do|da|of) (?:(?:otr[oa]|outr[oa]|another) (?:cliente|persona|pessoa|usuari[oa]|titular|customer|person|user)"
-    r"|(?:cliente|customer|usuario) (?:n[o°]\.? ?)?[a-z-]*\d{3,})",
+    r"|(?:cliente|customer|usuario) (?:(?:n[o°º]\.?|num(?:ero)?\.?|#) ?)?[a-z-]*\d{3,})",
     r"\bcli-[a-z0-9]{12}\b",     # mirror of ids.GOLD_PATTERN['customer'], added in task 01e
     r"\bcustomer_?id\b|\bid (?:de|del) cliente\b|\bid do cliente\b",
     # asking for decisions the rules own
