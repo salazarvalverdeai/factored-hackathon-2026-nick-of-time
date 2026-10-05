@@ -103,42 +103,50 @@ handoff:
   payload_schema: contracts/handoff.schema.json
   never_include_raw_transcript: true
 
-regulatory_clock:                        # [external] business days per the country's banking calendar; amount_gate never changes these
+regulatory_clock:                        # [external] spec 02 §4.3; amount_gate never changes these. ADR 0019: every entry has source_url + verified_on
+  # Per country and product (debit | credit | any), the first entry whose `when_charged_within` holds (or that has none) wins;
+  # a country or product with no entry gets no deadline (POL-CLOCK-UNKNOWN). Terms count from the notice date
+  # (clock.today); business days skip weekends and packages/nick_of_time/policy/holidays/{cc}_{year}.yaml.
   MX:
     debit:
-      # Source: Banxico Circular 3/2012, art. 19 Bis 3 (reviewed Mon Sep 28). See also CONDUSEF:
-      # https://www.gob.mx/condusef/articulos/cargos-no-reconocidos?idiom=es
-      # Provisional credit by business day 2 with no amount cap. The only exemption is a ruling within that term
-      # proving two-factor authentication; without a ruling, the credit becomes final.
-      source: "Banxico Circular 3/2012, art. 19 Bis 3"
-      provisional_credit_business_days: 2
-      amount_cap: none
-      exemption: two_factor_authentication_ruling   # evidence proxy: handoff auth_evidence, derived from transactions.channel
-      without_ruling: credit_becomes_final
-    credit:
-      # Source: LTOSF art. 23 (clarifications on credit products). The customer has 90 days to claim; ruling within
-      # 45 days (180 if the charge was abroad); while pending, no payment of the claimed amount and no credit bureau
-      # reporting. CONDUSEF maximum amounts for art. 23: pending.
-      source: "LTOSF art. 23"
-      customer_claim_days: 90
-      ruling_days: 45
-      ruling_days_abroad: 180
-      while_pending: {no_payment_of_claimed_amount: true, no_credit_bureau_reporting: true}
+      # Art. 19 Bis 3 fr. II: a claim of unrecognized charges filed within 90 Días (calendar days, art. 2) of the charge is
+      # credited by the 2nd Día Hábil Bancario after the notice, with no amount cap; the bank may skip it only with a ruling
+      # in that term proving two-factor authentication (evidence proxy: handoff auth_evidence). Art. 19 Bis 4: ruling
+      # within 45 Días of the notice. Fr. I's 48 h window applies to theft or loss notices. Compiled text through
+      # Circular 11/2026; CONDUSEF's 2018 press release summarizes it as "48 horas previas". [assumption] day 90 included.
+      - when_charged_within: {days: 90}
+        credit: {days: 2, calendar: business}
+        ruling: {days: 45, calendar: calendar}
+        source: "Banxico Circular 3/2012, arts. 19 Bis 3 and 19 Bis 4 (as amended by Circular 14/2018)"
+        source_url: https://www.banxico.org.mx/marco-normativo/normativa-emitida-por-el-banco-de-mexico/circular-3-2012/%7B4E0281A4-7AD8-1462-BC79-7F2925F3171D%7D.pdf
+        verified_on: 2026-10-04
+      # LTOSF art. 23 fr. II (text in force, last reform DOF 2024-01-24): ruling within 45 days ("días", counted as calendar
+      # days: the earlier date), 180 calendar days for operations abroad; claim within 90 calendar days of the statement
+      # cut-off or the operation (fr. I; the cut-off date is not in the data, so the ruling is always given).
+      - &ltosf_23
+        ruling: {days: 45, calendar: calendar}
+        ruling_abroad: {days: 180, calendar: calendar}
+        source: "LTOSF art. 23"
+        source_url: https://www.ordenjuridico.gob.mx/Documentos/Federal/pdf/wo46.pdf
+        verified_on: 2026-10-04
+    credit: [*ltosf_23]                  # while pending: no payment of the claimed amount, no credit bureau reporting (fr. I, V)
   AR:
-    # Source: BCRA — resolve and reimburse within 10 business days. https://www.bcra.gob.ar/archivos/Pdfs/texord/t-pusf.pdf
-    source: "BCRA"
-    resolve_and_reimburse_business_days: 10
-  CO:
-    # Source: SFC — answer within 15 days [not re-verified].
-    # https://www.superfinanciera.gov.co/preguntas-frecuentes/3/3-derechos-de-peticion-ante-entidades-vigiladas/
-    source: "SFC"
-    response_days: 15
-  BR:
-    # Source: Resolução CMN 4.860 (2020), ombudsman (ouvidoria) within 10 business days [not re-verified].
-    # Portuguese demo only; the dataset has no BR.
-    source: "Resolução CMN 4.860 (2020)"
-    ombudsman_business_days: 10
-    extension_once: true
+    any:
+      # Texto ordenado al 2026-05-06 (Com. "A" 8433): 2.3.5.1 reimburse improper charges within 10 business days of the
+      # complaint; 3.1.6 resolve every complaint within 10 business days.
+      - credit: {days: 10, calendar: business}
+        ruling: {days: 10, calendar: business}
+        source: "BCRA, Protección de los Usuarios de Servicios Financieros, items 2.3.5.1 and 3.1.6"
+        source_url: https://www.bcra.gob.ar/archivos/Pdfs/texord/t-pusf.pdf
+        verified_on: 2026-10-04
+
+countries:                               # spec 02 §4.4 (FR-09): IANA time zone of clock.today(live); T7 adds currency and fx
+  MX: {time_zone: America/Mexico_City}
+  CO: {time_zone: America/Bogota}
+  AR: {time_zone: America/Argentina/Buenos_Aires}
+  BR: {time_zone: America/Sao_Paulo}
+  PE: {time_zone: America/Lima}
+  CL: {time_zone: America/Santiago}
 
 reliability:
   tool_retries: 2
@@ -163,7 +171,7 @@ case_queue:                              # analyst queue; a case's status is its
   deadline_sla:                                   # provisional_credit is always human_required, so a person must act before the MX debit deadline
     mx_debit:
       applies_to: {country: MX, product: debit}
-      deadline: regulatory_clock.MX.debit.provisional_credit_business_days
+      deadline: regulatory_clock.MX.debit[0].credit           # 2 business days (clock.deadline)
       raise_priority_on_business_day: 1
       alert_before_business_day: 2
 

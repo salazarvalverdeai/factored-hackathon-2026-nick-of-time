@@ -2,20 +2,23 @@
 
 Loaded and validated once: an invalid file fails at startup, never at decision time. The loaded model is deeply frozen
 (mappings are read-only proxies, lists are tuples), so no caller can loosen a rule at runtime. Sections the engine does
-not read yet stay untyped until the task that uses them types them (clock: 02b, queue: 02c).
+not read yet stay untyped until the task that uses them types them (queue: 02c).
 """
 from __future__ import annotations
 
+from datetime import date
 from functools import cache
 from pathlib import Path
 from types import MappingProxyType
-from typing import Any, Literal, Optional
+from typing import Annotated, Any, Literal, Optional
+from zoneinfo import ZoneInfo
 
 import yaml
-from pydantic import BaseModel, ConfigDict, Field, StrictInt, field_serializer, model_validator
+from pydantic import BaseModel, ConfigDict, Field, StrictInt, StringConstraints, field_serializer, model_validator
 
-from nick_of_time.contracts import CONTRACTS_DIR, Zone
+from nick_of_time.contracts import CONTRACTS_DIR, HTTPS_URL, Zone
 
+CountryCode = Annotated[str, StringConstraints(pattern=r"^[A-Z]{2}$")]
 ApprovalMode = Literal["auto", "manual_check", "human_required"]
 MODES: tuple[ApprovalMode, ...] = ("auto", "manual_check", "human_required")     # stricter to the right (FR-04)
 POLICIES_PATH = CONTRACTS_DIR / "policies.yaml"
@@ -107,6 +110,51 @@ class Handoff(_Strict):
     never_include_raw_transcript: Literal[True]
 
 
+class Term(_Strict):
+    days: int = Field(gt=0)
+    calendar: Literal["business", "calendar"]
+
+
+class ChargeWindow(_Strict):              # the entry applies only to a charge this recent at the notice
+    hours: Optional[int] = Field(None, gt=0)
+    days: Optional[int] = Field(None, gt=0)
+
+    @model_validator(mode="after")
+    def _one_unit(self) -> ChargeWindow:
+        if (self.hours is None) == (self.days is None):
+            raise ValueError("when_charged_within needs exactly one of hours or days")
+        return self
+
+
+class ClockEntry(_Strict):                # one verified row of spec 02 §4.3 (ADR 0019)
+    when_charged_within: Optional[ChargeWindow] = None
+    credit: Optional[Term] = None
+    ruling: Optional[Term] = None
+    ruling_abroad: Optional[Term] = None
+    extendable_once: bool = False
+    source: str = Field(min_length=1)
+    source_url: str = Field(pattern=HTTPS_URL)
+    verified_on: date
+
+    @model_validator(mode="after")
+    def _has_a_term(self) -> ClockEntry:
+        if self.credit is None and self.ruling is None:
+            raise ValueError("a regulatory_clock entry needs a credit or a ruling term")
+        return self
+
+
+class Country(_Strict):
+    time_zone: str
+
+    @model_validator(mode="after")
+    def _known_zone(self) -> Country:
+        try:
+            ZoneInfo(self.time_zone)
+        except (KeyError, ValueError) as e:     # ZoneInfoNotFoundError is a KeyError
+            raise ValueError(f"unknown IANA time zone {self.time_zone}") from e
+        return self
+
+
 class Contact(_Strict):                   # D-008: request_call's expected_contact_by; null promises no date
     callback_within_business_days: Optional[StrictInt] = Field(None, ge=1)
 
@@ -126,7 +174,8 @@ class Policies(_Strict):
     clarify: Clarify
     handoff: Handoff
     contact: Optional[Contact] = None
-    regulatory_clock: dict[str, Any]
+    regulatory_clock: dict[CountryCode, dict[Literal["debit", "credit", "any"], list[ClockEntry]]]
+    countries: dict[CountryCode, Country]
     reliability: dict[str, Any]
     security: dict[str, Any]
     case_queue: dict[str, Any]
@@ -172,6 +221,8 @@ class Policies(_Strict):
             problems.append("amount tiers must get stricter as the amount grows")
         problems += [f"amount_gate {c}: low must be below high" for c, g in self.amount_gate.by_country.items()
                      if g.low >= g.high]
+        problems += [f"regulatory_clock {c} needs countries.{c}.time_zone" for c in self.regulatory_clock
+                     if c not in self.countries]
         if problems:
             raise ValueError("; ".join(problems))
         return self
