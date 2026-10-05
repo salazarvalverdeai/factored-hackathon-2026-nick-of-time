@@ -26,6 +26,11 @@ currency, date, merchant) and whether the message is an **injection**. The inten
 | `human_request` | "quiero hablar con una persona" / "quero falar com um atendente" | request a call |
 | `out_of_scope` | anything else (loans, balance, small talk) | refuse with what it can do |
 
+**Other language (G-IN-03, `[assumption]`).** B0 sets `other_language` for a clear non-ES/PT sentence: at least 4 words, at
+least 3 English/French/German stopwords outnumbering the ES/PT words seen, and only when B0 reads `out_of_scope`. Loanwords,
+merchant names, numbers, short inputs and ES/PT code-switching never set it. The graph answers it by rule in a verified
+session, with no LLM (S1 is skipped) and no case (spec 04 `route`).
+
 `unrecognized_charge` and `wrongful_charge` come from the complaint categories of the dataset
 (`docs/eda/workflows/W3_disputes.md`) and `dispute_type` in `contracts/tools.py`. `status_inquiry` replaces the former
 `inquiry` so that a returning customer gets a fresh reading. `human_request` exists so that a customer who asks for a
