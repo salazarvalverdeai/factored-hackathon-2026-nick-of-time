@@ -413,6 +413,13 @@ class PostgresStore:
             (check_key(customer_id),))
         return [CustomerChannel(**r) for r in rows]
 
+    @contextmanager
+    def serialize(self, key: str) -> Iterator[None]:
+        if not check_key(key):
+            raise StoreError("a lock needs its key")
+        with self._tx(key):                      # nested in once: held until its transaction commits
+            yield
+
     def once(self, key: str, *, action: str, customer_id: Optional[str], run_id: Optional[str],
              arguments: dict[str, Any], write: Callable[[], dict[str, Any]]) -> Once:
         stored, args = idempotency_key(key, action, customer_id, run_id), arguments_hash(arguments)

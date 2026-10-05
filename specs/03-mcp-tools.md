@@ -154,10 +154,14 @@ Reads gold `transactions_enriched`, `products` and `customers` through DuckDB; f
 `customer_id`, `first_name` and `country`, so `email`, phones, `document_number` and `address` are never loaded (AC-11,
 AC-21). From `products` (`apps/mcp/mcp_server/cards.py`, T4) only the card rows' `product_id`, `customer_id`, type,
 `product_status` and the last 4 digits of `product_number` (the full number is never loaded); from
-`transactions_enriched` also each card transaction's `transaction_country`, which tells `open_case` an operation abroad. Card transactions are loaded at startup into an in-memory table indexed by `customer_id` (≈ 516k rows). Reads
+`transactions_enriched` also each card transaction's `transaction_country`, which tells `open_case` an operation
+abroad. Card transactions are loaded at startup into an in-memory table indexed by `customer_id` (≈ 516k rows). Reads
 and writes Postgres through `nick_of_time.store`: `sessions` (read), `demo_transactions` (read, `live` only), `cases`,
 `case_events`, `product_overrides`, `idempotency`, `policy_denials`, `notifications`, `notification_deliveries` (read),
-`customer_channels` (read).
+`customer_channels` (read). Takes the store's `serialize` lock (a Postgres transaction-level advisory lock) on
+`open_case:<run>:<customer>:<transaction>` around the duplicate check and the insert (AC-15, task 03c).
+`contracts/policies.yaml` gains the rule `POL-ZONE-MISMATCH` (G-IN-02, AC-09; D-060: `version` stays 2, since the
+engine's behavior does not change).
 
 ## 8. Decisions (gate 1, lead, 2026-10-04)
 - **Q1 — currency:** match MX pesos against USD transactions through the policy rate (18.0 `[assumption]`). Display in
@@ -194,6 +198,11 @@ and writes Postgres through `nick_of_time.store`: `sessions` (read), `demo_trans
   event on the case) is still held; and that
   the hold is per case (a block on another case of the same customer is not denied by it).
 - Assumption: the DuckDB in-memory load fits the EC2 (t3.medium, 4 GB) — measured in T5.
+- Single worker, defense in depth (task 03c): the server runs one uvicorn worker (T8), and `open_case` still takes the
+  store's advisory lock on the transaction, so two calls with different keys through separate connections open one
+  case (AC-15).
+- `supervised_mode` (task 03c, follow-up): the console's toggle (`settings_events`, spec 05) does not reach the MCP
+  yet; `block_card` passes `supervised_mode=False` and only the file's `approval.supervised_mode` switch applies.
 
 ## 9. Out of scope
 Analyst tools (they live in the backend API, spec 05); automatic notifications on each status change and the delivery
@@ -211,15 +220,17 @@ Implementation goes in one `feat/03-*` branch per task (T1: `feat/03-mcp-server`
       `clock.today` (task 03b2), tests in `tests/test_spec03_{reads,deadline}.py`
 - [x] T4 — `open_case` (duplicates, related case), `block_card` with idempotency, engine re-check and denials · AC-03,
       04, 09, 10, 12, 15 · `apps/mcp/mcp_server/{writes,cards}.py`, `tests/test_spec03_case_and_block.py` (task 03c);
-      the entry point wires the factory `writes_handlers(gold, policies, store)`, and the card rows load once per
-      process from `GOLD_PATH` (`cards.shared_cards()`).
-      `POL-ZONE-MISMATCH` (G-IN-02) added to `policies.yaml` `rules`. `[assumption]`s: the block is for the newest
-      active (not closed) case of that card of the session's customer and run, since a case records no session; the
-      hold reads any `handoff_emitted` `person_requested` of the case (a superset of the opening turn's, fail closed,
-      pending D-055); `supervised_mode` is false in `check()` until the store exposes `settings_events` (spec 05;
-      the file's switch still applies); the idempotency arguments hash leaves out `session_id`; a key reused with other
-      arguments answers `DENY` `POL-DEFAULT-DENY`; a related case that is open answers `DENY` `POL-DEFAULT-DENY`; a
-      transaction with no `transaction_country` is not abroad. Neither tool changes the queue status (spec 04 / 05)
+      the entry point wires the factory `writes_handlers(gold, policies, store)`; the card index is built over the
+      same folder as `gold` (`cards.cards_of`) and loads on its first read, once per process.
+      `POL-ZONE-MISMATCH` (G-IN-02) added to `policies.yaml` `rules` (D-060). `[assumption]`s: pending D-054, the
+      block is for a case of that card of the session's customer and run in `new`, `verification` or `review` (never
+      resolved or closed), the one opened under the call's trace id when there is one, else the newest, since a case
+      records no session; the hold reads any `handoff_emitted` `person_requested` of the case (a superset of the
+      opening turn's, fail closed, pending D-055); `supervised_mode` is false in `check()` (§8); the idempotency
+      arguments hash leaves out `session_id`; a key reused with other arguments, or a blank or unstorable key (its own
+      message), answers `DENY` `POL-DEFAULT-DENY`; so does a related case that is open, and a `Declined` or `Reversed`
+      transaction (Q2); a transaction with no `transaction_country` is not abroad; the customer's country needs only a
+      `COUNTRY` mapping, so a country with no amount gate still opens its case (no clock entry: POL-CLOCK-UNKNOWN)
 - [ ] T5 — read tools (`get_product_status`, `list_my_cards`, `get_case`, `list_my_cases`) + latency benchmark on
       gold v1 · AC-04, AC-13, AC-16
 - [ ] T6 — follow-up tools (`add_case_info`, `request_call`, `request_reevaluation`) · AC-17, AC-18, AC-19

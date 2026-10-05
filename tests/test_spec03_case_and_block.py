@@ -17,7 +17,8 @@ from contracts import tools
 from nick_of_time import ids
 from nick_of_time.contracts import AnalystActionIn
 from nick_of_time.policy import load_policies
-from tests.test_spec01_store import RUN, backend, new_store, postgres_only, types  # noqa: F401
+from nick_of_time.store import StoreError
+from tests.test_spec01_store import RUN, at_once, backend, new_store, postgres_only, types  # noqa: F401
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "apps/mcp"))
@@ -46,7 +47,11 @@ def _trx(n, customer, product, ptype, score, amount=100.0, country="México", da
 TRX = [_trx(1, ANA, DEBIT, "Tarjeta Débito", 72.0), _trx(2, ANA, DEBIT, "Tarjeta Débito", 40.0),
        _trx(3, ANA, DEBIT, "Tarjeta Débito", None), _trx(4, ANA, CREDIT, "Tarjeta Crédito", 80.0, country="USA"),
        _trx(5, BRUNO, BRUNO_CARD, "Tarjeta Débito", 70.0), _trx(6, ANA, DEBIT, "Tarjeta Débito", 90.0, day=30),
-       _trx(7, ANA, DEBIT, "Tarjeta Débito", 95.0, amount=6000.0)]   # 108,000 MXN: above the MX high gate
+       _trx(7, ANA, DEBIT, "Tarjeta Débito", 95.0, amount=6000.0),   # 108,000 MXN: above the MX high gate
+       *(_trx(n, ANA, DEBIT, "Tarjeta Débito", score, day=29) for n, score in ((8, 50.0), (9, 49.99), (10, 30.0),
+                                                                               (11, 29.99))),
+       {**_trx(12, ANA, DEBIT, "Tarjeta Débito", 80.0), "transaction_status": "Declined"},
+       {**_trx(13, ANA, DEBIT, "Tarjeta Débito", 80.0), "transaction_status": "Reversed"}]
 
 
 def write_gold(root: Path) -> Path:
@@ -77,8 +82,8 @@ def session(sid: str, customer: str, run_id=RUN, **extra) -> gate.SessionRow:
 class Run:
     """The gate with the write handlers (and any extra ones) over one store; `denials` keeps every DENY row."""
 
-    def __init__(self, gold_dir: Path, store=None, extra=None):
-        self.store, self.denials, policies = store or new_store(), [], load_policies()
+    def __init__(self, gold_dir: Path, store=None, extra=None, policies=None):
+        self.store, self.denials, policies = store or new_store(), [], policies or load_policies()
         self.sessions = {S_ANA: session(S_ANA, ANA), S_BRUNO: session(S_BRUNO, BRUNO),
                          S_OTHER_RUN: session(S_OTHER_RUN, ANA, run_id="EV-0002:S1:1")}
         self.gold, self.cards = Gold(gold_dir), GoldCards(gold_dir)
@@ -159,9 +164,32 @@ def test_ac_09_a_zone_other_than_the_scores_is_denied_with_g_in_02_and_writes_no
     assert (row.policy_id, row.guardrail_id, row.trace_id, row.run_id) == ("POL-ZONE-MISMATCH", "G-IN-02", "trace-9", RUN)
 
 
-@pytest.mark.parametrize("n, zone", [(1, "high"), (2, "medium"), (3, "human")])
-def test_ac_09_the_zone_of_the_score_opens_the_case_null_score_is_human(gold_dir, n, zone):
-    assert Run(gold_dir).open(n, zone).duplicate_of is None
+@pytest.mark.parametrize("n, zone", [(1, "high"), (2, "medium"), (3, "human"), (8, "high"), (9, "medium"),
+                                     (10, "medium"), (11, "human")])
+def test_ac_09_the_zone_of_the_score_opens_the_case_at_each_band_edge_and_null_is_human(gold_dir, n, zone):
+    """Bands of policies.yaml zones: 50 high, 49.99 medium, 30 medium, 29.99 human, null human; any other zone is
+    denied."""
+    run = Run(gold_dir)
+    for other in {"high", "medium", "human"} - {zone}:
+        assert denied(run("open_case", transaction_id=trx(n), dispute_type="unrecognized_charge", zone=other),
+                      "POL-ZONE-MISMATCH")
+    assert run.open(n, zone).duplicate_of is None and len(run.store.list_cases(ANA, run_id=RUN)) == 1
+
+
+@pytest.mark.parametrize("n", [12, 13])
+def test_ac_09_a_declined_or_reversed_charge_opens_no_case(gold_dir, n):
+    run = Run(gold_dir)
+    out = run("open_case", transaction_id=trx(n), dispute_type="unrecognized_charge", zone="high")
+    assert denied(out, "POL-DEFAULT-DENY") and "declined or reversed" in out.message and snapshot(run) == {}
+
+
+def test_ac_09_a_country_without_an_amount_gate_still_opens_its_case_with_its_clock(gold_dir):
+    policies = load_policies()
+    gates = {k: v for k, v in policies.amount_gate.by_country.items() if k != "MX"}
+    no_mx_gate = policies.model_copy(update={"amount_gate": policies.amount_gate.model_copy(
+        update={"by_country": gates})})
+    out = Run(gold_dir, policies=no_mx_gate).open(1)
+    assert (out.country, out.credit_deadline) == ("MX", dt.date(2026, 6, 3))
 
 
 def test_ac_15_an_active_case_of_the_same_transaction_is_returned_with_duplicate_of_and_nothing_is_written(gold_dir):
@@ -221,6 +249,49 @@ def test_ac_03_a_key_reused_with_other_arguments_is_denied_and_writes_nothing(go
     assert denied(run("open_case", transaction_id=trx(2), dispute_type="unrecognized_charge", zone="medium",
                       idempotency_key="k"), "POL-DEFAULT-DENY")
     assert denied(run.block(idempotency_key="k"), "POL-DEFAULT-DENY") and nothing_written(run, before)
+
+
+@pytest.mark.parametrize("key", [" ", "k\x00"])
+def test_ac_03_a_key_that_is_not_storable_is_denied_with_its_own_message(gold_dir, key):
+    run = Run(gold_dir)
+    out = run("open_case", transaction_id=trx(1), dispute_type="unrecognized_charge", zone="high", idempotency_key=key)
+    assert denied(out, "POL-DEFAULT-DENY") and out.message == "The idempotency key is not valid." and snapshot(run) == {}
+
+
+@pytest.mark.parametrize("tool, method", [("open_case", "create_case"), ("block_card", "block_product")])
+def test_ac_03_a_write_that_fails_inside_once_stores_nothing_and_its_retry_writes_once(gold_dir, monkeypatch, tool,
+                                                                                       method):
+    run = Run(gold_dir)
+    if tool == "block_card":
+        run.open(1)
+    real, failures = getattr(run.store, method), []
+
+    def flaky(*args, **kwargs):
+        if not failures:
+            failures.append(1)
+            raise StoreError("the database went away")
+        return real(*args, **kwargs)
+    monkeypatch.setattr(run.store, method, flaky)
+    def call():
+        if tool == "open_case":
+            return run("open_case", transaction_id=trx(1), dispute_type="unrecognized_charge", zone="high",
+                       idempotency_key="k")
+        return run.block(idempotency_key="k")
+    assert call() == gate.UNAVAILABLE and failures == [1]         # nothing stored under the key
+    first, again = call(), call()
+    assert first == again and not isinstance(first, tools.ToolError)
+    [case] = run.store.list_cases(ANA, run_id=RUN)
+    assert types(run.store, case.case_id).count("case_opened" if tool == "open_case" else "card_blocked") == 1
+
+
+def test_ac_15_concurrent_open_case_calls_on_one_transaction_open_one_case(gold_dir, backend):  # noqa: F811
+    """Separate store instances (two connections, as two workers would have) and different keys: the advisory lock
+    serializes the duplicate check, so one call opens the case and the other returns it with duplicate_of."""
+    postgres_only(backend)
+    runs = [Run(gold_dir, store=new_store()) for _ in range(2)]
+    outs = at_once([lambda r=r, k=k: r.open(1, idempotency_key=k) for r, k in zip(runs, ("k1", "k2"))])
+    assert sorted(o.duplicate_of is None for o in outs) == [False, True] and len({o.case_id for o in outs}) == 1
+    assert len(runs[0].store.list_cases(ANA, run_id=RUN)) == 1
 
 
 # ---------- block_card ----------
@@ -309,24 +380,25 @@ def test_ac_10_d042_take_request_customer_info_and_mark_ambiguous_keep_the_hold(
     assert denied(run.block(), "POL-HUMAN-REQUEST") and run.store.product_status(DEBIT, run_id=RUN) is None
 
 
-@pytest.mark.parametrize("end", ["approve_block", "resolve"])
-def test_ac_10_d042_approve_block_and_resolve_each_lift_the_hold(gold_dir, end):
+def test_ac_10_d042_approve_block_lifts_the_hold(gold_dir):
     run = Run(gold_dir)
     case = run.open(1)
     run.call_requested(case.case_id)
     run.analyst(case.case_id, "take", "review")
-    run.analyst(case.case_id, end, "resolved" if end == "resolve" else None)
+    run.analyst(case.case_id, "approve_block")
     assert isinstance(run.block(), tools.BlockCardOut)
     assert run.store.product_status(DEBIT, run_id=RUN).status == "Blocked"
 
 
-def test_ac_10_d042_close_case_lifts_the_hold(gold_dir):
+def test_ac_10_d042_resolve_and_close_case_lift_the_hold(gold_dir):
     run = Run(gold_dir)
     case = run.open(1)
     run.call_requested(case.case_id)
     assert writes.call_open(run.store.events(case.case_id))
     for action, to in (("take", "review"), ("resolve", "resolved")):
         run.analyst(case.case_id, action, to)
+    assert not writes.call_open(run.store.events(case.case_id))
+    assert denied(run.block(), "POL-DEFAULT-DENY")                # D-054: a resolved case takes no block
     run.call_requested(case.case_id)                              # a new call after the resolve holds again
     assert writes.call_open(run.store.events(case.case_id))
     run.analyst(case.case_id, "close_case", "closed")
@@ -366,6 +438,30 @@ def test_ac_10_d042_the_hold_is_per_case(gold_dir):
     assert writes.call_open(run.store.events(held.case_id))      # the first case is still held
 
 
+def test_ac_10_d054_a_block_targets_the_case_opened_in_this_turn_else_the_newest_open_one(gold_dir):
+    """[assumption] pending D-054: the case of this trace id first; a resolved case is never the target, so it never
+    lets a block bypass an older held case of the same card."""
+    run = Run(gold_dir)
+    older = run.open(1, trace_id="turn-1")
+    newer = run.open(6, trace_id="turn-2")
+    run.call_requested(newer.case_id)
+    assert denied(run.block(trace_id="turn-3"), "POL-HUMAN-REQUEST")       # the newest: held
+    assert isinstance(run.block(trace_id="turn-1"), tools.BlockCardOut)    # this turn's case: not held
+    assert run.store.product_status(DEBIT, run_id=RUN).case_id == older.case_id
+
+
+def test_ac_10_d054_an_older_held_case_is_not_bypassed_when_the_newer_case_is_resolved(gold_dir):
+    run = Run(gold_dir)
+    held = run.open(1, trace_id="turn-1")
+    run.call_requested(held.case_id)
+    newer = run.open(6, trace_id="turn-2")
+    for action, to in (("take", "review"), ("resolve", "resolved")):
+        run.analyst(newer.case_id, action, to)
+    assert denied(run.block(trace_id="turn-2"), "POL-HUMAN-REQUEST")
+    assert denied(run.block(trace_id="turn-3"), "POL-HUMAN-REQUEST")
+    assert run.store.product_status(DEBIT, run_id=RUN) is None
+
+
 def test_ac_10_d042_the_hold_reads_the_latest_request_against_the_latest_end():
     assert not writes.call_open([])
     assert writes.call_open([_ev(1, "case_opened"), _ev(2, "call_requested")])
@@ -380,11 +476,17 @@ def _ev(seq, type, **payload):
     return SimpleNamespace(seq=seq, type=type, payload=payload)
 
 
-def test_ac_10_writes_handlers_is_wired_from_the_entry_points_dependencies(gold_dir, monkeypatch):
-    """Spec 03 T8 wiring: `writes_handlers` needs only gold, policies and store; the cards come from GOLD_PATH."""
-    monkeypatch.setenv("GOLD_PATH", str(gold_dir))
-    handlers = writes.writes_handlers(Gold(gold_dir), load_policies(), new_store())
-    assert set(handlers) == {"open_case", "block_card"} and cards.shared_cards() is cards.shared_cards()
-    monkeypatch.delenv("GOLD_PATH")
-    with pytest.raises(RuntimeError):
-        cards.shared_cards()
+def test_ac_10_writes_handlers_is_wired_from_the_entry_points_dependencies(gold_dir, tmp_path, monkeypatch):
+    """Spec 03 T8 wiring: `writes_handlers` needs only gold, policies and store, never GOLD_PATH; the card index is
+    the one over gold's folder and loads on first use, so a gold folder without `products` still starts."""
+    monkeypatch.delenv("GOLD_PATH", raising=False)
+    gold = Gold(gold_dir)
+    handlers = writes.writes_handlers(gold, load_policies(), new_store())
+    assert set(handlers) == {"open_case", "block_card"} and cards.cards_of(gold) is cards.cards_of(Gold(gold_dir))
+    bare = tmp_path / "gold"
+    bare.mkdir()
+    for name in ("transactions_enriched.parquet", "customers.parquet"):
+        (bare / name).write_bytes((gold_dir / name).read_bytes())
+    lazy = cards.cards_of(Gold(bare))                              # no products: built, not loaded
+    with pytest.raises(Exception):
+        lazy.card(ANA, DEBIT)

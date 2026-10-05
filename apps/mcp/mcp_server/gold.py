@@ -54,6 +54,7 @@ class Gold:
         path = Path(path).resolve()
         if "gold_eval" in path.parts:                         # constitution #7: the runtime never reads labels
             raise ValueError("the MCP server reads data/gold only, never gold_eval")
+        self.path = path                                      # the folder, for the card index (cards.cards_of)
         self._con = duckdb.connect(":memory:", config={"memory_limit": memory_limit, "threads": 2})
         self._con.execute(f"CREATE TABLE card AS SELECT {_LOAD} FROM read_parquet(?) WHERE product_type IN (?, ?) "
                           "AND customer_id IS NOT NULL ORDER BY customer_id",

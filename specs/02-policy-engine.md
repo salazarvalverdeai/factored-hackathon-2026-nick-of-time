@@ -300,7 +300,8 @@ fx.convert(amount=1250.0, from_currency="USD", to_currency="MXN") -> {amount, ra
 - `contracts/policies.yaml`: adds `rules:` (every id this spec names, each with its text and guardrail: those of §4.1,
   `POL-SCORE-SOURCE` for a score from a source that does not decide, `POL-AMOUNT-GATE`, `POL-AMOUNT-UNKNOWN` and
   `POL-SUPERVISED` for a stricter mode in §4.2, `POL-CLOCK-UNKNOWN`, `POL-QUEUE-TRANSITION`, `POL-CLOSE-HUMAN` and
-  `POL-REEVAL-WINDOW`), `scoring.deciding_sources` (the sources whose score places a zone: `dataset`, `rules`,
+  `POL-REEVAL-WINDOW`; spec 03 adds `POL-ZONE-MISMATCH`, G-IN-02, for its `open_case` zone check, D-060),
+  `scoring.deciding_sources` (the sources whose score places a zone: `dataset`, `rules`,
   `model` and `synthetic`; never `llm`) with a `scoring.providers.synthetic` entry,
   `approval.money_actions` (AC-15), `usd_rate` per `amount_gate.by_country` entry (§4.2), the handoff reasons
   `zone_medium` and `supervised_mode` (also in `contracts/handoff.schema.json`), per-country `time_zone`,

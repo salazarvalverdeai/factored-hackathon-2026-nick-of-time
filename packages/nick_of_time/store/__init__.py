@@ -23,6 +23,7 @@ import datetime as dt
 import json
 import re
 from collections.abc import Callable, Iterator
+from contextlib import AbstractContextManager
 from typing import Any, Literal, Optional, Protocol, get_args, runtime_checkable
 
 import yaml
@@ -412,6 +413,12 @@ class Store(Protocol):
     def channels(self, customer_id: str) -> list[CustomerChannel]:
         """The latest row (inserted last) of each of the customer's channels, by channel name; a tool sends only where
         `confirmed` is true and shows only masked addresses (spec 03 AC-11, AC-21)."""
+
+    def serialize(self, key: str) -> AbstractContextManager[None]:
+        """Hold the store's lock named `key` for the `with` body or, inside `once`, until its transaction ends, so two
+        callers that check-then-write under the same key run one after the other (spec 03 AC-15: concurrent
+        `open_case` calls on one transaction open one case). Postgres: a transaction-level advisory lock, across
+        processes; memory: a lock of this store (task 03c)."""
 
     # ---------- idempotency (task 01g, store/accounts.py) ----------
     def once(self, key: str, *, action: str, customer_id: Optional[str], run_id: Optional[str],

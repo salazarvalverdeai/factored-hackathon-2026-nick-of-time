@@ -21,20 +21,23 @@ from typing import Optional, Union
 from pydantic import BaseModel
 
 from contracts import tools as t
-from mcp_server.cards import GoldCards, shared_cards
+from mcp_server.cards import GoldCards, cards_of
 from mcp_server.gate import UNAVAILABLE, Call, Handler
 from mcp_server.gold import Gold
-from mcp_server.reads import COUNTRY, NOT_FOUND, PROBE
+from mcp_server.reads import COUNTRY, NOT_FOUND, PROBE, STATUSES
 from nick_of_time import ids
 from nick_of_time.nlu.text import fold
 from nick_of_time.policy import Deny, Policies, PolicyEngine, clock
 from nick_of_time.store import CaseEvent, CaseRecord, NewCase, Store, StoreError
+from nick_of_time.store.accounts import idempotency_key
 
 ACTOR = "agent"
 CROSS_CUSTOMER = "POL-CROSS-CUSTOMER"
 # D-042 (lead, 2026-10-05): only these analyst actions end a call hold; take, request_customer_info, mark_ambiguous and
 # every other one keep it.
 ENDS_HOLD = frozenset({"approve_block", "resolve", "close_case"})
+# [assumption] pending D-054: a block is for a case still being worked on, never a resolved or closed one.
+BLOCKABLE = frozenset({"new", "verification", "review"})
 NO_CARD = t.ToolError(code="NOT_FOUND", message="No such card among yours.")
 NO_CASE = t.ToolError(code="NOT_FOUND", message="No such case among yours.")
 
@@ -85,6 +88,10 @@ def run_once(store: Store, call: Call, args: t._WriteIn,
     result. [assumption] The arguments hashed with the key leave out `session_id`, so a retry after signing in again
     replays; a key reused with other arguments or for another tool is refused (DENY POL-DEFAULT-DENY)."""
     model_out, ran = t.CUSTOMER_TOOLS[call.tool][1], []
+    try:
+        idempotency_key(args.idempotency_key, call.tool, call.session.customer_id, call.session.run_id)
+    except StoreError:                                      # blank, NUL or a lone surrogate: not a key
+        return deny("POL-DEFAULT-DENY", "The idempotency key is not valid.")
 
     def once() -> dict:
         ran.append(True)
@@ -106,14 +113,15 @@ def run_once(store: Store, call: Call, args: t._WriteIn,
 def writes_handlers(gold: Gold, policies: Policies, store: Store, *, cards: Optional[GoldCards] = None,
                     now: Optional[Callable[[], dt.datetime]] = None) -> dict[str, Handler]:
     """The entry point (spec 03 T8) wires this factory by its parameter names. `cards` defaults to the process's
-    `shared_cards()`; `now` (an aware UTC datetime) feeds `clock.today` in live mode only, and None lets the clock read
-    it (ADR 0020)."""
-    engine, cards = PolicyEngine(policies), cards or shared_cards()
+    index over `gold`'s folder (`cards_of`); `now` (an aware UTC datetime) feeds `clock.today` in live mode only, and
+    None lets the clock read it (ADR 0020)."""
+    engine, cards = PolicyEngine(policies), cards or cards_of(gold)
 
     def country_of(call: Call) -> Optional[str]:
+        """The customer's country from gold; a country with no regulatory_clock entry still opens its case with no
+        deadline (POL-CLOCK-UNKNOWN), whether or not it has an amount gate."""
         row = gold.customer(call.session.customer_id)
-        country = COUNTRY.get(fold(row.country or "")) if row else None
-        return country if country in policies.amount_gate.by_country else None
+        return COUNTRY.get(fold(row.country or "")) if row else None
 
     def case_out(case: CaseRecord, **extra) -> t.OpenCaseOut:
         return t.OpenCaseOut(action_id=case.action_id, case_id=case.case_id, country=case.country,
@@ -134,11 +142,19 @@ def writes_handlers(gold: Gold, policies: Policies, store: Store, *, cards: Opti
         trx = gold.transaction(customer, args.transaction_id)
         if trx is None:
             return PROBE if gold.owner(args.transaction_id) else NOT_FOUND
+        if trx.transaction_status not in STATUSES:          # Q2: a declined or reversed charge takes no dispute
+            return deny("POL-DEFAULT-DENY", "This transaction was declined or reversed; there is no charge to dispute.")
         card = cards.card(customer, trx.product_id)
         if card is None:
             return UNAVAILABLE
 
         def write() -> t.OpenCaseOut:
+            # AC-15 under concurrency: calls with different keys on one transaction run one after the other, so the
+            # second sees the first's case (Postgres: an advisory lock held until once's transaction commits).
+            with store.serialize(f"open_case:{run_id or '-'}:{customer}:{trx.transaction_id}"):
+                return checked_write()
+
+        def checked_write() -> t.OpenCaseOut:
             same = next((c for c in active(call) if c.transaction_id == trx.transaction_id), None)
             if same is not None:                            # AC-15, first: the active case, nothing written
                 return case_out(same, duplicate_of=same.case_id)
@@ -177,9 +193,12 @@ def writes_handlers(gold: Gold, policies: Policies, store: Store, *, cards: Opti
             return probe(NO_CARD) if cards.owner(args.product_id) else NO_CARD
 
         def write() -> t.BlockCardOut:
-            # [assumption] "in the session and run": a case names its customer and run, not its session; the newest
-            # active case of the card is the one this block is for, and its hold is the one read (per case, D-042).
-            case = next((c for c in active(call) if c.product_id == args.product_id), None)
+            # [assumption] pending D-054: a case names its customer and run, not its session. The block is for a case
+            # of this card in BLOCKABLE: the one opened in this turn (same trace id) when there is one, else the
+            # newest; its hold is the one read (per case, D-042).
+            cases = [c for c in active(call) if c.product_id == args.product_id
+                     and store.queue_status(c.case_id) in BLOCKABLE]
+            case = next((c for c in cases if c.trace_id == call.trace_id), cases[0] if cases else None)
             if case is None:                                # AC-10: no open case of this card
                 raise Refused(deny("POL-DEFAULT-DENY", "There is no open case for this card."))
             trx = gold.transaction(customer, case.transaction_id)

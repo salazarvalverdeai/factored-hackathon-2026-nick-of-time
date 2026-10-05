@@ -7,7 +7,9 @@ from __future__ import annotations
 
 import copy
 import datetime as dt
-from collections.abc import Callable
+import threading
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager
 from typing import Any, Literal, Optional, get_args
 
 from nick_of_time import ids
@@ -37,6 +39,7 @@ class MemoryStore:
         self._llm_calls: list[LLMCall] = []
         self._channels: list[CustomerChannel] = []
         self._once: dict[str, tuple[str, Optional[str], str, dict[str, Any]]] = {}   # key -> (action, run, args, result)
+        self._serial = threading.RLock()
 
     # ---------- cases ----------
     def create_case(self, case: NewCase, *, actor: str, action_id: str) -> CaseRecord:
@@ -324,13 +327,20 @@ class MemoryStore:
         latest = {c.channel: c for c in self._channels if c.customer_id == customer_id}     # the row inserted last
         return [latest[name] for name in sorted(latest)]
 
+    @contextmanager
+    def serialize(self, key: str) -> Iterator[None]:
+        if not check_key(key):
+            raise StoreError("a lock needs its key")
+        with self._serial:                                  # one lock for every key: this store is one process's
+            yield
+
     def once(self, key: str, *, action: str, customer_id: Optional[str], run_id: Optional[str],
              arguments: dict[str, Any], write: Callable[[], dict[str, Any]]) -> Once:
         stored, args = idempotency_key(key, action, customer_id, run_id), arguments_hash(arguments)
         if stored in self._once:
             check_replay(self._once[stored][:3], action, run_id, args)
             return Once(result=_json(self._once[stored][3]), replayed=True)
-        before = copy.deepcopy({k: v for k, v in vars(self).items() if k != "_now"})
+        before = copy.deepcopy({k: v for k, v in vars(self).items() if k not in ("_now", "_serial")})
         try:
             result = json_object(write())
         except BaseException:                               # a refused write leaves nothing, as a rolled-back transaction
