@@ -229,7 +229,7 @@ shape of `data` is fixed in the producing spec.
   AC-08's `demo_transactions` rows stay P1.
 
 ### 6.4 Graph I/O (`apps/agent`, LangGraph Platform)
-- **Graph id:** `dispute_intake` in `langgraph.json`. **Input:** `{"messages": [{"role": "user", "content": str}],
+- **Graph id:** `dispute_intake` in `langgraph.json` (the real graph, spec 04; the T5 echo graph is `dispute_intake_echo`). **Input:** `{"messages": [{"role": "user", "content": str}],
   "language": "es"|"pt"|null, "action": {"type": "confirm|choose_option|verify_now|request_call|request_reevaluation|send_summary", "value": str}|null}`
   — `action` carries a button or chip press and skips the classifier (`confirm` takes `yes|no`, `choose_option` takes a
   transaction id or `none`). **Config** (injected by the api, never by the client):

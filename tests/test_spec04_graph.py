@@ -76,12 +76,13 @@ def last(turn: TurnResult) -> str:
     return turn.reply.splitlines()[-1]          # the first turn's reply starts with the greeting
 
 
-def test_ac_07_t1_langgraph_json_serves_the_skeleton_by_path():
+def test_ac_07_t1_langgraph_json_serves_the_real_graph_as_dispute_intake():            # D-048
     graphs = json.loads((ROOT / "langgraph.json").read_text())["graphs"]
-    spec = importlib.util.spec_from_file_location("intake_probe", ROOT / graphs["dispute_intake_next"].split(":")[0])
+    spec = importlib.util.spec_from_file_location("intake_probe", ROOT / graphs["dispute_intake"].split(":")[0])
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     assert module.graph.name == "dispute_intake"
+    assert graphs["dispute_intake"].endswith("intake.py:graph") and "dispute_intake_next" not in graphs
     assert {"identity", "greet", "understand", "route", "refuse", "connect", "respond"} <= set(module.graph.nodes)
 
 

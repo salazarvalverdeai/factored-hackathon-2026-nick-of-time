@@ -3,7 +3,7 @@
 Every turn answers a valid `TurnResult` that echoes the customer's last message and carries the sample receipt
 [simulated], so the api, the web and the harness can build against the real I/O before spec 04. No LLM, no tools, no
 network. `configurable.session_id` is required, as the api always injects it; `configurable.mode` defaults to replay.
-Served by `langgraph.json` (graph id `dispute_intake`); locally `PYTHONPATH=.:packages langgraph dev`.
+Served by `langgraph.json` as `dispute_intake_echo` (D-048: `dispute_intake` is the real graph, `agent.intake`); locally `PYTHONPATH=.:packages langgraph dev`.
 """
 # No `from __future__ import annotations`: the state types must resolve when the server loads this file by path.
 import uuid

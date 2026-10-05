@@ -281,8 +281,8 @@ messages.
 
 ## 10. Plan, tasks and verification
 - [ ] T1 — State and graph skeleton on the spec 01 echo graph; `langgraph dev` locally · AC-07, AC-27. Task 04a: state,
-      skeleton and AC-27 done in `apps/agent/agent/intake.py`, served as `dispute_intake_next` next to the echo
-      `dispute_intake` until the dispute path lands (T3–T5); `retrieve` landed in T3 and `status` in T6. Open: a
+      skeleton and AC-27 done in `apps/agent/agent/intake.py`, served as `dispute_intake` (D-048 applied once
+      T3–T5 landed; the echo graph stays as `dispute_intake_echo`); `retrieve` landed in T3 and `status` in T6. Open: a
       `langgraph dev` run and AC-07 on Platform (T8)
 - [x] T2 — `greet`, `understand` (rules arm + injection rules), `route` · AC-03, AC-09, AC-10, AC-15 (task 04a, with
       `refuse`, a general-call `connect` (AC-28 part; T6 puts the call on the active case) and AC-33 (proposed);

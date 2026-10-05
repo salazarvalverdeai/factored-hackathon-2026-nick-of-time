@@ -10,7 +10,7 @@ cases in every turn that asks (AC-19) and `connect` registers the call where the
 a general one (AC-28; task 04e). `respond` builds the receipt and the handoff card from tool results, and the
 grounding gate drops any fact no tool returned (G-OUT-01, task 04d). Tools are reached only through MCP
 with the session of the run config (constitution #3); "today" comes from `config.today(mode)` (AC-27, ADR 0020).
-Served as `dispute_intake_next` (langgraph.json) until it replaces the echo graph [assumption].
+Served as `dispute_intake` in langgraph.json (D-048 applied); the echo graph stays as `dispute_intake_echo`.
 """
 # No `from __future__ import annotations`: the state types must resolve when the server loads this file by path.
 import asyncio
