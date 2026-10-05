@@ -103,7 +103,7 @@ eval-stub: $(PY)
 	cd apps/api && PYTHONPATH=../../packages:../.. EVAL_MODE=true LLM_PROVIDER=fake ../../$(PY) -m uvicorn app.main:create_app --factory --port 8000
 
 # Classifier arms of spec 11 (eval/README.md "Classifier evaluation"). `classifier`: development run on validation,
-# written to eval/.runs/ only. `classifier-test`: the one test-split run; refused while eval/PROTOCOL.md is UNSEALED.
+# written to eval/.runs/ only. `classifier-test`: the one test-split run; refused while eval/PROTOCOL.md is UNSEALED or untagged.
 CLASSIFIER_ARMS ?= B0,B1
 
 classifier: $(PY)

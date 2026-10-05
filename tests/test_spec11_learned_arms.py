@@ -108,8 +108,16 @@ def test_ac_01_test_run_is_refused_unless_sealed_with_the_same_split(tmp_path, s
     assert not results(root)
 
 
-def test_ac_03_ac_05_sealed_test_run_exports_the_spec_shape(tmp_path):
+def test_ac_01_sealed_but_untagged_protocol_refuses_the_test_run(tmp_path):
+    root = make_root(tmp_path, "SEALED")                 # not a git repository: no protocol-v1 tag
+    with pytest.raises(ev.EvalError, match="protocol-v1"):
+        ev.evaluate("test", ["B0", "B1"], root)
+    assert not results(root)
+
+
+def test_ac_03_ac_05_sealed_test_run_exports_the_spec_shape(tmp_path, monkeypatch):
     root = make_root(tmp_path, "SEALED", test_reviewer="rules-v1")
+    monkeypatch.setattr(ev, "protocol_tagged", lambda root: True)
     out = ev.evaluate("test", ["B0", "B1"], root)
     assert out == root / "apps/web/public/data/classifier.json"
     assert (root / "models/intent-b1-v1.joblib").exists() and (root / "eval/results/classifier.csv").exists()

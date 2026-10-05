@@ -4,8 +4,8 @@
     PYTHONPATH=packages python -m eval.classifier.evaluate --split test --arms B0,B1         # make classifier-test
 
 `validation` is a development run: written only to eval/.runs/classifier/ (git-ignored) and labeled "development run
-on validation", never to a path of the protocol's results. `test` is refused unless eval/PROTOCOL.md is SEALED and the
-promoted split files hash to the sealed manifest; it then writes models/intent-b1-v1.joblib, eval/results/classifier.csv
+on validation", never to a path of the protocol's results. `test` is refused unless eval/PROTOCOL.md is SEALED, tagged
+protocol-v1 in HEAD's history, and the promoted split files hash to the sealed manifest; it then writes models/intent-b1-v1.joblib, eval/results/classifier.csv
 and apps/web/public/data/classifier.json (§7.1), once. B1 is fit on train, calibrated on validation, and τ is the lowest
 B1 threshold with precision ≥ 0.95 on validation (AC-07); every arm is reported at that τ [assumption]. Dates resolve
 against DEMO_TODAY (replay, ADR 0020).
@@ -17,6 +17,7 @@ import csv
 import json
 import math
 import re
+import subprocess
 import sys
 import time
 from datetime import date
@@ -40,6 +41,7 @@ TARGET_PRECISION, ORDER = 0.95, ("B0", "B1", "B3", "B2")
 FLOOR_F1, FLOOR_RECALL, P95_MS, USD_PER_1000 = 0.90, 0.95, 1500, 1.0      # eval/PROTOCOL.md §1.3-1.4 [assumption]
 DEV_LABEL = "development run on validation: not a test result, never used for selection (eval/PROTOCOL.md §1.1)"
 RULE_REVIEW = "test split without independent human review"               # ADR 0025 amendment (rules-v1)
+SEAL_TAG = "protocol-v1"                                                  # eval/PROTOCOL.md "Seal": tag of the sealing commit
 
 
 class EvalError(RuntimeError):
@@ -55,6 +57,15 @@ def seal(root: Path = ROOT) -> dict:
             "split_manifest_sha256": hexed.get("Classifier split manifest sha256")}
 
 
+def protocol_tagged(root: Path = ROOT) -> bool:
+    """The seal tag exists, its commit is in HEAD's history and eval/PROTOCOL.md is unchanged since it."""
+    def git(*args: str) -> subprocess.CompletedProcess:
+        return subprocess.run(["git", "-C", str(root), *args], capture_output=True)
+    tagged = git("show", f"refs/tags/{SEAL_TAG}:eval/PROTOCOL.md")
+    return (tagged.returncode == 0 and git("merge-base", "--is-ancestor", f"refs/tags/{SEAL_TAG}", "HEAD").returncode == 0
+            and tagged.stdout == (root / "eval" / "PROTOCOL.md").read_bytes())
+
+
 def load_splits(split: str, root: Path = ROOT) -> tuple[dict[str, list[dict]], str]:
     """train, validation and the scored split. Test: only the promoted, sealed files. Validation dev runs fall back to
     the human-reviewed drafts while the files are not promoted (review.py applies the decisions; test is never read)."""
@@ -62,6 +73,8 @@ def load_splits(split: str, root: Path = ROOT) -> tuple[dict[str, list[dict]], s
     if split == "test":
         if seal(root)["status"] != "SEALED":
             raise EvalError("refused: eval/PROTOCOL.md is UNSEALED; the test split is scored once, after the seal (M02)")
+        if not protocol_tagged(root):
+            raise EvalError(f"refused: no {SEAL_TAG} tag in HEAD's history with this eval/PROTOCOL.md (M02 tags it)")
         blobs = {f"eval/classifier/{s}.jsonl": (d / f"{s}.jsonl").read_bytes() for s in ("train", "validation", "test")
                  if (d / f"{s}.jsonl").exists()}
         if len(blobs) != 3 or manifest_sha256(blobs) != seal(root)["split_manifest_sha256"]:

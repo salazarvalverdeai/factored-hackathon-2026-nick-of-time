@@ -234,7 +234,7 @@ precision ≥ 0.95 on validation (AC-07). Every arm is reported at τ.
 - `make classifier`: **development run on validation**. Writes `.runs/classifier/<time>/classifier.json` and the B1
   file there (ignored by git), labeled "development run on validation"; never a result path of `PROTOCOL.md`. Before
   the split files are promoted it reads the human-reviewed train and validation drafts; it never reads test.
-- `make classifier-test`: **the one test-split run, after the seal (M02)**. Refused while `PROTOCOL.md` is UNSEALED,
-  or when the promoted split files do not hash to the sealed manifest. It writes
-  `models/intent-b1-v1.joblib`, `results/classifier.csv` and `apps/web/public/data/classifier.json` (spec 11 §7.1), and
+- `make classifier-test`: **the one test-split run, after the seal (M02)**. Refused while `PROTOCOL.md` is UNSEALED, when no
+  `protocol-v1` tag in HEAD's history holds this same `PROTOCOL.md`, or when the promoted split files do not hash to
+  the sealed manifest. It writes `models/intent-b1-v1.joblib`, `results/classifier.csv` and `apps/web/public/data/classifier.json` (spec 11 §7.1), and
   labels a test split decided by `rules-v1` "test split without independent human review" (ADR 0025 amendment).
