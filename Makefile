@@ -30,6 +30,12 @@ report:
 ops:
 	PYTHONPATH=.:packages $(PY) -m data.ops run --source sample
 
+# Spec 14 §11: Bank today [data] and the replay of the W3 complaints [simulated] → apps/web/public/data/ops_kpis.json
+# (committed) and queries/ops/asis_monthly.csv. Needs the real gold (GOLD_PATH or data/gold); offline, no LLM.
+.PHONY: ops-replay
+ops-replay:
+	PYTHONPATH=.:packages $(PY) -m data.ops replay
+
 test:
 	$(PY) -m pytest -q
 

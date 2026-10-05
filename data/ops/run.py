@@ -14,11 +14,11 @@ from typing import Any, Optional
 
 import polars as pl
 
-from data.ops import bronze, gold, silver
+from data.ops import bronze, gold, series, silver
 
 ROOT = Path(__file__).resolve().parents[2]
 OPS_DIR = ROOT / "data" / "ops"
-JOB_VERSION = "0.1.0"
+JOB_VERSION = "0.2.0"                   # 0.2.0: automated_rate, replay_contacts and the series (§11)
 
 
 def sha256(frame: pl.DataFrame) -> str:
@@ -34,13 +34,18 @@ def git_sha() -> str:
 
 
 def run(snapshot: bronze.Snapshot, *, gold_path: Path, out: Path = OPS_DIR, web: Optional[Path] = None,
-        mode: str = "replay", now: Optional[dt.datetime] = None) -> dict[str, Any]:
-    """Run the job on one snapshot; returns the manifest. `web` is where ops_kpis.json goes (AC-09)."""
+        mode: str = "replay", now: Optional[dt.datetime] = None, contacts: Optional[pl.DataFrame] = None,
+        asis: Optional[pl.DataFrame] = None) -> dict[str, Any]:
+    """Run the job on one snapshot; returns the manifest. `web` is where ops_kpis.json goes (AC-09). `contacts` (one
+    outcome row per replayed complaint) becomes gold `replay_contacts`; with `asis` the export carries the series."""
     now = now or dt.datetime.now(dt.UTC)
     stamp = now.isoformat(timespec="seconds")
     sources = bronze.build(snapshot, out / "bronze", now)
     built = silver.build(out / "bronze", out / "silver", gold_path, now)
     tables = gold.build(built["tables"])
+    if contacts is not None:
+        tables["replay_contacts"] = (contacts.group_by(contacts.columns).len("contacts")
+                                     .sort(contacts.columns, nulls_last=True))
     (out / "gold").mkdir(parents=True, exist_ok=True)
     meta = {}
     for name, frame in tables.items():
@@ -68,15 +73,19 @@ def run(snapshot: bronze.Snapshot, *, gold_path: Path, out: Path = OPS_DIR, web:
                 "previous": None if previous is None else {"version": previous["version"], "run_at": previous["run_at"]}}
     path.write_text(json.dumps(manifest, indent=2, ensure_ascii=False) + "\n")
     if web is not None:
-        export(tables, web, mode=mode, source=snapshot.source, version=version, now=now)
+        export(tables, web, mode=mode, source=snapshot.source, version=version, now=now,
+               series=series.build(tables, contacts, asis) if asis is not None or contacts is not None else None)
     return manifest
 
 
 def export(tables: dict[str, pl.DataFrame], path: Path, *, mode: str, source: str, version: int,
-           now: dt.datetime) -> None:
-    """ops_kpis.json with the spec 01 §6.2 envelope (AC-09); every figure is `[simulated]`."""
+           now: dt.datetime, series: Optional[dict[str, Any]] = None) -> None:
+    """ops_kpis.json with the spec 01 §6.2 envelope (AC-09): `days` and `feedback` are `[simulated]`; `series` (§11)
+    carries each series' own label, source, window and notes."""
     payload = {"generated_at": now.strftime("%Y-%m-%dT%H:%M:%SZ"), "git_sha": git_sha(),
-               "source": f"data/ops job [simulated] — {source} store, ops manifest v{version}",
-               "data": gold.summary(tables, mode)}
+               "source": (f"make ops-replay — Bank today [data] and the W3 replay [simulated], {source} store, ops "
+                          f"manifest v{version}" if series else
+                          f"data/ops job [simulated] — {source} store, ops manifest v{version}"),
+               "data": {**gold.summary(tables, mode), **({"series": series} if series else {})}}
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")

@@ -1,0 +1,6621 @@
+{
+  "generated_at": "2026-10-05T23:52:55Z",
+  "git_sha": "2559549",
+  "source": "make ops-replay — Bank today [data] and the W3 replay [simulated], memory store, ops manifest v1",
+  "data": {
+    "label": "[simulated]",
+    "mode": "replay",
+    "days": [
+      {
+        "day": "2025-06-03",
+        "cases": 1,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 1
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 1,
+          "denominator": 1
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-06-05",
+        "cases": 2,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 2
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 2,
+          "denominator": 2
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-06-11",
+        "cases": 1,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 1
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 1,
+          "denominator": 1
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-06-12",
+        "cases": 1,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 1
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 1,
+          "denominator": 1
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-06-13",
+        "cases": 1,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 1
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 1,
+          "denominator": 1
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-06-14",
+        "cases": 1,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 1
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 1,
+          "denominator": 1
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-06-16",
+        "cases": 2,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 2
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 2,
+          "denominator": 2
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-06-17",
+        "cases": 3,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 3
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 3,
+          "denominator": 3
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-06-18",
+        "cases": 4,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 4
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 4,
+          "denominator": 4
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-06-19",
+        "cases": 2,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 2
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 2,
+          "denominator": 2
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-06-20",
+        "cases": 2,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 2
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 2,
+          "denominator": 2
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-06-22",
+        "cases": 2,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 2
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 2,
+          "denominator": 2
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-06-23",
+        "cases": 1,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 1
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 1,
+          "denominator": 1
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-06-24",
+        "cases": 1,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 1
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 1,
+          "denominator": 1
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-06-26",
+        "cases": 4,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 4
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 4,
+          "denominator": 4
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-06-27",
+        "cases": 2,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 2
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 2,
+          "denominator": 2
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-06-28",
+        "cases": 2,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 2
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 2,
+          "denominator": 2
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-06-30",
+        "cases": 1,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 1
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 1,
+          "denominator": 1
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-07-01",
+        "cases": 4,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 4
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 4,
+          "denominator": 4
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-07-02",
+        "cases": 2,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 2
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 2,
+          "denominator": 2
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-07-04",
+        "cases": 1,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 1
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 1,
+          "denominator": 1
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-07-05",
+        "cases": 3,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 3
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 3,
+          "denominator": 3
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-07-06",
+        "cases": 1,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 1
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 1,
+          "denominator": 1
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-07-07",
+        "cases": 3,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 3
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 3,
+          "denominator": 3
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-07-08",
+        "cases": 5,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 5
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 5,
+          "denominator": 5
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-07-09",
+        "cases": 3,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 3
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 3,
+          "denominator": 3
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-07-10",
+        "cases": 3,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 3
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 3,
+          "denominator": 3
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-07-11",
+        "cases": 2,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 2
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 2,
+          "denominator": 2
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-07-12",
+        "cases": 1,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 1
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 1,
+          "denominator": 1
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-07-14",
+        "cases": 2,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 2
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 2,
+          "denominator": 2
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-07-15",
+        "cases": 3,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 3
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 3,
+          "denominator": 3
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-07-16",
+        "cases": 4,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 4
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 4,
+          "denominator": 4
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-07-17",
+        "cases": 4,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 4
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 4,
+          "denominator": 4
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-07-18",
+        "cases": 4,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 4
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 4,
+          "denominator": 4
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-07-19",
+        "cases": 2,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 2
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 2,
+          "denominator": 2
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-07-21",
+        "cases": 1,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 1
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 1,
+          "denominator": 1
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-07-22",
+        "cases": 1,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 1
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 1,
+          "denominator": 1
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-07-23",
+        "cases": 7,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 7
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 7,
+          "denominator": 7
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-07-24",
+        "cases": 4,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 4
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 4,
+          "denominator": 4
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-07-25",
+        "cases": 1,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 1
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 1,
+          "denominator": 1
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-07-26",
+        "cases": 3,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 3
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 3,
+          "denominator": 3
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-07-27",
+        "cases": 2,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 2
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 2,
+          "denominator": 2
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-07-28",
+        "cases": 2,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 2
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 2,
+          "denominator": 2
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-07-29",
+        "cases": 3,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 3
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 3,
+          "denominator": 3
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-07-30",
+        "cases": 3,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 3
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 3,
+          "denominator": 3
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-07-31",
+        "cases": 4,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 4
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 4,
+          "denominator": 4
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-08-01",
+        "cases": 2,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 2
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 2,
+          "denominator": 2
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-08-02",
+        "cases": 2,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 2
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 2,
+          "denominator": 2
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-08-03",
+        "cases": 2,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 2
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 2,
+          "denominator": 2
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-08-04",
+        "cases": 6,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 6
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 6,
+          "denominator": 6
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-08-05",
+        "cases": 3,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 3
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 3,
+          "denominator": 3
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-08-06",
+        "cases": 1,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 1
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 1,
+          "denominator": 1
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-08-07",
+        "cases": 8,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 8
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 8,
+          "denominator": 8
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-08-08",
+        "cases": 4,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 4
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 4,
+          "denominator": 4
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-08-09",
+        "cases": 1,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 1
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 1,
+          "denominator": 1
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-08-12",
+        "cases": 3,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 3
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 3,
+          "denominator": 3
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-08-13",
+        "cases": 2,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 2
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 2,
+          "denominator": 2
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-08-14",
+        "cases": 5,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 5
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 5,
+          "denominator": 5
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-08-15",
+        "cases": 2,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 2
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 2,
+          "denominator": 2
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-08-16",
+        "cases": 3,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 3
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 3,
+          "denominator": 3
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-08-17",
+        "cases": 2,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 2
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 2,
+          "denominator": 2
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-08-18",
+        "cases": 2,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 2
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 2,
+          "denominator": 2
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-08-20",
+        "cases": 6,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 6
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 6,
+          "denominator": 6
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-08-21",
+        "cases": 5,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 5
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 5,
+          "denominator": 5
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-08-22",
+        "cases": 3,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 3
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 3,
+          "denominator": 3
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-08-23",
+        "cases": 2,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 2
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 2,
+          "denominator": 2
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-08-24",
+        "cases": 1,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 1
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 1,
+          "denominator": 1
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-08-25",
+        "cases": 3,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 3
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 3,
+          "denominator": 3
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-08-26",
+        "cases": 6,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 6
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 6,
+          "denominator": 6
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-08-27",
+        "cases": 3,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 3
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 3,
+          "denominator": 3
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-08-28",
+        "cases": 2,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 2
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 2,
+          "denominator": 2
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-08-29",
+        "cases": 5,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 5
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 5,
+          "denominator": 5
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-08-30",
+        "cases": 2,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 2
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 2,
+          "denominator": 2
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-08-31",
+        "cases": 1,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 1
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 1,
+          "denominator": 1
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-09-01",
+        "cases": 2,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 2
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 2,
+          "denominator": 2
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-09-02",
+        "cases": 2,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 2
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 2,
+          "denominator": 2
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-09-03",
+        "cases": 1,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 1
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 1,
+          "denominator": 1
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-09-04",
+        "cases": 5,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 5
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 5,
+          "denominator": 5
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-09-05",
+        "cases": 1,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 1
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 1,
+          "denominator": 1
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-09-06",
+        "cases": 3,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 3
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 3,
+          "denominator": 3
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-09-08",
+        "cases": 3,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 3
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 3,
+          "denominator": 3
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-09-09",
+        "cases": 2,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 2
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 2,
+          "denominator": 2
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-09-10",
+        "cases": 3,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 3
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 3,
+          "denominator": 3
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-09-11",
+        "cases": 3,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 3
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 3,
+          "denominator": 3
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-09-12",
+        "cases": 1,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 1
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 1,
+          "denominator": 1
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-09-13",
+        "cases": 2,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 2
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 2,
+          "denominator": 2
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-09-14",
+        "cases": 1,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 1
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 1,
+          "denominator": 1
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-09-15",
+        "cases": 3,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 3
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 3,
+          "denominator": 3
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-09-16",
+        "cases": 2,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 2
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 2,
+          "denominator": 2
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-09-17",
+        "cases": 2,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 2
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 2,
+          "denominator": 2
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-09-18",
+        "cases": 1,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 1
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 1,
+          "denominator": 1
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-09-19",
+        "cases": 2,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 2
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 2,
+          "denominator": 2
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-09-20",
+        "cases": 1,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 1
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 1,
+          "denominator": 1
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-09-21",
+        "cases": 1,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 1
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 1,
+          "denominator": 1
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-09-22",
+        "cases": 2,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 2
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 2,
+          "denominator": 2
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-09-23",
+        "cases": 1,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 1
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 1,
+          "denominator": 1
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-09-24",
+        "cases": 1,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 1
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 1,
+          "denominator": 1
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-09-25",
+        "cases": 4,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 4
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 4,
+          "denominator": 4
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-09-26",
+        "cases": 3,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 3
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 3,
+          "denominator": 3
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-09-27",
+        "cases": 3,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 3
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 3,
+          "denominator": 3
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-09-28",
+        "cases": 2,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 2
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 2,
+          "denominator": 2
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-09-29",
+        "cases": 4,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 4
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 4,
+          "denominator": 4
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-09-30",
+        "cases": 5,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 5
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 5,
+          "denominator": 5
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-10-01",
+        "cases": 1,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 1
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 1,
+          "denominator": 1
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-10-02",
+        "cases": 5,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 5
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 5,
+          "denominator": 5
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-10-03",
+        "cases": 1,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 1
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 1,
+          "denominator": 1
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-10-04",
+        "cases": 2,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 2
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 2,
+          "denominator": 2
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-10-06",
+        "cases": 3,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 3
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 3,
+          "denominator": 3
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-10-07",
+        "cases": 3,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 3
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 3,
+          "denominator": 3
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-10-08",
+        "cases": 1,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 1
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 1,
+          "denominator": 1
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-10-09",
+        "cases": 2,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 2
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 2,
+          "denominator": 2
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-10-10",
+        "cases": 3,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 3
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 3,
+          "denominator": 3
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-10-11",
+        "cases": 2,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 2
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 2,
+          "denominator": 2
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-10-12",
+        "cases": 1,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 1
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 1,
+          "denominator": 1
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-10-13",
+        "cases": 2,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 2
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 2,
+          "denominator": 2
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-10-14",
+        "cases": 3,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 3
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 3,
+          "denominator": 3
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-10-15",
+        "cases": 2,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 2
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 2,
+          "denominator": 2
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-10-16",
+        "cases": 6,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 6
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 6,
+          "denominator": 6
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-10-17",
+        "cases": 1,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 1
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 1,
+          "denominator": 1
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-10-18",
+        "cases": 1,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 1
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 1,
+          "denominator": 1
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-10-19",
+        "cases": 3,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 3
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 3,
+          "denominator": 3
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-10-20",
+        "cases": 1,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 1
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 1,
+          "denominator": 1
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-10-22",
+        "cases": 1,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 1
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 1,
+          "denominator": 1
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-10-23",
+        "cases": 3,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 3
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 3,
+          "denominator": 3
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-10-25",
+        "cases": 2,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 2
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 2,
+          "denominator": 2
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-10-26",
+        "cases": 1,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 1
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 1,
+          "denominator": 1
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-10-27",
+        "cases": 2,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 2
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 2,
+          "denominator": 2
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-10-28",
+        "cases": 3,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 3
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 3,
+          "denominator": 3
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-10-29",
+        "cases": 2,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 2
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 2,
+          "denominator": 2
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-10-30",
+        "cases": 2,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 2
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 2,
+          "denominator": 2
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-10-31",
+        "cases": 5,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 5
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 5,
+          "denominator": 5
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-11-01",
+        "cases": 2,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 2
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 2,
+          "denominator": 2
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-11-02",
+        "cases": 2,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 2
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 2,
+          "denominator": 2
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-11-03",
+        "cases": 1,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 1
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 1,
+          "denominator": 1
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-11-04",
+        "cases": 2,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 2
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 2,
+          "denominator": 2
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-11-05",
+        "cases": 3,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 3
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 3,
+          "denominator": 3
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-11-06",
+        "cases": 3,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 3
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 3,
+          "denominator": 3
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-11-07",
+        "cases": 1,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 1
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 1,
+          "denominator": 1
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-11-08",
+        "cases": 1,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 1
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 1,
+          "denominator": 1
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-11-09",
+        "cases": 1,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 1
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 1,
+          "denominator": 1
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-11-10",
+        "cases": 5,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 5
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 5,
+          "denominator": 5
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-11-11",
+        "cases": 3,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 3
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 3,
+          "denominator": 3
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-11-12",
+        "cases": 2,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 2
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 2,
+          "denominator": 2
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-11-13",
+        "cases": 2,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 2
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 2,
+          "denominator": 2
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-11-14",
+        "cases": 2,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 2
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 2,
+          "denominator": 2
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-11-15",
+        "cases": 2,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 2
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 2,
+          "denominator": 2
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-11-16",
+        "cases": 2,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 2
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 2,
+          "denominator": 2
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-11-17",
+        "cases": 4,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 4
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 4,
+          "denominator": 4
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-11-18",
+        "cases": 5,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 5
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 5,
+          "denominator": 5
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-11-19",
+        "cases": 2,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 2
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 2,
+          "denominator": 2
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-11-20",
+        "cases": 3,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 3
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 3,
+          "denominator": 3
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-11-21",
+        "cases": 1,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 1
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 1,
+          "denominator": 1
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-11-22",
+        "cases": 2,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 2
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 2,
+          "denominator": 2
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-11-25",
+        "cases": 2,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 2
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 2,
+          "denominator": 2
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-11-26",
+        "cases": 2,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 2
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 2,
+          "denominator": 2
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-11-27",
+        "cases": 5,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 5
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 5,
+          "denominator": 5
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-11-28",
+        "cases": 4,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 4
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 4,
+          "denominator": 4
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-11-29",
+        "cases": 2,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 2
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 2,
+          "denominator": 2
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-11-30",
+        "cases": 1,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 1
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 1,
+          "denominator": 1
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-12-01",
+        "cases": 1,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 1
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 1,
+          "denominator": 1
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-12-02",
+        "cases": 5,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 5
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 5,
+          "denominator": 5
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-12-03",
+        "cases": 3,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 3
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 3,
+          "denominator": 3
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-12-04",
+        "cases": 2,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 2
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 2,
+          "denominator": 2
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-12-05",
+        "cases": 2,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 2
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 2,
+          "denominator": 2
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-12-06",
+        "cases": 1,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 1
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 1,
+          "denominator": 1
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-12-07",
+        "cases": 1,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 1
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 1,
+          "denominator": 1
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-12-08",
+        "cases": 3,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 3
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 3,
+          "denominator": 3
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-12-09",
+        "cases": 3,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 3
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 3,
+          "denominator": 3
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-12-11",
+        "cases": 1,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 1
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 1,
+          "denominator": 1
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-12-12",
+        "cases": 4,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 4
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 4,
+          "denominator": 4
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-12-13",
+        "cases": 1,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 1
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 1,
+          "denominator": 1
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-12-14",
+        "cases": 3,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 3
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 3,
+          "denominator": 3
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-12-15",
+        "cases": 4,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 4
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 4,
+          "denominator": 4
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-12-17",
+        "cases": 4,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 4
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 4,
+          "denominator": 4
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-12-18",
+        "cases": 4,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 4
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 4,
+          "denominator": 4
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-12-19",
+        "cases": 5,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 5
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 5,
+          "denominator": 5
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-12-21",
+        "cases": 1,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 1
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 1,
+          "denominator": 1
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-12-22",
+        "cases": 4,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 4
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 4,
+          "denominator": 4
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-12-23",
+        "cases": 5,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 5
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 5,
+          "denominator": 5
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-12-24",
+        "cases": 2,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 2
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 2,
+          "denominator": 2
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-12-25",
+        "cases": 3,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 3
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 3,
+          "denominator": 3
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-12-26",
+        "cases": 4,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 4
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 4,
+          "denominator": 4
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-12-27",
+        "cases": 2,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 2
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 2,
+          "denominator": 2
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-12-28",
+        "cases": 2,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 2
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 2,
+          "denominator": 2
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-12-29",
+        "cases": 3,
+        "receipt_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 3
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 3,
+          "denominator": 3
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2025-12-31",
+        "cases": 6,
+        "receipt_rate": {
+          "value": 1.0,
+          "numerator": 6,
+          "denominator": 6
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 6,
+          "denominator": 6
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2026-01-01",
+        "cases": 1,
+        "receipt_rate": {
+          "value": 1.0,
+          "numerator": 1,
+          "denominator": 1
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 1,
+          "denominator": 1
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2026-01-02",
+        "cases": 3,
+        "receipt_rate": {
+          "value": 1.0,
+          "numerator": 3,
+          "denominator": 3
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 3,
+          "denominator": 3
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2026-01-03",
+        "cases": 2,
+        "receipt_rate": {
+          "value": 1.0,
+          "numerator": 2,
+          "denominator": 2
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 2,
+          "denominator": 2
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2026-01-05",
+        "cases": 2,
+        "receipt_rate": {
+          "value": 1.0,
+          "numerator": 2,
+          "denominator": 2
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 2,
+          "denominator": 2
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2026-01-06",
+        "cases": 3,
+        "receipt_rate": {
+          "value": 1.0,
+          "numerator": 3,
+          "denominator": 3
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 3,
+          "denominator": 3
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2026-01-07",
+        "cases": 1,
+        "receipt_rate": {
+          "value": 1.0,
+          "numerator": 1,
+          "denominator": 1
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 1,
+          "denominator": 1
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2026-01-08",
+        "cases": 4,
+        "receipt_rate": {
+          "value": 1.0,
+          "numerator": 4,
+          "denominator": 4
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 4,
+          "denominator": 4
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2026-01-09",
+        "cases": 2,
+        "receipt_rate": {
+          "value": 1.0,
+          "numerator": 2,
+          "denominator": 2
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 2,
+          "denominator": 2
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2026-01-10",
+        "cases": 3,
+        "receipt_rate": {
+          "value": 1.0,
+          "numerator": 3,
+          "denominator": 3
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 3,
+          "denominator": 3
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2026-01-11",
+        "cases": 2,
+        "receipt_rate": {
+          "value": 1.0,
+          "numerator": 2,
+          "denominator": 2
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 2,
+          "denominator": 2
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2026-01-12",
+        "cases": 2,
+        "receipt_rate": {
+          "value": 1.0,
+          "numerator": 2,
+          "denominator": 2
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 2,
+          "denominator": 2
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2026-01-13",
+        "cases": 2,
+        "receipt_rate": {
+          "value": 1.0,
+          "numerator": 2,
+          "denominator": 2
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 2,
+          "denominator": 2
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2026-01-14",
+        "cases": 4,
+        "receipt_rate": {
+          "value": 1.0,
+          "numerator": 4,
+          "denominator": 4
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 4,
+          "denominator": 4
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2026-01-17",
+        "cases": 1,
+        "receipt_rate": {
+          "value": 1.0,
+          "numerator": 1,
+          "denominator": 1
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 1,
+          "denominator": 1
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2026-01-18",
+        "cases": 1,
+        "receipt_rate": {
+          "value": 1.0,
+          "numerator": 1,
+          "denominator": 1
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 1,
+          "denominator": 1
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2026-01-19",
+        "cases": 3,
+        "receipt_rate": {
+          "value": 1.0,
+          "numerator": 3,
+          "denominator": 3
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 3,
+          "denominator": 3
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2026-01-20",
+        "cases": 4,
+        "receipt_rate": {
+          "value": 1.0,
+          "numerator": 4,
+          "denominator": 4
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 4,
+          "denominator": 4
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2026-01-21",
+        "cases": 2,
+        "receipt_rate": {
+          "value": 1.0,
+          "numerator": 2,
+          "denominator": 2
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 2,
+          "denominator": 2
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2026-01-22",
+        "cases": 2,
+        "receipt_rate": {
+          "value": 1.0,
+          "numerator": 2,
+          "denominator": 2
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 2,
+          "denominator": 2
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2026-01-25",
+        "cases": 1,
+        "receipt_rate": {
+          "value": 1.0,
+          "numerator": 1,
+          "denominator": 1
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 1,
+          "denominator": 1
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2026-01-26",
+        "cases": 3,
+        "receipt_rate": {
+          "value": 1.0,
+          "numerator": 3,
+          "denominator": 3
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 3,
+          "denominator": 3
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2026-01-27",
+        "cases": 2,
+        "receipt_rate": {
+          "value": 1.0,
+          "numerator": 2,
+          "denominator": 2
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 2,
+          "denominator": 2
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2026-01-29",
+        "cases": 3,
+        "receipt_rate": {
+          "value": 1.0,
+          "numerator": 3,
+          "denominator": 3
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 3,
+          "denominator": 3
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2026-01-30",
+        "cases": 1,
+        "receipt_rate": {
+          "value": 1.0,
+          "numerator": 1,
+          "denominator": 1
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 1,
+          "denominator": 1
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2026-01-31",
+        "cases": 1,
+        "receipt_rate": {
+          "value": 1.0,
+          "numerator": 1,
+          "denominator": 1
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 1,
+          "denominator": 1
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2026-02-01",
+        "cases": 2,
+        "receipt_rate": {
+          "value": 1.0,
+          "numerator": 2,
+          "denominator": 2
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 2,
+          "denominator": 2
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2026-02-02",
+        "cases": 1,
+        "receipt_rate": {
+          "value": 1.0,
+          "numerator": 1,
+          "denominator": 1
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 1,
+          "denominator": 1
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2026-02-03",
+        "cases": 4,
+        "receipt_rate": {
+          "value": 1.0,
+          "numerator": 4,
+          "denominator": 4
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 4,
+          "denominator": 4
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2026-02-04",
+        "cases": 3,
+        "receipt_rate": {
+          "value": 1.0,
+          "numerator": 3,
+          "denominator": 3
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 3,
+          "denominator": 3
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2026-02-06",
+        "cases": 4,
+        "receipt_rate": {
+          "value": 1.0,
+          "numerator": 4,
+          "denominator": 4
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 4,
+          "denominator": 4
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2026-02-08",
+        "cases": 1,
+        "receipt_rate": {
+          "value": 1.0,
+          "numerator": 1,
+          "denominator": 1
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 1,
+          "denominator": 1
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2026-02-09",
+        "cases": 1,
+        "receipt_rate": {
+          "value": 1.0,
+          "numerator": 1,
+          "denominator": 1
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 1,
+          "denominator": 1
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2026-02-10",
+        "cases": 1,
+        "receipt_rate": {
+          "value": 1.0,
+          "numerator": 1,
+          "denominator": 1
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 1,
+          "denominator": 1
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2026-02-12",
+        "cases": 2,
+        "receipt_rate": {
+          "value": 1.0,
+          "numerator": 2,
+          "denominator": 2
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 2,
+          "denominator": 2
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2026-02-13",
+        "cases": 1,
+        "receipt_rate": {
+          "value": 1.0,
+          "numerator": 1,
+          "denominator": 1
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 1,
+          "denominator": 1
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2026-02-14",
+        "cases": 1,
+        "receipt_rate": {
+          "value": 1.0,
+          "numerator": 1,
+          "denominator": 1
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 1,
+          "denominator": 1
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2026-02-15",
+        "cases": 4,
+        "receipt_rate": {
+          "value": 1.0,
+          "numerator": 4,
+          "denominator": 4
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 4,
+          "denominator": 4
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2026-02-16",
+        "cases": 3,
+        "receipt_rate": {
+          "value": 1.0,
+          "numerator": 3,
+          "denominator": 3
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 3,
+          "denominator": 3
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2026-02-17",
+        "cases": 1,
+        "receipt_rate": {
+          "value": 1.0,
+          "numerator": 1,
+          "denominator": 1
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 1,
+          "denominator": 1
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2026-02-19",
+        "cases": 1,
+        "receipt_rate": {
+          "value": 1.0,
+          "numerator": 1,
+          "denominator": 1
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 1,
+          "denominator": 1
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2026-02-20",
+        "cases": 6,
+        "receipt_rate": {
+          "value": 1.0,
+          "numerator": 6,
+          "denominator": 6
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 6,
+          "denominator": 6
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2026-02-21",
+        "cases": 2,
+        "receipt_rate": {
+          "value": 1.0,
+          "numerator": 2,
+          "denominator": 2
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 2,
+          "denominator": 2
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2026-02-24",
+        "cases": 1,
+        "receipt_rate": {
+          "value": 1.0,
+          "numerator": 1,
+          "denominator": 1
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 1,
+          "denominator": 1
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2026-02-25",
+        "cases": 4,
+        "receipt_rate": {
+          "value": 1.0,
+          "numerator": 4,
+          "denominator": 4
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 4,
+          "denominator": 4
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2026-02-26",
+        "cases": 4,
+        "receipt_rate": {
+          "value": 1.0,
+          "numerator": 4,
+          "denominator": 4
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 4,
+          "denominator": 4
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2026-02-27",
+        "cases": 1,
+        "receipt_rate": {
+          "value": 1.0,
+          "numerator": 1,
+          "denominator": 1
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 1,
+          "denominator": 1
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2026-02-28",
+        "cases": 1,
+        "receipt_rate": {
+          "value": 1.0,
+          "numerator": 1,
+          "denominator": 1
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 1,
+          "denominator": 1
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2026-03-01",
+        "cases": 1,
+        "receipt_rate": {
+          "value": 1.0,
+          "numerator": 1,
+          "denominator": 1
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 1,
+          "denominator": 1
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2026-03-02",
+        "cases": 3,
+        "receipt_rate": {
+          "value": 1.0,
+          "numerator": 3,
+          "denominator": 3
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 3,
+          "denominator": 3
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2026-03-03",
+        "cases": 2,
+        "receipt_rate": {
+          "value": 1.0,
+          "numerator": 2,
+          "denominator": 2
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 2,
+          "denominator": 2
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2026-03-04",
+        "cases": 3,
+        "receipt_rate": {
+          "value": 1.0,
+          "numerator": 3,
+          "denominator": 3
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 3,
+          "denominator": 3
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2026-03-05",
+        "cases": 4,
+        "receipt_rate": {
+          "value": 1.0,
+          "numerator": 4,
+          "denominator": 4
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 4,
+          "denominator": 4
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2026-03-06",
+        "cases": 3,
+        "receipt_rate": {
+          "value": 1.0,
+          "numerator": 3,
+          "denominator": 3
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 3,
+          "denominator": 3
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2026-03-08",
+        "cases": 2,
+        "receipt_rate": {
+          "value": 1.0,
+          "numerator": 2,
+          "denominator": 2
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 2,
+          "denominator": 2
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2026-03-09",
+        "cases": 4,
+        "receipt_rate": {
+          "value": 1.0,
+          "numerator": 4,
+          "denominator": 4
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 4,
+          "denominator": 4
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2026-03-10",
+        "cases": 4,
+        "receipt_rate": {
+          "value": 1.0,
+          "numerator": 4,
+          "denominator": 4
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 4,
+          "denominator": 4
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2026-03-11",
+        "cases": 4,
+        "receipt_rate": {
+          "value": 1.0,
+          "numerator": 4,
+          "denominator": 4
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 4,
+          "denominator": 4
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2026-03-12",
+        "cases": 7,
+        "receipt_rate": {
+          "value": 1.0,
+          "numerator": 7,
+          "denominator": 7
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 7,
+          "denominator": 7
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2026-03-14",
+        "cases": 2,
+        "receipt_rate": {
+          "value": 1.0,
+          "numerator": 2,
+          "denominator": 2
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 2,
+          "denominator": 2
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2026-03-15",
+        "cases": 1,
+        "receipt_rate": {
+          "value": 1.0,
+          "numerator": 1,
+          "denominator": 1
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 1,
+          "denominator": 1
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2026-03-16",
+        "cases": 2,
+        "receipt_rate": {
+          "value": 1.0,
+          "numerator": 2,
+          "denominator": 2
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 2,
+          "denominator": 2
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2026-03-17",
+        "cases": 7,
+        "receipt_rate": {
+          "value": 1.0,
+          "numerator": 7,
+          "denominator": 7
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 7,
+          "denominator": 7
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2026-03-18",
+        "cases": 3,
+        "receipt_rate": {
+          "value": 1.0,
+          "numerator": 3,
+          "denominator": 3
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 3,
+          "denominator": 3
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2026-03-19",
+        "cases": 1,
+        "receipt_rate": {
+          "value": 1.0,
+          "numerator": 1,
+          "denominator": 1
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 1,
+          "denominator": 1
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2026-03-20",
+        "cases": 2,
+        "receipt_rate": {
+          "value": 1.0,
+          "numerator": 2,
+          "denominator": 2
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 2,
+          "denominator": 2
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2026-03-21",
+        "cases": 1,
+        "receipt_rate": {
+          "value": 1.0,
+          "numerator": 1,
+          "denominator": 1
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 1,
+          "denominator": 1
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2026-03-22",
+        "cases": 1,
+        "receipt_rate": {
+          "value": 1.0,
+          "numerator": 1,
+          "denominator": 1
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 1,
+          "denominator": 1
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2026-03-23",
+        "cases": 1,
+        "receipt_rate": {
+          "value": 1.0,
+          "numerator": 1,
+          "denominator": 1
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 1,
+          "denominator": 1
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2026-03-24",
+        "cases": 4,
+        "receipt_rate": {
+          "value": 1.0,
+          "numerator": 4,
+          "denominator": 4
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 4,
+          "denominator": 4
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2026-03-25",
+        "cases": 2,
+        "receipt_rate": {
+          "value": 1.0,
+          "numerator": 2,
+          "denominator": 2
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 2,
+          "denominator": 2
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2026-03-26",
+        "cases": 1,
+        "receipt_rate": {
+          "value": 1.0,
+          "numerator": 1,
+          "denominator": 1
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 1,
+          "denominator": 1
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2026-03-27",
+        "cases": 1,
+        "receipt_rate": {
+          "value": 1.0,
+          "numerator": 1,
+          "denominator": 1
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 1,
+          "denominator": 1
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2026-03-28",
+        "cases": 4,
+        "receipt_rate": {
+          "value": 1.0,
+          "numerator": 4,
+          "denominator": 4
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 4,
+          "denominator": 4
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2026-03-29",
+        "cases": 1,
+        "receipt_rate": {
+          "value": 1.0,
+          "numerator": 1,
+          "denominator": 1
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 1,
+          "denominator": 1
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2026-03-30",
+        "cases": 3,
+        "receipt_rate": {
+          "value": 1.0,
+          "numerator": 3,
+          "denominator": 3
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 3,
+          "denominator": 3
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2026-03-31",
+        "cases": 3,
+        "receipt_rate": {
+          "value": 1.0,
+          "numerator": 3,
+          "denominator": 3
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 3,
+          "denominator": 3
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2026-04-01",
+        "cases": 1,
+        "receipt_rate": {
+          "value": 1.0,
+          "numerator": 1,
+          "denominator": 1
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 1,
+          "denominator": 1
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2026-04-02",
+        "cases": 3,
+        "receipt_rate": {
+          "value": 1.0,
+          "numerator": 3,
+          "denominator": 3
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 3,
+          "denominator": 3
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2026-04-03",
+        "cases": 2,
+        "receipt_rate": {
+          "value": 1.0,
+          "numerator": 2,
+          "denominator": 2
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 2,
+          "denominator": 2
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2026-04-04",
+        "cases": 1,
+        "receipt_rate": {
+          "value": 1.0,
+          "numerator": 1,
+          "denominator": 1
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 1,
+          "denominator": 1
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2026-04-05",
+        "cases": 3,
+        "receipt_rate": {
+          "value": 1.0,
+          "numerator": 3,
+          "denominator": 3
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 3,
+          "denominator": 3
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2026-04-06",
+        "cases": 2,
+        "receipt_rate": {
+          "value": 1.0,
+          "numerator": 2,
+          "denominator": 2
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 2,
+          "denominator": 2
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2026-04-07",
+        "cases": 7,
+        "receipt_rate": {
+          "value": 1.0,
+          "numerator": 7,
+          "denominator": 7
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 7,
+          "denominator": 7
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2026-04-08",
+        "cases": 2,
+        "receipt_rate": {
+          "value": 1.0,
+          "numerator": 2,
+          "denominator": 2
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 2,
+          "denominator": 2
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2026-04-09",
+        "cases": 4,
+        "receipt_rate": {
+          "value": 1.0,
+          "numerator": 4,
+          "denominator": 4
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 4,
+          "denominator": 4
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2026-04-10",
+        "cases": 4,
+        "receipt_rate": {
+          "value": 1.0,
+          "numerator": 4,
+          "denominator": 4
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 4,
+          "denominator": 4
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2026-04-11",
+        "cases": 2,
+        "receipt_rate": {
+          "value": 1.0,
+          "numerator": 2,
+          "denominator": 2
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 2,
+          "denominator": 2
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2026-04-13",
+        "cases": 4,
+        "receipt_rate": {
+          "value": 1.0,
+          "numerator": 4,
+          "denominator": 4
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 4,
+          "denominator": 4
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2026-04-14",
+        "cases": 3,
+        "receipt_rate": {
+          "value": 1.0,
+          "numerator": 3,
+          "denominator": 3
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 3,
+          "denominator": 3
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2026-04-15",
+        "cases": 4,
+        "receipt_rate": {
+          "value": 1.0,
+          "numerator": 4,
+          "denominator": 4
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 4,
+          "denominator": 4
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2026-04-16",
+        "cases": 2,
+        "receipt_rate": {
+          "value": 1.0,
+          "numerator": 2,
+          "denominator": 2
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 2,
+          "denominator": 2
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2026-04-17",
+        "cases": 1,
+        "receipt_rate": {
+          "value": 1.0,
+          "numerator": 1,
+          "denominator": 1
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 1,
+          "denominator": 1
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2026-04-18",
+        "cases": 3,
+        "receipt_rate": {
+          "value": 1.0,
+          "numerator": 3,
+          "denominator": 3
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 3,
+          "denominator": 3
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2026-04-19",
+        "cases": 1,
+        "receipt_rate": {
+          "value": 1.0,
+          "numerator": 1,
+          "denominator": 1
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 1,
+          "denominator": 1
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2026-04-20",
+        "cases": 1,
+        "receipt_rate": {
+          "value": 1.0,
+          "numerator": 1,
+          "denominator": 1
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 1,
+          "denominator": 1
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2026-04-21",
+        "cases": 6,
+        "receipt_rate": {
+          "value": 1.0,
+          "numerator": 6,
+          "denominator": 6
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 6,
+          "denominator": 6
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2026-04-22",
+        "cases": 2,
+        "receipt_rate": {
+          "value": 1.0,
+          "numerator": 2,
+          "denominator": 2
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 2,
+          "denominator": 2
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2026-04-23",
+        "cases": 3,
+        "receipt_rate": {
+          "value": 1.0,
+          "numerator": 3,
+          "denominator": 3
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 3,
+          "denominator": 3
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2026-04-24",
+        "cases": 3,
+        "receipt_rate": {
+          "value": 1.0,
+          "numerator": 3,
+          "denominator": 3
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 3,
+          "denominator": 3
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2026-04-25",
+        "cases": 3,
+        "receipt_rate": {
+          "value": 1.0,
+          "numerator": 3,
+          "denominator": 3
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 3,
+          "denominator": 3
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2026-04-27",
+        "cases": 1,
+        "receipt_rate": {
+          "value": 1.0,
+          "numerator": 1,
+          "denominator": 1
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 1,
+          "denominator": 1
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2026-04-28",
+        "cases": 6,
+        "receipt_rate": {
+          "value": 1.0,
+          "numerator": 6,
+          "denominator": 6
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 6,
+          "denominator": 6
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2026-04-30",
+        "cases": 4,
+        "receipt_rate": {
+          "value": 1.0,
+          "numerator": 4,
+          "denominator": 4
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 4,
+          "denominator": 4
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2026-05-01",
+        "cases": 1,
+        "receipt_rate": {
+          "value": 1.0,
+          "numerator": 1,
+          "denominator": 1
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 1,
+          "denominator": 1
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2026-05-02",
+        "cases": 1,
+        "receipt_rate": {
+          "value": 1.0,
+          "numerator": 1,
+          "denominator": 1
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 1,
+          "denominator": 1
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2026-05-03",
+        "cases": 4,
+        "receipt_rate": {
+          "value": 1.0,
+          "numerator": 4,
+          "denominator": 4
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 4,
+          "denominator": 4
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2026-05-04",
+        "cases": 1,
+        "receipt_rate": {
+          "value": 1.0,
+          "numerator": 1,
+          "denominator": 1
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 1,
+          "denominator": 1
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2026-05-05",
+        "cases": 3,
+        "receipt_rate": {
+          "value": 1.0,
+          "numerator": 3,
+          "denominator": 3
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 3,
+          "denominator": 3
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2026-05-06",
+        "cases": 3,
+        "receipt_rate": {
+          "value": 1.0,
+          "numerator": 3,
+          "denominator": 3
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 3,
+          "denominator": 3
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2026-05-07",
+        "cases": 2,
+        "receipt_rate": {
+          "value": 1.0,
+          "numerator": 2,
+          "denominator": 2
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 2,
+          "denominator": 2
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2026-05-08",
+        "cases": 4,
+        "receipt_rate": {
+          "value": 1.0,
+          "numerator": 4,
+          "denominator": 4
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 4,
+          "denominator": 4
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2026-05-09",
+        "cases": 3,
+        "receipt_rate": {
+          "value": 1.0,
+          "numerator": 3,
+          "denominator": 3
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 3,
+          "denominator": 3
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2026-05-12",
+        "cases": 1,
+        "receipt_rate": {
+          "value": 1.0,
+          "numerator": 1,
+          "denominator": 1
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 1,
+          "denominator": 1
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2026-05-13",
+        "cases": 1,
+        "receipt_rate": {
+          "value": 1.0,
+          "numerator": 1,
+          "denominator": 1
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 1,
+          "denominator": 1
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2026-05-14",
+        "cases": 1,
+        "receipt_rate": {
+          "value": 1.0,
+          "numerator": 1,
+          "denominator": 1
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 1,
+          "denominator": 1
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2026-05-15",
+        "cases": 4,
+        "receipt_rate": {
+          "value": 1.0,
+          "numerator": 4,
+          "denominator": 4
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 4,
+          "denominator": 4
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2026-05-17",
+        "cases": 3,
+        "receipt_rate": {
+          "value": 1.0,
+          "numerator": 3,
+          "denominator": 3
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 3,
+          "denominator": 3
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2026-05-18",
+        "cases": 3,
+        "receipt_rate": {
+          "value": 1.0,
+          "numerator": 3,
+          "denominator": 3
+        },
+        "escalation_rate": {
+          "value": 0.6666666666666666,
+          "numerator": 2,
+          "denominator": 3
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2026-05-19",
+        "cases": 2,
+        "receipt_rate": {
+          "value": 1.0,
+          "numerator": 2,
+          "denominator": 2
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 2,
+          "denominator": 2
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2026-05-20",
+        "cases": 3,
+        "receipt_rate": {
+          "value": 1.0,
+          "numerator": 3,
+          "denominator": 3
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 3,
+          "denominator": 3
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2026-05-21",
+        "cases": 1,
+        "receipt_rate": {
+          "value": 1.0,
+          "numerator": 1,
+          "denominator": 1
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 1,
+          "denominator": 1
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2026-05-22",
+        "cases": 4,
+        "receipt_rate": {
+          "value": 1.0,
+          "numerator": 4,
+          "denominator": 4
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 4,
+          "denominator": 4
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2026-05-23",
+        "cases": 2,
+        "receipt_rate": {
+          "value": 1.0,
+          "numerator": 2,
+          "denominator": 2
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 2,
+          "denominator": 2
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2026-05-25",
+        "cases": 1,
+        "receipt_rate": {
+          "value": 1.0,
+          "numerator": 1,
+          "denominator": 1
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 1,
+          "denominator": 1
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2026-05-26",
+        "cases": 1,
+        "receipt_rate": {
+          "value": 1.0,
+          "numerator": 1,
+          "denominator": 1
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 1,
+          "denominator": 1
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2026-05-27",
+        "cases": 5,
+        "receipt_rate": {
+          "value": 1.0,
+          "numerator": 5,
+          "denominator": 5
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 5,
+          "denominator": 5
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2026-05-28",
+        "cases": 3,
+        "receipt_rate": {
+          "value": 1.0,
+          "numerator": 3,
+          "denominator": 3
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 3,
+          "denominator": 3
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2026-05-30",
+        "cases": 2,
+        "receipt_rate": {
+          "value": 1.0,
+          "numerator": 2,
+          "denominator": 2
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 2,
+          "denominator": 2
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      },
+      {
+        "day": "2026-05-31",
+        "cases": 2,
+        "receipt_rate": {
+          "value": 1.0,
+          "numerator": 2,
+          "denominator": 2
+        },
+        "escalation_rate": {
+          "value": 1.0,
+          "numerator": 2,
+          "denominator": 2
+        },
+        "unsafe_outcomes": 0,
+        "cost_per_case": 0.0,
+        "latency_p95_ms": null,
+        "denials": 0
+      }
+    ],
+    "feedback": {
+      "decided": 0,
+      "agreed": 0
+    },
+    "series": {
+      "window": [
+        "2025-06",
+        "2026-05"
+      ],
+      "bank_today": {
+        "key": "bank_today",
+        "name": "Bank today",
+        "label": "[data]",
+        "window": [
+          "2025-06",
+          "2026-05"
+        ],
+        "source": "queries/ops/asis_monthly.sql on gold complaints; FCR from queries/pitch/p02_fcr_complaint_vs_bank.csv",
+        "months": [
+          {
+            "month": "2025-06",
+            "contacts": 647,
+            "days_to_receipt": {
+              "p50": 1.583,
+              "mean": 1.588,
+              "n": 397,
+              "missing": 250
+            },
+            "first_contact_resolution": {
+              "value": 0.43599866690593997,
+              "numerator": 51021,
+              "denominator": 117021,
+              "constant": true
+            },
+            "escalated": {
+              "value": 0.0571870170015456,
+              "numerator": 37,
+              "denominator": 647
+            },
+            "outside_sla_at_intake": {
+              "value": 0.1947449768160742,
+              "numerator": 126,
+              "denominator": 647
+            },
+            "resolution_days": {
+              "p50": 17.5,
+              "n": 142
+            }
+          },
+          {
+            "month": "2025-07",
+            "contacts": 686,
+            "days_to_receipt": {
+              "p50": 1.458,
+              "mean": 1.508,
+              "n": 414,
+              "missing": 272
+            },
+            "first_contact_resolution": {
+              "value": 0.43599866690593997,
+              "numerator": 51021,
+              "denominator": 117021,
+              "constant": true
+            },
+            "escalated": {
+              "value": 0.06997084548104957,
+              "numerator": 48,
+              "denominator": 686
+            },
+            "outside_sla_at_intake": {
+              "value": 0.20262390670553937,
+              "numerator": 139,
+              "denominator": 686
+            },
+            "resolution_days": {
+              "p50": 15.0,
+              "n": 153
+            }
+          },
+          {
+            "month": "2025-08",
+            "contacts": 681,
+            "days_to_receipt": {
+              "p50": 1.583,
+              "mean": 1.562,
+              "n": 411,
+              "missing": 270
+            },
+            "first_contact_resolution": {
+              "value": 0.43599866690593997,
+              "numerator": 51021,
+              "denominator": 117021,
+              "constant": true
+            },
+            "escalated": {
+              "value": 0.06461086637298091,
+              "numerator": 44,
+              "denominator": 681
+            },
+            "outside_sla_at_intake": {
+              "value": 0.19383259911894274,
+              "numerator": 132,
+              "denominator": 681
+            },
+            "resolution_days": {
+              "p50": 16.0,
+              "n": 156
+            }
+          },
+          {
+            "month": "2025-09",
+            "contacts": 663,
+            "days_to_receipt": {
+              "p50": 1.5,
+              "mean": 1.553,
+              "n": 416,
+              "missing": 247
+            },
+            "first_contact_resolution": {
+              "value": 0.43599866690593997,
+              "numerator": 51021,
+              "denominator": 117021,
+              "constant": true
+            },
+            "escalated": {
+              "value": 0.03469079939668175,
+              "numerator": 23,
+              "denominator": 663
+            },
+            "outside_sla_at_intake": {
+              "value": 0.19909502262443438,
+              "numerator": 132,
+              "denominator": 663
+            },
+            "resolution_days": {
+              "p50": 14.0,
+              "n": 174
+            }
+          },
+          {
+            "month": "2025-10",
+            "contacts": 716,
+            "days_to_receipt": {
+              "p50": 1.583,
+              "mean": 1.574,
+              "n": 429,
+              "missing": 287
+            },
+            "first_contact_resolution": {
+              "value": 0.43599866690593997,
+              "numerator": 51021,
+              "denominator": 117021,
+              "constant": true
+            },
+            "escalated": {
+              "value": 0.051675977653631286,
+              "numerator": 37,
+              "denominator": 716
+            },
+            "outside_sla_at_intake": {
+              "value": 0.18435754189944134,
+              "numerator": 132,
+              "denominator": 716
+            },
+            "resolution_days": {
+              "p50": 15.0,
+              "n": 165
+            }
+          },
+          {
+            "month": "2025-11",
+            "contacts": 650,
+            "days_to_receipt": {
+              "p50": 1.5,
+              "mean": 1.547,
+              "n": 402,
+              "missing": 248
+            },
+            "first_contact_resolution": {
+              "value": 0.43599866690593997,
+              "numerator": 51021,
+              "denominator": 117021,
+              "constant": true
+            },
+            "escalated": {
+              "value": 0.05076923076923077,
+              "numerator": 33,
+              "denominator": 650
+            },
+            "outside_sla_at_intake": {
+              "value": 0.15846153846153846,
+              "numerator": 103,
+              "denominator": 650
+            },
+            "resolution_days": {
+              "p50": 16.0,
+              "n": 151
+            }
+          },
+          {
+            "month": "2025-12",
+            "contacts": 682,
+            "days_to_receipt": {
+              "p50": 1.604,
+              "mean": 1.594,
+              "n": 430,
+              "missing": 252
+            },
+            "first_contact_resolution": {
+              "value": 0.43599866690593997,
+              "numerator": 51021,
+              "denominator": 117021,
+              "constant": true
+            },
+            "escalated": {
+              "value": 0.03519061583577713,
+              "numerator": 24,
+              "denominator": 682
+            },
+            "outside_sla_at_intake": {
+              "value": 0.20381231671554254,
+              "numerator": 139,
+              "denominator": 682
+            },
+            "resolution_days": {
+              "p50": 15.0,
+              "n": 165
+            }
+          },
+          {
+            "month": "2026-01",
+            "contacts": 695,
+            "days_to_receipt": {
+              "p50": 1.542,
+              "mean": 1.57,
+              "n": 437,
+              "missing": 258
+            },
+            "first_contact_resolution": {
+              "value": 0.43599866690593997,
+              "numerator": 51021,
+              "denominator": 117021,
+              "constant": true
+            },
+            "escalated": {
+              "value": 0.0618705035971223,
+              "numerator": 43,
+              "denominator": 695
+            },
+            "outside_sla_at_intake": {
+              "value": 0.20287769784172663,
+              "numerator": 141,
+              "denominator": 695
+            },
+            "resolution_days": {
+              "p50": 13.0,
+              "n": 162
+            }
+          },
+          {
+            "month": "2026-02",
+            "contacts": 615,
+            "days_to_receipt": {
+              "p50": 1.583,
+              "mean": 1.593,
+              "n": 399,
+              "missing": 216
+            },
+            "first_contact_resolution": {
+              "value": 0.43599866690593997,
+              "numerator": 51021,
+              "denominator": 117021,
+              "constant": true
+            },
+            "escalated": {
+              "value": 0.03902439024390244,
+              "numerator": 24,
+              "denominator": 615
+            },
+            "outside_sla_at_intake": {
+              "value": 0.216260162601626,
+              "numerator": 133,
+              "denominator": 615
+            },
+            "resolution_days": {
+              "p50": 15.0,
+              "n": 139
+            }
+          },
+          {
+            "month": "2026-03",
+            "contacts": 723,
+            "days_to_receipt": {
+              "p50": 1.625,
+              "mean": 1.6,
+              "n": 438,
+              "missing": 285
+            },
+            "first_contact_resolution": {
+              "value": 0.43599866690593997,
+              "numerator": 51021,
+              "denominator": 117021,
+              "constant": true
+            },
+            "escalated": {
+              "value": 0.0636237897648686,
+              "numerator": 46,
+              "denominator": 723
+            },
+            "outside_sla_at_intake": {
+              "value": 0.18672199170124482,
+              "numerator": 135,
+              "denominator": 723
+            },
+            "resolution_days": {
+              "p50": 17.0,
+              "n": 169
+            }
+          },
+          {
+            "month": "2026-04",
+            "contacts": 680,
+            "days_to_receipt": {
+              "p50": 1.583,
+              "mean": 1.558,
+              "n": 437,
+              "missing": 243
+            },
+            "first_contact_resolution": {
+              "value": 0.43599866690593997,
+              "numerator": 51021,
+              "denominator": 117021,
+              "constant": true
+            },
+            "escalated": {
+              "value": 0.03676470588235294,
+              "numerator": 25,
+              "denominator": 680
+            },
+            "outside_sla_at_intake": {
+              "value": 0.22794117647058823,
+              "numerator": 155,
+              "denominator": 680
+            },
+            "resolution_days": {
+              "p50": 16.0,
+              "n": 175
+            }
+          },
+          {
+            "month": "2026-05",
+            "contacts": 691,
+            "days_to_receipt": {
+              "p50": 1.458,
+              "mean": 1.481,
+              "n": 414,
+              "missing": 277
+            },
+            "first_contact_resolution": {
+              "value": 0.43599866690593997,
+              "numerator": 51021,
+              "denominator": 117021,
+              "constant": true
+            },
+            "escalated": {
+              "value": 0.06222865412445731,
+              "numerator": 43,
+              "denominator": 691
+            },
+            "outside_sla_at_intake": {
+              "value": 0.2199710564399421,
+              "numerator": 152,
+              "denominator": 691
+            },
+            "resolution_days": {
+              "p50": 15.0,
+              "n": 168
+            }
+          }
+        ],
+        "total": {
+          "month": "total",
+          "contacts": 8129,
+          "days_to_receipt": {
+            "p50": 1.542,
+            "mean": 1.561,
+            "n": 5024,
+            "missing": 3105
+          },
+          "first_contact_resolution": {
+            "value": 0.43599866690593997,
+            "numerator": 51021,
+            "denominator": 117021,
+            "constant": true
+          },
+          "escalated": {
+            "value": 0.05252798622216755,
+            "numerator": 427,
+            "denominator": 8129
+          },
+          "outside_sla_at_intake": {
+            "value": 0.19916348874400294,
+            "numerator": 1619,
+            "denominator": 8129
+          },
+          "resolution_days": {
+            "p50": 16.0,
+            "n": 1919
+          }
+        },
+        "notes": {
+          "days_to_receipt": "First response date minus creation date, in days: the closest proxy the dataset has; it records no receipt or legal deadline. Complaints with no first response are left out (missing).",
+          "first_contact_resolution": "FCR of the bank's 'Queja' call-center contacts over the whole dataset window (43.6%). The interactions table is not in this repo's gold, so it cannot be split per month: the same value repeats.",
+          "escalated": "Complaints with status Escalated at the dataset's snapshot.",
+          "outside_sla_at_intake": "The dataset's own sla_breached flag, counted by intake month.",
+          "resolution_days": "Bank only: a person decides the final resolution, so it is not simulated."
+        }
+      },
+      "replay": {
+        "key": "replay",
+        "name": "With Nick of Time (simulated)",
+        "label": "[simulated]",
+        "window": [
+          "2025-06",
+          "2026-05"
+        ],
+        "source": "python -m data.ops replay: B0 + search_transaction + PolicyEngine.decide over gold complaints, then the spec 14 job (ops_kpis, mode replay)",
+        "method": "specs/14-ops-lakehouse.md#11-amendment-bank-today-and-replay-over-the-dataset-lead-2026-10-05",
+        "months": [
+          {
+            "month": "2025-06",
+            "contacts": 647,
+            "cases_opened": 33,
+            "days_to_receipt": {
+              "p50": null,
+              "mean": null,
+              "n": 0,
+              "missing": 647
+            },
+            "first_contact_resolution": {
+              "value": 0.0,
+              "numerator": 0,
+              "denominator": 647
+            },
+            "escalated": {
+              "value": 0.05100463678516229,
+              "numerator": 33,
+              "denominator": 647
+            },
+            "outside_sla_at_intake": {
+              "value": 1.0,
+              "numerator": 33,
+              "denominator": 33
+            },
+            "asked_several": {
+              "value": 0.013910355486862442,
+              "numerator": 9,
+              "denominator": 647
+            },
+            "asked_none": {
+              "value": 0.9350850077279753,
+              "numerator": 605,
+              "denominator": 647
+            },
+            "confirmations_assumed": 32,
+            "duplicates": 0
+          },
+          {
+            "month": "2025-07",
+            "contacts": 686,
+            "cases_opened": 78,
+            "days_to_receipt": {
+              "p50": null,
+              "mean": null,
+              "n": 0,
+              "missing": 686
+            },
+            "first_contact_resolution": {
+              "value": 0.0,
+              "numerator": 0,
+              "denominator": 686
+            },
+            "escalated": {
+              "value": 0.11370262390670553,
+              "numerator": 78,
+              "denominator": 686
+            },
+            "outside_sla_at_intake": {
+              "value": 1.0,
+              "numerator": 78,
+              "denominator": 78
+            },
+            "asked_several": {
+              "value": 0.023323615160349854,
+              "numerator": 16,
+              "denominator": 686
+            },
+            "asked_none": {
+              "value": 0.8629737609329446,
+              "numerator": 592,
+              "denominator": 686
+            },
+            "confirmations_assumed": 78,
+            "duplicates": 0
+          },
+          {
+            "month": "2025-08",
+            "contacts": 681,
+            "cases_opened": 87,
+            "days_to_receipt": {
+              "p50": null,
+              "mean": null,
+              "n": 0,
+              "missing": 681
+            },
+            "first_contact_resolution": {
+              "value": 0.0,
+              "numerator": 0,
+              "denominator": 681
+            },
+            "escalated": {
+              "value": 0.1277533039647577,
+              "numerator": 87,
+              "denominator": 681
+            },
+            "outside_sla_at_intake": {
+              "value": 1.0,
+              "numerator": 87,
+              "denominator": 87
+            },
+            "asked_several": {
+              "value": 0.023494860499265784,
+              "numerator": 16,
+              "denominator": 681
+            },
+            "asked_none": {
+              "value": 0.8487518355359766,
+              "numerator": 578,
+              "denominator": 681
+            },
+            "confirmations_assumed": 87,
+            "duplicates": 0
+          },
+          {
+            "month": "2025-09",
+            "contacts": 663,
+            "cases_opened": 66,
+            "days_to_receipt": {
+              "p50": null,
+              "mean": null,
+              "n": 0,
+              "missing": 663
+            },
+            "first_contact_resolution": {
+              "value": 0.0,
+              "numerator": 0,
+              "denominator": 663
+            },
+            "escalated": {
+              "value": 0.09954751131221719,
+              "numerator": 66,
+              "denominator": 663
+            },
+            "outside_sla_at_intake": {
+              "value": 1.0,
+              "numerator": 66,
+              "denominator": 66
+            },
+            "asked_several": {
+              "value": 0.04524886877828054,
+              "numerator": 30,
+              "denominator": 663
+            },
+            "asked_none": {
+              "value": 0.8552036199095022,
+              "numerator": 567,
+              "denominator": 663
+            },
+            "confirmations_assumed": 65,
+            "duplicates": 0
+          },
+          {
+            "month": "2025-10",
+            "contacts": 716,
+            "cases_opened": 64,
+            "days_to_receipt": {
+              "p50": null,
+              "mean": null,
+              "n": 0,
+              "missing": 716
+            },
+            "first_contact_resolution": {
+              "value": 0.0,
+              "numerator": 0,
+              "denominator": 716
+            },
+            "escalated": {
+              "value": 0.0893854748603352,
+              "numerator": 64,
+              "denominator": 716
+            },
+            "outside_sla_at_intake": {
+              "value": 1.0,
+              "numerator": 64,
+              "denominator": 64
+            },
+            "asked_several": {
+              "value": 0.03770949720670391,
+              "numerator": 27,
+              "denominator": 716
+            },
+            "asked_none": {
+              "value": 0.8729050279329609,
+              "numerator": 625,
+              "denominator": 716
+            },
+            "confirmations_assumed": 63,
+            "duplicates": 0
+          },
+          {
+            "month": "2025-11",
+            "contacts": 650,
+            "cases_opened": 67,
+            "days_to_receipt": {
+              "p50": null,
+              "mean": null,
+              "n": 0,
+              "missing": 650
+            },
+            "first_contact_resolution": {
+              "value": 0.0,
+              "numerator": 0,
+              "denominator": 650
+            },
+            "escalated": {
+              "value": 0.10307692307692308,
+              "numerator": 67,
+              "denominator": 650
+            },
+            "outside_sla_at_intake": {
+              "value": 1.0,
+              "numerator": 67,
+              "denominator": 67
+            },
+            "asked_several": {
+              "value": 0.033846153846153845,
+              "numerator": 22,
+              "denominator": 650
+            },
+            "asked_none": {
+              "value": 0.8630769230769231,
+              "numerator": 561,
+              "denominator": 650
+            },
+            "confirmations_assumed": 66,
+            "duplicates": 0
+          },
+          {
+            "month": "2025-12",
+            "contacts": 682,
+            "cases_opened": 79,
+            "days_to_receipt": {
+              "p50": 0.0,
+              "mean": 0.0,
+              "n": 6,
+              "missing": 676
+            },
+            "first_contact_resolution": {
+              "value": 0.0,
+              "numerator": 0,
+              "denominator": 682
+            },
+            "escalated": {
+              "value": 0.1158357771260997,
+              "numerator": 79,
+              "denominator": 682
+            },
+            "outside_sla_at_intake": {
+              "value": 0.9240506329113924,
+              "numerator": 73,
+              "denominator": 79
+            },
+            "asked_several": {
+              "value": 0.03812316715542522,
+              "numerator": 26,
+              "denominator": 682
+            },
+            "asked_none": {
+              "value": 0.8460410557184751,
+              "numerator": 577,
+              "denominator": 682
+            },
+            "confirmations_assumed": 79,
+            "duplicates": 0
+          },
+          {
+            "month": "2026-01",
+            "contacts": 695,
+            "cases_opened": 55,
+            "days_to_receipt": {
+              "p50": 0.0,
+              "mean": 0.0,
+              "n": 55,
+              "missing": 640
+            },
+            "first_contact_resolution": {
+              "value": 0.0,
+              "numerator": 0,
+              "denominator": 695
+            },
+            "escalated": {
+              "value": 0.07913669064748201,
+              "numerator": 55,
+              "denominator": 695
+            },
+            "outside_sla_at_intake": {
+              "value": 0.0,
+              "numerator": 0,
+              "denominator": 55
+            },
+            "asked_several": {
+              "value": 0.02446043165467626,
+              "numerator": 17,
+              "denominator": 695
+            },
+            "asked_none": {
+              "value": 0.8964028776978418,
+              "numerator": 623,
+              "denominator": 695
+            },
+            "confirmations_assumed": 55,
+            "duplicates": 0
+          },
+          {
+            "month": "2026-02",
+            "contacts": 615,
+            "cases_opened": 49,
+            "days_to_receipt": {
+              "p50": 0.0,
+              "mean": 0.0,
+              "n": 49,
+              "missing": 566
+            },
+            "first_contact_resolution": {
+              "value": 0.0,
+              "numerator": 0,
+              "denominator": 615
+            },
+            "escalated": {
+              "value": 0.07967479674796749,
+              "numerator": 49,
+              "denominator": 615
+            },
+            "outside_sla_at_intake": {
+              "value": 0.0,
+              "numerator": 0,
+              "denominator": 49
+            },
+            "asked_several": {
+              "value": 0.03902439024390244,
+              "numerator": 24,
+              "denominator": 615
+            },
+            "asked_none": {
+              "value": 0.8813008130081301,
+              "numerator": 542,
+              "denominator": 615
+            },
+            "confirmations_assumed": 48,
+            "duplicates": 0
+          },
+          {
+            "month": "2026-03",
+            "contacts": 723,
+            "cases_opened": 77,
+            "days_to_receipt": {
+              "p50": 0.0,
+              "mean": 0.0,
+              "n": 77,
+              "missing": 646
+            },
+            "first_contact_resolution": {
+              "value": 0.0,
+              "numerator": 0,
+              "denominator": 723
+            },
+            "escalated": {
+              "value": 0.10650069156293222,
+              "numerator": 77,
+              "denominator": 723
+            },
+            "outside_sla_at_intake": {
+              "value": 0.0,
+              "numerator": 0,
+              "denominator": 77
+            },
+            "asked_several": {
+              "value": 0.029045643153526972,
+              "numerator": 21,
+              "denominator": 723
+            },
+            "asked_none": {
+              "value": 0.8630705394190872,
+              "numerator": 624,
+              "denominator": 723
+            },
+            "confirmations_assumed": 78,
+            "duplicates": 1
+          },
+          {
+            "month": "2026-04",
+            "contacts": 680,
+            "cases_opened": 78,
+            "days_to_receipt": {
+              "p50": 0.0,
+              "mean": 0.0,
+              "n": 78,
+              "missing": 602
+            },
+            "first_contact_resolution": {
+              "value": 0.0,
+              "numerator": 0,
+              "denominator": 680
+            },
+            "escalated": {
+              "value": 0.11470588235294117,
+              "numerator": 78,
+              "denominator": 680
+            },
+            "outside_sla_at_intake": {
+              "value": 0.0,
+              "numerator": 0,
+              "denominator": 78
+            },
+            "asked_several": {
+              "value": 0.03823529411764706,
+              "numerator": 26,
+              "denominator": 680
+            },
+            "asked_none": {
+              "value": 0.8470588235294118,
+              "numerator": 576,
+              "denominator": 680
+            },
+            "confirmations_assumed": 77,
+            "duplicates": 0
+          },
+          {
+            "month": "2026-05",
+            "contacts": 691,
+            "cases_opened": 61,
+            "days_to_receipt": {
+              "p50": 0.0,
+              "mean": 0.0,
+              "n": 61,
+              "missing": 630
+            },
+            "first_contact_resolution": {
+              "value": 0.001447178002894356,
+              "numerator": 1,
+              "denominator": 691
+            },
+            "escalated": {
+              "value": 0.08683068017366136,
+              "numerator": 60,
+              "denominator": 691
+            },
+            "outside_sla_at_intake": {
+              "value": 0.0,
+              "numerator": 0,
+              "denominator": 61
+            },
+            "asked_several": {
+              "value": 0.041968162083936326,
+              "numerator": 29,
+              "denominator": 691
+            },
+            "asked_none": {
+              "value": 0.869753979739508,
+              "numerator": 601,
+              "denominator": 691
+            },
+            "confirmations_assumed": 61,
+            "duplicates": 0
+          }
+        ],
+        "total": {
+          "month": "total",
+          "contacts": 8129,
+          "cases_opened": 794,
+          "days_to_receipt": {
+            "p50": 0.0,
+            "mean": 0.0,
+            "n": 326,
+            "missing": 7803
+          },
+          "first_contact_resolution": {
+            "value": 0.00012301636117603641,
+            "numerator": 1,
+            "denominator": 8129
+          },
+          "escalated": {
+            "value": 0.09755197441259687,
+            "numerator": 793,
+            "denominator": 8129
+          },
+          "outside_sla_at_intake": {
+            "value": 0.5894206549118388,
+            "numerator": 468,
+            "denominator": 794
+          },
+          "asked_several": {
+            "value": 0.032353302989297575,
+            "numerator": 263,
+            "denominator": 8129
+          },
+          "asked_none": {
+            "value": 0.8698486898757535,
+            "numerator": 7071,
+            "denominator": 8129
+          },
+          "confirmations_assumed": 789,
+          "duplicates": 1
+        },
+        "notes": {
+          "days_to_receipt": "0 days: the receipt with its legal deadline is given in the same conversation. Contacts with no such receipt (asked, or opened with no deadline) are missing.",
+          "first_contact_resolution": "The safe automated path: card blocked and verified, case opened, no person, over all contacts.",
+          "escalated": "Cases handed to a person at intake (zone medium or human), over all contacts.",
+          "outside_sla_at_intake": "Cases opened at first contact with no legal deadline (the clock is unknown for that date), over cases opened.",
+          "asked": "The engine asks when the search finds several candidate charges, or none; the contact ends there in the replay, since the dataset does not say which charge the customer meant."
+        }
+      },
+      "live": {
+        "key": "live",
+        "name": "Live",
+        "status": "pending",
+        "message": "Pending: no live traffic yet",
+        "reason": "spec 14 T5 (the Postgres source) has not run on live traffic"
+      }
+    }
+  }
+}

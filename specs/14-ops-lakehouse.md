@@ -2,7 +2,7 @@
 
 - **Feature:** the system learns from its own operation: the records of the cases it handles go bronze → silver → gold
   and produce the daily KPIs of `/analytics` and the analysts' decisions as labels for the next evaluation set.
-- **Status:** In progress — T1–T4 done offline on the in-memory store (2026-10-05); T5 (Postgres source) and the
+- **Status:** In progress — T1–T4 and T8 done offline on the in-memory store (2026-10-05); T5 (Postgres source) and the
   `/analytics` KPIs (spec 12 T6) wait for live traffic
 - **Owner:** @vldiego (follow-ups from 2026-10-05: @salazarvalverdeai) · **Priority:** P1 (Databricks: P2) ·
   **Size:** M–L
@@ -47,6 +47,15 @@ definition of 2026-10-04 (issue comment). Evidence: [T] test · [C] command · [
   override rate, deadlines met, auditor findings per 100 runs, `coherence_rate` and judge–analyst agreement. · [D]
 - **AC-11 [P1]** — If a source row breaks a silver contract, then the job shall keep it in bronze, count it in the
   quality report and leave it out of silver; the job does not stop. · [T]
+- **AC-12 [P1]** — When `make ops-replay` runs twice on the same gold, the replay outcomes, the gold tables and the
+  series of `ops_kpis.json` shall be identical (§11). · [T]
+- **AC-13 [P1]** — The replay and the as-is query shall never read `is_fraud` or `data/gold_eval/`; the bank's
+  `fraud_score` is read only through `get_fraud_score`, as at runtime (§11). · [T]
+- **AC-14 [P1]** — If the search finds several candidate charges for a complaint, or none, then the replay shall ask,
+  as `PolicyEngine.decide` does in production, and open no case (§11). · [T]
+- **AC-15 [P1]** — `ops_kpis.json` shall carry the series Bank today `[data]`, With Nick of Time `[simulated]` and
+  Live (pending until T5), each with its label, source, window and method notes (§7.4, §11). · [T]
+- **AC-16 [P1]** — A row written by an evaluation run (`run_id` set) shall never be counted in the replay series. · [T]
 
 ## 7. Data model touched
 Reads the operational tables of spec 01 §6.5 (read-only, through `nick_of_time.store`) and `data/gold/` v1. Writes
@@ -85,6 +94,7 @@ future. A gold transaction or customer that is not found leaves the gold columns
 | `cost_usd` | sum of `llm_calls.cost_usd` for the day; `cost_per_case` = that ÷ `cases` |
 | `latency_p95_ms` | p95 of `llm_calls.latency_ms` for the day `[assumption]` (Q2) |
 | `denials` | `policy_denials` rows that day |
+| `automated_rate` | cases with a verified block and no `handoff_emitted` ÷ `cases`: the safe automated path (§11) |
 
 Every rate keeps its numerator and denominator in two more columns.
 
@@ -94,6 +104,10 @@ Every rate keeps its numerator and denominator in two more columns.
 kept the system's proposal) and `decided_at`. It holds no customer text, so it is a label set, not a case set: turning
 it into evaluation cases is a new sealed set under ADR 0021, outside this spec.
 
+**`replay_contacts`** (§11, `make ops-replay` only) — one row per month × country × outcome × candidates bucket ×
+zone × confirmed, with `contacts`: every replayed complaint, also those that end in a question and open no case. No
+id, name or text.
+
 **Manifest** — `data/ops/manifest.json` with the same fields as the gold manifest: version, run time, rows and sha256
 per table, source row counts, checks with counts. The version goes up only when a table's hash changes (AC-05).
 
@@ -102,6 +116,15 @@ per table, source row counts, checks with counts. The version goes up only when 
 `{"label": "[simulated]", "mode": "replay", "days": [{"day": "2026-06-01", "cases": 0, "receipt_rate": {"value": 0.0,
 "numerator": 0, "denominator": 0}, "escalation_rate": {…}, "unsafe_outcomes": 0, "cost_per_case": 0.0,
 "latency_p95_ms": 0, "denials": 0}], "feedback": {"decided": 0, "agreed": 0}}`.
+
+Amended (§11): `make ops-replay` adds `data.series = {window, bank_today, replay, live}`. `bank_today` and `replay`
+each hold `key`, `name`, `label`, `source`, `window` (`["2025-06", "2026-05"]`), `notes` (one sentence per metric),
+`months` and `total` (same fields, `month: "total"`). A month carries `contacts` and four comparable metrics:
+`days_to_receipt` `{p50, mean, n, missing}`, and the rates `{value, numerator, denominator}`
+`first_contact_resolution` (the bank's also `constant: true`), `escalated` and `outside_sla_at_intake`. The bank adds
+`resolution_days` `{p50, n}`; the replay adds `method` (a link to §11), `cases_opened`, `asked_several`, `asked_none`
+(rates), `confirmations_assumed` and `duplicates`. `live` is `{key, name, status: "pending", message, reason}` until
+T5. `days` and `feedback` keep their meaning: here they are the replay's, `[simulated]`.
 
 ## 8. Assumptions and open questions (gate 1 — to close in this PR)
 - **Q1 (@gianzk) — source.** Is reading through `nick_of_time.store` right, or do you prefer a read-only Postgres role
@@ -123,6 +146,7 @@ per table, source row counts, checks with counts. The version goes up only when 
   (by `trace_id`), others are counted as `without_case`; a live-mode transaction missing from gold is synthetic;
   `agent_decision` is `block_and_open_case` or `open_case`, and `agreed` is false only when the analyst reverses it
   (`unblock_card` after a block, `approve_block` without one); gold hashes are of the rows, not the Parquet bytes.
+- The readings of §11 (replay and Bank today) are listed in §11.3.
 - Assumption: with a handful of demo cases the daily rates are illustrations, not measurements; the page shows the
   counts next to every rate. `[assumption]`
 
@@ -139,6 +163,9 @@ Implementation goes in `feat/14-…` branches once this spec is approved, after 
       `data/ops/gold.py`, `data/ops/run.py`, [T] `tests/test_spec14_gold.py`
 - [x] T4 — `ops_kpis.json` export · covers AC-09 · the sample source writes it to `data/ops/` only; shape fixture in
       `apps/web/app/analytics/__fixtures__/ops_kpis.json`
+- [x] T8 — Bank today and the replay over the dataset, `make ops-replay`, the committed export · covers AC-12 to
+      AC-16 · `queries/ops/asis_monthly.sql`, `data/ops/replay.py`, `data/ops/series.py`, [T]
+      `tests/test_spec14_replay.py`
 - [ ] T5 — run against Postgres (after spec 05 is deployed); schedule documented · covers AC-01
 - [ ] T6 [P2] — per-engine outcomes · covers AC-10
 - [ ] T7 [P2] — Delta tables and notebooks on Databricks · covers AC-06
@@ -147,3 +174,45 @@ Tests live in `tests/test_spec14_*.py`, cite their criterion and run offline on 
 
 **Closing checklist:** every P1 criterion has a passing test or check that cites it · status → Implemented · the
 labels `[simulated]` and `mode` reach the page · lessons added to `CLAUDE.md`.
+
+## 11. Amendment: Bank today and replay over the dataset (lead, 2026-10-05)
+Decisions E1 and E2 of the lead: `/analytics` shows an "Operación" switch with three positions, Bank today `[data]`,
+With Nick of Time `[simulated]` and Live, over the same 12 months (2025-06..2026-05). The simulated series comes from
+a replay of the bank's own complaints, so both measured series count the same contacts.
+
+### 11.1 Bank today `[data]`
+`queries/ops/asis_monthly.sql` over gold `complaints`, W3 by the rules of `queries/pitch/p01`, per creation month,
+plus a 12-month total row; its output is committed as `queries/ops/asis_monthly.csv`. First contact resolution is the
+FCR of `queries/pitch/p02` (43.6%, Queja contacts, the whole dataset window): the interactions table is not in this
+repo's gold, so the value repeats every month with `constant: true`.
+
+### 11.2 With Nick of Time `[simulated]`: the replay (`data/ops/replay.py`)
+Deterministic and offline, no LLM. For each W3 complaint in the window: a templated Spanish message from its
+subcategory (or category) and claimed amount and currency; the B0 rules; `search_transaction`, `get_fraud_score`,
+`get_customer_profile` and `compute_deadline` as the MCP read handlers run them over the customer's own card
+transactions; `PolicyEngine.decide`. Several candidates or none → the engine asks and the contact ends. An opened
+case is written to an in-memory store as the write tools leave it (case opened and verified; block verified and
+status `verification` in zone high; `review` and `handoff_emitted` otherwise; `receipt_issued` with its deadline),
+with mode `replay`. The spec 14 job then runs unchanged on that store and `series.py` aggregates `ops_kpis` and
+`replay_contacts` per month. The final resolution time is not simulated: a person decides it, so it is shown for the
+bank only.
+
+| Metric | Bank today | With Nick of Time |
+|---|---|---|
+| Time to a receipt with a legal deadline | first response − creation, days (closest proxy) | 0 days when a case opens with a deadline at first contact |
+| Resolved at first contact | FCR 43.6%, period value | card blocked and verified, case opened, no person ÷ contacts |
+| Escalations to a person | status `Escalated` ÷ complaints | `handoff_emitted` at intake ÷ contacts |
+| Outside SLA at intake | the dataset's `sla_breached` ÷ complaints | cases opened with no legal deadline ÷ cases opened |
+
+### 11.3 Readings where the decision was silent `[assumption]`
+- "Today" is the complaint's creation date in the customer's country. Replay pins `clock.today` to DEMO_TODAY, so the
+  read handlers run with their `utc_now` hook at the complaint's creation instant; cases are stored with mode
+  `replay`.
+- The message names no charge date: the dataset records only when the complaint was made, so the search uses its
+  no-date window (the 30 days before today). Saying the creation date as the charge date would narrow it to 7 days.
+- A question the customer answers with one tap is answered yes: the confirmation of one unnamed charge (D-067) and of
+  zone medium. Option cards for several charges are not answered: the dataset does not say which charge was meant.
+- A complaint whose charge already has an active case opens nothing (spec 03 AC-23) and counts as a duplicate.
+- Business-day deadlines need a verified holiday file (ADR 0019); the repo has 2026 only, so cases opened in 2025 get
+  no legal deadline (POL-CLOCK-UNKNOWN) and count as outside SLA at intake.
+- Escalated and `sla_breached` are the dataset's own fields at its snapshot; neither says which SLA it measures.

@@ -57,7 +57,8 @@ def ops_kpis(silver: dict[str, pl.DataFrame]) -> pl.DataFrame:
     base = (cases.with_columns(pl.col("case_id").is_in(list(unsafe)).alias("unsafe"))
             .group_by(pl.col("opened_on").alias("day"), "mode")
             .agg(pl.len().alias("cases"), pl.col("receipt_has_deadline").sum().alias("receipts"),
-                 pl.col("handoff_emitted").sum().alias("handoffs"), pl.col("unsafe").sum().alias("unsafe_outcomes")))
+                 pl.col("handoff_emitted").sum().alias("handoffs"), pl.col("unsafe").sum().alias("unsafe_outcomes"),
+                 (pl.col("block_verified") & ~pl.col("handoff_emitted")).sum().alias("automated")))
     spend = calls.sort("call_id").group_by("day", "mode").agg(
         pl.col("cost_usd").sum().alias("cost_usd"), pl.col("latency_ms").alias("_lat"))
     spend = spend.with_columns(pl.col("_lat").map_elements(lambda v: percentile(list(v), 0.95), return_dtype=pl.Int64)
@@ -67,7 +68,8 @@ def ops_kpis(silver: dict[str, pl.DataFrame]) -> pl.DataFrame:
            .with_columns(pl.col("cost_usd").fill_null(0.0).round(6), pl.col("denials").fill_null(0)))
     return out.select(
         "day", "mode", "cases", *_rate("receipts", "cases", "receipt_rate"),
-        *_rate("handoffs", "cases", "escalation_rate"), "unsafe_outcomes", "cost_usd",
+        *_rate("handoffs", "cases", "escalation_rate"), *_rate("automated", "cases", "automated_rate"),
+        "unsafe_outcomes", "cost_usd",
         (pl.col("cost_usd") / pl.col("cases")).round(6).alias("cost_per_case"), "latency_p95_ms", "denials",
     ).with_columns(pl.col("^.*_numerator$", "^.*_denominator$", "cases", "unsafe_outcomes", "denials")
                    .cast(pl.Int64)).sort("day", "mode")

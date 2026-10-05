@@ -24,6 +24,11 @@ The column names and group labels in these `.sql` files and CSVs were translated
 
 The EDA queries are in `docs/eda/queries/`, where the documents reference them.
 
+## `ops/`: Bank today for `/analytics` (spec 14 §11)
+| Query | Output CSV | What it holds |
+|---|---|---|
+| `asis_monthly.sql` | `ops/asis_monthly.csv` | W3 complaints per month 2025-06..2026-05: days to first response, escalated, `sla_breached`, resolution days `[data]`; `make ops-replay` runs it on this repo's gold |
+
 ## `policy/`: sources of `contracts/policies.yaml` values
 | Query | Value |
 |---|---|
