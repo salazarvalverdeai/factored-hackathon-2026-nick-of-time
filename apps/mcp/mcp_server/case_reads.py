@@ -22,9 +22,8 @@ from mcp_server.gate import UNAVAILABLE, Call, Handler
 from mcp_server.gold import Gold
 from mcp_server.writes import NO_CARD, NO_CASE, probe
 from nick_of_time.contracts import CONTRACTS_DIR
-from nick_of_time.policy import Policies, clock
-from nick_of_time.store import (CUSTOMER_VISIBLE, VERIFIED_WITH, WRITE_TOOL, CaseRecord, NotVerified, Store,
-                                StoreError)
+from nick_of_time.policy import Policies
+from nick_of_time.store import CUSTOMER_VISIBLE, VERIFIED_WITH, WRITE_TOOL, CaseRecord, NotVerified, Store
 
 ACTOR = "agent"
 _LABELS = yaml.safe_load((CONTRACTS_DIR / "messages.yaml").read_text())["status"]["label"]
@@ -64,20 +63,6 @@ def case_reads_handlers(gold: Gold, policies: Policies, store: Store, *, cards: 
     def lang(call: Call) -> str:
         return call.session.language if call.session.language in ("es", "pt") else "es"
 
-    def to_verification(call: Call, case_id: str) -> None:
-        """[assumption] pending D-063: a verified block moves a `new` case to `verification`
-        (`approval.manual_check_leaves_case_in`): the action ran and verified, and a person signs it off. Any other
-        status is left as it is; a concurrent read that already moved it is not an error."""
-        case = store.get_case(case_id, run_id=call.session.run_id, customer_id=call.session.customer_id)
-        if case is None or store.queue_status(case_id) != "new":
-            return
-        on = clock.today(call.session.mode, case.country, utc_now=now(), policies=policies)
-        try:
-            store.change_status(case_id, policies.approval.manual_check_leaves_case_in, on=on, actor=ACTOR,
-                                trace_id=call.trace_id)
-        except StoreError:                                  # moved meanwhile: the case_queue rule refused it
-            pass
-
     def verify(call: Call, action_id: Optional[str], read: str, case_id: Optional[str] = None,
                product_id: Optional[str] = None) -> Optional[dict[str, Any]]:
         """D-025: `{action_id, verification_id, read_at}` when this read verifies that write now, else None."""
@@ -93,8 +78,6 @@ def case_reads_handlers(gold: Gold, policies: Policies, store: Store, *, cards: 
                                               customer_id=session.customer_id, actor=ACTOR, trace_id=call.trace_id)
         except NotVerified:                                 # the post-condition does not hold now
             return None
-        if write.type == "card_blocked":
-            to_verification(call, write.case_id)
         return {"action_id": action_id, "verification_id": event.payload["verification_id"],
                 "read_at": event.payload["read_at"]}
 

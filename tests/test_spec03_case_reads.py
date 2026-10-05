@@ -114,15 +114,15 @@ def test_ac_16_get_case_returns_stored_facts_label_timeline_and_verifies_its_ope
     monkeypatch.setattr(clock, "deadline", never)
     out = run("get_case", case_id=opened.case_id, action_id=opened.action_id)
     assert (out.case_id, out.queue_status, out.status_label, out.taken_by_person) == (
-        opened.case_id, "verification", "En revisión", False)          # the verified block moved it (D-063)
+        opened.case_id, "verification", "En revisión", False)          # block_card's write moved it (D-063)
     assert (out.credit_deadline, out.deadline_source_url) == (opened.credit_deadline, opened.deadline_source_url)
     assert (out.action_id, out.transaction.transaction_id, out.product_last4) == (opened.action_id, "TRX-" + "0" * 19
                                                                                   + "1", "4417")
     assert out.verification_id.startswith("V-")
     assert [(e.type, e.label) for e in out.timeline] == [("case_opened", "Caso abierto"),
                                                          ("card_blocked", "Bloqueo de la tarjeta solicitado"),
-                                                         ("block_verified", "Bloqueo de la tarjeta verificado"),
-                                                         ("status_changed", "Estado actualizado")]
+                                                         ("status_changed", "Estado actualizado"),
+                                                         ("block_verified", "Bloqueo de la tarjeta verificado")]
     assert plain(run("get_case", case_id=opened.case_id))
 
 
