@@ -1,6 +1,7 @@
 """Identifier generation (spec 01 §6.7).
 
-Transaction and product ids are never generated here: they come from gold unchanged (`TRX-…`, `PRD-…`).
+Transaction, product and customer ids are never generated here: they come from gold, or from `demo_transactions` in
+live mode, in the same shape (`TRX-…`, `PRD-…`, `CLI-…`).
 """
 from __future__ import annotations
 
@@ -24,7 +25,9 @@ PATTERN: dict[str, str] = {
 
 
 # Gold ids are never generated here; their shapes come from gold `transactions` and `products` [data].
-GOLD_PATTERN: dict[str, str] = {"transaction": r"^TRX-[A-Z0-9]{20}$", "product": r"^PRD-[A-Z0-9]{12}$"}
+# `demo_transactions` ids (live mode) follow the transaction shape too (spec 01 §6.5).
+GOLD_PATTERN: dict[str, str] = {"transaction": r"^TRX-[A-Z0-9]{20}$", "product": r"^PRD-[A-Z0-9]{12}$",
+                                "customer": r"^CLI-[A-Z0-9]{12}$"}
 
 
 def new_id(kind: Kind) -> str:
