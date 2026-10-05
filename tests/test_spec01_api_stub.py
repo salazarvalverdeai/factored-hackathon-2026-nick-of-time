@@ -92,7 +92,7 @@ KEYS = {
     main.HealthOut: "status version contract_version git_sha gold_version policies_version platform_revision models "
                     "prompt_hash classifier_version today",
     main.SessionOut: "session_id mode today otp_demo expires_at", main.VerifyOut: "verified expires_at",
-    main.ThreadOut: "thread_id", main.PrefsOut: "display_currency language", main.EventOut: "event_id",
+    main.ConsoleCaseOut: "case handoff events", main.ThreadOut: "thread_id", main.PrefsOut: "display_currency language", main.EventOut: "event_id",
     main.CallOut: "event_id expected_contact_by", main.ReevalOut: "event_id case_id",
     main.TelegramOut: "deep_link expires_at", main.EmailOut: "confirmation_sent", main.AckOut: "ok",
     main.SettingsOut: "supervised_mode score_provider policies_version",
@@ -237,6 +237,7 @@ def test_ac_02_health_reads_versions_from_the_contract_and_policies(client):
     h = client.get("/api/health").json()
     assert h["contract_version"] == CONTRACT_VERSION and h["policies_version"] == fx.POLICIES["version"]
     assert h["today"]["replay"] == "2026-06-01"
+    assert set(h["models"]) == {"graph", "fast"} and set(h["today"]) == {"replay", "live"}
 
 
 def test_ac_02_a_verified_session_expires(me):
@@ -278,7 +279,7 @@ def test_ac_06_threads_are_bound_to_their_session(client):
     assert client.get(f"/api/agent/threads/{tid}/state").status_code == 200
 
 
-def test_ac_07_agent_routes_forward_expired_and_unverified_sessions(client):
+def test_ac_02_agent_routes_forward_expired_and_unverified_sessions(client):
     client.cookies.set("not_session", "S-forged0000000000")
     assert client.post("/api/agent/threads").status_code == 401                        # unknown cookie
     unverified = client.post("/api/sessions", json={"customer_id": ME, "mode": "replay"}).json()["session_id"]
@@ -300,8 +301,8 @@ def _expire(c, sid):
     c.app.state.sessions[sid]["expires_at"] = dt.datetime.now(dt.timezone.utc) - dt.timedelta(seconds=1)
 
 
-def test_ac_07_state_on_an_expired_session_is_401_and_not_forwarded(client):
-    """AC-07 / G-SES-01 (expired -> no data): GET state is not forwarded; it answers 401 SESSION_EXPIRED."""
+def test_ac_02_state_on_an_expired_session_is_401_and_not_forwarded(client):
+    """spec 02 AC-07 / G-SES-01 (expired -> no data): GET state is not forwarded; it answers 401 SESSION_EXPIRED."""
     sid = login(client)
     tid = client.post("/api/agent/threads").json()["thread_id"]
     runs = len(client.app.state.runs)
@@ -312,21 +313,33 @@ def test_ac_07_state_on_an_expired_session_is_401_and_not_forwarded(client):
     assert len(client.app.state.runs) == runs and "K-" not in r.text
 
 
-def test_ac_07_reauthenticate_reply_carries_no_data(client):
-    """AC-07 / G-SES-01: an expired session's turn has no case id, receipt or action claim, only the session line."""
-    sid = login(client)
+@pytest.mark.parametrize("cid, lang", [(ME, "es"), (fx.CUSTOMERS[1]["customer_id"], "pt")])
+def test_ac_02_reauthenticate_reply_carries_no_data(client, cid, lang):
+    """spec 02 AC-07 / G-SES-01: an expired session's turn has no case id, receipt or action claim, only the session line."""
+    sid = login(client, cid)
     tid = client.post("/api/agent/threads").json()["thread_id"]
     _expire(client, sid)
     r = client.post(f"/api/agent/threads/{tid}/runs/stream", json={"input": "hola"})
+    assert "K-" not in r.text                                          # the whole stream
     events = _events(r.text)
     assert [e for e, _ in events] == ["turn"]                          # no progress event: nothing was done
     turn = CustomerTurn.model_validate(events[0][1])
     assert turn.decision == "reauthenticate" and turn.case_id is None and turn.receipt is None
-    assert "K-" not in turn.reply and "bloque" not in turn.reply.lower()
-    assert turn.reply == fx.MESSAGES["connect"]["general_contact"]["es"]
-    assert [s.label for s in turn.suggestions] == [fx.MESSAGES["suggest"]["reauthenticate"]["es"],
-                                             fx.MESSAGES["suggest"]["request_call"]["es"]]
+    assert turn.language == lang and turn.intent is None and turn.denials == []
+    assert turn.guardrails_triggered == ["G-SES-01"]
+    assert "bloque" not in turn.reply.lower()
+    assert turn.reply == fx.MESSAGES["connect"]["general_contact"][lang]
+    chips = fx.MESSAGES["suggest"]
+    assert [s.id for s in turn.suggestions] == ["reauthenticate", "talk_to_person"]
+    assert [s.label for s in turn.suggestions] == [chips["reauthenticate"][lang], chips["talk_to_person"][lang]]
+    assert [s.href for s in turn.suggestions if s.kind == "link"] == ["/"]
+    assert [s.action.type for s in turn.suggestions if s.kind == "action"] == ["request_call"]
     assert set(events[0][1]) == set(CustomerTurn.model_fields)
+
+
+def test_ac_02_analyst_action_with_a_mismatched_case_id_is_403(me):
+    r = me.post(f"/api/cases/{fx.CASE_ID}/action", headers=BEARER, json={**ACTION, "case_id": RES})
+    assert r.status_code == 403
 
 
 # ---- privacy -------------------------------------------------------------------------------------------------------

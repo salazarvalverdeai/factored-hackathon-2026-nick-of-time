@@ -344,10 +344,11 @@ def create_app(eval_mode: Optional[bool] = None) -> FastAPI:
             chips = fx.MESSAGES["suggest"]
             turn = turn.model_copy(update={
                 "decision": "reauthenticate", "case_id": None, "receipt": None, "language": lang,
+                "intent": None, "denials": [], "guardrails_triggered": ["G-SES-01"],
                 "reply": fx.MESSAGES["connect"]["general_contact"][lang],
                 "suggestions": [      # [assumption] the link goes to "/" (the verify screen); labels from messages.yaml
-                    Suggestion(id="s1", label=chips["reauthenticate"][lang], kind="link", href="/"),
-                    Suggestion(id="s2", label=chips["request_call"][lang], kind="action",
+                    Suggestion(id="reauthenticate", label=chips["reauthenticate"][lang], kind="link", href="/"),
+                    Suggestion(id="talk_to_person", label=chips["talk_to_person"][lang], kind="action",
                                action={"type": "request_call"})]})
         return turn
 
