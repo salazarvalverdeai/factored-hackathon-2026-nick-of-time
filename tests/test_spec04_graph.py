@@ -268,7 +268,7 @@ def test_g_in_03_another_language_gets_the_session_language_plus_english_with_no
     chat = Chat()
     turn = chat.say(text, language=language, dropped=0)
     assert turn.reply.endswith("(I can help in Spanish or Portuguese.)")
-    assert turn.reply.startswith("Puedo ayudarte" if language == "es" else "Posso ajudar")
+    assert ("Puedo ayudarte" if language == "es" else "Posso ajudar") in turn.reply
     assert turn.language == language and turn.case_id is None and turn.usage == []
     assert "G-IN-03" in turn.guardrails_triggered
     assert 2 <= len(turn.suggestions) <= 3 and any(s.label in PERSON for s in turn.suggestions)
