@@ -7,6 +7,7 @@ import importlib.util
 import json
 import sys
 from pathlib import Path
+from unittest import mock
 
 import pytest
 from fastmcp import FastMCP
@@ -21,6 +22,10 @@ sys.path[:0] = [str(ROOT / "apps/agent"), str(ROOT / "apps/mcp")]
 from agent import intake  # noqa: E402
 from mcp_server import fake  # noqa: E402
 
+# The per-call budget of policies.yaml (800 ms) is for the network. The in-memory fake on a loaded CI runner can exceed it
+# (retrieve's four parallel reads), which turned a read into a spurious UNAVAILABLE (#109 CI). The harness widens it to
+# FAKE_TIMEOUT_S unless a test set its own (the timeout tests in tests/test_spec04_act.py).
+POLICY_TIMEOUT_S, FAKE_TIMEOUT_S = intake.TIMEOUT_S, 30.0
 PERSON = {"Hablar con una persona", "Falar com uma pessoa", "Que me llame una persona", "Quero que me liguem"}
 
 
@@ -44,7 +49,9 @@ class Chat:
         only, so a node that forgets to hand respond a tool result it states (or a policy id) fails here, loudly."""
         payload = {"messages": [{"role": "user", "content": text}] if text else [], "language": language,
                    "action": action}
-        out = asyncio.run(self.graph.ainvoke(payload, self.config))
+        budget = FAKE_TIMEOUT_S if intake.TIMEOUT_S == POLICY_TIMEOUT_S else intake.TIMEOUT_S
+        with mock.patch.object(intake, "TIMEOUT_S", budget):
+            out = asyncio.run(self.graph.ainvoke(payload, self.config))
         turn = TurnResult.model_validate(out)            # 2–3 chips are enforced by the contract (AC-29)
         assert turn.trace_id and turn.usage == []
         assert gate_drops(turn) == dropped, turn.trace[-1].detail

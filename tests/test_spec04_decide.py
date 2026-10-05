@@ -59,8 +59,11 @@ def candidates(n: int) -> dict:
 
 
 def record(turn) -> dict:
-    """The decision pair of the turn (D-046), from its trace."""
-    return next(json.loads(step.detail) for step in turn.trace if step.detail)
+    """The decision pair of the turn (D-046), from the trace step of the node that decided (route or decide)."""
+    steps = {step.node: step for step in turn.trace}
+    node = "decide" if "decide" in steps else "route"
+    assert steps[node].detail, f"no decision record on {node}: {[(s.node, s.detail) for s in turn.trace]}"
+    return json.loads(steps[node].detail)
 
 
 def test_ac_02_more_than_one_candidate_asks_with_options_and_does_not_act():
