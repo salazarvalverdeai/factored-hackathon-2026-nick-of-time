@@ -10,6 +10,7 @@ Addresses leave this module masked only; the raw address goes only to the sender
 from __future__ import annotations
 
 import datetime as dt
+import logging
 from collections.abc import Callable
 from typing import Optional, Protocol
 
@@ -22,7 +23,8 @@ from nick_of_time import ids
 from nick_of_time.receipt import amount_text, text
 from nick_of_time.store import CaseRecord, NotVerified, Store
 
-SENDS_PER_HOUR = 3                                           # D-041, the gate's notifications_per_hour
+log = logging.getLogger("nickoftime.mcp")
+SENDS_PER_HOUR = 3                                        # D-041, the gate's notifications_per_hour
 UNCONFIRMED = t.ToolError(code="DENY", policy_id="POL-DEFAULT-DENY",
                           message="That channel is not confirmed by the customer; nothing was sent.")
 TOO_MANY = t.ToolError(code="DENY", policy_id="POL-DEFAULT-DENY",
@@ -78,13 +80,19 @@ def notify_handlers(store: Store, gold: Optional[Gold] = None, *, sender: Option
 
     def deliver(notification_id: str, channel: str, address: str, body: str) -> None:
         """One more delivery row after the committed write: `sent` with the provider's message id (to match a later
-        bounce, D-035), or `failed`, never `sent` on an error."""
+        bounce, D-035), or `failed`, never `sent` on an error. A row that cannot be written is logged and the
+        notification stays `queued` for the api's reconciler [assumption]: the customer is never told UNAVAILABLE about
+        a message that may have gone out."""
         try:
             provider_message_id = sender(channel, address, body)
         except Exception as error:
-            store.add_delivery(notification_id, "failed", {"error": type(error).__name__})
+            status, event = "failed", {"error": type(error).__name__}
         else:
-            store.add_delivery(notification_id, "sent", {"provider_message_id": provider_message_id})
+            status, event = "sent", {"provider_message_id": provider_message_id}
+        try:
+            store.add_delivery(notification_id, status, event)
+        except Exception as error:                           # the type only: a message may carry input (AC-11)
+            log.error("delivery %s of %s not recorded: %s; left queued", status, notification_id, type(error).__name__)
 
     def send_case_summary(call: Call, args: t.SendCaseSummaryIn):
         session, pending = call.session, {}

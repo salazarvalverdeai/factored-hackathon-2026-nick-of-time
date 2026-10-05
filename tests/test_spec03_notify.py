@@ -172,3 +172,18 @@ def test_d041_a_new_session_gets_a_fresh_allowance_and_another_customers_send_re
     read = run("list_my_notifications", action_id=theirs.action_id)
     assert (read.action_id, read.verification_id) == (None, None)
     assert theirs.notification_id not in {n.notification_id for n in read.notifications}
+
+
+def test_ac_21_a_delivery_row_that_fails_after_the_send_leaves_it_queued_and_answers_requested(caplog):
+    """The message went out, so the customer is not told UNAVAILABLE: the failure is logged (type only), the
+    notification stays `queued` for the api's reconciler and the tool answers `requested` [assumption]."""
+    run = Run()
+    run.link()
+
+    def broken(notification_id, status, provider_event=None):
+        raise RuntimeError(EMAIL)                         # a message that must not reach the log
+    run.store.add_delivery = broken
+    out = run("send_case_summary")
+    assert isinstance(out, tools.SendCaseSummaryOut) and out.state == "requested" and len(run.sent) == 1
+    [row] = run.mine()
+    assert row.delivery_status == "queued" and "not recorded: RuntimeError" in caplog.text and EMAIL not in caplog.text

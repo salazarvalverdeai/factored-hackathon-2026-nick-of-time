@@ -275,7 +275,8 @@ Implementation goes in one `feat/03-*` branch per task (T1: `feat/03-mcp-server`
       once per idempotency key (notification, `queued` delivery, `notification_sent`); the sender runs after that
       write commits and only on a first call, never on a replay, and its result is one more delivery row: `sent` with
       the provider's message id (`provider_event.provider_message_id`, so a later bounce can be matched, D-035) or
-      `failed`. D-035 stays as decided: a `queued` or `sent` send verifies (`V-`); the agent says "sent" only from
+      `failed`; a row that cannot be written then is logged and the notification stays `queued` for the api's
+      reconciler, and the tool still answers `requested` `[assumption]`. D-035 stays as decided: a `queued` or `sent` send verifies (`V-`); the agent says "sent" only from
       `delivery_status` `sent` or `delivered`, never from the `V-` (spec 04, AC-26). `[assumption]`s: the summary is
       the `receipt.*` lines whose facts the store and gold hold (title, charge, stored deadlines or `deadline_unknown`,
       what the assistant did by the verified block, what a person does); no card or `V-` line, which spec 04's receipt
