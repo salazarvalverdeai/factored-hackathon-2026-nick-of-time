@@ -118,6 +118,11 @@ per table, source row counts, checks with counts. The version goes up only when 
   documented path.
 - Assumption: until the backend of spec 05 is deployed, the job is developed and tested against the in-memory store
   with recorded fixtures; the Postgres path is the same code with a different source. `[assumption]`
+- Readings of T1–T4 where this spec is silent `[assumption]`: unsafe outcomes use A7 (lifecycle) only, the one
+  critical audit check that runs on store rows alone; LLM calls and denials reach a day and a mode only through a case
+  (by `trace_id`), others are counted as `without_case`; a live-mode transaction missing from gold is synthetic;
+  `agent_decision` is `block_and_open_case` or `open_case`, and `agreed` is false only when the analyst reverses it
+  (`unblock_card` after a block, `approve_block` without one); gold hashes are of the rows, not the Parquet bytes.
 - Assumption: with a handful of demo cases the daily rates are illustrations, not measurements; the page shows the
   counts next to every rate. `[assumption]`
 
@@ -130,8 +135,10 @@ Implementation goes in `feat/14-…` branches once this spec is approved, after 
 - [x] T1 — bronze extractor with row-count and high-water checks, on the in-memory store · covers AC-01, AC-07 ·
       `data/ops/bronze.py`, [T] `tests/test_spec14_bronze_silver.py`
 - [x] T2 — silver tables, contracts and the quality counts · covers AC-02, AC-11 · `data/ops/silver.py`
-- [ ] T3 — gold `ops_kpis` and `feedback_cases`, manifest, `make ops` · covers AC-03, AC-04, AC-05, AC-08
-- [ ] T4 — `ops_kpis.json` export · covers AC-09
+- [x] T3 — gold `ops_kpis` and `feedback_cases`, manifest, `make ops` · covers AC-03, AC-04, AC-05, AC-08 ·
+      `data/ops/gold.py`, `data/ops/run.py`, [T] `tests/test_spec14_gold.py`
+- [x] T4 — `ops_kpis.json` export · covers AC-09 · the sample source writes it to `data/ops/` only; shape fixture in
+      `apps/web/app/analytics/__fixtures__/ops_kpis.json`
 - [ ] T5 — run against Postgres (after spec 05 is deployed); schedule documented · covers AC-01
 - [ ] T6 [P2] — per-engine outcomes · covers AC-10
 - [ ] T7 [P2] — Delta tables and notebooks on Databricks · covers AC-06
