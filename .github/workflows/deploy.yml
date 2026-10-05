@@ -90,7 +90,7 @@ jobs:
         run: |
           set -euo pipefail
           PARAMS="$(jq -n --arg sha "$SHA" '{commands: [
-            "set -eu",   # SSM runs these lines with /bin/sh (dash): no pipefail; deploy.sh itself runs under bash
+            "set -eu",
             "cd /opt/nickoftime",
             "git fetch --quiet origin main",
             ("git checkout --force --detach " + $sha),
