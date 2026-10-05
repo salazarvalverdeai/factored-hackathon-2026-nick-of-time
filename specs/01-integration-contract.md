@@ -383,7 +383,7 @@ and never the address (task 01g).
   "mode": "replay | live", "product_last4": "4417",
   "amount": {"original": {"amount": "1250.00", "currency": "USD"}, "display": {"amount": "22500", "currency": "MXN", "rate": "18.0", "rate_source": "…", "as_of": "YYYY-MM-DD"} },
   "actions": [{"label": "Tarjeta bloqueada", "action_id": "A-…", "state": "verified", "verification_id": "V-…", "verified_at": "ISO-8601"}],
-  "deadline": {"country": "MX", "product": "debit", "credit_deadline": "YYYY-MM-DD", "ruling_deadline": "YYYY-MM-DD", "deadline_source": "Banxico Circular 3/2012, as amended by Circular 14/2018", "source_url": "https://…", "verified_on": "YYYY-MM-DD"},
+  "deadline": {"country": "MX", "product": "debit", "credit_deadline": "YYYY-MM-DD", "ruling_deadline": "YYYY-MM-DD", "deadline_source": "Banxico, Circular 3/2012, arts. 19 Bis 3 y 19 Bis 4 (modificada por la Circular 14/2018)", "source_url": "https://…", "verified_on": "YYYY-MM-DD"},
   "what_ai_did": "string (template)", "what_a_person_does": "string (template)",
   "next_steps": ["string"], "case_url": "https://nickoftime.salazarvalverdeai.com/case/K-…"
 }
@@ -391,7 +391,8 @@ and never the address (task 01g).
 Required: `receipt_id, case_id, language, issued_at, verified_facts, actions, deadline, what_ai_did,
 what_a_person_does`. Never contains score, policy ids or transcript (`notifications.never_send`). `amount.display` is
 an approximation from `convert_amount` and is omitted when no verified rate exists (ADR 0019); `deadline` is null for a
-country without a verified clock entry (`POL-CLOCK-UNKNOWN`). Optional fields may be null or absent, except
+country without a verified clock entry (`POL-CLOCK-UNKNOWN`), and its `deadline_source` is the source in the receipt's
+language, `get_case`'s `deadline_source_label` (1.5.0), not the analyst's `source`. Optional fields may be null or absent, except
 `next_steps`, an array that is empty by default. Structural rules, in the schema and the model alike:
 - accepted ≠ verified: an action with `state: "verified"` carries a `V-` `verification_id` and `verified_at`;
 - a non-null `deadline` has at least one non-null date, an `https://` `source_url` and `verified_on`;

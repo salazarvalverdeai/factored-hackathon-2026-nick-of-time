@@ -83,3 +83,11 @@ def test_ac_05_end_to_end_the_receipt_shows_the_label_the_handoff_keeps_the_sour
     assert turn.handoff["deadline"]["deadline_source"] == mx.source
     deadline = next(line for line in turn.reply.splitlines() if "2026-06-03" in line)
     assert case["deadline_source_label"] in deadline and mx.source not in turn.reply
+
+
+@pytest.mark.parametrize("language", ["es", "pt"])
+def test_ac_10_the_fake_server_answers_the_label_in_its_sessions_language(language):
+    """The fake MCP reads its session's language as the real one does (the charge's active case is reported)."""
+    turn = Chat(mcp_transport=fake.build_server(language)).say(EV_0001, language=language)
+    other = fake._LABEL["pt" if language == "es" else "es"]
+    assert fake._LABEL[language] in turn.reply and other not in turn.reply
