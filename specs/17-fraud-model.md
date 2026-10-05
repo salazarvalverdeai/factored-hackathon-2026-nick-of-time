@@ -286,7 +286,11 @@ retraining (ADR 0021, P2).
       by PR #60 (open; task PROT2; D-017a–e, D-022), and §4.4 rules 1–2 copied back from PROTOCOL §3.3
 - [x] T3c [P0] — signal search beyond §4.2 on train and validation (`scripts/ml/fraud_signal_search.py`, D-015): no
       candidate passes, the feature list is unchanged · AC-02, AC-05
-- [ ] T4 [P0] — test-window evaluation, report, `fraud_benchmark.json` for `/evaluation` · AC-04
+- [ ] T4 [P0] — test-window evaluation, report, `fraud_benchmark.json` for `/evaluation` · AC-04. Code ready
+      (17c, `scripts/ml/fraud_report.py`; `--window test` refuses while PROTOCOL is UNSEALED, on a model file that is
+      not the screen's recorded hash, and a second time; the test labels are read once through
+      `fraud_split.read_test_labels`); `--window validation` is a development run to `eval/.runs/` (git-ignored). The
+      test window is not scored yet: it waits for the seal
 - [ ] T5 [P1] — `model_score` in `get_fraud_score` and the handoff card; inventory entry · AC-07, AC-08
 
 ## 11. Sources

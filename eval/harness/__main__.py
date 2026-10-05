@@ -70,6 +70,7 @@ def main(argv: list[str] | None = None, api: Api | None = None) -> int:
         path = args.cases or ROOT / "eval/cases" / f"{args.set_name}.jsonl"
         if heldout:
             report.check_heldout(path)
+            report.claim_heldout_run([arm for arm in args.arms.split(",") if arm], path)
         cases = [case for case in _read_cases(path) if case["set"] == args.set_name]
         started, today = report.now(), datetime.now(timezone.utc)
         out = args.out or (ROOT / "eval/results" / f"{today:%Y-%m-%d}-heldout" if heldout

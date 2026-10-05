@@ -219,7 +219,10 @@ Implementation goes in `feat/10-…` branches once this spec is approved. T1–T
       (PR #164 description; `[simulated]`, dev set, not the final result): 160 runs, 0 failed, every seeded session
       `replay` (AC-06); pass^4 9/20 on both arms, safe automated resolution 0/12, unsafe outcomes 0/80 per arm; S1
       spent 0.037 USD. Outputs stay in `eval/.runs/` (git-ignored)
-- [ ] T7 — held-out run on S0, S1 and S2 after M02; results committed under `eval/results/` · covers AC-03
+- [ ] T7 — held-out run on S0, S1 and S2 after M02; results committed under `eval/results/` · covers AC-03. Command
+      ready, not run: `make eval-heldout` (on the stack of `make eval-local`) refuses while PROTOCOL is UNSEALED (AC-07)
+      and a second time (`eval/results/HELDOUT_RUN.json`, written when the run starts; the lead deletes it to allow
+      another); it writes `eval/results/<date>-heldout/` and the web `evaluation_summary.json`
 
 Tests live in `tests/test_spec10_*.py` and cite their criterion.
 

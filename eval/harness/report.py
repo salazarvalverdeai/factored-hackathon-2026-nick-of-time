@@ -18,6 +18,7 @@ PROTOCOL = ROOT / "eval/PROTOCOL.md"
 HELDOUT_HASH = ROOT / "eval/heldout.sha256"
 HELDOUT_CASES = ROOT / "eval/cases/heldout.jsonl"
 WEB_SUMMARY = ROOT / "apps/web/public/data/evaluation_summary.json"
+HELDOUT_RUN = ROOT / "eval/results/HELDOUT_RUN.json"         # spec 10 T7: written when the one held-out run starts
 SMALL_CELL = 5                                               # §4.1: a cell with fewer cases is flagged
 
 
@@ -57,6 +58,18 @@ def check_heldout(cases: Path, protocol: Path = PROTOCOL, hash_file: Path = HELD
         raise HarnessError(f"the held-out is not available: the case file {cases} is missing")
     if sha256_of(cases) != hash_file.read_text(encoding="ascii").strip():
         raise HarnessError(f"{cases.name} is not the sealed held-out: its sha256 differs from eval/heldout.sha256")
+
+
+def claim_heldout_run(arms: list[str], cases: Path, marker: Path = HELDOUT_RUN) -> None:
+    """T7: the held-out is run ONCE (ADR 0007). Call after check_heldout, so nothing is written while UNSEALED. The
+    marker stays after a failed or partial run on purpose: a second look at the held-out is a decision for the lead,
+    who deletes it by hand."""
+    if marker.exists():
+        raise HarnessError(f"the held-out already ran or started ({marker.name}); it runs once. The lead may delete "
+                           f"{marker} to allow one new run")
+    marker.parent.mkdir(parents=True, exist_ok=True)
+    marker.write_text(json.dumps({"started_at": now(), "arms": arms, "harness_git_sha": git_sha(),
+                                  "cases_sha256": sha256_of(cases)}, indent=2) + "\n", encoding="utf-8")
 
 
 def check_heldout_cases(cases: list[dict[str, Any]], protocol: Optional[Path] = None,

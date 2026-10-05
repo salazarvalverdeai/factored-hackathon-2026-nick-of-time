@@ -6,7 +6,7 @@ PYTHON ?= python3
 PY := .venv/bin/python
 SOURCE ?= s3
 
-.PHONY: setup deps pipeline fixture report test lint hooks check-bedrock check-telegram check-resend check-jev check-all telegram-profile env-pull gold-pull labels-pull eval eval-stub eval-local
+.PHONY: setup deps pipeline fixture report test lint hooks check-bedrock check-telegram check-resend check-jev check-all telegram-profile env-pull gold-pull labels-pull eval eval-stub eval-local eval-heldout
 
 setup: deps pipeline fixture report
 
@@ -86,6 +86,14 @@ EVAL_CASES ?=
 
 eval: $(PY)
 	PYTHONPATH=packages $(PY) -m eval.harness run --set dev --arms $(EVAL_ARMS) --runs $(EVAL_RUNS) --api $(EVAL_API) $(if $(EVAL_CASES),--cases $(EVAL_CASES),)
+
+# Spec 10 T7: the held-out agent run, ONCE, after the seal (eval/PROTOCOL.md SEALED), on the stack of `make eval-local`.
+# Refuses while UNSEALED and a second time (eval/results/HELDOUT_RUN.json); writes eval/results/<date>-heldout/ and
+# apps/web/public/data/evaluation_summary.json. Never run it to tune anything (ADR 0007).
+EVAL_HELDOUT_ARMS ?= S0,S1,S2
+
+eval-heldout: $(PY)
+	PYTHONPATH=packages $(PY) -m eval.harness run --set heldout --arms $(EVAL_HELDOUT_ARMS) --runs 4 --api $(EVAL_API)
 
 # The real stack for `make eval` (spec 10 T6, eval/README.md "Local real stack"): the store-backed api with the eval
 # hooks (:8000) and the real MCP server (:8001) over one in-memory store, and the real graph under `langgraph dev`
