@@ -16,6 +16,7 @@ from eval.harness.client import HarnessError
 ROOT = Path(__file__).resolve().parents[2]
 PROTOCOL = ROOT / "eval/PROTOCOL.md"
 HELDOUT_HASH = ROOT / "eval/heldout.sha256"
+HELDOUT_CASES = ROOT / "eval/cases/heldout.jsonl"
 WEB_SUMMARY = ROOT / "apps/web/public/data/evaluation_summary.json"
 SMALL_CELL = 5                                               # §4.1: a cell with fewer cases is flagged
 
@@ -52,14 +53,39 @@ def check_heldout(cases: Path, protocol: Path = PROTOCOL, hash_file: Path = HELD
         raise HarnessError(f"the held-out is not available: eval/PROTOCOL.md is {status}, not SEALED (use --set dev)")
     if not hash_file.exists():
         raise HarnessError("the held-out is not available: eval/heldout.sha256 is missing")
+    if not cases.is_file():
+        raise HarnessError(f"the held-out is not available: the case file {cases} is missing")
     if sha256_of(cases) != hash_file.read_text(encoding="ascii").strip():
         raise HarnessError(f"{cases.name} is not the sealed held-out: its sha256 differs from eval/heldout.sha256")
 
 
+def check_heldout_cases(cases: list[dict[str, Any]], protocol: Optional[Path] = None,
+                        hash_file: Optional[Path] = None, sealed_cases: Optional[Path] = None) -> None:
+    """AC-07 for callers of run_set (spec 15 FR-06): a case of the held-out set runs only under check_heldout, and
+    only as it is in the sealed file, so an edited copy of a held-out case is refused too."""
+    heldout = [case for case in cases if case.get("set") == "heldout"]
+    if not heldout:
+        return
+    sealed_cases = sealed_cases or HELDOUT_CASES
+    check_heldout(sealed_cases, protocol or PROTOCOL, hash_file or HELDOUT_HASH)
+    lines = sealed_cases.read_text(encoding="utf-8").splitlines()
+    sealed = {case["id"]: case for case in map(json.loads, filter(str.strip, lines))}
+    changed = sorted(case.get("id", "?") for case in heldout if sealed.get(case.get("id")) != case)
+    if changed:
+        raise HarnessError(f"{len(changed)} held-out case(s) differ from the sealed file: {', '.join(changed[:5])}")
+
+
 def _run_meta(records: list[dict[str, Any]]) -> dict[str, Any]:
-    """What the system under test reported about itself (git SHA, models, prompt hash, policies version; AC-05)."""
-    return next(((record["final_state"] or {}).get("run_meta") or {} for record in records
-                 if record["status"] == "ok"), {})
+    """What the system under test reported about itself (git SHA, models, prompt hash, policies version; AC-05).
+    The first ok run's meta, plus `drift` with every field that changed between runs of the same arm (a redeploy
+    or a config change mid-run), so the run set is not reported as one configuration when it was not."""
+    metas = [(record["final_state"] or {}).get("run_meta") or {} for record in records if record["status"] == "ok"]
+    if not metas:
+        return {}
+    drift = {key: values for key in sorted({key for meta in metas for key in meta})
+             if len(values := list(dict.fromkeys(json.dumps(meta.get(key), sort_keys=True) for meta in metas))) > 1}
+    return {**metas[0], **({"drift": {key: [json.loads(v) for v in values] for key, values in drift.items()}}
+                           if drift else {})}
 
 
 def _arms(records: list[dict[str, Any]]) -> dict[str, list[dict[str, Any]]]:
@@ -107,8 +133,9 @@ def web_summary(records: list[dict[str, Any]], run_meta: dict[str, Any],
 
 
 def write_reports(records: list[dict[str, Any]], out: Path, run_meta: dict[str, Any],
-                  web: Optional[Path] = None, labels_path: Path = label_module.LABELS) -> dict[str, Any]:
+                  web: Optional[Path] = None, labels_path: Optional[Path] = None) -> dict[str, Any]:
     """meta.json and evaluation_summary.json in the run folder, and the web copy when `web` is given (AC-11)."""
+    labels_path = labels_path or label_module.LABELS
     wanted = {record["expected_transaction_id"] for record in records if record.get("expected_transaction_id")}
     wanted |= {(record.get("final_state") or {}).get("transaction_id") for record in records} - {None}
     summary = web_summary(records, run_meta, label_module.load_labels(wanted, labels_path))

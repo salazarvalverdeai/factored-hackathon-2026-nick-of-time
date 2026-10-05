@@ -28,6 +28,9 @@ class Api:
     def at(cls, base_url: str) -> Api:
         return cls(httpx.Client(base_url=base_url, timeout=TURN_TIMEOUT_S))
 
+    def close(self) -> None:
+        self.http.close()
+
     def run(self, case: dict[str, Any], run_id: str, arm: str) -> dict[str, Any]:
         """One run: seed → one turn per scripted message → FinalState (FR-02)."""
         seeded = self._json(self.http.post("/api/eval/seed", json={
