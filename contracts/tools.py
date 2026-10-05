@@ -40,7 +40,7 @@ class _Model(BaseModel):
 
 
 class _In(_Model):
-    session_id: str                   # the customer comes from this session row, never from the arguments
+    session_id: str = Field(pattern=PATTERN["session"])   # the customer comes from this session row only
 
 
 class _WriteIn(_In):
@@ -106,7 +106,7 @@ class GetCustomerProfileOut(_Model):
 
 # ---------- search_transaction (R) ----------
 class SearchTransactionIn(_In):
-    amount: Optional[float] = Field(None, description="amount in local currency; ±2% tolerance")
+    amount: Optional[float] = Field(None, allow_inf_nan=False, description="amount in local currency; ±2% tolerance")
     currency: Optional[str] = Field(None, pattern=_CURRENCY)
     approx_date: Optional[date] = None
     window_days: int = Field(7, ge=0, le=30)
@@ -320,7 +320,7 @@ class RequestReevaluationOut(_CaseEventOut):
 
 # ---------- convert_amount (R) ----------
 class ConvertAmountIn(_In):
-    amount: float
+    amount: float = Field(allow_inf_nan=False)
     currency: str = Field(pattern=_CURRENCY)
     to_currency: Optional[str] = Field(None, pattern=_CURRENCY)   # None: the session's display currency
 

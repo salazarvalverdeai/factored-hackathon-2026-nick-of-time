@@ -1,5 +1,6 @@
 # Images build with the repo root as context (compose, and `ADD .` in the langgraph build): keep the environment, the
-# dataset, secrets and local notes out of it. Not `**/data`: apps/web/app/data is source.
+# dataset, secrets and local notes out of it. Not `**/data`: apps/web/app/data is source. No `!` negations: they would
+# put excluded files back.
 .venv
 **/.venv
 data
@@ -14,7 +15,9 @@ data
 revision
 node_modules
 **/node_modules
+**/.next
 **/__pycache__
+**/.DS_Store
 # personal drafts and working notes, as in .gitignore
 contexto_construccion.md
 01_manual_claude_code_admin.md
