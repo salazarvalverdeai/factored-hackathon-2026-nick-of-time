@@ -40,9 +40,10 @@ AC-01 to AC-06 come from issue #4 with the same numbers; AC-07 onward are added 
   `ruling_deadline` opening + 45 calendar days (+180 if the charge was abroad), with its Banxico source (Circular 3/2012
   art. 19 Bis 3 fr. II for debit, Circular 34/2010 numeral 3.4 b) for credit; ADR 0023, proposed); for an older MX
   charge it shall be the LTOSF art. 23 ruling deadline only; an AR dispute shall get a ruling deadline of +10 business
-  days and no credit deadline (BCRA t-pusf 3.1.6; ADR 0023) and a CO dispute +15 business days, skipping weekends and
-  the country's 2026 holidays; a PE dispute shall get +15 business days (SBS) and a CL dispute a refund deadline of +10
-  business days (+15 for cash advances and ATM withdrawals) and +7 more for the part above 35 UF (Ley 20.009). · [T]
+  weekends and the country's 2026 holidays; a PE dispute shall get +15 business days (SBS) and a CL dispute a refund
+  deadline of +10 business days (+15 for cash advances and ATM withdrawals) and +7 more for the part above 35 UF
+  (Ley 20.009). · [T]
+- **AC-04** — While `supervised_mode` is on, every action shall have approval mode `human_required`. · [T]
 - **AC-04** — While `supervised_mode` is on, every money action (AC-15) shall have approval mode `human_required`. · [T]
 - **AC-05** — If no rule allows an action, then the engine shall deny it with `POL-DEFAULT-DENY`. · [T]
 - **AC-06** — The amount tier shall change only the approval mode, never a deadline. · [T]
@@ -161,8 +162,10 @@ test, no code change.** A country without a verified entry falls back to `POL-CL
   Bis 3 fr. I and Circular 34/2010 numeral 3.4 a) applies only to a theft or loss notice, so it is not modeled; a
   claim of unrecognized charges (fr. II, numeral 3.4 b)) qualifies when filed within 90 calendar days of the charge
   ("Días" are calendar days, Circular 3/2012 art. 2), on debit and credit alike. Day 90 qualifies, the 45 days of
-  Circular 34/2010 and LTOSF count as calendar days, and the rule covers both `unrecognized_charge` and
-  `wrongful_charge` `[assumption]` — each the reading with the earlier deadline. The 48 h figure came from a
+  Circular 34/2010 and LTOSF count as calendar days `[assumption]` — each the reading with the earlier deadline. The
+  clock computes the credit date for both dispute types; the receipt shows it only for an unrecognized or duplicate
+  charge, and for other wrongful charges it drives only the AC-11 SLA (D-030, default pending the lead; ADR 0019
+  point 3). The 48 h figure came from a
   [CONDUSEF press release of 2018-10-03](https://www.gob.mx/condusef/prensa/cargos-no-reconocidos-en-tarjeta-de-debito-se-restituiran-en-dos-dias-habiles-bancarios?idiom=es)
   (checked 2026-10-04) that summarizes fr. I only. AR promises only the resolution date (t-pusf 3.1.6); when an
   analyst finds the charge is one the bank itself generated (the list in item 2.3.5.1), the reimbursement is due by
@@ -285,8 +288,8 @@ fx.convert(amount=1250.0, from_currency="USD", to_currency="MXN") -> {amount, ra
 - **Rules 3a–3b (added 2026-10-04 with the five intents of spec 11):** a request for a person and a status question
   are answered after the security checks (rules 1–3) and before the dispute rules; every reply, including
   `reauthenticate` and `deny`, still offers a way to a person (spec 04 AC-20).
-- **Q7 — demo date:** ~~move `DEMO_TODAY` to 2026-06-01?~~ **Decided (lead, 2026-10-04):** two time modes (ADR 0020,
-  proposed). `replay` uses `DEMO_TODAY = 2026-06-01` (Monday, the first day after the gold window), so every MX
+- **Q7 — demo date:** ~~move `DEMO_TODAY` to 2026-06-01?~~ **Decided (lead, 2026-10-04):** two time modes (ADR 0020).
+  `replay` uses `DEMO_TODAY = 2026-06-01` (Monday, the first day after the gold window), so every MX
   charge dated 2026-03-03 to 2026-05-31 (≤ 90 calendar days before) gets the business-day-2 credit, debit and credit
   alike (ADR 0023, proposed, which replaces the earlier 48 h rationale); `live` uses the real date with labeled
   synthetic transactions (in October every gold charge is more than 90 days old, so only these show the

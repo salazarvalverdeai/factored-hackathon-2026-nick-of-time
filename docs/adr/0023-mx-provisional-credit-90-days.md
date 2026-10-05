@@ -38,30 +38,43 @@
 ## Decision
 1. **MX debit and MX credit, claim within 90 calendar days.** When a customer claims a charge they do not recognize,
    and the claim is filed within 90 calendar days of the charge:
-   - `credit_deadline` is the **second banking business day after the notice**: Circular 3/2012 art. 19 Bis 3 fr. II
-     for debit, and Circular 34/2010 numeral 3.4 b) for credit.
+   - `credit_deadline` is the **second business day after the notice**: the second *Día Hábil Bancario* for debit
+     (Circular 3/2012 art. 19 Bis 3 fr. II) and the second *Día Hábil* for credit (Circular 34/2010 numeral 3.4 b)).
+     Both terms are defined by the CNBV's calendar of days the institutions may not close, so the clock uses the same
+     MX holiday file for both.
    - `ruling_deadline` is the notice date **+ 45 calendar days**, or **+ 180 calendar days** when the charge was made
      abroad: art. 19 Bis 4 for debit, numeral 3.6 for credit.
    - The bank may skip the credit only by delivering, within that term, a ruling that proves two-factor
      authentication.
    - Provisional credit stays a human decision (constitution rule 6). The clock computes the date. It never grants
      the credit.
-2. **Counting.** The charge's age is counted in calendar days between local dates in Mexico City time (Circular 3/2012,
-   art. 5).
+2. **Counting.** The charge's age is counted in calendar days between local dates in Mexico City time. Circular 3/2012
+   art. 5 refers the circular's times (*horarios*) to Mexico City time; applying it to dates is our inference
+   `[assumption]`.
    - Day 90 still qualifies `[assumption]`. It is the reading that gives the earlier deadline.
    - Circular 34/2010 does not define its capitalized "Días" in numeral 3.6, so the 45 days count as calendar days
      `[assumption]`, which also gives the earlier date.
-   - A credit-card charge that has not yet appeared on a statement starts its 90 days at the statement cut date
-     (numeral 2.9). The gold has no statement dates, so the clock counts from the charge date. A credit-card claim
-     filed after day 90 is left to the analyst, who closes every case anyway.
+   - Numeral 2.9: when the issuer does not show a charge on the statement where it belongs, the 90 days run from the
+     cut date of the statement that does show it. The gold has no statement dates, so the clock counts from the
+     charge date. A credit-card claim filed after day 90 is left to the analyst, who closes every case anyway.
 3. **MX claim after day 90.** There is no credit deadline. The ruling follows LTOSF art. 23 fr. II: 45 days, counted as
-   calendar days `[assumption]` (the earlier date), or 180 calendar days for operations abroad.
+   calendar days `[assumption]` (the earlier date), or 180 calendar days for operations abroad. LTOSF art. 23 fr. I
+   has its own 90-day window for the customer, counted from the statement cut date or, where applicable, from the
+   operation. The cut date is not in the data, so the clock always gives the ruling date for an older charge
+   `[assumption]`, as the comment in PR #67's `policies.yaml` says.
 4. **The 48 h window is not modeled.** Fr. I of art. 19 Bis 3 and numeral 3.4 a) apply only to a theft or loss notice.
    Any charge made in the 48 hours before a notice is also within 90 days, so fr. II already covers it once the
    customer claims it.
-5. **Both dispute types.** The rule applies to `unrecognized_charge` and `wrongful_charge` alike `[assumption]`. A
-   disputed charge is claimed as not the customer's own, and art. 19 Bis 3 itself names "un cargo duplicado
-   indebidamente" as a covered failure. This is the earlier-deadline reading.
+5. **Dispute types (D-030, default applied pending the lead).** The clock computes the credit date for
+   `unrecognized_charge` and `wrongful_charge` alike, but the customer sees it only where the source supports it.
+   - **Receipt:** the business-day-2 credit date is shown for an unrecognized charge (art. 19 Bis 1 inciso (ii);
+     numeral 3.3 inciso (ii)) and for a duplicate charge, which art. 19 Bis 3 and numeral 3.4 name as a covered
+     failure (*"un cargo duplicado indebidamente"*).
+   - **Other wrongful-charge types** (a wrong amount, a merchant dispute): the date drives only the analyst SLA
+     (spec 02 AC-11) and never reaches the receipt, which shows the ruling date. Under ADR 0019 point 3, a reading
+     that is not verified against the text cannot be shown to a customer as a commitment.
+   - Until the tools can tell a duplicate from other wrongful charges (specs 03 and 04), a `wrongful_charge` receipt
+     shows only the ruling date. Using the credit date for the SLA is the earlier-deadline reading `[assumption]`.
 6. **AR.** The clock promises only the **resolution within 10 business days** (t-pusf 3.1.6): `ruling_deadline` =
    notice + 10 business days, and no `credit_deadline`.
    - If the analyst finds that the charge is one the bank itself generated (the list in item 2.3.5.1), the
@@ -96,7 +109,7 @@
 - **ADR 0020.** The replay date stays **`DEMO_TODAY = 2026-06-01`**. The reasons:
   - It is the first day after the gold window (gold contract R1: `transaction_date < 2026-06-01`).
   - It is a Monday.
-  - It is already wired into spec 01, spec 02, `CLAUDE.md`, `.env.example` and the tests.
+  - It is already wired into spec 02, `CLAUDE.md`, `.env.example`, and `clock.DEMO_TODAY` and its tests in PR #67.
 
   Its MX-48 h rationale is replaced:
   - In replay, **every MX charge dated 2026-03-03 to 2026-05-31** is at most 90 calendar days before the notice, so
@@ -116,9 +129,11 @@
 
 ## Confidence
 High on the reading. The rule texts are explicit and were read three times on 2026-10-04: by the PR #67 author, by the
-02b reviewer and by this record. Medium on the four `[assumption]` items and the statement-date edge case. The four
-items are: day 90 included, the 45 days of Circular 34/2010 counted as calendar days, the 45 days of LTOSF counted as
-calendar days, and `wrongful_charge` being covered. Each of them is the reading that gives the earlier deadline. Revisit if Banxico amends Circular 3/2012 or
+02b reviewer and by this record. Medium on the `[assumption]` items and the statement-date edge case: day 90
+included, local dates from art. 5, the 45 days of Circular 34/2010 and of LTOSF counted as calendar days, the LTOSF
+ruling always given, and the credit date driving the SLA for every `wrongful_charge`. Each of them is the reading
+that gives the earlier deadline. D-030 (what the receipt shows for a `wrongful_charge`) is a default pending the
+lead. Revisit if Banxico amends Circular 3/2012 or
 34/2010, if Banxico or CONDUSEF publishes an interpretation that differs, or if the organizers ask us to follow a
 different reading.
 
