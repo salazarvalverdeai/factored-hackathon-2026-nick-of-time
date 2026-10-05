@@ -19,7 +19,7 @@ States: **Draft → Approved → In progress → Implemented → Superseded**. S
 | 07 | Customer chat `/chat` with verified receipt and trace | @gianzk | P0 | L | 16, 04, 05 | #9 | In progress |
 | 08 | Analyst login + console `/login`, `/console` | @gianzk | P0 | L | 16, 05 | #10 | In progress |
 | 09 | Demo and evaluation data (demo index, agent cases, classifier set) | @vldiego | P0 | M | gold | #11 | Draft |
-| 10 | Evaluation harness (final state, pass^4, challenge metrics) | @vldiego | P0 | M | 01, 09 | #12 | Not started |
+| 10 | Evaluation harness (final state, pass^4, challenge metrics) | @vldiego | P0 | M | 01, 09 | #12 | Draft |
 | 11 | Intent classifier + injection detector + selection protocol | @salazarvalverdeai | P0 | M | 09 | #13 | Draft |
 | 12 | Insight pages content: `/evaluation` (P0), `/analytics`, `/data` | @vldiego | P0/P1 | M | 16, 10, 15 | #14 | Draft |
 | 13 | `/case/{id}` + Telegram + email notifications | @gianzk | P0 | M | 05 | #15 | In progress |
