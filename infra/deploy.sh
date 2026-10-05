@@ -19,9 +19,15 @@ HEALTH_URL="${HEALTH_URL:-https://nickoftime.salazarvalverdeai.com/api/health}"
 HEALTH_RETRIES="${HEALTH_RETRIES:-30}"
 HEALTH_SLEEP="${HEALTH_SLEEP:-5}"
 CRON_FILE="${CRON_FILE:-/etc/cron.d/nickoftime-backup}"
+GOLD_S3_URI="${GOLD_S3_URI:-s3://nickoftime-gold-061039767206/gold/v1/}"   # gold only: labels live apart, never synced
+GOLD_DIR="${GOLD_DIR:-$STATE_DIR/gold/v1}"                                  # mounted read-only in api and mcp
 export AWS_REGION AWS_DEFAULT_REGION="$AWS_REGION"
 
 log() { printf '[deploy %s] %s\n' "$(date -u +%H:%M:%S)" "$*"; }
+
+for tool in aws docker git python3 curl openssl; do   # fail before touching anything if the host lacks a tool
+  command -v "$tool" >/dev/null 2>&1 || { log "missing $tool on the host (aws: snap install aws-cli --classic)" >&2; exit 1; }
+done
 
 ssm_get() {  # prints the parameter value, or nothing if it does not exist
   aws ssm get-parameter --name "$SSM_PREFIX/$1" --with-decryption --query Parameter.Value --output text 2>/dev/null || true
@@ -41,6 +47,14 @@ ensure_postgres_password() {
   printf '%s' "$value"
 }
 
+sync_gold() {  # copies gold v1 from S3 to the host and sets GOLD_VERSION from its manifest (spec 06 FR-09)
+  case "$GOLD_S3_URI" in *gold_eval*|*labels*) log "refusing to sync labels: $GOLD_S3_URI" >&2; return 1 ;; esac
+  mkdir -p "$GOLD_DIR"
+  aws s3 sync "$GOLD_S3_URI" "$GOLD_DIR" --only-show-errors --delete || return 1
+  GOLD_VERSION="$(python3 -c 'import json,sys; print("v%s" % json.load(open(sys.argv[1]))["version"])' "$GOLD_DIR/manifest.json" 2>/dev/null || true)"
+  log "gold synced: ${GOLD_VERSION:-unknown}"
+}
+
 write_env() {  # $1 = image tag to run. Writes infra/.env with mode 0600, no values on stdout.
   local tag="$1" tmp pg
   pg="$(ensure_postgres_password)" || return 1
@@ -54,7 +68,14 @@ write_env() {  # $1 = image tag to run. Writes infra/.env with mode 0600, no val
     echo "PLATFORM_REVISION=${PLATFORM_REVISION:-}"
     echo "POSTGRES_PASSWORD=$pg"
     local name value
-    for name in MCP_API_KEY TELEGRAM_BOT_TOKEN TELEGRAM_WEBHOOK_SECRET RESEND_API_KEY; do
+    echo "GOLD_HOST_DIR=$GOLD_DIR"
+    echo "AWS_REGION=$AWS_REGION"
+    echo "DEFAULT_SESSION_MODE=live"
+    echo "DEMO_TODAY=2026-06-01"
+    echo "LANGGRAPH_ASSISTANT=${LANGGRAPH_ASSISTANT:-dispute_intake}"
+    for name in MCP_API_KEY TELEGRAM_BOT_TOKEN TELEGRAM_WEBHOOK_SECRET RESEND_API_KEY RESEND_WEBHOOK_SECRET \
+                LANGGRAPH_API_URL LANGSMITH_API_KEY LINK_SIGNING_KEY \
+                COGNITO_USER_POOL_ID COGNITO_CLIENT_ID COGNITO_DOMAIN; do
       value="$(ssm_get "$name")"
       if [ -z "$value" ]; then log "warning: $name is not in SSM yet (left empty)" >&2; fi
       echo "$name=$value"
@@ -79,13 +100,23 @@ health_ok() {  # $1 = SHA that /api/health must report
   return 1
 }
 
+apply_schema_once() {  # stopgap until spec 05 ships Alembic: create the spec 01 §6.5 tables on an empty database
+  local db=(psql -U "${POSTGRES_USER:-nickoftime}" -d "${POSTGRES_DB:-nickoftime}") present
+  present="$(compose exec -T postgres "${db[@]}" -tAc "select to_regclass('public.cases') is not null")" || return 1
+  [ "$present" = "t" ] && return 0
+  log "empty database: applying packages/nick_of_time/store/schema.sql in one transaction"
+  compose exec -T postgres "${db[@]}" -v ON_ERROR_STOP=1 -1 -q <"$REPO_ROOT/packages/nick_of_time/store/schema.sql" || return 1
+}
+
 start_version() {  # $1 = SHA. Explicit || return 1: set -e is ignored inside functions used in an `if`.
+  sync_gold || return 1
   write_env "$1" || return 1
   compose pull web api mcp || return 1                  # new images first; nothing running has been touched yet
   compose up -d --wait postgres || return 1
   # Migration hook for spec 05: runs only if the api image ships /app/migrate.sh.
   compose run --rm --no-deps api sh -c '[ ! -x /app/migrate.sh ] || /app/migrate.sh' || return 1
-  compose up -d --remove-orphans || return 1
+  apply_schema_once || return 1                         # no-op once the tables exist (Alembic or an earlier deploy)
+  compose up -d --remove-orphans --wait --wait-timeout 240 || return 1   # fails if a healthcheck (api, mcp) never passes
   compose exec -T caddy caddy reload --config /etc/caddy/Caddyfile || true   # first start already loaded it
   health_ok "$1"
 }

@@ -32,7 +32,10 @@ services:
     image: ${IMAGE_REPO:-ghcr.io/salazarvalverdeai/factored-hackathon-2026-nick-of-time}/api:${IMAGE_TAG:?set by deploy.sh}
     restart: unless-stopped
     env_file: .env
+    volumes:
+      - ${GOLD_HOST_DIR:-/var/lib/nickoftime/gold/v1}:/gold/v1:ro   # gold only, read-only (spec 06 FR-09)
     environment:
+      GOLD_PATH: /gold/v1
       DATABASE_URL: postgresql://${POSTGRES_USER:-nickoftime}:${POSTGRES_PASSWORD:?set by deploy.sh}@postgres:5432/${POSTGRES_DB:-nickoftime}
     depends_on:
       postgres:
@@ -48,11 +51,20 @@ services:
     image: ${IMAGE_REPO:-ghcr.io/salazarvalverdeai/factored-hackathon-2026-nick-of-time}/mcp:${IMAGE_TAG:?set by deploy.sh}
     restart: unless-stopped
     env_file: .env
+    volumes:
+      - ${GOLD_HOST_DIR:-/var/lib/nickoftime/gold/v1}:/gold/v1:ro   # gold only, read-only (spec 06 FR-09)
     environment:
+      GOLD_PATH: /gold/v1
       DATABASE_URL: postgresql://${POSTGRES_USER:-nickoftime}:${POSTGRES_PASSWORD:?set by deploy.sh}@postgres:5432/${POSTGRES_DB:-nickoftime}
     depends_on:
       postgres:
         condition: service_healthy
+    healthcheck:   # the port answers only while the server runs: a crash loop (bad MCP_API_KEY) fails the deploy
+      test: ["CMD", "python", "-c", "import socket; socket.create_connection(('127.0.0.1', 8001), 3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 20s
 
   postgres:
     image: postgres:17-alpine

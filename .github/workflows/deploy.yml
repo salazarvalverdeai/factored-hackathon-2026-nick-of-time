@@ -90,7 +90,7 @@ jobs:
         run: |
           set -euo pipefail
           PARAMS="$(jq -n --arg sha "$SHA" '{commands: [
-            "set -euo pipefail",
+            "set -eu",
             "cd /opt/nickoftime",
             "git fetch --quiet origin main",
             ("git checkout --force --detach " + $sha),
