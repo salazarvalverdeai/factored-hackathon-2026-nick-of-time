@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-10-05T05:11:48Z",
-  "git_sha": "772e122",
+  "generated_at": "2026-10-05T13:11:19Z",
+  "git_sha": "65ee820",
   "source": "data/pipeline report [data] — data/gold/run_results.json and the late_arrival fixture",
   "data": {
     "label": "[data]",
