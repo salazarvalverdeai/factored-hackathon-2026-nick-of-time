@@ -72,7 +72,7 @@ AC-01 to AC-08 come from issue #6 with the same numbers; the rest are added by t
   the text), say what the assistant can do in at most 3 bullets, and say that a person reviews cases that need it. · [T]
 - **AC-16** — Before acting, the agent shall state its plan as numbered steps; in the high zone it then executes, in the
   medium zone it waits for confirmation, except for a call request that reports a charge, which opens the case at once
-  (AC-11; in the high zone it blocks as usual, D-029). · [T]
+  (AC-11; never a block in any zone: in the high zone the analyst decides the block after the call, D-029). · [T]
 - **AC-17** — While a run is in progress, the stream shall emit one customer-facing progress label per step (ES/PT, no
   internal terms). · [T]
 - **AC-18** — Every action shown to the customer shall carry one of four states — in progress, requested, verified (with

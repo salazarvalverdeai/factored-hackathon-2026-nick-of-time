@@ -40,7 +40,8 @@
         "identity_unverified",
         "clarification_exhausted",
         "tool_failure",
-        "language_low_confidence"
+        "language_low_confidence",
+        "person_requested"
       ]
     },
     "request": {

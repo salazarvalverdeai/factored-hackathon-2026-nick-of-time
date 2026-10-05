@@ -14,7 +14,6 @@ import yaml
 from pydantic import ValidationError
 
 from nick_of_time.policy import Allow, DecisionInput, Deny, Policies, PolicyDecision, PolicyEngine
-from nick_of_time.policy import engine as engine_module
 from nick_of_time.policy.engine import HandoffReason
 from nick_of_time.policy.model import POLICIES_PATH
 
@@ -54,9 +53,9 @@ ROWS = [
     row("2", dict(injection_flagged=True), "deny", ["POL-INJECTION"], ["G-IN-01"]),
     row("3", dict(cross_customer=True), "deny", ["POL-CROSS-CUSTOMER"], ["G-SES-02"]),
     row("3a", dict(intent="human_request"), "connect_person", ["POL-HUMAN-REQUEST"], call="active_or_general"),
-    row("3a-charge-high", dict(intent="human_request", dispute_detected=True), "block_and_open_case",
-        ["POL-HUMAN-REQUEST", "POL-ZONE-HIGH", "POL-TICKET-ALWAYS"], zone="high", allowed=BLOCK, queue="verification",
-        call="opened_case"),
+    row("3a-charge-high", dict(intent="human_request", dispute_detected=True), "connect_person",
+        ["POL-HUMAN-REQUEST", "POL-ZONE-HIGH", "POL-TICKET-ALWAYS"], zone="high", allowed=OPEN,
+        reason="person_requested", queue="review", call="opened_case"),
     row("3a-charge-over-gate", dict(intent="human_request", dispute_detected=True, amount=5000.01), "connect_person",
         ["POL-HUMAN-REQUEST", "POL-ZONE-HIGH", "POL-AMOUNT-GATE", "POL-TICKET-ALWAYS"], ["G-TOOL-02"], zone="high",
         allowed=OPEN, reason="amount_over_case_gate", queue="review", call="opened_case"),
@@ -75,8 +74,11 @@ ROWS = [
     row("3a-charge-below-tau", dict(intent="human_request", dispute_detected=True, intent_confidence=0.7999),
         "connect_person", ["POL-HUMAN-REQUEST"], call="active_or_general"),
     row("3a-charge-at-tau", dict(intent="human_request", dispute_detected=True, intent_confidence=0.80),
-        "block_and_open_case", ["POL-HUMAN-REQUEST", "POL-ZONE-HIGH", "POL-TICKET-ALWAYS"], zone="high", allowed=BLOCK,
-        queue="verification", call="opened_case"),
+        "connect_person", ["POL-HUMAN-REQUEST", "POL-ZONE-HIGH", "POL-TICKET-ALWAYS"], zone="high", allowed=OPEN,
+        reason="person_requested", queue="review", call="opened_case"),
+    row("3a-charge-high-confirmed", dict(intent="human_request", dispute_detected=True, customer_confirmed=True),
+        "connect_person", ["POL-HUMAN-REQUEST", "POL-ZONE-HIGH", "POL-TICKET-ALWAYS"], zone="high", allowed=OPEN,
+        reason="person_requested", queue="review", call="opened_case"),
     row("3a-charge-high-rejected", dict(intent="human_request", dispute_detected=True, customer_confirmed=False),
         "connect_person", ["POL-HUMAN-REQUEST"], call="active_or_general"),
     row("3a-charge-not-card", dict(intent="human_request", dispute_detected=True, product_type="Cuenta Ahorro"),
@@ -142,11 +144,14 @@ def test_ac_12_every_rule_row_decides_and_cites_its_ids_and_version(overrides, e
 
 @pytest.mark.parametrize("overrides, expected", ROWS)
 def test_ac_05_decide_and_the_tools_re_check_agree_on_what_runs(overrides, expected):
+    """The tool re-checks with call_requested = the customer asked for a person in that turn (D-029); only a medium
+    zone still waiting for the customer's confirmation allows less than check()."""
     t, d = turn(**overrides), ENGINE.decide(turn(**overrides))
     checked = {action for action in RAW["approval"]["per_action"] if d.zone and isinstance(ENGINE.check(
-        action, d.zone, amount=t.amount, currency=t.currency, country=t.country, supervised_mode=t.supervised_mode), Allow)}
+        action, d.zone, amount=t.amount, currency=t.currency, country=t.country, supervised_mode=t.supervised_mode,
+        call_requested=t.intent == "human_request"), Allow)}
     assert set(d.allowed_actions) <= checked
-    assert d.decision not in ("block_and_open_case", "handoff") or set(d.allowed_actions) == checked
+    assert d.decision == "confirm" or set(d.allowed_actions) == checked
 
 
 PATHS = [dict(), dict(intent="human_request", dispute_detected=True),
@@ -176,7 +181,8 @@ EMITTED_IDS = ["POL-SESSION", "POL-INJECTION", "POL-CROSS-CUSTOMER", "POL-HUMAN-
                "POL-OUT-OF-SCOPE", "POL-CLARIFY", "POL-CLARIFY-EXHAUSTED", "POL-SCORE-NULL", "POL-SCORE-LLM",
                "POL-SCORE-SOURCE", "POL-ZONE-HIGH", "POL-ZONE-MEDIUM", "POL-ZONE-HUMAN", "POL-TICKET-ALWAYS",
                "POL-AMOUNT-GATE", "POL-AMOUNT-UNKNOWN", "POL-SUPERVISED", "POL-DEFAULT-DENY"]
-EMITTED_REASONS = ["zone_human", "zone_medium", "supervised_mode", "amount_over_case_gate", "clarification_exhausted"]
+EMITTED_REASONS = ["zone_human", "zone_medium", "supervised_mode", "amount_over_case_gate", "clarification_exhausted",
+                   "person_requested"]
 
 
 @pytest.mark.parametrize("path, value", [
@@ -205,20 +211,24 @@ def test_ac_12_the_first_terminal_rule_wins(winner, overrides):
 @pytest.mark.parametrize("amount, country", [(10.0, "MX"), (5000.01, "MX"), (10.0, "PE")])
 @pytest.mark.parametrize("supervised", [False, True])
 @pytest.mark.parametrize("score", [72.0, 40.0, 10.0, None])
-def test_ac_12_a_call_request_with_a_charge_adds_the_call_and_never_removes_protection(score, supervised, amount,
-                                                                                       country):
-    """D-020 and D-029: rule 3a is not terminal when the message also reports a charge. The case opened for it gets the
-    call and follows its zone like a confirmed dispute: the high zone still blocks, or hands off with a reason."""
+def test_ac_19_a_call_request_with_a_charge_adds_the_call_and_leaves_any_block_to_the_analyst(score, supervised, amount,
+                                                                                              country):
+    """AC-19, D-020 and D-029 (ADR 0024): rule 3a is not terminal when the message also reports a charge. The case opened for it gets the
+    call and follows its zone like a confirmed dispute, except that nothing is blocked in that turn: where the plain
+    dispute would block, the case waits in review with person_requested and the analyst decides after the call."""
     t = turn(intent="human_request", dispute_detected=True, score=score, supervised_mode=supervised, amount=amount,
              country=country)
     d = ENGINE.decide(t)
     plain = ENGINE.decide(turn(score=score, supervised_mode=supervised, amount=amount, country=country,
                                customer_confirmed=True))
-    same = {"zone", "approval_modes", "allowed_actions", "handoff_reason", "queue_status_after", "guardrail_ids"}
-    assert ENGINE.screen(t) is None and d.request_call == "opened_case"
+    same = {"zone", "approval_modes", "guardrail_ids"}
+    if plain.decision != "block_and_open_case":
+        same |= {"allowed_actions", "handoff_reason", "queue_status_after"}
+    assert ENGINE.screen(t) is None and d.request_call == "opened_case" and d.decision == "connect_person"
     assert d.model_dump(include=same) == plain.model_dump(include=same)
     assert d.rule_ids == ["POL-HUMAN-REQUEST", *plain.rule_ids] and d.approval_modes["open_case"] == "auto"
-    assert d.decision == ("block_and_open_case" if plain.decision == "block_and_open_case" else "connect_person")
+    assert (d.allowed_actions, d.queue_status_after) == (["open_case"], "review")
+    assert (d.handoff_reason == "person_requested") == (plain.decision == "block_and_open_case")
 
 
 @pytest.mark.parametrize("score", [72.0, 40.0, 10.0, None])
@@ -241,22 +251,108 @@ def test_ac_08_an_out_of_scope_reading_that_reports_a_charge_is_asked_about_neve
     assert d.rule_ids == (["POL-CLARIFY"] if decision == "ask" else ["POL-CLARIFY-EXHAUSTED"])
 
 
-def test_ac_12_d029_flips_to_open_the_case_and_call_with_one_line(monkeypatch):
-    """D-029 is isolated in one constant: setting the reason turns the high-zone call path into "open the case and
-    call, no block", and nothing else changes. zone_human is only a stand-in until the lead picks the reason."""
-    call = turn(intent="human_request", dispute_detected=True)
-    assert ENGINE.decide(call).decision == "block_and_open_case"
-    monkeypatch.setattr(engine_module, "D029_CALL_WITHHOLDS_BLOCK_REASON", "zone_human")
-    d = ENGINE.decide(call)
-    assert (d.decision, d.allowed_actions, d.queue_status_after, d.handoff_reason, d.request_call) == (
-        "connect_person", OPEN, "review", "zone_human", "opened_case")
-    assert d.rule_ids == ["POL-HUMAN-REQUEST", "POL-ZONE-HIGH", "POL-TICKET-ALWAYS"]
-    assert ENGINE.decide(turn()).decision == "block_and_open_case"            # a plain dispute still blocks
-    assert ENGINE.decide(turn(intent="human_request", dispute_detected=True, amount=5000.01)).handoff_reason == \
-        "amount_over_case_gate"
-    monkeypatch.setattr(engine_module, "D029_CALL_WITHHOLDS_BLOCK_REASON", "customer_request")
-    with pytest.raises(ValueError, match="lacks"):
-        PolicyEngine.load()
+D029 = {  # (zone, call request, confidence at τ) → decision, allowed actions, handoff reason, queue after, request_call
+    ("high", True, True): ("connect_person", OPEN, "person_requested", "review", "opened_case"),
+    ("medium", True, True): ("connect_person", OPEN, "zone_medium", "review", "opened_case"),
+    ("human", True, True): ("connect_person", OPEN, "zone_human", "review", "opened_case"),
+    ("high", False, True): ("block_and_open_case", BLOCK, None, "verification", None),
+    ("medium", False, True): ("confirm", [], None, None, None),
+    ("human", False, True): ("handoff", OPEN, "zone_human", "review", None),
+    **{(zone, True, False): ("connect_person", [], None, None, "active_or_general") for zone in ZONES},
+    **{(zone, False, False): ("ask", [], None, None, None) for zone in ZONES}}
+
+
+@pytest.mark.parametrize("zone, call, at_tau", list(D029),
+                         ids=[f"{z}-{'call' if c else 'dispute'}-{'at' if a else 'below'}-tau" for z, c, a in D029])
+def test_ac_19_a_call_request_never_blocks_and_the_tools_re_check_agrees(zone, call, at_tau):
+    """AC-19, D-029 (ADR 0024): a call request that reports a charge opens the case and registers the call, and in the
+    high zone the analyst decides the block after the call (person_requested); medium and human do not change. Below τ
+    only the call (D-031). The tool's re-check with call_requested withholds the same block."""
+    t = turn(intent="human_request" if call else "unrecognized_charge", dispute_detected=True, score=SCORE_OF[zone],
+             intent_confidence=0.80 if at_tau else 0.7999)
+    d = ENGINE.decide(t)
+    assert (d.decision, d.allowed_actions, d.handoff_reason, d.queue_status_after, d.request_call) == D029[
+        zone, call, at_tau]
+    block = ENGINE.check("block_card", zone, supervised_mode=False, call_requested=call, amount=t.amount,
+                         currency=t.currency, country=t.country)
+    assert isinstance(block, Allow) == (zone == "high" and not call)
+    assert not d.zone or isinstance(block, Allow) == ("block_card" in d.allowed_actions)
+
+
+@pytest.mark.parametrize("call", [False, True])
+@pytest.mark.parametrize("zone", ZONES)
+def test_ac_19_a_call_request_withholds_the_block_in_check_and_still_opens_the_case(zone, call):
+    """AC-19: the mode check comes first (over the gate the Deny cites POL-AMOUNT-GATE), then the call."""
+    kw = dict(supervised_mode=False, call_requested=call, currency="USD", country="MX")
+    block = ENGINE.check("block_card", zone, amount=10.0, **kw)
+    if zone == "high" and not call:
+        assert block == Allow(action="block_card", mode="manual_check", rule_ids=["POL-ZONE-HIGH"], policies_version=2)
+    else:
+        policy = "POL-HUMAN-REQUEST" if zone == "high" else "POL-DEFAULT-DENY"
+        assert block == Deny(action="block_card", policy_id=policy, guardrail_id=RAW["rules"][policy].get("guardrail"),
+                             rule_ids=[policy], policies_version=2)
+    assert ENGINE.check("block_card", "high", amount=5000.01, **kw).policy_id == "POL-AMOUNT-GATE"   # the raiser first
+    assert ENGINE.check("open_case", zone, amount=10.0, **kw) == Allow(
+        action="open_case", mode="auto", rule_ids=["POL-TICKET-ALWAYS"], policies_version=2)
+
+
+@pytest.mark.parametrize("value", [None, 0, 1, "false", "true", "missing"])
+def test_ac_19_check_refuses_a_call_flag_that_is_not_a_bool(value):
+    """AC-19: call_requested has no default: a flag read as None or left out is never "no call" (fail closed)."""
+    kw = {} if value == "missing" else dict(call_requested=value)
+    with pytest.raises(TypeError, match="call_requested"):
+        ENGINE.check("block_card", "high", supervised_mode=False, amount=10.0, currency="USD", country="MX", **kw)
+
+
+IN_GATE = {"MX": ("MXN", 20_000.0), "CO": ("COP", 5_000_000.0), "AR": ("ARS", 400_000.0), "BR": ("BRL", 6_000.0)}
+
+
+def test_ac_19_every_confident_high_zone_call_request_defers_the_block_to_the_analyst():
+    """AC-19 property (PR #80 review F5): over every gated country, an auto-tier USD amount and a manual_check-tier
+    local amount, each card product (and gold label), the high-zone band, every deciding source (synthetic included),
+    an active case or not, a clarification turn, a confirmation and the confidence, the call path opens the case in
+    review with person_requested and no block, the tool's re-check denies the block, and without the call it blocks."""
+    cells = itertools.product(
+        [(country, cur, amount) for country, (local, high) in IN_GATE.items() for cur, amount in (("USD", 50.0),
+                                                                                                    (local, high))],
+        ["debit", "credit", "Tarjeta Débito", "Tarjeta Crédito"], [50.0, 72.0, 100.0],
+        ["dataset", "rules", "model", "synthetic"], [None, False, True], [0, 1], [None, True], [0.80, 1.0])
+    deferred = ("connect_person", "high", ["open_case"], "person_requested", "review", "opened_case",
+                ["POL-HUMAN-REQUEST", "POL-ZONE-HIGH", "POL-TICKET-ALWAYS"])
+    n = 0
+    for (country, cur, amount), product, score, source, active, turns, confirmed, confidence in cells:
+        facts = dict(country=country, currency=cur, amount=amount, product_type=product, score=score,
+                     score_source=source, active_case=active, clarification_turns=turns,
+                     customer_confirmed=confirmed, intent_confidence=confidence, dispute_detected=True)
+        d = ENGINE.decide(turn(intent="human_request", **facts))
+        assert (d.decision, d.zone, d.allowed_actions, d.handoff_reason, d.queue_status_after, d.request_call,
+                d.rule_ids) == deferred, facts
+        assert ENGINE.decide(turn(**facts)).decision == "block_and_open_case", facts
+        money = dict(supervised_mode=False, amount=amount, currency=cur, country=country)
+        assert ENGINE.check("block_card", "high", call_requested=True, **money) == Deny(
+            action="block_card", policy_id="POL-HUMAN-REQUEST", guardrail_id=None, rule_ids=["POL-HUMAN-REQUEST"],
+            policies_version=2), facts
+        assert isinstance(ENGINE.check("block_card", "high", call_requested=False, **money), Allow), facts
+        n += 1
+    assert n == 9216
+
+
+@pytest.mark.parametrize("intent", ["unrecognized_charge", "wrongful_charge"])
+@pytest.mark.parametrize("country, currency, amount", [("MX", "USD", 50.0), ("CO", "COP", 5_000_000.0),
+                                                       ("BR", "BRL", 6_000.0)])
+def test_ac_19_d042_a_later_turn_cannot_block_while_the_call_is_open(intent, country, currency, amount):
+    """AC-19, D-042 and D-043 (ADR 0024): the hold lasts until the analyst runs approve_block, resolve or close_case.
+    decide() reads no store (D-043), so a later plain-dispute turn on the same high-zone transaction still allows the
+    block; the block_card tool passes call_requested=True while the case's call is open (spec 03 §8), and check() denies
+    the block. Once one of those three actions ends the hold, the flag is false; which actions end it is the store's
+    rule, tested in task 03c."""
+    later = ENGINE.decide(turn(intent=intent, active_case=True, customer_confirmed=True, country=country,
+                               currency=currency, amount=amount))
+    assert (later.decision, later.zone, later.allowed_actions) == ("block_and_open_case", "high", BLOCK)
+    money = dict(supervised_mode=False, amount=amount, currency=currency, country=country)
+    held = ENGINE.check("block_card", later.zone, call_requested=True, **money)
+    assert isinstance(held, Deny) and held.policy_id == "POL-HUMAN-REQUEST"
+    assert isinstance(ENGINE.check("block_card", later.zone, call_requested=False, **money), Allow)
 
 
 @pytest.mark.parametrize("dispute", [dict(), dict(candidates=2), dict(intent_confidence=0.5), dict(score=40.0),
@@ -278,7 +374,8 @@ def test_ac_12_a_status_question_with_a_charge_and_no_active_case_goes_on_like_a
 
 def test_ac_04_a_deny_cites_every_rule_that_raised_the_mode():
     """Over the gate and supervised: the Deny names the last raiser and lists both, with G-TOOL-02 (AC-12)."""
-    deny = ENGINE.check("block_card", "high", supervised_mode=True, amount=5000.01, currency="USD", country="MX")
+    deny = ENGINE.check("block_card", "high", supervised_mode=True, call_requested=False, amount=5000.01,
+                        currency="USD", country="MX")
     assert deny == Deny(action="block_card", policy_id="POL-SUPERVISED", guardrail_id="G-TOOL-02",
                         rule_ids=["POL-AMOUNT-GATE", "POL-SUPERVISED"], policies_version=2)
 
@@ -287,7 +384,8 @@ def test_ac_04_a_deny_cites_every_rule_that_raised_the_mode():
 def test_ac_04_check_refuses_a_supervised_switch_that_is_not_a_bool(switch):
     """A switch read as None (for example a missing console setting) is not "off": check() fails closed, loudly."""
     with pytest.raises(TypeError, match="supervised_mode"):
-        ENGINE.check("block_card", "high", supervised_mode=switch, amount=10.0, currency="USD", country="MX")
+        ENGINE.check("block_card", "high", supervised_mode=switch, call_requested=False, amount=10.0, currency="USD",
+                     country="MX")
 
 
 @pytest.mark.parametrize("field", FLAGS)
@@ -295,7 +393,7 @@ def test_ac_05_a_missing_safety_flag_fails_closed(field):
     with pytest.raises(ValidationError):
         DecisionInput(**{k: v for k, v in BASE.items() if k != field})
     with pytest.raises(TypeError):
-        ENGINE.check("block_card", "high", amount=10.0, currency="USD", country="MX")
+        ENGINE.check("block_card", "high", call_requested=False, amount=10.0, currency="USD", country="MX")
 
 
 @pytest.mark.parametrize("state", ["expired", "unverified", "none", "", "Verified"])
@@ -384,7 +482,8 @@ def test_ac_04_supervised_mode_makes_every_money_action_human_required(engine, f
     d = engine.decide(turn(score=SCORE_OF[zone], amount=amount, supervised_mode=flag, customer_confirmed=True))
     assert {a: d.approval_modes[a] for a in MONEY} == dict.fromkeys(MONEY, "human_required")
     assert (d.decision, d.allowed_actions) == ("handoff", ["open_case"])
-    checks = [engine.check(a, zone, amount=amount, currency="USD", country="MX", supervised_mode=flag) for a in MONEY]
+    checks = [engine.check(a, zone, amount=amount, currency="USD", country="MX", supervised_mode=flag,
+                           call_requested=False) for a in MONEY]
     assert all(isinstance(c, Deny) for c in checks)
     assert checks[0].policy_id == ("POL-SUPERVISED" if zone == "high" else "POL-DEFAULT-DENY")
 
@@ -396,8 +495,8 @@ def test_ac_15_open_case_stays_auto_under_supervised_mode_and_any_amount(zone, s
     d = ENGINE.decide(turn(score=SCORE_OF[zone], amount=amount, supervised_mode=supervised, customer_confirmed=True))
     assert d.approval_modes["open_case"] == "auto" and "open_case" in d.allowed_actions
     assert "POL-TICKET-ALWAYS" in d.rule_ids
-    assert ENGINE.check("open_case", zone, amount=amount, currency="USD", country="MX", supervised_mode=supervised) == \
-        Allow(action="open_case", mode="auto", rule_ids=["POL-TICKET-ALWAYS"], policies_version=2)
+    assert ENGINE.check("open_case", zone, amount=amount, currency="USD", country="MX", supervised_mode=supervised,
+                        call_requested=False) == Allow(action="open_case", mode="auto", rule_ids=["POL-TICKET-ALWAYS"], policies_version=2)
 
 
 @pytest.mark.parametrize("action, zone", [
@@ -405,7 +504,8 @@ def test_ac_15_open_case_stays_auto_under_supervised_mode_and_any_amount(zone, s
     ("block_card", ""), ("block_card", "medium"), ("block_card", "human"),
     *[(action, zone) for action in ("provisional_credit", "unblock_card") for zone in ZONES]])
 def test_ac_05_an_action_no_rule_allows_is_denied_by_default(action, zone):
-    assert ENGINE.check(action, zone, amount=10.0, currency="USD", country="MX", supervised_mode=False) == Deny(
+    assert ENGINE.check(action, zone, amount=10.0, currency="USD", country="MX", supervised_mode=False,
+                        call_requested=False) == Deny(
         action=action, policy_id="POL-DEFAULT-DENY", guardrail_id="G-POL-01", rule_ids=["POL-DEFAULT-DENY"],
         policies_version=2)
 
@@ -439,7 +539,8 @@ def test_ac_06_with_no_tier_a_person_decides_citing_pol_amount_unknown(country, 
     d = ENGINE.decide(turn(country=country, currency=currency, amount=amount))
     assert (d.decision, d.handoff_reason) == ("handoff", "amount_over_case_gate")
     assert d.rule_ids == ["POL-ZONE-HIGH", "POL-AMOUNT-UNKNOWN", "POL-TICKET-ALWAYS"]
-    deny = ENGINE.check("block_card", "high", amount=amount, currency=currency, country=country, supervised_mode=False)
+    deny = ENGINE.check("block_card", "high", amount=amount, currency=currency, country=country, supervised_mode=False,
+                        call_requested=False)
     assert (deny.policy_id, deny.guardrail_id) == ("POL-AMOUNT-UNKNOWN", "G-TOOL-02")
 
 
@@ -474,4 +575,4 @@ def test_ac_09_provisional_credit_is_human_required_in_every_zone_tier_and_mode(
     d = ENGINE.decide(turn(score=SCORE_OF.get(zone), amount=amount, supervised_mode=supervised, customer_confirmed=True))
     assert d.approval_modes["provisional_credit"] == "human_required" and "provisional_credit" not in d.allowed_actions
     assert isinstance(ENGINE.check("provisional_credit", d.zone, amount=amount, currency="USD", country="MX",
-                                   supervised_mode=supervised), Deny)
+                                   supervised_mode=supervised, call_requested=False), Deny)

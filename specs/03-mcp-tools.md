@@ -91,7 +91,7 @@ graph's run id). Kind: R read · W write · N notification.
 | `get_fraud_score` | R | Provider `dataset` (ADR 0006): `transactions.fraud_score` for a transaction of the session's customer, `source: "dataset"`, `version: "gold-v1"`; for a synthetic transaction, its generated score with `source: "synthetic"`. Another customer's transaction → `DENY POL-CROSS-CUSTOMER`. |
 | `compute_deadline` | R | Country from the customer (`México`→MX, `Argentina`→AR, `Colombia`→CO), product from the card type, opened on `clock.today(mode, country)`, `abroad` when `transaction_country` ≠ customer country; delegates to `clock.deadline()` (spec 02); returns `source_url` and `verified_on`. |
 | `open_case` | W | Duplicate check first (AC-15); recomputes the zone from the score (mismatch → AC-09); idempotent on `idempotency_key` (prefixed with `run_id`); writes `cases` (with `mode`, `related_case_id` when given) and `case_events(case_opened)`; returns `case_id`, deadlines and `duplicate_of`. |
-| `block_card` | W | Requires an open case for that product in the session and run; asks `engine.check("block_card", zone, supervised_mode=…, amount=…, currency=…, country=…)` (spec 02 §6); on allow, writes `product_overrides(Blocked)` and `case_events(card_blocked)`, returns `state: "requested"` (not yet verified). |
+| `block_card` | W | Requires an open case for that product in the session and run; asks `engine.check("block_card", zone, supervised_mode=…, call_requested=…, amount=…, currency=…, country=…)` (spec 02 §6; `call_requested` is true while the case has an open call (§8, D-042), so the block is denied, D-029); on allow, writes `product_overrides(Blocked)` and `case_events(card_blocked)`, returns `state: "requested"` (not yet verified). |
 | `get_product_status` | R | Latest override for the product in the same `run_id`, else gold `product_status`; returns type, last 4, status and `read_at`, plus `action_id` + `verification_id` only when called with a write's `action_id` whose post-condition holds (D-025). No cache. |
 | `list_my_cards` | R | The session customer's cards with the same fields as `get_product_status`, never with an `action_id` or `V-`: a listing verifies no write (D-025). |
 | `get_case` | R | Replaces `get_case_status`. Status label for the customer (`Recibido`, `En revisión`, `Resuelto`, `Cerrado` and PT equivalents from `messages.yaml`), stored deadlines with source, transaction, visible timeline, `taken_by_person` (an `assigned` event exists), `related_case_id`, `read_at`. |
@@ -163,6 +163,30 @@ and writes Postgres through `nick_of_time.store`: `sessions` (read), `demo_trans
   (improvement #13).
 - **D-040 (lead, 2026-10-04):** the tool-call audit is a stdout log line for now; gate denials cite `POL-DEFAULT-DENY`
   with G-TOOL-01, with no `contracts/` change. **D-041 (lead, 2026-10-04):** the notification limit is per session (AC-21).
+- **Source of `call_requested` for `block_card` (task 03c, T4) — decided by the lead, 2026-10-04 (D-042, ADR 0024):**
+  store-backed. `BlockCardIn` gains no field: like every other `check()` input (the case zone, `settings_events`, the
+  gold transaction), the flag comes from trusted state, not from the agent. It is true while the case has an open call:
+  the case has a `call_requested` event **or** was opened with `handoff_reason` `person_requested`, and no
+  `approve_block`, `resolve` or `close_case` on that case followed. The second condition covers spec 04's `connect`
+  fallback: when `open_case` or its verify fails, the call is registered as a general request with no case, so a case
+  already written in `review` with `person_requested` may have no `call_requested` event, and it must stay held.
+  `[assumption]` (pending lead decision D-055): 03c reads the opening reason from the `handoff_emitted` event of the
+  opening turn (a store event type already in spec 01 §6.5, not customer-visible), whose payload carries
+  `handoff_reason`; if that event is absent the hold is not open. No field is added to `OpenCaseIn` or any contract.
+  So a later plain-dispute turn about the same transaction is denied with `POL-HUMAN-REQUEST`. The hold is per case: a
+  different charge opens a new case, which has no hold unless its own turn asked for a person. In the turn of the call
+  request the order is spec 04's `act` → `verify` → `connect` (`open_case`, then `request_call` on that case); until
+  that write, `decide()` leaving `block_card` out of `allowed_actions` is the guard.
+- **End of the hold and the later-turn block (decided by the lead, 2026-10-05; D-042, D-043, ADR 0024):** only the
+  analyst actions `approve_block`, `resolve` and `close_case` (spec 05) end the hold, while `take`,
+  `request_customer_info`, `mark_ambiguous` and every other analyst action keep it (D-042); `decide()` stays without
+  the store and gains no input, so on a later turn that proposes `block_card` while the hold is open, the tool's
+  `check()` re-check denies it with `POL-HUMAN-REQUEST` and the agent reports it as not done (D-043). The end
+  condition lives in the store and is built and tested in task 03c: tests there show that `take` and
+  `request_customer_info` keep the deny and each of `approve_block`, `resolve` and `close_case` lifts it; that a case
+  opened with `person_requested` whose call went out as a general request after a failed verify (no `call_requested`
+  event on the case) is still held; and that
+  the hold is per case (a block on another case of the same customer is not denied by it).
 - Assumption: the DuckDB in-memory load fits the EC2 (t3.medium, 4 GB) — measured in T5.
 
 ## 9. Out of scope
