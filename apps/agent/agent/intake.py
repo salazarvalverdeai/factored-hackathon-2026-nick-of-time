@@ -384,24 +384,28 @@ def plan(state: State) -> dict[str, Any]:
             "row": "confirm" if confirm else None, "path": state["path"] + ["plan"]}
 
 
-async def attempt(config: RunnableConfig, tool: str, **args: Any) -> BaseModel:
+async def attempt(config: RunnableConfig, tool: str, **args: Any) -> tuple[BaseModel, bool]:
     """One tool call retried on UNAVAILABLE (a timeout or a transport error) up to reliability.tool_retries times with
     the same arguments, so a write's retry carries the same idempotency key and the server writes once (spec 01 §6.3).
-    A DENY, NOT_FOUND or SESSION_EXPIRED answer is final and never retried."""
+    A DENY, NOT_FOUND or SESSION_EXPIRED answer is final and never retried. Also says whether any attempt went
+    unanswered, since the server may then have written."""
+    unanswered = False
     for _ in range(RETRIES + 1):
         out = await call(config, tool, **args)
         if not (isinstance(out, ToolError) and out.code == "UNAVAILABLE"):
             break
-    return out
+        unanswered = True
+    return out, unanswered
 
 
 async def act(state: State, config: RunnableConfig) -> dict[str, Any]:
     """Runs only what decide() allowed, in spec 03's order (Q3): open_case first, then block_card when allowed_actions
     lists it (D-029: the engine, never the graph, decides whether a call request blocks). The idempotency key is
-    session:transaction:action:run. A write the tool accepted is "requested" until verify reads it; one the tool never
-    answered gets a graph-minted id and "not_confirmed" (§4.1). block_card follows an open_case error only when it was
-    UNAVAILABLE (the case may exist; the server re-checks it, spec 03 AC-10). Nothing is told to the customer here."""
-    trx, policy, writes, actions = state["selected_transaction"], state["route"], {"errors": {}}, []
+    session:transaction:action:run. Every allowed action gets exactly one record, so verify answers every step the plan
+    promised: a write the tool accepted is "requested" until verify reads it; one never answered, or not tried, gets a
+    graph-minted id and "not_confirmed" (§4.1). block_card follows an open_case error only when it was UNAVAILABLE
+    (the case may exist; the server re-checks it, spec 03 AC-10). Nothing is told to the customer here."""
+    trx, policy, writes, actions = state["selected_transaction"], state["route"], {"errors": {}, "unanswered": []}, []
     # [assumption] a call request that reports a charge (intent human_request) opens an unrecognized_charge case
     dispute = state["intent"] if state.get("intent") in DISPUTES else "unrecognized_charge"
     planned = {"open_case": {"transaction_id": trx["transaction_id"], "dispute_type": dispute, "zone": policy["zone"]},
@@ -410,10 +414,13 @@ async def act(state: State, config: RunnableConfig) -> dict[str, Any]:
     for tool in [t for t in planned if t in policy["allowed_actions"]]:
         if tool == "block_card" and ((writes.get("open_case") or {}).get("duplicate_of")
                                      or writes["errors"].get("open_case") not in (None, "UNAVAILABLE")):
-            break   # [assumption] no block on an existing case (as AC-23) nor after a final open_case error
+            # [assumption] no block on an existing case (as AC-23) nor after a final open_case error; still recorded
+            actions.append({"tool": tool, "action_id": new_id("action"), "state": "not_confirmed"})
+            break
         # run = the LangGraph run id (trace_id); policies.yaml's template has no run part (follow-up for the lead)
         key = f"{state['session_id']}:{trx['transaction_id']}:{tool}:{state['trace_id']}"
-        out = await attempt(config, tool, idempotency_key=key, **planned[tool])
+        out, unanswered = await attempt(config, tool, idempotency_key=key, **planned[tool])
+        writes["unanswered"] += [tool] if unanswered else []
         if isinstance(out, ToolError):
             actions.append({"tool": tool, "action_id": new_id("action"), "state": "not_confirmed"})
             writes["errors"][tool] = out.code
@@ -426,7 +433,7 @@ async def act(state: State, config: RunnableConfig) -> dict[str, Any]:
 async def verify(state: State, config: RunnableConfig) -> dict[str, Any]:
     """Post-condition reads (constitution #4): each accepted write is read with its VERIFIED_WITH tool and its
     action_id, retried up to reliability.tool_retries times; "verified" only when the read returns that action with a
-    V- id (and Blocked for block_card, D-025). Otherwise "not_confirmed": the turn escalates with
+    V- id (and Blocked for block_card, D-025). Otherwise "not_confirmed", with its own line: the turn escalates with
     escalate_unconfirmed_action and never says the action was done (AC-04, AC-18). The case id is given out only once
     get_case verified it, so connect puts a call on it only then (§4.2)."""
     trx, language, writes, done, readings = state["selected_transaction"], state["language"], state["writes"], [], {}
@@ -447,23 +454,33 @@ async def verify(state: State, config: RunnableConfig) -> dict[str, Any]:
             done.append({**action, "state": "not_confirmed"})
     case, calls = readings.get("open_case"), state["route"]["request_call"]
     unconfirmed = [a["tool"] for a in done if a["state"] == "not_confirmed"]
-    if writes["errors"].get("open_case") == "SESSION_EXPIRED":   # nothing written: sign in again (spec 02 rule 1)
-        return {"actions": done, "unconfirmed": unconfirmed, "body": [msg.text("refuse.reauthenticate", language)],
-                "row": "reauthenticate", "decision": "reauthenticate", "path": state["path"] + ["verify"]}
+    expired = writes["errors"].get("open_case") == "SESSION_EXPIRED"
     lines = verified_lines(case, readings.get("block_card"), writes.get("open_case"), language)
-    for tool in unconfirmed:                # [assumption] with no verified case, no line promises a person's review
-        lines.append(msg.text("act.case_not_confirmed", language) if tool == "open_case" and not calls else
-                     msg.action_line(tool, "not_confirmed", language) if case else
-                     msg.text("act.not_confirmed", language, action_label=msg.text(
-                         f"status.action_label.{tool}", language)))
-    duplicate = (writes.get("open_case") or {}).get("duplicate_of") and not unconfirmed
-    row = (("escalate_unconfirmed" if case else "case_unconfirmed") if unconfirmed else "case_active" if duplicate
+    lines += [unconfirmed_line(tool, case, calls or expired, language) for tool in unconfirmed]
+    if expired:     # sign in again (spec 02 rule 1); "nothing changed" only when no attempt went unanswered
+        maybe = "open_case" in writes["unanswered"]
+        lines.append(msg.text("act.sign_in" if maybe else "refuse.reauthenticate", language))
+        return {"actions": done, "unconfirmed": unconfirmed, "body": [*state["body"], *lines], "row": "reauthenticate",
+                "decision": "reauthenticate", "path": state["path"] + ["verify"]}
+    duplicate = bool(case and (writes.get("open_case") or {}).get("duplicate_of"))
+    row = ("case_active" if duplicate else ("escalate_unconfirmed" if case else "case_unconfirmed") if unconfirmed
            else "receipt" if state["route"]["decision"] == "block_and_open_case" else "handoff")
-    # an unconfirmed action escalates; a duplicate_of case reports as the duplicate node does (D-050)
-    decision = ({"decision": "escalate_unconfirmed_action"} if unconfirmed else
-                {"decision": "connect_person" if calls else None} if duplicate else {})
+    # a duplicate_of case reports as the duplicate node does (D-050); any other unconfirmed action escalates
+    decision = ({"decision": "connect_person" if calls else None} if duplicate else
+                {"decision": "escalate_unconfirmed_action"} if unconfirmed else {})
     return {"actions": done, "unconfirmed": unconfirmed, "body": [*state["body"], *lines], "row": row,
             "case_id": case["case_id"] if case else None, "path": state["path"] + ["verify"], **decision}
+
+
+def unconfirmed_line(tool: str, case: Optional[dict[str, Any]], quiet: bool, language: str) -> str:
+    """The line of an action not confirmed. With a verified case a person reviews it (status.action_not_confirmed);
+    with none, no line promises a review [assumption]: the case line asks for a call unless the turn registers one or
+    asks to sign in (`quiet`)."""
+    if tool == "open_case" and not quiet:
+        return msg.text("act.case_not_confirmed", language)
+    if case:
+        return msg.action_line(tool, "not_confirmed", language)
+    return msg.text("act.not_confirmed", language, action_label=msg.text(f"status.action_label.{tool}", language))
 
 
 def holds(tool: str, action_id: str, target: dict[str, str], reading: BaseModel) -> bool:

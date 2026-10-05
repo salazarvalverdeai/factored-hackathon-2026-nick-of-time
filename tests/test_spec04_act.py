@@ -9,7 +9,7 @@ from fastmcp import FastMCP
 from fastmcp.tools.base import ToolResult
 
 from contracts.tools import CUSTOMER_TOOLS, ToolError
-from tests.test_spec04_decide import NO_CASES, record, score, server
+from tests.test_spec04_decide import NO_CASES, TRX, record, score, server
 from tests.test_spec04_graph import Chat, fake, intake, labels
 
 EV_0001 = "No reconozco un cargo de 1250 USD en TIENDA X"        # MX, debit, score 72 (high), replay
@@ -95,69 +95,35 @@ def test_ac_04_a_write_accepted_whose_verifying_read_fails_is_not_confirmed():
     assert turn.decision == "escalate_unconfirmed_action" and "bloqueada" not in told(turn)
 
 
-def test_ac_04_a_read_without_the_post_condition_never_verifies():
-    """A V- for the right action is not enough: block_card holds only when the card reads Blocked."""
-    active = {**fake.FIXTURES["get_product_status"], "status": "Active"}
-    turn = Chat(mcp_transport=server(get_product_status=active)).say(EV_0001, language="es")
-    assert next(a for a in turn.actions if a.tool == "block_card").state == "not_confirmed"
-    assert turn.decision == "escalate_unconfirmed_action"
-
-
 CASE_UNSURE = "Apertura del caso: SIN CONFIRMAR. Pide que te llame una persona para revisarlo."
 BLOCK_UNSURE = "Bloqueo de la tarjeta: SIN CONFIRMAR."
 DENY = ToolError(code="DENY", policy_id="POL-DEFAULT-DENY", message="not allowed")
 CALL = "Quiero hablar con una persona, " + EV_0001.lower()
 
 
-@pytest.mark.parametrize("block", [DOWN, DENY])
-def test_ac_04_with_no_verified_case_every_unconfirmed_action_says_so_and_promises_no_review(block):
-    """MCP down (or open_case unanswered and block_card refused, spec 03 AC-10): the plan promised a block, so the
-    reply says the block is not confirmed too, with no case id and no promised review."""
-    calls = []
-    turn = Chat(mcp_transport=server(calls, open_case=DOWN, block_card=block)).say(EV_0001, language="es")
-    assert calls.count("open_case") == 1 + intake.RETRIES and turn.case_id is None
-    assert calls.count("block_card") == (1 + intake.RETRIES if block is DOWN else 1)
-    assert turn.reply.splitlines()[-2:] == [CASE_UNSURE, BLOCK_UNSURE] and "revisará" not in turn.reply
-    assert [(a.tool, a.state) for a in turn.actions] == [("open_case", "not_confirmed"),
-                                                         ("block_card", "not_confirmed")]
-    assert turn.decision == "escalate_unconfirmed_action" and "bloqueada" not in told(turn)
-    assert labels(turn)[0] == "Hablar con una persona" and not any(s.href for s in turn.suggestions)
-
-
-def test_ac_18_an_unanswered_case_still_tries_the_block_and_reports_each_state():
-    turn = Chat(mcp_transport=server(open_case=DOWN)).say(EV_0001, language="es")
-    assert [(a.tool, a.state) for a in turn.actions] == [("open_case", "not_confirmed"), ("block_card", "verified")]
-    assert turn.case_id is None and "K-104233" not in turn.reply and CASE_UNSURE in turn.reply.splitlines()
-
-
 @pytest.mark.parametrize("code", ["DENY", "NOT_FOUND"])
-def test_ac_18_a_final_open_case_error_sends_no_block(code):
+def test_ac_18_a_final_open_case_error_sends_no_block_and_says_the_planned_block_is_not_confirmed(code):
+    """The plan promised the block, so the step not tried still gets its own not-confirmed line."""
     calls = []
     turn = Chat(mcp_transport=server(calls, open_case=ToolError(code=code, message="no"))).say(EV_0001, language="es")
     assert calls.count("open_case") == 1 and "block_card" not in calls
-    assert [(a.tool, a.state) for a in turn.actions] == [("open_case", "not_confirmed")]
-    assert turn.reply.splitlines()[-1] == CASE_UNSURE
+    assert [(a.tool, a.state) for a in turn.actions] == [("open_case", "not_confirmed"), ("block_card", "not_confirmed")]
+    assert turn.reply.splitlines()[-2:] == [CASE_UNSURE, BLOCK_UNSURE] and turn.decision == "escalate_unconfirmed_action"
 
 
-def test_ac_18_an_expired_session_on_open_case_asks_to_sign_in_again():
-    calls = []
-    expired = ToolError(code="SESSION_EXPIRED", message="expired")
-    turn = Chat(mcp_transport=server(calls, open_case=expired)).say(CALL, language="es")
-    assert "block_card" not in calls and "request_call" not in calls
-    assert (turn.decision, turn.case_id) == ("reauthenticate", None)
-    assert turn.reply.splitlines()[-1].startswith("Necesito que verifiques tu sesión")
-    assert [s.id for s in turn.suggestions] == ["reauthenticate", "talk_to_person"]
+EXPIRED = ToolError(code="SESSION_EXPIRED", message="expired")
 
 
-def test_ac_18_a_call_request_with_an_unconfirmed_case_does_not_ask_for_the_call_it_registers():
-    turn = Chat(mcp_transport=server(open_case=DOWN, get_fraud_score=score(40.0))).say(CALL, language="es")
-    lines = turn.reply.splitlines()
-    assert "Apertura del caso: SIN CONFIRMAR." in lines and not any("Pide que te llame" in line for line in lines)
-    assert lines[-1].startswith("Listo, registré tu solicitud") and turn.case_id is None   # a general call
+def down_then_expired(args):
+    """open_case unanswered once (the server may have written), then the session expired."""
+    down_then_expired.n = getattr(down_then_expired, "n", 0) + 1
+    return DOWN if down_then_expired.n == 1 else EXPIRED
 
 
-def test_ac_18_a_reading_of_another_action_never_verifies():
-    other = {**fake.FIXTURES["get_product_status"], "action_id": "A-9A4D07E2C5B1"}   # request_call's action, with a V-
+@pytest.mark.parametrize("other", [{"action_id": "A-9A4D07E2C5B1"},           # request_call's action, with a V-
+                                   {"product_id": "PRD-FIXTURE00002"}])       # the right action on another card
+def test_ac_18_a_reading_of_another_action_never_verifies(other):
+    other = {**fake.FIXTURES["get_product_status"], **other}
     turn = Chat(mcp_transport=server(get_product_status=other)).say(EV_0001, language="es")
     assert next(a for a in turn.actions if a.tool == "block_card").state == "not_confirmed"
 
@@ -177,6 +143,7 @@ def test_ac_18_d_050_open_case_duplicate_of_blocks_nothing_and_reports_as_duplic
     turn = Chat(mcp_transport=server(calls, open_case=dup)).say(text, language="es")
     assert "block_card" not in calls and turn.decision == decision and turn.case_id == "K-104233"
     assert "Este cargo ya está en tu caso K-104233" in turn.reply and "Tarjeta terminada" not in turn.reply
+    assert [(a.tool, a.state) for a in turn.actions][:2] == [("open_case", "verified"), ("block_card", "not_confirmed")]
     if decision is None:
         assert [s.id for s in turn.suggestions] == ["view_case", "add_info", "request_call"]
 
@@ -222,3 +189,69 @@ def test_ac_18_d_029_only_the_writes_decide_allowed_run(monkeypatch):
     assert record(turn)["decision"]["allowed_actions"] == ["open_case"] and "block_card" not in calls
     assert [(a.tool, a.state) for a in turn.actions] == [("open_case", "verified"), ("request_call", "verified")]
     assert "Registré tu solicitud en el caso K-104233" in turn.reply
+
+
+DUP = {**fake.FIXTURES["open_case"], "duplicate_of": "K-104233"}
+OPEN_CASE = {"ok": {}, "DOWN": {"open_case": DOWN}, "DENY": {"open_case": DENY},
+             "NOT_FOUND": {"open_case": ToolError(code="NOT_FOUND", message="no")},
+             "SESSION_EXPIRED": {"open_case": EXPIRED}, "DOWN, then SESSION_EXPIRED": {"open_case": down_then_expired},
+             "duplicate_of": {"open_case": DUP}, "duplicate_of, get_case DOWN": {"open_case": DUP, "get_case": DOWN}}
+ACTIVE = {**fake.FIXTURES["get_product_status"], "status": "Active"}
+BLOCK_CARD = {"ok": {}, "DOWN": {"block_card": DOWN}, "DENY": {"block_card": DENY},
+              "post-condition missing": {"get_product_status": lambda a: ACTIVE if a.get("action_id") else None}}
+ANSWERS = {"open_case": ("Apertura del caso: ", "abierto y verificado", "Este cargo ya está en tu caso"),
+           "block_card": ("Bloqueo de la tarjeta: ", "bloqueada y verificada")}
+
+
+@pytest.mark.parametrize("text", [EV_0001, CALL])
+@pytest.mark.parametrize("block", list(BLOCK_CARD))
+@pytest.mark.parametrize("opened", list(OPEN_CASE))
+def test_ac_04_ac_18_the_reply_answers_every_planned_action_in_exactly_one_state(opened, block, text):
+    """Invariant over a fault grid: each action decide() allowed has exactly one record and one line, in one of the
+    four states; verified only with a V- id from a read of that action on that case or card; no line claims a block
+    or promises a review that was not verified; each write is sent with one idempotency key, retries included."""
+    seen = []
+    down_then_expired.n = 0
+    turn = Chat(mcp_transport=server(seen=seen, **OPEN_CASE[opened], **BLOCK_CARD[block])).say(text, language="es")
+    allowed = record(turn)["decision"]["allowed_actions"]
+    assert allowed == ["open_case", "block_card"]
+    records = [a for a in turn.actions if a.tool != "request_call"]
+    assert [a.tool for a in records] == allowed
+    assert all(a.state in ("in_progress", "requested", "verified", "not_confirmed") for a in turn.actions)
+    lines = turn.reply.splitlines()
+    after = lines[lines.index("Esto es lo que voy a hacer:") + 1 + len(turn.plan):]   # what the turn did
+    for a in records:
+        said = [line for line in lines if line.startswith(ANSWERS[a.tool][0]) or any(
+            mark in line for mark in ANSWERS[a.tool][1:])]
+        assert len(said) == 1, (a.tool, said)
+        assert ("SIN CONFIRMAR" in said[0]) == (a.state == "not_confirmed")
+        if a.state == "verified":
+            target = {"product_id": TRX["product_id"]} if a.tool == "block_card" else {"case_id": turn.case_id}
+            assert a.verification_id.startswith("V-") and a.read_at
+            assert any(name == intake.VERIFIED_WITH[a.tool] and args.get("action_id") == a.action_id
+                       and target.items() <= args.items() for name, args in seen)
+        else:
+            assert a.verification_id is None
+    verified = {a.tool for a in records if a.state == "verified"}
+    assert verified == {tool for tool, holds in (("open_case", opened in ("ok", "duplicate_of")),     # the cell's oracle
+                                                ("block_card", block == "ok" and opened in ("ok", "DOWN"))) if holds}
+    assert ("bloqueada" in "\n".join(after)) == ("block_card" in verified)
+    assert ("open_case" in verified) == (turn.case_id is not None)
+    if turn.case_id is None:
+        assert not any("revisará" in line or "K-104233" in line for line in after)
+        assert not any(s.href and s.href.startswith("/case/") for s in turn.suggestions)
+        assert text == CALL or "Hablar con una persona" in labels(turn)
+    for tool in allowed:
+        assert len({args["idempotency_key"] for name, args in seen if name == tool}) <= 1
+    # block_card follows open_case only when it was accepted (not as a duplicate) or got no answer
+    assert any(name == "block_card" for name, _ in seen) == (opened in ("ok", "DOWN"))
+    assert not (text == CALL and "Pide que te llame" in turn.reply)   # never asks for the call it registers
+    if "SESSION_EXPIRED" in opened:          # sign in again; "nothing changed" only if no attempt went unanswered
+        assert turn.decision == "reauthenticate" and lines[-1].startswith("Necesito que verifiques tu sesión")
+        assert ("No hice ningún cambio" in lines[-1]) == (opened == "SESSION_EXPIRED")
+        assert [s.id for s in turn.suggestions] == ["reauthenticate", "talk_to_person"]
+        assert not any(name == "request_call" for name, _ in seen)
+    elif opened == "duplicate_of":
+        assert turn.decision == ("connect_person" if text == CALL else None)
+    elif verified != set(allowed):
+        assert turn.decision == "escalate_unconfirmed_action"

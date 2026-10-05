@@ -30,9 +30,10 @@ def score(value, source="dataset"):
                          "version": "gold-v1"}
 
 
-def server(calls: list | None = None, **answers) -> FastMCP:
-    """The fake server with some tools answering `answers[name]` (a dict, a ToolError or a function of the
-    arguments); every call's tool name goes to `calls`. Cases default to none, so the charge has no active case."""
+def server(calls: list | None = None, seen: list | None = None, **answers) -> FastMCP:
+    """The fake server with some tools answering `answers[name]` (a dict, a ToolError, or a function of the arguments
+    that may return None for the fixture); every call's tool name goes to `calls`, and (tool, arguments) to `seen`.
+    Cases default to none, so the charge has no active case."""
     answers = {"list_my_cases": NO_CASES, **answers}
     calls = [] if calls is None else calls
     srv = FastMCP("fake-with-answers")
@@ -40,9 +41,11 @@ def server(calls: list | None = None, **answers) -> FastMCP:
         class Tool(fake.FixtureTool):
             async def run(self, arguments, _data=answers.get(name), _out=model_out):
                 calls.append(self.name)
-                if _data is None:
-                    return await super().run(arguments)
+                if seen is not None:
+                    seen.append((self.name, arguments))
                 got = _data(arguments) if callable(_data) else _data
+                if got is None:
+                    return await super().run(arguments)
                 if isinstance(got, ToolError):
                     return fake._error(got)
                 return ToolResult(structured_content=_out.model_validate(got).model_dump(mode="json"))
@@ -104,6 +107,7 @@ def test_ac_11_medium_zone_shows_the_plan_asks_and_once_confirmed_hands_off(yes)
     assert not any("Bloquear" in step for step in asked.plan)          # medium never blocks
     done = chat.say(**yes)
     assert (done.decision, done.zone) == ("handoff", "medium") and record(done)["input"]["customer_confirmed"] is True
+    assert [(a.tool, a.state) for a in done.actions] == [("open_case", "verified")]
     assert record(done)["decision"]["handoff_reason"] == "zone_medium" and done.plan[-1].startswith("3. Pasar el caso")
 
 
