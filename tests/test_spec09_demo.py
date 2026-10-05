@@ -97,7 +97,7 @@ def test_ac_11_four_scripted_sample_cases_on_real_dev_transactions():
 def test_ac_11_scripted_steps_follow_the_queue_and_the_analyst_contract():
     """AC-11: every scripted step is a contract action in date order, and the statuses walk case_queue.transitions."""
     analyst = set(get_args(AnalystActionIn.model_fields["action"].annotation))
-    transitions = ENGINE.policies.case_queue["transitions"]
+    transitions = ENGINE.policies.case_queue.transitions   # typed CaseQueue since 02c (#86)
     moves = {"resolve": "resolved", "close_case": "closed", "reopen_case": "review", "request_reevaluation": "review"}
     opened = {"block_and_open_case": "verification", "handoff": "review"}
     for case in SAMPLES:

@@ -103,42 +103,83 @@ handoff:
   payload_schema: contracts/handoff.schema.json
   never_include_raw_transcript: true
 
-regulatory_clock:                        # [external] business days per the country's banking calendar; amount_gate never changes these
+regulatory_clock:                        # [external] spec 02 §4.3; amount_gate never changes these. ADR 0019: every entry has source_url + verified_on
+  # Per country and product (debit | credit | any), the first entry whose `when_charged_within` holds (or that has none) wins;
+  # a country or product with no entry gets no deadline (POL-CLOCK-UNKNOWN). Terms count from the notice date
+  # (clock.today); business days skip weekends and packages/nick_of_time/policy/holidays/{cc}_{year}.yaml.
+  # MX (ADR 0023, proposed): a claim of unrecognized charges filed within 90 calendar days of the charge is credited by
+  # business day 2 after the notice, debit and credit alike; the 48 h window of the same articles is for theft or loss
+  # notices. The bank may skip the credit only with a ruling in that term proving two-factor authentication (evidence
+  # proxy: handoff auth_evidence). No amount cap. [assumption] day 90 still qualifies.
   MX:
     debit:
-      # Source: Banxico Circular 3/2012, art. 19 Bis 3 (reviewed Mon Sep 28). See also CONDUSEF:
-      # https://www.gob.mx/condusef/articulos/cargos-no-reconocidos?idiom=es
-      # Provisional credit by business day 2 with no amount cap. The only exemption is a ruling within that term
-      # proving two-factor authentication; without a ruling, the credit becomes final.
-      source: "Banxico Circular 3/2012, art. 19 Bis 3"
-      provisional_credit_business_days: 2
-      amount_cap: none
-      exemption: two_factor_authentication_ruling   # evidence proxy: handoff auth_evidence, derived from transactions.channel
-      without_ruling: credit_becomes_final
+      # Circular 3/2012 (compiled text through Circular 11/2026): art. 19 Bis 3 fr. II (90 Días; "Días" are calendar days,
+      # art. 2) and art. 19 Bis 4 (ruling within 45 Días of the notice, 180 Días abroad).
+      - when_charged_within: {days: 90}
+        credit: {days: 2, calendar: business}
+        ruling: {days: 45, calendar: calendar}
+        ruling_abroad: {days: 180, calendar: calendar}
+        source: "Banxico Circular 3/2012, arts. 19 Bis 3 and 19 Bis 4 (as amended by Circular 14/2018)"
+        source_url: https://www.banxico.org.mx/marco-normativo/normativa-emitida-por-el-banco-de-mexico/circular-3-2012/%7B4E0281A4-7AD8-1462-BC79-7F2925F3171D%7D.pdf
+        verified_on: 2026-10-04
+      # LTOSF art. 23 fr. II (text in force, last reform DOF 2024-01-24): ruling within 45 days ("días": art. 23 does not define them,
+      # counted as calendar days [assumption], the earlier date), 180 calendar days for operations abroad; claim within 90 calendar days of the statement
+      # cut-off or the operation (fr. I; the cut-off date is not in the data, so the ruling is always given).
+      - &ltosf_23
+        ruling: {days: 45, calendar: calendar}
+        ruling_abroad: {days: 180, calendar: calendar}
+        source: "LTOSF art. 23"
+        source_url: https://www.ordenjuridico.gob.mx/Documentos/Federal/pdf/wo46.pdf
+        verified_on: 2026-10-04
     credit:
-      # Source: LTOSF art. 23 (clarifications on credit products). The customer has 90 days to claim; ruling within
-      # 45 days (180 if the charge was abroad); while pending, no payment of the claimed amount and no credit bureau
-      # reporting. CONDUSEF maximum amounts for art. 23: pending.
-      source: "LTOSF art. 23"
-      customer_claim_days: 90
-      ruling_days: 45
-      ruling_days_abroad: 180
-      while_pending: {no_payment_of_claimed_amount: true, no_credit_bureau_reporting: true}
+      # Circular 34/2010 (compiled text through Circular 13/2018): numeral 3.4 b) (90 días naturales) and numeral 3.6
+      # (ruling within 45 "días" of the notice, counted as calendar days [assumption: the numeral does not define them];
+      # 180 días naturales abroad).
+      - when_charged_within: {days: 90}
+        credit: {days: 2, calendar: business}
+        ruling: {days: 45, calendar: calendar}
+        ruling_abroad: {days: 180, calendar: calendar}
+        source: "Banxico Circular 34/2010, numerals 3.4 and 3.6 (as amended by Circular 13/2018)"
+        source_url: https://www.banxico.org.mx/marco-normativo/normativa-emitida-por-el-banco-de-mexico/circular-34-2010/%7B0C55B906-6DB4-6B88-FED0-67987E9FB3CC%7D.pdf
+        verified_on: 2026-10-04
+      - *ltosf_23                        # while pending: no payment of the claimed amount, no credit bureau reporting (fr. I, V)
   AR:
-    # Source: BCRA — resolve and reimburse within 10 business days. https://www.bcra.gob.ar/archivos/Pdfs/texord/t-pusf.pdf
-    source: "BCRA"
-    resolve_and_reimburse_business_days: 10
+    any:
+      # Texto ordenado al 2026-05-06 (Com. "A" 8433), item 3.1.6: resolve every complaint within 10 business days. No credit
+      # date: the 10-business-day reimbursement of item 2.3.5.1 lists charges the bank itself generates, not a third
+      # party's charge the customer does not recognize.
+      - ruling: {days: 10, calendar: business}
+        source: "BCRA, Protección de los Usuarios de Servicios Financieros, item 3.1.6"
+        source_url: https://www.bcra.gob.ar/archivos/Pdfs/texord/t-pusf.pdf
+        verified_on: 2026-10-04
   CO:
-    # Source: SFC — answer within 15 days [not re-verified].
-    # https://www.superfinanciera.gov.co/preguntas-frecuentes/3/3-derechos-de-peticion-ante-entidades-vigiladas/
-    source: "SFC"
-    response_days: 15
+    any:
+      # SFC: answer within 15 days (Ley 1755 de 2015, art. 14; its parágrafo allows one extension, up to double, when the
+      # customer is told before it expires); days in a law are business days (Ley 4 de 1913, art. 62), counted Monday to
+      # Friday [assumption]. https://www.funcionpublica.gov.co/eva/gestornormativo/norma.php?i=65334 · ...norma.php?i=8426
+      # Not modeled (P1): the e-commerce payment reversal of Ley 1480 de 2011, art. 51 [external, to verify].
+      - ruling: {days: 15, calendar: business}
+        extendable_once: true
+        source: "SFC; Ley 1755 de 2015, art. 14"
+        source_url: https://www.superfinanciera.gov.co/preguntas-frecuentes/3/3-derechos-de-peticion-ante-entidades-vigiladas/
+        verified_on: 2026-10-04
   BR:
-    # Source: Resolução CMN 4.860 (2020), ombudsman (ouvidoria) within 10 business days [not re-verified].
-    # Portuguese demo only; the dataset has no BR.
-    source: "Resolução CMN 4.860 (2020)"
-    ombudsman_business_days: 10
-    extension_once: true
+    any:
+      # Ouvidoria answer within 10 dias úteis, extendable once by an equal period (art. 6, § 2). Portuguese demo only.
+      # [to verify] whether the SAC term of Decreto 11.034/2022, art. 13 (7 calendar days, first level) reaches banks.
+      - ruling: {days: 10, calendar: business}
+        extendable_once: true
+        source: "Resolução CMN 4.860/2020, art. 6, § 2"
+        source_url: https://www.bcb.gov.br/estabilidadefinanceira/exibenormativo?tipo=Resolu%C3%A7%C3%A3o%20CMN&numero=4860
+        verified_on: 2026-10-04
+
+countries:                               # spec 02 §4.4 (FR-09): IANA time zone of clock.today(live); T7 adds currency and fx
+  MX: {time_zone: America/Mexico_City}
+  CO: {time_zone: America/Bogota}
+  AR: {time_zone: America/Argentina/Buenos_Aires}
+  BR: {time_zone: America/Sao_Paulo}
+  PE: {time_zone: America/Lima}
+  CL: {time_zone: America/Santiago}
 
 reliability:
   tool_retries: 2
@@ -163,7 +204,7 @@ case_queue:                              # analyst queue; a case's status is its
   deadline_sla:                                   # provisional_credit is always human_required, so a person must act before the MX debit deadline
     mx_debit:
       applies_to: {country: MX, product: debit}
-      deadline: regulatory_clock.MX.debit.provisional_credit_business_days
+      deadline: regulatory_clock.MX.debit[0].credit           # 2 business days (clock.deadline)
       raise_priority_on_business_day: 1
       alert_before_business_day: 2
 

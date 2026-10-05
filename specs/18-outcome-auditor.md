@@ -184,6 +184,16 @@ decision: AnalystDecision = judge.record_decision(case_id, analyst, action, prop
   - A4: `tool_results` are the run's tool outputs from the trace; `reply`, `receipt` and `handoff` as emitted;
     `policy_facts` are the `policies.yaml` values a reply may cite (such as the `regulatory_clock` business days);
     `known_ids` is the session's `CLI-` id.
+  - A1: the turn's recorded `DecisionInput` and `PolicyDecision`, which task 04b records in the decide node
+    `[assumption]` D-046 (pending with the lead; default: record in 04b). `check_decision` compares every decision field
+    and `policies_version`.
+  - A2: the `cases` row (`NewCase` columns) and the case's transaction. `charged_at` = the transaction's
+    `transaction_date`; `abroad` is False and `noticed_at` is not passed `[assumption]` (no field holds them, so an
+    hours-window entry cannot be re-derived and is a finding; ADR 0023 (PR #69, Accepted) uses days, not hours, so this
+    holds today, and if an hours window ever returns the missing input is the charge time). Only stored fields are compared: both dates,
+    `deadline_source`, `deadline_source_url` and `deadline_verified_on`; POL-CLOCK-UNKNOWN means all five are null.
+  - A1 and A2 audit against the `policies.yaml` in force at audit time: cases do not store `policies_version` and
+    there is one unversioned file, so a later policy change shows up as a finding on older cases.
   - A5: `FinalState.status_replies` (told vs a fresh read, the K- id included).
   - A6: surfaces from the reply, the receipt and `notifications.text`; `other_customer_data_exposed` from `FinalState`.
   - A7: `case_opened` → `LifecycleEvent(type="status", status="new")`; `status_changed` → `status` = payload `to`; the
@@ -214,8 +224,10 @@ tools for the third line (internal audit).
 
 ## 10. Plan, tasks and verification
 - [ ] T1 [P0] — `nick_of_time.audit` with A1–A7 as pure functions + tests on recorded fixtures · AC-01
-      (A3–A7 done, task 18a: `tests/test_spec18_audit_a3_a7.py`, A3 on D-025's `action_verified`; A1–A2 remain,
-      task 18b; follow-ups 18x: A3 on the store, six writes, A4 own ids, score paraphrases, v1.1 fixtures)
+      (A3–A7 done, task 18a: `tests/test_spec18_audit_a3_a7.py`, A3 on D-025's `action_verified`; A1–A2 done, task
+      18b: `audit/rederive.py`, `tests/test_spec18_a1_a2.py`. A2 takes the case row and its transaction (§6); the
+      models reject a bad record as a finding, never an exception; follow-ups 18x: A3 on the store, six writes, A4 own
+      ids, score paraphrases, v1.1 fixtures)
       Note: AC-01 names A1–A10, but P0 is A1–A7 (§4.3, T1); A8–A10 are outside P0, pending the lead.
 - [ ] T2 [P0] — harness uses the library for its final-state checks (with @vldiego) · AC-02
 - [ ] T3 [P1] — api background task, `audit_findings`, critical flag and acknowledgment · AC-03, AC-04, AC-05

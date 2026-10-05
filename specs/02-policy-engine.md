@@ -2,7 +2,7 @@
 
 - **Feature:** pure, deterministic code that turns `contracts/policies.yaml` into decisions — zone, decision, approval
   mode per action, allowed queue transitions and legal deadlines — with the rule ids that justify each one.
-- **Status:** In progress (T1 and T2 done; gate 1 closed; Q7 closed by ADR 0020 on 2026-10-04; adds
+- **Status:** In progress (T1, T2, T4 and T5 done; gate 1 closed; Q7 closed by ADR 0020 on 2026-10-04; adds
   `clock.today(mode)`, display currency and the re-evaluation window)
 - **Owner:** @salazarvalverdeai · **Priority:** P0 · **Size:** M
 - **Challenge dimension:** Technical Judgment (deterministic logic where AI is not appropriate)
@@ -149,8 +149,8 @@ test, no code change.** A country without a verified entry falls back to `POL-CL
 | MX · credit, charge within the **90 calendar days** before the notice | opened + **2 business days** (provisional credit) | opened + **45 calendar days** `[assumption]`: numeral 3.6 says "días" without defining them (ruling; 180 if the charge was abroad) | Banxico Circular 34/2010, numerals 3.4 b) and 3.6, as amended by Circular 13/2018 | [Banxico, compiled text](https://www.banxico.org.mx/marco-normativo/normativa-emitida-por-el-banco-de-mexico/circular-34-2010/%7B0C55B906-6DB4-6B88-FED0-67987E9FB3CC%7D.pdf) | 2026-10-04 |
 | MX · credit, older charge | — | opened + **45 calendar days** `[assumption]`: art. 23 says "días" without defining them (180 if the charge was abroad) | LTOSF art. 23 fr. II | [Orden Jurídico Nacional, LTOSF](https://www.ordenjuridico.gob.mx/Documentos/Federal/pdf/wo46.pdf) | 2026-10-04 |
 | AR · any card | — (item 2.3.5.1's 10-day reimbursement lists charges the bank itself generates, not a third party's unrecognized charge) | opened + **10 business days** (resolution, item 3.1.6) | BCRA, Protección de los Usuarios de Servicios Financieros (texto ordenado al 2026-05-06) | [BCRA t-pusf](https://www.bcra.gob.ar/archivos/Pdfs/texord/t-pusf.pdf) | 2026-10-04 |
-| CO · any card | — | opened + **15 business days** | SFC: petitions to supervised entities | [SFC FAQ](https://www.superfinanciera.gov.co/preguntas-frecuentes/3/3-derechos-de-peticion-ante-entidades-vigiladas/) | 2026-10-04 |
-| BR · any card (PT demo only) | — | opened + **10 business days**, extendable once by an equal period | Resolução CMN 4.860/2020 (ouvidoria) | [BCB · Ouvidoria](https://www3.bcb.gov.br/sisorf_externo/manual/06-01-030-160.htm) | 2026-10-04 |
+| CO · any card | — | opened + **15 business days**, extendable once up to double (Ley 1755 de 2015, art. 14, parágrafo); business days per Ley 4 de 1913, art. 62, counted Monday–Friday `[assumption]` | SFC: petitions to supervised entities (Ley 1755 de 2015, art. 14) | [SFC FAQ](https://www.superfinanciera.gov.co/preguntas-frecuentes/3/3-derechos-de-peticion-ante-entidades-vigiladas/) · [Ley 4 de 1913](https://www.funcionpublica.gov.co/eva/gestornormativo/norma.php?i=8426) | 2026-10-04 |
+| BR · any card (PT demo only) | — | opened + **10 business days**, extendable once by an equal period `[to verify]`: whether the SAC term of Decreto 11.034/2022, art. 13 (7 calendar days, first level) reaches banks | Resolução CMN 4.860/2020, art. 6, § 2 (ouvidoria, second level) | [BCB, Resolução CMN 4.860](https://www.bcb.gov.br/estabilidadefinanceira/exibenormativo?tipo=Resolu%C3%A7%C3%A3o%20CMN&numero=4860) | 2026-10-04 |
 | PE · any card | — | opened + **15 business days** (extendable only when a third party must rule) | Resolución SBS N.° 04036-2022 | [El Peruano](https://busquedas.elperuano.pe/normaslegales/aprueban-el-reglamento-de-gestion-de-reclamos-y-requerimient-resolucion-sbs-no-04036-2022-2138687-1) | 2026-10-04 |
 | CL · any card | opened + **10 business days** up to 35 UF (15 for cash advances and ATM withdrawals); +7 more days for the part above 35 UF | — | Ley 20.009 | [SERNAC](https://www.sernac.cl/portal/604/w3-propertyname-791.html) | 2026-10-04 |
 | any other LATAM country | — | — | `POL-CLOCK-UNKNOWN`: case opened, routed to a person, no deadline invented |
@@ -175,9 +175,18 @@ test, no code change.** A country without a verified entry falls back to `POL-CL
 - **Every entry cites its official public source and the date it was verified** (ADR 0019); `policies.yaml` stores them as
   `source_url` and `verified_on` fields plus a comment, and a test fails if an entry lacks them. Rows marked
   `[external, to verify]` are re-checked in T3.
-- Business days = Monday–Friday minus the country's bank holidays.
+- Business days = Monday–Friday minus the country's bank holidays. A day whose bank closure is not certain (e.g. AR
+  "días no laborables", BR Good Friday) counts as a business day `[assumption]`, so a deadline can only
+  come earlier, never later, except CO's Monday–Friday count (CO row). A count that reaches a year with no holiday file returns no deadline at all, not even a calendar-day term of the same
+  entry (`POL-CLOCK-UNKNOWN`; no date is invented). In live mode from mid-December this holds until the next
+  year's calendars are added. Holiday files are validated when `policies.yaml` loads (FR-01).
 - Holiday lists live in `packages/nick_of_time/policy/holidays/{mx,ar,co,br,pe,cl}_2026.yaml`, each with the official source
   URL; they are `[external]` data, not code.
+- The charge's age is counted between local dates in the country's time zone; day 90 still qualifies `[assumption]`.
+  `charged_at` is a timezone-aware datetime (spec 01: timestamps are UTC) or a date; a naive datetime is rejected.
+  A date one day after the notice date counts as the same day, since a UTC date can lead the local date
+  `[assumption]`; a UTC charge date likewise shifts the 90-day boundary by one day, so a charge on local day 91 may
+  be counted as day 90 and qualify, which gives an earlier deadline, never a later one. The clock raises if a charge-age row (MX) gets no charge date.
 - Product mapping from gold: `Tarjeta Débito` → `debit`, `Tarjeta Crédito` → `credit`; any other product type is not a
   card (rule 4).
 - MX debit SLA (`case_queue.deadline_sla.mx_debit`): priority `high` from business day 1; `alert_due_at` = start of
@@ -201,6 +210,30 @@ rate is each central bank's official series; the value and `as_of` are filled in
 **Re-evaluation window:** a resolved case can be sent back to review within `reevaluation.window_days` of its
 resolution (proposal: 30 days for every country `[assumption]`, a product policy with no regulatory source); later, the
 agent offers a call (AC-18). A closed case is never reopened by the customer: spec 03 opens a related case.
+
+### 4.5 Analyst queue (FR-06, AC-10, AC-11)
+`queue.transition()` and `queue.sla()` live in `policy/queue.py` as functions over the loaded policies, like the clock,
+so the queue adds no method to `PolicyEngine`. Analyst actions (`AnalystActionIn.action`) follow D-034:
+
+| Action | Starts from | Status after |
+|---|---|---|
+| `take` | `new`, `verification`, `review` | `review` `[assumption]`: the only D-034 target allowed from all three |
+| `resolve` | `verification`, `review` (`case_queue.transitions`) | `resolved` |
+| `close_case` | `resolved` | `closed` |
+| `reopen_case` | `resolved` | `review` |
+| `approve_credit`, `approve_block`, `unblock_card`, `request_customer_info`, `mark_ambiguous` | any but `closed` | unchanged |
+
+A closed case takes no analyst action; any other move is `POL-QUEUE-TRANSITION`, an unknown action
+`POL-DEFAULT-DENY`. Every analyst action needs a person (`analyst:<sub>`, sub not blank): `close_case` by anyone else
+is `POL-CLOSE-HUMAN`, any other action `POL-DEFAULT-DENY` `[assumption]`. The loader types `case_queue` and refuses a
+queue where something leaves `closed`, a status other than `resolved` reaches `closed`, a status is missing, an
+`sla_hours` value is not positive, or a `deadline_sla` alert is not after its priority rise.
+
+`sla()` gives `sla_due_at` = the time the case entered its status + `sla_hours` (none for `new`, `resolved` and
+`closed`). For an open (not resolved or closed) case in a `deadline_sla` scope (MX debit), priority is `high` from
+business day 1 after `opened_on` and `alert_due_at` is local midnight at the start of business day 2 (§4.3). `[assumption]`
+It applies to every open MX debit case, as AC-11 reads, with or without a credit deadline; a count past the last
+holiday file gives priority `high`, no alert time and `POL-CLOCK-UNKNOWN`. "Today" is an argument (AC-16).
 
 ## 5. Non-functional requirements
 - **Performance:** `decide()` < 5 ms p95 (pure Python, policies cached).
@@ -238,9 +271,14 @@ today: date = clock.today(mode="replay", country="MX")     # 2026-06-01 in repla
 add_by: date = clock.add_business_days(country="MX", start=today, n=1)   # 2026-06-02 in replay (D-008)
 # callback date for request_call; task 02b implements it in T3 with a unit test (2026-06-01 + 1 → 2026-06-02)
 deadline: Deadline = clock.deadline(country="MX", product="debit", opened_on=today, abroad=False)
-# Deadline: credit_deadline, ruling_deadline, deadline_source, calendar ("business"|"calendar"), holidays_skipped [..]
-engine.transition(current="verification", action="resolve", actor="analyst:…") -> new status | Deny
-engine.sla(case) -> {priority, sla_due_at, alert_due_at}
+# Deadline: credit_deadline, ruling_deadline, deadline_source, source_url, verified_on, calendar {credit|ruling:
+#   "business"|"calendar"}, holidays_skipped [..], extendable_once, rule_ids, policies_version; charged_at= (aware datetime
+#   or date) is required for a charge-age row (MX). Computed once at opening and stored (spec 03 AC-16).
+queue.transition(current="verification", action="resolve", actor="analyst:…") -> Moved | Deny   # §4.5
+# Moved: action, previous, status (the next status_changed `to`; = previous when the action keeps it), rule_ids,
+#   policies_version. The api appends the event; the status stays the last event (append-only).
+queue.sla(QueueCase(status, status_since, country, product_type, opened_on), today=today)
+#   -> Sla: priority "normal"|"high", sla_due_at, alert_due_at, rule_ids (case_queue keys), policies_version
 engine.reevaluation_allowed(country="MX", resolved_on=date(...), today=today) -> Allow | Deny("POL-REEVAL-WINDOW")
 fx.convert(amount=1250.0, from_currency="USD", to_currency="MXN") -> {amount, rate, rate_source, as_of} | None
 ```
@@ -297,9 +335,16 @@ fx.convert(amount=1250.0, from_currency="USD", to_currency="MXN") -> {amount, ra
 - Assumption: MXN 18.0 per USD for the MX amount tiers (`[assumption]`, already in `policies.yaml`); it is never shown to
   a customer — customer-facing conversions use the official reference rate of §4.4.
 - Assumption: holiday lists are verified against official sources while implementing; each file cites its URL.
+- **T3 finding (2026-10-04; ADR 0023; default applied by D-028):** the official text of art. 19 Bis 3 (Banxico
+  compiled text through Circular 11/2026) ties the 48 h window to a **theft or loss** notice (fr. I); a claim of
+  unrecognized charges is credited by business day 2 when filed within **90 calendar days** of the charge (fr. II;
+  "Días" are calendar days, art. 2), and art. 19 Bis 4 sets the ruling at 45 days. CONDUSEF's 2018 press release
+  summarizes it as "48 horas previas". Circular 34/2010 numerals 3.4 b) and 3.6 set the same rule for credit cards.
+  The clock follows the official texts; an hours window (`when_charged_within: {hours: 48}`) is supported and tested.
 
 ## 9. Out of scope
-Calibrating thresholds with data (Q-AMT, P2); the injection detector itself (spec 11); writing to Postgres (the
+Calibrating thresholds with data (Q-AMT, P2); the CO e-commerce payment reversal of Ley 1480 de 2011,
+art. 51 (P1, `[external, to verify]`); the injection detector itself (spec 11); writing to Postgres (the
 callers write).
 
 ## 10. Plan, tasks and verification
@@ -307,11 +352,13 @@ Implementation goes in `feat/02-policy-engine` once this spec and spec 01 (packa
 - [x] T1 — Pydantic model of `policies.yaml` + loader with validation; add `rules:` and `version: 2` · FR-01, FR-07, AC-12
 - [x] T2 — `decide()` with the evaluation order of §4.1 and mode combination of §4.2 · AC-01, 02, 04, 05, 06, 07, 08, 09, 15
 - [ ] T3 — `clock.deadline()` + holiday files with sources for MX, AR, CO, BR, PE, CL; re-verify every clock source · AC-03, AC-14
-- [ ] T4 — `transition()` and `sla()` · AC-10, AC-11
-- [ ] T5 — decision-table tests: zone × country × mode × tier, plus the boundaries 29/30/49/50 and null · AC-01…AC-13
+      (MX, AR, CO and BR done with `add_business_days` (D-008); PE and CL pending: until then they get `POL-CLOCK-UNKNOWN`)
+- [x] T4 — `transition()` and `sla()` (`policy/queue.py`, §4.5) · AC-10, AC-11
+- [x] T5 — decision-table tests (`tests/test_spec02_table.py`): zone × country × mode × tier, plus the boundaries 29/30/49/50 and null · AC-01…AC-13
 - [ ] T6 — `docs`: policy ids listed in `/agent` content (spec 04 AC-08)
 - [ ] T7 — `clock.today(mode, country)`, time zones, `fx_reference` values from the official series with `as_of`
-      and `verified_on`, `fx.convert()`, `reevaluation_allowed()` · AC-16, AC-17, AC-18
+      and `verified_on`, `fx.convert()`, `reevaluation_allowed()` · AC-16, AC-17, AC-18 (`today` and time zones done;
+      fx and re-evaluation pending)
 
 **Closing checklist:** every AC has a passing test that cites it · status → Implemented · ADR if a question above
 changes a decision · lessons added to `CLAUDE.md`.

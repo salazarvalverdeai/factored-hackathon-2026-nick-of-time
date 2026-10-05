@@ -2,20 +2,24 @@
 
 Loaded and validated once: an invalid file fails at startup, never at decision time. The loaded model is deeply frozen
 (mappings are read-only proxies, lists are tuples), so no caller can loosen a rule at runtime. Sections the engine does
-not read yet stay untyped until the task that uses them types them (clock: 02b, queue: 02c).
+not read yet stay untyped until the task that uses them types them.
 """
 from __future__ import annotations
 
+from datetime import date
 from functools import cache
 from pathlib import Path
 from types import MappingProxyType
-from typing import Any, Literal, Optional
+from typing import Annotated, Any, Literal, Optional, get_args
+from zoneinfo import ZoneInfo
 
 import yaml
-from pydantic import BaseModel, ConfigDict, Field, StrictInt, field_serializer, model_validator
+from pydantic import BaseModel, ConfigDict, Field, StrictInt, StringConstraints, field_serializer, model_validator
 
-from nick_of_time.contracts import CONTRACTS_DIR, Zone
+from nick_of_time.contracts import CONTRACTS_DIR, HTTPS_URL, QueueStatus, Zone
+from nick_of_time.policy.calendars import holidays
 
+CountryCode = Annotated[str, StringConstraints(pattern=r"^[A-Z]{2}$")]
 ApprovalMode = Literal["auto", "manual_check", "human_required"]
 MODES: tuple[ApprovalMode, ...] = ("auto", "manual_check", "human_required")     # stricter to the right (FR-04)
 POLICIES_PATH = CONTRACTS_DIR / "policies.yaml"
@@ -107,6 +111,87 @@ class Handoff(_Strict):
     never_include_raw_transcript: Literal[True]
 
 
+class Term(_Strict):
+    days: int = Field(gt=0)
+    calendar: Literal["business", "calendar"]
+
+
+class ChargeWindow(_Strict):              # the entry applies only to a charge this recent at the notice
+    hours: Optional[int] = Field(None, gt=0)
+    days: Optional[int] = Field(None, gt=0)
+
+    @model_validator(mode="after")
+    def _one_unit(self) -> ChargeWindow:
+        if (self.hours is None) == (self.days is None):
+            raise ValueError("when_charged_within needs exactly one of hours or days")
+        return self
+
+
+class ClockEntry(_Strict):                # one verified row of spec 02 §4.3 (ADR 0019)
+    when_charged_within: Optional[ChargeWindow] = None
+    credit: Optional[Term] = None
+    ruling: Optional[Term] = None
+    ruling_abroad: Optional[Term] = None
+    extendable_once: bool = False
+    source: str = Field(min_length=1)
+    source_url: str = Field(pattern=HTTPS_URL)
+    verified_on: date
+
+    @model_validator(mode="after")
+    def _has_a_term(self) -> ClockEntry:
+        if self.credit is None and self.ruling is None:
+            raise ValueError("a regulatory_clock entry needs a credit or a ruling term")
+        return self
+
+
+class Country(_Strict):
+    time_zone: str
+
+    @model_validator(mode="after")
+    def _known_zone(self) -> Country:
+        try:
+            ZoneInfo(self.time_zone)
+        except (KeyError, ValueError) as e:     # ZoneInfoNotFoundError is a KeyError
+            raise ValueError(f"unknown IANA time zone {self.time_zone}") from e
+        return self
+
+
+class SlaScope(_Strict):
+    country: CountryCode
+    product: Literal["debit", "credit"]
+
+
+class DeadlineSla(_Strict):               # case_queue.deadline_sla: a person must act before the legal credit date
+    applies_to: SlaScope
+    deadline: str = Field(min_length=1)
+    raise_priority_on_business_day: int = Field(ge=1)
+    alert_before_business_day: int = Field(ge=1)
+
+
+class CaseQueue(_Strict):                 # spec 02 FR-06 (task 02c): typed, so a broken queue fails at startup
+    states: list[QueueStatus]
+    transitions: dict[QueueStatus, list[QueueStatus]]
+    sla_hours: dict[QueueStatus, float]
+    ambiguous_queue: dict[str, Any]
+    deadline_sla: dict[str, DeadlineSla]
+
+    @model_validator(mode="after")
+    def _a_person_closes(self) -> CaseQueue:
+        problems = []
+        if list(self.states) != list(get_args(QueueStatus)) or set(self.transitions) != set(self.states):
+            problems.append("case_queue needs every queue status, in order, each with its transitions")
+        if self.transitions.get("closed"):
+            problems.append("nothing leaves closed: a closed case is never reopened (spec 02 §4.4)")
+        if any("closed" in targets for status, targets in self.transitions.items() if status != "resolved"):
+            problems.append("only a resolved case can be closed")
+        problems += [f"sla_hours.{s} must be positive" for s, hours in self.sla_hours.items() if hours <= 0]
+        problems += [f"deadline_sla.{n}: the priority must rise before the alert is due" for n, d in
+                     self.deadline_sla.items() if d.raise_priority_on_business_day >= d.alert_before_business_day]
+        if problems:
+            raise ValueError("; ".join(problems))
+        return self
+
+
 class Contact(_Strict):                   # D-008: request_call's expected_contact_by; null promises no date
     callback_within_business_days: Optional[StrictInt] = Field(None, ge=1)
 
@@ -126,10 +211,11 @@ class Policies(_Strict):
     clarify: Clarify
     handoff: Handoff
     contact: Optional[Contact] = None
-    regulatory_clock: dict[str, Any]
+    regulatory_clock: dict[CountryCode, dict[Literal["debit", "credit", "any"], list[ClockEntry]]]
+    countries: dict[CountryCode, Country]
     reliability: dict[str, Any]
     security: dict[str, Any]
-    case_queue: dict[str, Any]
+    case_queue: CaseQueue
     notifications: dict[str, Any]
     guardrails: list[dict[str, Any]]
     data_splits: dict[str, Any]
@@ -172,6 +258,16 @@ class Policies(_Strict):
             problems.append("amount tiers must get stricter as the amount grows")
         problems += [f"amount_gate {c}: low must be below high" for c, g in self.amount_gate.by_country.items()
                      if g.low >= g.high]
+        problems += [f"regulatory_clock {c} needs countries.{c}.time_zone" for c in self.regulatory_clock
+                     if c not in self.countries]
+        for country, products in self.regulatory_clock.items():      # FR-01: holiday files load with the policies
+            terms = [t for entries in products.values() for e in entries for t in (e.credit, e.ruling, e.ruling_abroad)]
+            if any(t and t.calendar == "business" for t in terms):
+                try:
+                    if not holidays(country):
+                        problems.append(f"regulatory_clock {country} counts business days but has no holiday file")
+                except ValueError as e:                              # pydantic's ValidationError is a ValueError
+                    problems.append(f"holiday file of {country}: {e}")
         if problems:
             raise ValueError("; ".join(problems))
         return self
