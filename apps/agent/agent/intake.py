@@ -130,7 +130,6 @@ class Internal(TypedDict, total=False):     # spec 04 §4.1 fields outside TurnR
     selected_transaction: Optional[dict[str, Any]]   # the one candidate, with product_type and last4 of its card
     customer_confirmed: Optional[bool]      # about selected_transaction; None whenever it changes
     unnamed: bool                           # the one candidate came from a search no slot narrowed (D-067)
-    call_held: Optional[dict[str, Any]]     # D-067: the general call registered with that card, kept one turn
     score: Optional[dict[str, Any]]         # get_fraud_score of the selected transaction
     display: Optional[dict[str, Any]]       # convert_amount of it; None without a verified rate (AC-25)
     existing_case: Optional[dict[str, Any]]  # an active case on the selected transaction, read with get_case (AC-23)
@@ -216,8 +215,7 @@ async def understand(state: State, config: RunnableConfig) -> dict[str, Any]:
     hint = state.get("language") or state.get("language_last")
     language = hint or profile.get("language") or "es"
     base = {"today": day.isoformat(), "language": language, "slots": {}, "injection_flagged": False,
-            "cross_customer": False, "intent": None, "intent_confidence": None, "dispute_detected": False,
-            "call_held": None}
+            "cross_customer": False, "intent": None, "intent_confidence": None, "dispute_detected": False}
     pending = state.get("intent") if state.get("intent") in DISPUTES else "unrecognized_charge"
     if action:                              # a pressed action chip or button skips the classifier (AC-32)
         kind, value = action.get("type"), action.get("value")
@@ -225,7 +223,7 @@ async def understand(state: State, config: RunnableConfig) -> dict[str, Any]:
         call = call_confirmed(state, answer)
         intent = "human_request" if call else ACTION_INTENT.get(kind, pending)
         return {**base, "intent": intent, "intent_confidence": 1.0, "dispute_detected": intent in DISPUTES or call,
-                "answer": answer, **({"call_held": state.get("call_held")} if call else {})}
+                "answer": answer}
     if not text:
         return base
     offered = {s.get("id") for s in state.get("suggestions") or []}
@@ -234,9 +232,8 @@ async def understand(state: State, config: RunnableConfig) -> dict[str, Any]:
             else CONFIRM_WORDS.get(fold(text).strip(" .!¡?¿")) if "confirm_yes" in offered else None)
     if said is not None:
         answer = {"confirm": said}
-        call = call_confirmed(state, answer)
-        return {**base, "intent": "human_request" if call else pending, "intent_confidence": 1.0,
-                "dispute_detected": True, "answer": answer, **({"call_held": state.get("call_held")} if call else {})}
+        return {**base, "intent": "human_request" if call_confirmed(state, answer) else pending,
+                "intent_confidence": 1.0, "dispute_detected": True, "answer": answer}
     reading = NLU.parse(text, hint, today=day)
     found = {"language": reading.language, "slots": reading.slots.model_dump(),
              "injection_flagged": reading.injection_flagged,
@@ -338,8 +335,6 @@ async def connect(state: State, config: RunnableConfig) -> dict[str, Any]:
     a case is read back with get_case: "verified" only with the read's V- id, else it stays "requested" (AC-18); a
     general call stays "requested" (D-026). Actions and lines already set this turn stay."""
     language, before, done, path = state["language"], state.get("body") or [], state.get("actions") or [], state["path"]
-    if held := state.get("call_held"):      # D-067: the call this card came with is already registered: no second one
-        return kept_call(state, held, before, done, path)
     case = await call_case(state, config)
     key = f"{state['session_id']}:{case or 'none'}:request_call:{state['trace_id']}"
     out = await call(config, "request_call", idempotency_key=key, **({"case_id": case} if case else {}))
@@ -365,22 +360,8 @@ async def connect(state: State, config: RunnableConfig) -> dict[str, Any]:
     if state.get("intent") == "human_request" and unconfirmed(state):   # D-067: the charge's card, still to confirm
         trx = state["selected_transaction"]
         turn |= {"body": [*turn["body"], msg.text("clarify.confirm_call", language)], "row": "confirm_call",
-                 "options": [{"id": trx["transaction_id"], "label": msg.option_label(trx)}],
-                 "call_held": None if out.case_id else {"out": seen[0], "record": record}}
+                 "options": [{"id": trx["transaction_id"], "label": msg.option_label(trx)}]}
     return turn
-
-
-def kept_call(state: State, held: dict[str, Any], before: list[str], done: list[dict[str, Any]],
-              path: list[str]) -> dict[str, Any]:
-    """D-067 [assumption]: the customer confirmed the card shown with a general call (row confirm_call), so the case
-    opened this turn and that call stands as the one callback: request_call is not called again (a second callback
-    for one ask). The reply and the papers state that call from its own request_call result of the last turn."""
-    out, language = held["out"], state["language"]
-    when = out.get("expected_contact_by")
-    body = (msg.text("connect.kept", language, expected_contact_by=when) if when
-            else msg.text("connect.kept_no_window", language))
-    return {"body": [*before, body], "row": "connect_person_case" if state.get("case_id") else "connect_person",
-            "actions": [*done, held["record"]], "path": path + ["connect"], "seen": [out], "call_held": None}
 
 
 async def call_case(state: State, config: RunnableConfig) -> Optional[str]:

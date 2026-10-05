@@ -20,8 +20,8 @@
 #   added status.no_cases, status.no_cards and status.case_done; task 04c (T4) added act.case_opened,
 #   act.case_not_confirmed, act.not_confirmed, act.decided_on_case and act.sign_in; task 04d (T5) added
 #   act.block_held (D-043), status.read_failed_cards and status.read_failed_case; task 04d2 gave status.no_cards a
-#   {read_at} (contract 1.4.0); task 04h added clarify.confirm_one, clarify.confirm_call, connect.kept,
-#   connect.kept_no_window and suggest.confirm_charge (D-067).
+#   {read_at} (contract 1.4.0); task 04h added clarify.confirm_one, clarify.confirm_call and
+#   suggest.confirm_charge (D-067).
 # - Chips: `kind` is static here; the action payload ({type}, spec 01 §6.4) is set by the server code.
 # - Never a placeholder or text for the fraud score, policy ids, rule ids, zones or the transcript
 #   (notifications.never_send in policies.yaml).
@@ -97,15 +97,6 @@ connect:
     # D-008: expected_contact_by is null on the active-case path; no time is promised.
     es: "Registré tu solicitud en el caso {case_id}."
     pt: "Registrei seu pedido no caso {case_id}."
-  kept:
-    # Task 04h (D-067, pending the lead): the customer confirmed the card shown with a general call; that call stands
-    # (no second request). D-008: expected_contact_by is the one request_call returned for it, never computed here.
-    es: "Tu solicitud de llamada ya quedó registrada. Una persona te llamará a más tardar el {expected_contact_by}."
-    pt: "Seu pedido de ligação já está registrado. Uma pessoa vai ligar para você até {expected_contact_by}."
-  kept_no_window:
-    # Task 04h: as `kept`, when that request_call returned no expected_contact_by; no time is promised.
-    es: "Tu solicitud de llamada ya quedó registrada."
-    pt: "Seu pedido de ligação já está registrado."
   request_failed:
     # Spec 04 task 04a (pending the lead): request_call answered an error or timed out (UNAVAILABLE), so the request
     # may or may not exist and nobody is known to review it. Says so, offers a retry (the talk_to_person chip) and the

@@ -4,8 +4,8 @@ merchant whose every content word is in the charge's merchant) shows it as a car
 block and no write in that turn (AC-02, AC-16). Only the chip, a tap on the card, or a typed reply that equals an entry
 of a closed list confirms it; any longer reply is read by the classifier, so a person request stays a person request
 (D-029). A later confirm proceeds as a named charge does; a decline answers D-039 and does nothing. A call request with
-an unnamed charge registers a general call and shows the card; its confirm opens the case and keeps that one call
-(AC-11, AC-16, AC-28, D-029). Fake MCP, no LLM; replay today is DEMO_TODAY 2026-06-01."""
+an unnamed charge registers a general call and shows the card; its confirm runs the D-029 path: the case opens, the
+call is registered on it, no block (AC-11, AC-16, AC-28, D-029). Fake MCP, no LLM; replay today is DEMO_TODAY 2026-06-01."""
 from __future__ import annotations
 
 import re
@@ -135,7 +135,8 @@ def test_ac_16_d_029_a_closed_list_reply_on_the_call_card_opens_the_case_keeps_t
     chat, _, calls, seen = card_shown(language, "confirm_call")
     done = chat.say(reply)
     assert (done.decision, done.zone) == ("connect_person", "high") and done.case_id == "K-104233"
-    assert "block_card" not in calls and calls.count("request_call") == 1      # M12: the call path, one callback
+    assert "block_card" not in calls                                          # M12: the call path, not a dispute
+    assert [args.get("case_id") for tool, args in seen if tool == "request_call"] == [None, "K-104233"]
 
 
 @pytest.mark.parametrize("row", ["confirm_charge", "confirm_call"])
@@ -214,29 +215,16 @@ def test_ac_28_d_067_a_call_request_with_an_unnamed_charge_registers_a_general_c
 
 
 @pytest.mark.parametrize("yes", [YES, TAP, {"text": "Sí, es ese cargo"}])
-def test_ac_16_d_029_confirming_the_card_after_the_call_opens_the_case_keeps_the_one_call_and_never_blocks(yes):
+def test_ac_16_d_029_confirming_the_card_after_the_call_opens_the_case_puts_the_call_on_it_and_never_blocks(yes):
+    """Orchestrator decision (pending D-067): the person request must reach the analyst, so the confirm registers the
+    call on the new case (call_requested, D-042 hold, review); the first turn's general row stays (follow-up)."""
     calls, seen = [], []
     chat, _ = call_turn(calls, seen)
     done = chat.say(**yes)
     assert (done.decision, done.zone) == ("connect_person", "high") and done.case_id == "K-104233"
-    # the general call of the last turn stands: no second request_call, the turn states that one (its own result)
-    assert [(a.tool, a.state, a.action_id) for a in done.actions][1:] == [("request_call", "requested",
-                                                                            GENERAL["action_id"])]
-    assert done.actions[0].tool == "open_case" and done.actions[0].state == "verified"
-    assert calls.count("request_call") == 1 and "block_card" not in calls
-    assert "Tu solicitud de llamada ya quedó registrada" in done.reply and GENERAL["expected_contact_by"] in done.reply
-    assert record(done)["decision"]["request_call"] == "opened_case" and "talk_to_person" not in [
-        s.id for s in done.suggestions]
-    assert chat.state()["call_held"] is None
-
-
-def test_d_067_the_kept_call_lasts_one_turn_a_later_call_request_registers_a_new_one():
-    calls, seen = [], []
-    chat, _ = call_turn(calls, seen)
-    chat.say("¿Cuál es el estado de mi caso?")                   # the card is gone, and the held call with it
-    assert chat.state()["call_held"] is None
-    chat.say(action={"type": "request_call"})
-    assert calls.count("request_call") == 2 and "open_case" not in calls
+    assert [(a.tool, a.state) for a in done.actions] == [("open_case", "verified"), ("request_call", "verified")]
+    assert [args.get("case_id") for tool, args in seen if tool == "request_call"] == [None, "K-104233"]
+    assert record(done)["decision"]["request_call"] == "opened_case" and "block_card" not in calls
 
 
 def test_d_039_declining_the_card_after_the_call_does_nothing_more():
