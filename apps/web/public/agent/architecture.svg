@@ -1,0 +1,223 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1500 1010" width="1500" height="1010" font-family="Inter, 'Helvetica Neue', Helvetica, Arial, sans-serif">
+  <title>Nick of Time — architecture, option A (LangGraph Platform + MCP tools on EC2)</title>
+  <defs>
+    <marker id="a-gray" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#6b7280"/></marker>
+    <marker id="a-agent" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#7c3aed"/></marker>
+    <marker id="a-data" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#0f766e"/></marker>
+    <marker id="a-amber" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#d97706"/></marker>
+    <marker id="a-ci" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#9ca3af"/></marker>
+    <style>
+      .t  { font-size: 13px; font-weight: 700; fill: #111827; }
+      .s  { font-size: 10.5px; fill: #4b5563; }
+      .h  { font-size: 14px; font-weight: 700; fill: #111827; }
+      .hs { font-size: 11px; fill: #6b7280; }
+      .el { font-size: 10.5px; fill: #374151; paint-order: stroke; stroke: #ffffff; stroke-width: 4px; stroke-linejoin: round; }
+      .halo { fill: none; stroke: #ffffff; stroke-width: 7; }
+      .e-gray  { fill: none; stroke: #6b7280; stroke-width: 1.4; marker-end: url(#a-gray); }
+      .e-agent { fill: none; stroke: #7c3aed; stroke-width: 2.2; marker-end: url(#a-agent); }
+      .e-data  { fill: none; stroke: #0f766e; stroke-width: 1.6; marker-end: url(#a-data); }
+      .e-amber { fill: none; stroke: #d97706; stroke-width: 1.6; marker-end: url(#a-amber); }
+      .e-ci    { fill: none; stroke: #9ca3af; stroke-width: 1.4; stroke-dasharray: 3 4; marker-end: url(#a-ci); }
+      .box  { fill: #ffffff; stroke: #9ca3af; stroke-width: 1.3; }
+      .gnode { fill: #ffffff; stroke: #7c3aed; stroke-width: 1.3; }
+    </style>
+  </defs>
+
+  <rect x="0" y="0" width="1500" height="1010" fill="#ffffff"/>
+
+  <!-- Title -->
+  <text x="40" y="46" font-size="22" font-weight="700" fill="#111827">Nick of Time · option A</text>
+  <text x="318" y="46" font-size="16" fill="#374151">agent on LangGraph Platform, customer tools as an MCP server on EC2</text>
+  <text x="40" y="72" font-size="12.5" fill="#6b7280">The LLM understands · the rules decide · the tools act · verification confirms · a person closes</text>
+
+  <!-- ===== People ===== -->
+  <ellipse cx="190" cy="140" rx="108" ry="32" fill="#e0f2fe" stroke="#0284c7" stroke-width="1.4"/>
+  <text x="190" y="137" text-anchor="middle" class="t">Customer</text>
+  <text x="190" y="153" text-anchor="middle" class="s">/chat · /case/{id} · ES/PT</text>
+  <ellipse cx="470" cy="140" rx="96" ry="32" fill="#e0f2fe" stroke="#0284c7" stroke-width="1.4"/>
+  <text x="470" y="137" text-anchor="middle" class="t">Dispute analyst</text>
+  <text x="470" y="153" text-anchor="middle" class="s">/console</text>
+
+  <!-- ===== GitHub ===== -->
+  <rect x="1060" y="96" width="400" height="92" rx="10" fill="#f9fafb" stroke="#9ca3af" stroke-width="1.2"/>
+  <text x="1074" y="114" class="h" font-size="12.5">GitHub</text>
+  <rect x="1080" y="122" width="150" height="52" rx="8" class="box"/>
+  <text x="1155" y="144" text-anchor="middle" class="t">Actions</text>
+  <text x="1155" y="160" text-anchor="middle" class="s">CI · GHCR · OIDC role</text>
+  <rect x="1290" y="122" width="150" height="52" rx="8" class="box"/>
+  <text x="1365" y="144" text-anchor="middle" class="t">repo</text>
+  <text x="1365" y="160" text-anchor="middle" class="s">specs · ADRs · code</text>
+
+  <!-- ===== AWS ===== -->
+  <rect x="40" y="210" width="980" height="670" rx="14" fill="#fff7ed" stroke="#f59e0b" stroke-width="1.4"/>
+  <text x="56" y="232" class="h">AWS · us-east-2</text>
+
+  <rect x="66" y="246" width="748" height="610" rx="12" fill="#ffffff" stroke="#f59e0b" stroke-width="1.2"/>
+  <text x="798" y="826" text-anchor="end" class="h" font-size="13">EC2 nickoftime-app · Docker Compose</text>
+  <text x="798" y="843" text-anchor="end" class="hs">nickoftime.salazarvalverdeai.com · mcp.nickoftime.salazarvalverdeai.com · SSM, no SSH</text>
+
+  <!-- Caddy -->
+  <rect x="200" y="306" width="470" height="58" rx="9" fill="#f3f4f6" stroke="#9ca3af" stroke-width="1.3"/>
+  <text x="435" y="330" text-anchor="middle" class="t">Caddy · TLS + routing</text>
+  <text x="435" y="348" text-anchor="middle" class="s">nickoftime.… → web + /api   ·   mcp.nickoftime.… → mcp</text>
+
+  <!-- web / api / mcp -->
+  <rect x="88" y="430" width="216" height="100" rx="9" class="box"/>
+  <text x="196" y="452" text-anchor="middle" class="t">web · Next.js</text>
+  <text x="196" y="471" text-anchor="middle" class="s">/chat (agent-chat-ui) · /case/{id}</text>
+  <text x="196" y="486" text-anchor="middle" class="s">/console</text>
+  <text x="196" y="501" text-anchor="middle" class="s">/evaluation · /analytics · /data · /agent</text>
+
+  <rect x="340" y="430" width="225" height="100" rx="9" class="box"/>
+  <text x="452" y="452" text-anchor="middle" class="t">api · FastAPI</text>
+  <text x="452" y="471" text-anchor="middle" class="s">session + OTP (TTL 15 min)</text>
+  <text x="452" y="486" text-anchor="middle" class="s">cases · analyst actions</text>
+  <text x="452" y="501" text-anchor="middle" class="s">notify_customer · proxies agent runs</text>
+
+  <rect x="590" y="430" width="200" height="100" rx="9" fill="#f5f3ff" stroke="#7c3aed" stroke-width="1.4"/>
+  <text x="690" y="452" text-anchor="middle" class="t">mcp · FastMCP</text>
+  <text x="690" y="471" text-anchor="middle" class="s">7 customer tools · API key</text>
+  <text x="690" y="486" text-anchor="middle" class="s">customer_id from the session only</text>
+  <text x="690" y="501" text-anchor="middle" class="s">idempotency · post-conditions</text>
+  <text x="690" y="516" text-anchor="middle" class="s">re-checks policies.yaml</text>
+
+  <!-- Postgres (cylinder) -->
+  <path d="M340,662 a112,12 0 0,1 225,0 v86 a112,12 0 0,1 -225,0 z" fill="#ecfeff" stroke="#0f766e" stroke-width="1.4"/>
+  <path d="M340,662 a112,12 0 0,0 225,0" fill="none" stroke="#0f766e" stroke-width="1.4"/>
+  <text x="452" y="694" text-anchor="middle" class="t">Postgres</text>
+  <text x="452" y="712" text-anchor="middle" class="s">cases · case_events (append-only)</text>
+  <text x="452" y="727" text-anchor="middle" class="s">sessions · notifications</text>
+  <text x="452" y="742" text-anchor="middle" class="s">policy_denials · llm_calls</text>
+
+  <!-- gold (cylinder) -->
+  <path d="M590,662 a100,12 0 0,1 200,0 v70 a100,12 0 0,1 -200,0 z" fill="#ecfeff" stroke="#0f766e" stroke-width="1.4"/>
+  <path d="M590,662 a100,12 0 0,0 200,0" fill="none" stroke="#0f766e" stroke-width="1.4"/>
+  <text x="690" y="700" text-anchor="middle" class="t">gold · DuckDB</text>
+  <text x="690" y="718" text-anchor="middle" class="s">Parquet, read-only</text>
+
+  <!-- S3 + Bedrock (in AWS, outside EC2) -->
+  <path d="M845,662 a75,11 0 0,1 150,0 v66 a75,11 0 0,1 -150,0 z" fill="#ecfeff" stroke="#0f766e" stroke-width="1.4"/>
+  <path d="M845,662 a75,11 0 0,0 150,0" fill="none" stroke="#0f766e" stroke-width="1.4"/>
+  <text x="920" y="698" text-anchor="middle" class="t">S3</text>
+  <text x="920" y="715" text-anchor="middle" class="s">nickoftime-gold</text>
+
+  <rect x="840" y="256" width="160" height="66" rx="9" fill="#fef3c7" stroke="#d97706" stroke-width="1.4"/>
+  <text x="920" y="278" text-anchor="middle" class="t">Amazon Bedrock</text>
+  <text x="920" y="296" text-anchor="middle" class="s">Claude Haiku 4.5</text>
+  <text x="920" y="311" text-anchor="middle" class="s">Claude Sonnet 4.6</text>
+
+  <!-- ===== LangGraph Platform ===== -->
+  <rect x="1060" y="210" width="400" height="670" rx="14" fill="#f5f3ff" stroke="#7c3aed" stroke-width="1.4"/>
+  <text x="1076" y="232" class="h">LangGraph Platform (LangSmith)</text>
+  <text x="1076" y="250" class="hs">graph "dispute_intake" · managed checkpointer · traces</text>
+
+  <g>
+    <rect x="1100" y="268" width="320" height="62" rx="9" class="gnode"/>
+    <text x="1260" y="290" text-anchor="middle" class="t">1 · Understand</text>
+    <text x="1260" y="307" text-anchor="middle" class="s">ES/PT classifier + LLM</text>
+    <text x="1260" y="321" text-anchor="middle" class="s">confidence &lt; τ → ask with options</text>
+
+    <rect x="1100" y="350" width="320" height="62" rx="9" class="gnode"/>
+    <text x="1260" y="376" text-anchor="middle" class="t">2 · Identity</text>
+    <text x="1260" y="394" text-anchor="middle" class="s">customer_id from the session only</text>
+
+    <rect x="1100" y="432" width="320" height="62" rx="9" class="gnode"/>
+    <text x="1260" y="458" text-anchor="middle" class="t">3 · Retrieve</text>
+    <text x="1260" y="476" text-anchor="middle" class="s">the customer's own transactions (MCP)</text>
+
+    <rect x="1100" y="514" width="320" height="62" rx="9" fill="#ede9fe" stroke="#7c3aed" stroke-width="1.6"/>
+    <text x="1260" y="536" text-anchor="middle" class="t">4 · Decide</text>
+    <text x="1260" y="553" text-anchor="middle" class="s">policies.yaml · deny by default</text>
+    <text x="1260" y="567" text-anchor="middle" class="s">zone · approval mode · regulatory clock</text>
+
+    <rect x="1100" y="596" width="320" height="62" rx="9" class="gnode"/>
+    <text x="1260" y="622" text-anchor="middle" class="t">5 · Act</text>
+    <text x="1260" y="640" text-anchor="middle" class="s">block_card · open_case (MCP)</text>
+
+    <rect x="1100" y="678" width="320" height="62" rx="9" class="gnode"/>
+    <text x="1260" y="700" text-anchor="middle" class="t">6 · Verify</text>
+    <text x="1260" y="717" text-anchor="middle" class="s">Blocked ✓ · case Open ✓ (MCP)</text>
+    <text x="1260" y="731" text-anchor="middle" class="s">accepted ≠ verified</text>
+
+    <rect x="1100" y="760" width="320" height="62" rx="9" fill="#ede9fe" stroke="#7c3aed" stroke-width="1.6"/>
+    <text x="1260" y="782" text-anchor="middle" class="t">7 · Receipt + handoff card</text>
+    <text x="1260" y="799" text-anchor="middle" class="s">same verified facts · deterministic template</text>
+    <text x="1260" y="813" text-anchor="middle" class="s">tool down → "action NOT confirmed"</text>
+
+    <!-- step arrows -->
+    <path d="M1260,330 V348" class="e-agent" stroke-width="1.6"/>
+    <path d="M1260,412 V430" class="e-agent" stroke-width="1.6"/>
+    <path d="M1260,494 V512" class="e-agent" stroke-width="1.6"/>
+    <path d="M1260,576 V594" class="e-agent" stroke-width="1.6"/>
+    <path d="M1260,658 V676" class="e-agent" stroke-width="1.6"/>
+    <path d="M1260,740 V758" class="e-agent" stroke-width="1.6"/>
+
+    <!-- MCP bus for steps 3, 5, 6 -->
+    <path d="M1100,463 H1080 V709 H1100" fill="none" stroke="#7c3aed" stroke-width="1.6"/>
+    <path d="M1080,627 H1100" fill="none" stroke="#7c3aed" stroke-width="1.6"/>
+  </g>
+
+  <!-- ===== Notifications ===== -->
+  <rect x="66" y="898" width="500" height="84" rx="10" fill="#fffbeb" stroke="#d97706" stroke-width="1.2"/>
+  <text x="80" y="916" class="h" font-size="12.5">Notifications</text>
+  <text x="560" y="916" text-anchor="end" class="hs">every case status · plus the in-app log</text>
+  <rect x="88" y="928" width="210" height="42" rx="8" class="box"/>
+  <text x="193" y="954" text-anchor="middle" class="t">Telegram bot</text>
+  <rect x="346" y="928" width="200" height="42" rx="8" class="box"/>
+  <text x="446" y="954" text-anchor="middle" class="t">Email · Resend</text>
+
+  <!-- ===== Edges ===== -->
+  <!-- request path -->
+  <path d="M190,172 C190,250 300,240 300,302" class="e-gray"/>
+  <text x="200" y="198" class="el">HTTPS</text>
+  <path d="M470,172 C470,250 520,240 520,302" class="e-gray"/>
+  <text x="480" y="198" class="el">HTTPS</text>
+  <path d="M300,364 C300,400 196,396 196,426" class="e-gray"/>
+  <path d="M452,364 V426" class="e-gray"/>
+  <path d="M600,364 C600,396 690,392 690,426" class="e-gray"/>
+
+  <!-- agent path: runs in and out (one connection, streamed) -->
+  <path d="M545,430 V392 H1056" class="halo"/>
+  <path d="M545,428 V392 H1056" class="e-agent" style="marker-start:url(#a-agent)"/>
+  <text x="742" y="384" class="el" fill="#5b21b6">runs ⇄ receipt + handoff card · session injected server-side</text>
+
+  <!-- tools via MCP -->
+  <path d="M1080,560 H1032 V480 H794" class="halo"/>
+  <path d="M1080,560 H1032 V480 H794" class="e-agent"/>
+  <text x="808" y="472" class="el" fill="#5b21b6">tools via MCP (steps 3 · 5 · 6) · API key</text>
+
+  <!-- LLM -->
+  <path d="M1100,288 H1004" class="e-amber" stroke-dasharray="6 4"/>
+  <text x="1012" y="279" class="el">LLM</text>
+
+  <!-- data path -->
+  <path d="M690,530 V646" class="e-data"/>
+  <text x="698" y="600" class="el">read</text>
+  <path d="M612,530 C612,600 530,600 530,646" class="e-data"/>
+  <text x="510" y="588" class="el">write case · block overlay</text>
+  <path d="M400,532 V646" class="e-data"/>
+  <text x="352" y="600" class="el">events · sessions</text>
+  <path d="M843,697 H794" class="e-data" stroke-dasharray="6 4"/>
+  <text x="800" y="688" class="el">sync</text>
+
+  <!-- notifications -->
+  <path d="M340,505 H322 V949 H302" class="e-amber"/>
+  <path d="M322,949 H342" class="e-amber"/>
+  <text x="330" y="800" class="el">notify_customer</text>
+
+  <!-- delivery -->
+  <path d="M1290,148 H1234" class="e-ci"/>
+  <path d="M1080,148 H830 V242" class="e-ci"/>
+  <text x="846" y="140" class="el" fill="#6b7280">images from GHCR · deploy via SSM</text>
+  <path d="M1365,174 V206" class="e-ci"/>
+  <text x="1354" y="198" text-anchor="end" class="el" fill="#6b7280">deploy on push · langgraph.json</text>
+
+  <!-- ===== Legend ===== -->
+  <rect x="1060" y="898" width="400" height="80" rx="10" fill="#ffffff" stroke="#e5e7eb" stroke-width="1.2"/>
+  <text x="1076" y="916" class="h" font-size="12">Legend</text>
+  <line x1="1078" y1="934" x2="1110" y2="934" stroke="#7c3aed" stroke-width="2.2"/><text x="1118" y="938" class="s">agent path</text>
+  <line x1="1078" y1="954" x2="1110" y2="954" stroke="#0f766e" stroke-width="1.8"/><text x="1118" y="958" class="s">data path</text>
+  <line x1="1250" y1="934" x2="1282" y2="934" stroke="#d97706" stroke-width="1.8"/><text x="1290" y="938" class="s">LLM · notifications</text>
+  <line x1="1250" y1="954" x2="1282" y2="954" stroke="#9ca3af" stroke-width="1.6" stroke-dasharray="3 4"/><text x="1290" y="958" class="s">delivery (CI/CD)</text>
+  <line x1="1078" y1="970" x2="1110" y2="970" stroke="#6b7280" stroke-width="1.4"/><text x="1118" y="974" class="s">request path (HTTPS)</text>
+</svg>
