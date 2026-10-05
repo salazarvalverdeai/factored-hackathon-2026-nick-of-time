@@ -10,7 +10,7 @@ import re
 import sys
 import types
 from pathlib import Path
-from typing import Union, get_args, get_origin
+from typing import get_args
 
 import jsonschema
 import pytest
@@ -33,7 +33,7 @@ DROP = object()
 
 
 def test_ac_01_layout_package_and_removed_scaffold_folders():
-    assert CONTRACT_VERSION == "1.1.0"
+    assert CONTRACT_VERSION == "1.2.0"
     assert (ROOT / "packages/nick_of_time/contracts.py").is_file() and (ROOT / "packages/nick_of_time/ids.py").is_file()
     assert not [d for d in ("audit", "classifier", "graph", "policy", "tools") if (ROOT / "apps/api" / d).exists()]
 
@@ -272,7 +272,7 @@ HANDOFF = {"case_id": "K-104233", "language": "es", "zone": "high", "request": "
            "actions": [{"tool": "block_card", "action_id": "A-3E9F20B7C164", "result": "Blocked", "verified": True,
                         "verification_id": "V-8B2D41C7E0A9"}],
            "evidence": ["TRX-FIXTURE0000000000001"], "open_questions": [],
-           "deadline": {"country": "MX", "deadline_source": "Banxico Circular 3/2012",
+           "deadline": {"country": "MX", "deadline_source": "Banxico Circular 3/2012", "credit_deadline": "2026-06-03",
                         "source_url": SAMPLE["deadline"]["source_url"], "verified_on": "2026-10-04"}, "trace_id": "run-1", "score": 72}
 CHIPS = [{"id": "view_case", "label": "Ver mi caso", "kind": "link", "href": "/case/K-104233"},
          {"id": "send_summary", "label": "Enviarme el comprobante", "kind": "action", "action": {"type": "send_summary"}}]
@@ -319,6 +319,10 @@ BAD_TURNS = {
         **HANDOFF, "actions": [{k: v for k, v in HANDOFF["actions"][0].items() if k != "verification_id"}]}),
     "handoff action with a bad verification_id": _turn(handoff={
         **HANDOFF, "actions": [{**HANDOFF["actions"][0], "verification_id": "V-1"}]}),
+    "handoff deadline with an http source_url": _turn(handoff={
+        **HANDOFF, "deadline": {**HANDOFF["deadline"], "source_url": "http://example.org"}}),
+    "handoff deadline verified_on is not a date": _turn(handoff={
+        **HANDOFF, "deadline": {**HANDOFF["deadline"], "verified_on": "soon"}}),
     "handoff deadline without source_url": _turn(handoff={
         **HANDOFF, "deadline": {k: v for k, v in HANDOFF["deadline"].items() if k != "source_url"}}),
     "handoff deadline without verified_on": _turn(handoff={
@@ -337,6 +341,17 @@ def test_ac_01_turn_result_follows_the_graph_contract():
     assert c.TurnResult.model_validate_json(turn.model_dump_json()) == turn
     assert c.MAX_OPTIONS == POLICIES["clarify"]["max_candidate_transactions"]
     c.TurnResult.model_validate(_turn(actions=[], progress=[{**PROGRESS, "state": "in_progress"}]))
+    unverified = {**HANDOFF["actions"][0], "verified": False}
+    del unverified["verification_id"]
+    clock_unknown = {"country": "UY", "deadline_source": "POL-CLOCK-UNKNOWN"}      # no verified legal date
+    c.TurnResult.model_validate(_turn(handoff={**HANDOFF, "actions": [unverified], "deadline": clock_unknown}))
+
+
+def test_ac_01_handoff_patterns_come_from_ids():
+    handoff = json.loads((ROOT / "contracts/handoff.schema.json").read_text())
+    action = handoff["properties"]["actions"]["items"]["then"]["properties"]["verification_id"]["pattern"]
+    assert action == ids.PATTERN["verification"]
+    assert handoff["properties"]["deadline"]["properties"]["source_url"]["pattern"] == c.HTTPS_URL
 
 
 @pytest.mark.parametrize("data", BAD_TURNS.values(), ids=BAD_TURNS.keys())
@@ -355,6 +370,7 @@ BAD_FINALS = {
     "negative total cost": {"totals": {**FINAL["totals"], "cost_usd": -0.01}},
     "turn 0": {"turns": [{**FINAL["totals"], "turn": 0}]},
     "bad transaction id": {"transaction_id": "TRX-1"},
+    "bad product id": {"product_id": "PRD-1"},
     "bad candidate transaction id": {"candidate_transaction_ids": ["SYN-0001"]},
     "negative turn latency": {"turns": [{**FINAL["totals"], "turn": 1, "latency_ms": -1}]},
 }
@@ -414,6 +430,7 @@ BAD_VIEWS = [
     (c.CaseView, {**{k: v for k, v in CASE.items() if k not in ("deadline_source_url", "credit_deadline")},
                   "ruling_deadline": "2026-07-16"}),
     (c.CaseView, {**CASE, "transaction": {**CASE["transaction"], "transaction_id": "SYN-0001"}}),
+    (c.ProductView, {"product_id": "PRD-1", "type": "debit", "last4": "4417", "status": "Blocked", "read_at": NOW}),
     (c.CustomerCaseSummary, {"case_id": "K-104233", "status_label": "x", "updated_at": NOW, "related_case_id": "K-1"}),
     (c.CustomerCaseSummary, {"case_id": "K-104233", "status_label": "x", "updated_at": NOW, "product_last4": "44170"}),
     (c.ProductView, {"product_id": "PRD-FIXTURE00001", "type": "debit", "last4": "44", "status": "Blocked",

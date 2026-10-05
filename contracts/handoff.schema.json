@@ -106,7 +106,7 @@
       "items": {
         "type": "string"
       },
-      "description": "IDs: T-, P-, A-, V-, RC-, K-"
+      "description": "IDs: TRX-, PRD-, CLI- (gold ids, unchanged), A-, V-, RC-, K-"
     },
     "open_questions": {
       "type": "array",
@@ -137,10 +137,14 @@
       "type": "object",
       "required": [
         "country",
-        "deadline_source",
-        "source_url",
-        "verified_on"
+        "deadline_source"
       ],
+      "if": {
+        "anyOf": [{"required": ["credit_deadline"]}, {"required": ["ruling_deadline"]}]
+      },
+      "then": {
+        "required": ["source_url", "verified_on"]
+      },
       "properties": {
         "country": {
           "type": "string"

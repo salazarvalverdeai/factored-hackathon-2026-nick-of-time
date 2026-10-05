@@ -5,4 +5,4 @@ Every Python app imports it; nobody re-declares a contract model. `packages/` mu
 does it for tests; the apps set PYTHONPATH).
 """
 
-CONTRACT_VERSION = "1.1.0"   # spec 01 contract version, reported by /api/health
+CONTRACT_VERSION = "1.2.0"   # spec 01 contract version, reported by /api/health

@@ -1,7 +1,7 @@
 """Identifier generation (spec 01 §6.7).
 
-Transaction and product ids are never generated here: they come from gold, or from `demo_transactions` in live
-mode, in the same shape (`TRX-…`, `PRD-…`).
+Transaction, product and customer ids are never generated here: they come from gold, or from `demo_transactions` in
+live mode, in the same shape (`TRX-…`, `PRD-…`, `CLI-…`).
 """
 from __future__ import annotations
 
