@@ -6,20 +6,28 @@ single-fault tests apply one edit to `run_ok`, so each rule is pinned on its own
 from __future__ import annotations
 
 import copy
+import datetime as dt
 import json
 from pathlib import Path
 
 import jsonschema
 import pytest
 
+from nick_of_time import ids
 from nick_of_time.audit import (ActionRead, LifecycleEvent, check_actions, check_coherence, check_grounding,
-                                check_lifecycle, check_privacy)
-from nick_of_time.contracts import ActionRecord, CustomerReceipt, StatusReply, load_schema
+                                check_lifecycle, check_privacy, reads_from_store)
+from nick_of_time.contracts import (CUSTOMER_TOOLS, VERIFIED_WITH, ActionRecord, CustomerReceipt, StatusReply,
+                                    load_schema)
+from nick_of_time.store import WRITE_TOOL, NewCase
+from nick_of_time.store.memory import MemoryStore
 
 FIXTURES = Path(__file__).parent / "fixtures" / "audit"
 OK = json.loads((FIXTURES / "run_ok.json").read_text())
 EDITS = json.loads((FIXTURES / "run_bad.json").read_text())
 TX = "TRX-FIXTURE0000000000001"
+FACTS = dict(customer_id="CLI-000001", transaction_id="TRX-" + "A" * 20, product_id="PRD-" + "B" * 12, country="MX",
+             product_type="debit", zone="high", dispute_type="unrecognized_charge", opened_on=dt.date(2026, 6, 1),
+             mode="replay", trace_id="trace-1")
 
 
 def edit(edits: dict) -> dict:
@@ -141,6 +149,49 @@ def test_ac_01_a3_handoff_says_verified_without_a_read():
     assert check_actions([], [], handoff=OK["handoff"]).observed == {f"handoff:{BLOCK}": NO_BLOCK_READ[BLOCK]}
 
 
+@pytest.mark.parametrize("write", list(WRITE_TOOL))
+def test_ac_01_a3_reads_from_the_store_for_each_of_the_six_writes(write):
+    """`requested_at` is the write event's `created_at` whatever the type; any V- id of the action is evidence."""
+    ticks = iter(dt.datetime(2026, 6, 1, 15, m, tzinfo=dt.UTC) for m in range(60))
+    store = MemoryStore(now=lambda: next(ticks))
+    case = store.create_case(NewCase(**FACTS), actor="agent", action_id=ids.new_id("action"))
+    action = case.action_id if write == "case_opened" else ids.new_id("action")
+    if write == "card_blocked":
+        store.block_product(case.case_id, case.product_id, action_id=action, actor="agent", trace_id="t")
+    elif write == "notification_sent":
+        store.add_notification(case.case_id, event="receipt", channel="log", masked_address=None, text="Resumen",
+                               trigger="on_request", actor="customer", trace_id="t", action_id=action)
+    elif write != "case_opened":
+        store.append_event(case.case_id, write, actor="customer", trace_id="t", payload={"action_id": action})
+    read_tool = VERIFIED_WITH[WRITE_TOOL[write]]
+    first, second = (store.record_verification(case.case_id, action, read=read_tool, run_id=None, customer_id=None,
+                                               actor="agent", trace_id="t") for _ in range(2))
+    reads = reads_from_store(store, [action, action, ids.new_id("action")], run_id=None)
+    created = store.action_write(action, run_id=None, customer_id=None).created_at
+    assert [(r.verification_id, r.tool, r.requested_at) for r in reads] == [
+        (e.payload["verification_id"], WRITE_TOOL[write], created) for e in (first, second)]
+    shown = ActionRecord(tool=WRITE_TOOL[write], action_id=action, state="verified",
+                         verification_id=first.payload["verification_id"], read_at=reads[0].read_at)
+    assert check_actions([shown], reads).status == "passed"                           # the first V- id, not the latest
+    assert check_actions([shown.model_copy(update={"tool": "get_case" if write != "case_opened" else "block_card"})],
+                         reads).observed[action].startswith("claims ")
+
+
+def test_ac_01_a3_a_tool_that_is_not_the_write_behind_the_action_is_a_finding():
+    run = edit({"actions.0.tool": "open_case", "handoff.actions.0.tool": "open_case"})
+    wrong = "claims open_case, the write was block_card"
+    assert a3(run).observed == {BLOCK: wrong, f"handoff:{BLOCK}": wrong}
+
+
+def test_ac_01_run_ok_tool_results_are_v1_1_outputs():
+    for result in OK["tool_results"]:
+        tool = result["tool"]
+        CUSTOMER_TOOLS[tool][1](**{k: v for k, v in result.items() if k != "tool"})
+    reads = {r["tool"]: r for r in OK["tool_results"] if "verification_id" in r}
+    assert {t: reads[VERIFIED_WITH[t]]["action_id"] for t in ("open_case", "block_card")} == {
+        "open_case": CASE, "block_card": BLOCK}
+
+
 # ---------- A4 ----------
 def test_ac_01_a4_lists_each_ungrounded_value_per_surface():
     obs = a4(BAD).observed
@@ -183,6 +234,18 @@ def test_ac_01_a4_a_timestamp_states_its_date_not_its_clock():
     ("verified_on", "2026-09-30", ["2026-09-30"])])
 def test_ac_01_a4_the_legal_source_is_a_tool_fact(key, value, ungrounded):
     assert a4(edit({f"receipt.deadline.{key}": value})).observed == {"receipt": ungrounded}
+
+
+def test_ac_01_a4_the_receipt_and_customer_ids_are_known_ids():
+    h = {**OK["handoff"], "evidence": [*OK["handoff"]["evidence"], "RC-5F1C0A93D2E4", "CLI-0000012345"]}
+    rc = OK["receipt"]["receipt_id"]
+    reply = f"Comprobante: {rc}."
+    run = {**OK, "handoff": h, "reply": reply}
+    assert a4(run).observed == {"handoff": ["CLI-0000012345"]}                       # the receipt's own RC- is known
+    both = check_grounding(OK["tool_results"], reply=reply, handoff=h, known_ids=["CLI-0000012345", rc])
+    assert both.status == "passed"
+    assert check_grounding([], reply="Comprobante: RC-AAAAAAAAAAAA").observed == {"reply": ["RC-AAAAAAAAAAAA"]}
+    assert check_grounding([], reply="Cliente CLI-0000012345").observed == {"reply": ["CLI-0000012345"]}
 
 
 def test_ac_01_a4_accepts_policy_facts():
@@ -243,6 +306,12 @@ def test_ac_01_a6_score_in_any_number_format(text):
     ("Tu riesgo: 10. Te devolvemos en 10 días hábiles.", True)])
 def test_ac_01_a6_the_score_needs_a_score_word_nearby(text, flagged):
     assert check_privacy({"reply": text}, score=10).observed == ({"reply": ["score"]} if flagged else {})
+
+
+@pytest.mark.parametrize("text", ["Tu índice de fraude es 62.5", "Probabilidad de fraude: 62,5%",
+                                  "Probabilidade de fraude: 62,5%", "Indice 62.5"])
+def test_ac_01_a6_score_paraphrases_are_flagged(text):
+    assert check_privacy({"reply": text}, score=62.5).observed == {"reply": ["score"]}
 
 
 def test_ac_01_a6_score_equal_to_an_amount_is_not_flagged():

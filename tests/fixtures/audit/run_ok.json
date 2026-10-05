@@ -2,12 +2,19 @@
  "tool_results": [
   {
    "tool": "search_transaction",
-   "transaction_id": "TRX-FIXTURE0000000000001",
-   "amount": 1250.0,
-   "currency": "USD",
-   "date": "2026-05-31",
-   "merchant": "TIENDA X",
-   "channel": "ecommerce"
+   "candidates": [
+    {
+     "transaction_id": "TRX-FIXTURE0000000000001",
+     "product_id": "PRD-FIXTURE00001",
+     "transaction_date": "2026-05-31",
+     "amount": 1250.0,
+     "currency": "USD",
+     "amount_usd": 1250.0,
+     "merchant": "TIENDA X",
+     "transaction_status": "Approved",
+     "synthetic": false
+    }
+   ]
   },
   {
    "tool": "compute_deadline",
@@ -23,26 +30,54 @@
    "tool": "open_case",
    "action_id": "A-71C0D5E8A2F3",
    "state": "requested",
-   "case_id": "K-104233"
+   "case_id": "K-104233",
+   "country": "MX",
+   "credit_deadline": "2026-06-03",
+   "ruling_deadline": null,
+   "deadline_source": "Banxico Circular 3/2012, as amended by Circular 14/2018",
+   "deadline_source_url": "https://www.gob.mx/condusef/prensa/cargos-no-reconocidos-en-tarjeta-de-debito-se-restituiran-en-dos-dias-habiles-bancarios?idiom=es",
+   "deadline_verified_on": "2026-10-04"
   },
   {
    "tool": "get_case",
+   "action_id": "A-71C0D5E8A2F3",
+   "verification_id": "V-0C6A93F1B57D",
+   "read_at": "2026-06-01T15:04:09Z",
    "case_id": "K-104233",
    "queue_status": "verification",
-   "verification_id": "V-0C6A93F1B57D",
-   "read_at": "2026-06-01T15:04:09Z"
+   "status_label": "En verificación",
+   "transaction": {
+    "transaction_id": "TRX-FIXTURE0000000000001",
+    "amount": 1250.0,
+    "currency": "USD",
+    "transaction_date": "2026-05-31",
+    "merchant": "TIENDA X",
+    "synthetic": false
+   },
+   "product_last4": "4417",
+   "timeline": [],
+   "taken_by_person": false,
+   "credit_deadline": "2026-06-03",
+   "ruling_deadline": null,
+   "deadline_source": "Banxico Circular 3/2012, as amended by Circular 14/2018",
+   "deadline_source_url": "https://www.gob.mx/condusef/prensa/cargos-no-reconocidos-en-tarjeta-de-debito-se-restituiran-en-dos-dias-habiles-bancarios?idiom=es",
+   "deadline_verified_on": "2026-10-04"
   },
   {
    "tool": "block_card",
    "action_id": "A-3E9F20B7C164",
-   "state": "requested"
+   "state": "requested",
+   "product_id": "PRD-FIXTURE00001"
   },
   {
    "tool": "get_product_status",
-   "last4": "4417",
-   "status": "Blocked",
+   "action_id": "A-3E9F20B7C164",
    "verification_id": "V-8B2D41C7E0A9",
-   "read_at": "2026-06-01T15:04:11Z"
+   "read_at": "2026-06-01T15:04:11Z",
+   "product_id": "PRD-FIXTURE00001",
+   "type": "debit",
+   "last4": "4417",
+   "status": "Blocked"
   }
  ],
  "reply": "Bloqueé tu tarjeta ····4417 y abrí el caso K-104233. Plazo: 2026-06-03.",
@@ -138,7 +173,7 @@
    "country": "MX",
    "product": "debit",
    "credit_deadline": "2026-06-03",
-   "deadline_source": "Banxico",
+   "deadline_source": "Banxico Circular 3/2012, as amended by Circular 14/2018",
    "source_url": "https://www.gob.mx/condusef/prensa/cargos-no-reconocidos-en-tarjeta-de-debito-se-restituiran-en-dos-dias-habiles-bancarios?idiom=es",
    "verified_on": "2026-10-04"
   },
@@ -177,13 +212,15 @@
    "action_id": "A-71C0D5E8A2F3",
    "verification_id": "V-0C6A93F1B57D",
    "read_at": "2026-06-01T15:04:09Z",
-   "requested_at": "2026-06-01T15:04:08Z"
+   "requested_at": "2026-06-01T15:04:08Z",
+   "tool": "open_case"
   },
   {
    "action_id": "A-3E9F20B7C164",
    "verification_id": "V-8B2D41C7E0A9",
    "read_at": "2026-06-01T15:04:11Z",
-   "requested_at": "2026-06-01T15:04:10Z"
+   "requested_at": "2026-06-01T15:04:10Z",
+   "tool": "block_card"
   }
  ],
  "status_replies": [

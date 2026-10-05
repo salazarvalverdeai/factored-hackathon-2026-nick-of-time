@@ -9,7 +9,10 @@ from typing import Any, Iterable, Literal, Optional
 import yaml
 from pydantic import AwareDatetime, BaseModel, ConfigDict, model_validator
 
-from nick_of_time.contracts import CONTRACTS_DIR, ActionRecord, CustomerReceipt, QueueStatus, StatusReply
+from nick_of_time.contracts import (CONTRACTS_DIR, VERIFIED_WITH, ActionRecord, CustomerReceipt, QueueStatus,
+                                    StatusReply)
+from nick_of_time.ids import GOLD_PATTERN, PATTERN
+from nick_of_time.store import WRITE_EVENTS, WRITE_TOOL, Store
 
 Severity = Literal["critical", "high", "medium", "low"]
 FindingStatus = Literal["passed", "finding", "not_applicable"]
@@ -36,34 +39,60 @@ def _finding(check_id: str, severity: Severity, problems: Any, expected: Any, ap
 class ActionRead(BaseModel):
     """One `action_verified` case event (D-025): the verifying read minted `verification_id` at `read_at`.
 
-    `requested_at` is the `created_at` of the write event (`case_opened` or `card_blocked`) with the same `action_id`.
+    `requested_at` is the `created_at` of the write event (one of `WRITE_EVENTS`, six types) with the same `action_id`.
+    `tool` is that write's tool (`WRITE_TOOL`); the read that minted the V- id is `VERIFIED_WITH[tool]`.
     """
     model_config = ConfigDict(frozen=True)
     action_id: str
     verification_id: str
     read_at: AwareDatetime
     requested_at: AwareDatetime
+    tool: Optional[str] = None
+
+
+def reads_from_store(store: Store, action_ids: Iterable[str], *, run_id: Optional[str]) -> list[ActionRead]:
+    """One `ActionRead` per `action_verified` event of each action a turn showed (D-025), in `read_at` order.
+
+    `requested_at` is the `created_at` of the action's write event (`WRITE_EVENTS`), found with
+    `store.action_write` (no customer: the auditor reads as the system); the events come from
+    `store.verifications`. An action with no write in the run, or whose write tool has no read in `VERIFIED_WITH`,
+    yields none, so a claim that cites it is a finding.
+    """
+    reads: list[ActionRead] = []
+    for action_id in dict.fromkeys(action_ids):
+        write = store.action_write(action_id, run_id=run_id, customer_id=None)
+        tool = WRITE_TOOL.get(write.type) if write and write.type in WRITE_EVENTS else None
+        if write is None or tool not in VERIFIED_WITH:
+            continue
+        reads += [ActionRead(action_id=action_id, verification_id=e.payload["verification_id"],
+                             read_at=e.payload["read_at"], requested_at=write.created_at, tool=tool)
+                  for e in store.verifications(write.case_id, action_id, run_id=run_id)]
+    return reads
 
 
 def check_actions(shown: Iterable[ActionRecord], reads: Iterable[ActionRead], *,
                   receipt: Optional[CustomerReceipt] = None, handoff: Optional[dict[str, Any]] = None) -> Finding:
     """A3: every action shown as `verified` (record, receipt or handoff) is backed by an `action_verified` read.
 
-    The read has the claim's `action_id` and V- id, was made at or after the request, and its `read_at` equals the
-    claimed read time (the handoff carries none). A V- id found anywhere else is not evidence.
+    A turn may show any V- id of the action: the claim passes with any read that has its `action_id` and V- id, was
+    made at or after the request, and whose `read_at` equals the claimed read time (the handoff carries none). A V- id
+    found anywhere else is not evidence. When the read knows the write's tool, a record or handoff claiming another
+    tool is a finding.
     """
-    claims: list[tuple[str, str, Optional[str], Optional[dt.datetime]]] = [
-        (a.action_id, a.action_id, a.verification_id, a.read_at) for a in shown if a.state == "verified"]
-    claims += [(f"receipt:{a.action_id}", a.action_id, a.verification_id, a.verified_at)
+    claims: list[tuple[str, str, Optional[str], Optional[dt.datetime], Optional[str]]] = [
+        (a.action_id, a.action_id, a.verification_id, a.read_at, a.tool) for a in shown if a.state == "verified"]
+    claims += [(f"receipt:{a.action_id}", a.action_id, a.verification_id, a.verified_at, None)
                for a in (receipt.actions if receipt else []) if a.state == "verified"]
-    claims += [(f"handoff:{a['action_id']}", a["action_id"], a.get("verification_id"), None)
+    claims += [(f"handoff:{a['action_id']}", a["action_id"], a.get("verification_id"), None, a.get("tool"))
                for a in (handoff or {}).get("actions", []) if a.get("verified")]
     by_read = {(r.action_id, r.verification_id): r for r in reads}
     problems: dict[str, str] = {}
-    for key, action_id, verification_id, claimed_at in claims:
+    for key, action_id, verification_id, claimed_at, tool in claims:
         r = by_read.get((action_id, verification_id))
         if r is None:
             problems[key] = f"no action_verified read with {verification_id}"
+        elif r.tool and tool and tool != r.tool:
+            problems[key] = f"claims {tool}, the write was {r.tool}"
         elif r.read_at < r.requested_at:
             problems[key] = "post-condition read before the request"
         elif claimed_at is not None and claimed_at != r.read_at:
@@ -73,7 +102,9 @@ def check_actions(shown: Iterable[ActionRecord], reads: Iterable[ActionRead], *,
 
 
 # ---------- A4 grounding ----------
-_ID = re.compile(r"\b[A-Z]{1,4}-[A-Z0-9]{6,20}\b")
+# the contract id shapes (K-, S-, A-, V-, E-, RC-, N-, TRX-, PRD-, CLI-) and, for any other, a 1-4 letter prefix
+_ID = re.compile("|".join([*(rf"\b{p.strip('^$')}\b" for p in [*PATTERN.values(), *GOLD_PATTERN.values()]),
+                           r"\b[A-Z]{1,4}-[A-Z0-9]{6,20}\b"]))
 _DATETIME = re.compile(r"\b(\d{4}-\d{2}-\d{2})[T ]\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:?\d{2})?")
 _DATE = re.compile(r"\b\d{4}-\d{2}-\d{2}\b")
 _GROUP = "[ \u00a0\u202f]"  # a space, NBSP or narrow NBSP followed by 3 digits groups thousands
@@ -132,12 +163,14 @@ _UNGROUNDED_KEYS = frozenset({"receipt_id", "issued_at", "case_url", "trace_id",
 
 
 def check_grounding(tool_results: Iterable[Any], *, reply: str = "", receipt: Optional[CustomerReceipt] = None,
-                    handoff: Optional[dict[str, Any]] = None, policy_facts: Iterable[str] = ()) -> Finding:
+                    handoff: Optional[dict[str, Any]] = None, policy_facts: Iterable[str] = (),
+                    known_ids: Iterable[str] = ()) -> Finding:
     """A4: every number, date and id in the reply, receipt and handoff appears in a tool result or the policy.
 
-    Statuses are checked by A5, not here.
+    `known_ids` are the run's own ids that no tool returns, such as the session's `CLI-` customer id; the receipt's
+    own `RC-` id is known too, since the reply and the handoff evidence cite it. Statuses are checked by A5, not here.
     """
-    known: set[str] = set()
+    known: set[str] = {*known_ids, *([receipt.receipt_id] if receipt else [])}
     for s in [*_scalars(list(tool_results)), *policy_facts]:
         known |= _tokens(s) | {s}
     surfaces: dict[str, list[str]] = {
@@ -165,7 +198,7 @@ def check_coherence(status_replies: Iterable[StatusReply]) -> Finding:
 _CARD = re.compile(r"(?<!\d)(?:\d[ -]?){13,19}(?!\d)")
 _CVV = re.compile(r"(?i)\b(?:cvv2?|cvc|cvn|c[oó]digo de seguran[cç]a|c[oó]digo de seguridad)\D{0,12}\d{3,4}\b")
 _MONEY = re.compile(rf"(?:\b[A-Z]{{3}}|\$)\s*(?:{_NUMBER})|(?:{_NUMBER})\s*\b[A-Z]{{3}}\b")
-_SCORE_WORD = re.compile(r"(?i)score|puntaje|puntuaci[oó]n|pontua[cç][aã]o|riesgo|risco")
+_SCORE_WORD = re.compile(r"(?i)score|puntaje|puntuaci[oó]n|pontua[cç][aã]o|riesgo|risco|fraud|probabilidad|probabilidade|[íi]ndice")
 _NEAR = 40                          # characters between a score word and the number it qualifies
 _MIN_UTTERANCE = 20
 
