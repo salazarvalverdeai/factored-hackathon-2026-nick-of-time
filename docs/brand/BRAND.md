@@ -86,6 +86,8 @@ Keep clear space on every side equal to **1× the symbol width (X)** unless a sp
 
 **Color rule:** Violet + teal define the identity. Amber is a signal color and should remain restrained.
 
+**Chart series:** `#0d9488` is allowed for chart series only, because the brand teal `#0F766E` falls below the chroma floor of the palette check on the light surface (0.086, it reads gray next to violet). Identity, text and UI keep `#0F766E`.
+
 ## 7. Typography
 
 **Primary typeface:** Sora
