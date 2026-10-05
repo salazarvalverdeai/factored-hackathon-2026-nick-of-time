@@ -66,13 +66,35 @@ def test_ac_21_type_and_duration_limits(env, body, ctype, status):
     env.login()
     r = post(env, body, ctype)
     assert r.status_code == status and r.json()["code"] == "INVALID" and env.stt.calls == []
+    assert r.json()["message"] == (voice.TOO_LONG if status == 413 else voice.UNREADABLE)["es"]   # calm, ES/PT
+
+
+def test_ac_21_limit_messages_follow_the_session_language(env):
+    """A pt session gets the Portuguese calm text for 413 and 415, like the 503."""
+    r = env.client.post("/api/sessions", json={"customer_id": ME, "mode": "replay", "language": "pt"})
+    env.client.post(f"/api/sessions/{r.json()['session_id']}/verify", json={"otp": r.json()["otp_demo"]})
+    assert post(env, wav(31)).json()["message"] == voice.TOO_LONG["pt"]
+    assert post(env, wav(1), "text/plain").json()["message"] == voice.UNREADABLE["pt"]
 
 
 def test_ac_21_byte_cap(env, monkeypatch):
     env.login()
     monkeypatch.setattr(voice, "MAX_BYTES", 4_000)
     assert post(env, b"\x1a\x45\xdf\xa3" + bytes(5_000), "audio/webm").status_code == 413
-    assert env.stt.calls == []
+    chunks = iter([b"\x1a\x45\xdf\xa3" + bytes(1_996), bytes(2_000), bytes(2_000)])    # chunked, no Content-Length
+    r = env.client.post("/api/voice/transcribe", content=chunks, headers={"Content-Type": "audio/webm"})
+    assert r.status_code == 413 and env.stt.calls == []
+
+
+def test_ac_21_the_llm_calls_row_carries_the_sessions_demo_run(monkeypatch):
+    """No new_run_id patch: a public session gets its own demo-… run (ADR 0026), and the voice row is written to it."""
+    monkeypatch.setenv("TELEGRAM_WEBHOOK_SECRET", SECRET)
+    e = Env()
+    e.app.state.stt = FakeClient(VOXTRAL_MINI, script=[SAID], prices=PRICES)
+    sid = e.login()
+    assert post(e, wav(1)).status_code == 200
+    run = e.store.get_session(sid).run_id
+    assert run.startswith("demo-") and [c.run_id for c in e.store._llm_calls] == [run]
 
 
 def test_ac_21_fake_stt_returns_text_and_language_and_one_priced_llm_calls_row(env):

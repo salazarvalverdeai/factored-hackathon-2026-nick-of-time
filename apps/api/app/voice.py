@@ -37,8 +37,13 @@ AUDIO_TOKENS_PER_S, MAX_TOKENS = 15, 400
 SILENCE_PEAK = 300                           # [assumption] about -40 dBFS on 16-bit PCM
 TIMESTAMPS = re.compile(r"\[\s*\d+m\d+s\d+ms\s*-\s*\d+m\d+s\d+ms\s*\]\s*")   # segment stamps Voxtral may add
 READ_TIMEOUT_S = 20
+# Customer-facing (spec 07 AC-07 shows them as they are): 503, 413 and 415, in the session language
 TYPE_INSTEAD = {"es": "Ahora no podemos escuchar tu audio. Escríbenos tu mensaje y seguimos.",
                 "pt": "No momento não conseguimos ouvir seu áudio. Escreva sua mensagem e seguimos."}
+TOO_LONG = {"es": "Tu audio es muy largo. Graba hasta 30 segundos o escríbenos tu mensaje.",
+            "pt": "Seu áudio está muito longo. Grave até 30 segundos ou escreva sua mensagem."}
+UNREADABLE = {"es": "No pudimos leer ese audio. Graba de nuevo o escríbenos tu mensaje.",
+              "pt": "Não conseguimos ler esse áudio. Grave de novo ou escreva sua mensagem."}
 
 log = logging.getLogger("nick_of_time.api.voice")
 
@@ -88,26 +93,32 @@ def install(app: FastAPI, store: Store, session: Callable, day_cap: float) -> No
     def unavailable(s: dict) -> ApiError:
         return ApiError(503, "UNAVAILABLE", TYPE_INSTEAD[language(s)])
 
+    def too_long(s: dict) -> ApiError:
+        return ApiError(413, "INVALID", TOO_LONG[language(s)])
+
+    def unreadable(s: dict) -> ApiError:
+        return ApiError(415, "INVALID", UNREADABLE[language(s)])
+
     @app.post("/api/voice/transcribe", response_model=TranscriptOut)
     async def transcribe(request: Request, s: dict = Depends(session)):
         fmt = FORMATS.get(request.headers.get("content-type", "").split(";")[0].strip().lower())
         if fmt is None:
-            raise ApiError(415, "INVALID", "Send audio/webm, audio/ogg or audio/wav")
+            raise unreadable(s)
         declared = request.headers.get("content-length", "")
         if declared.isdigit() and int(declared) > MAX_BYTES:
-            raise ApiError(413, "INVALID", f"Audio over {MAX_BYTES} bytes")
+            raise too_long(s)
         body = bytearray()
         async for chunk in request.stream():
             body += chunk
             if len(body) > MAX_BYTES:
-                raise ApiError(413, "INVALID", f"Audio over {MAX_BYTES} bytes")
+                raise too_long(s)
         audio = bytes(body)
         try:
             length, silent = inspect(audio, fmt)
         except ValueError:
-            raise ApiError(415, "INVALID", f"The audio is not valid {fmt}") from None
+            raise unreadable(s) from None
         if length is not None and length > MAX_SECONDS:
-            raise ApiError(413, "INVALID", f"Audio over {MAX_SECONDS} seconds")
+            raise too_long(s)
         if silent:                                          # nothing to hear: no call, no row
             return {"text": "", "language": language(s)}
         client = app.state.stt = app.state.stt or default_client()
@@ -121,7 +132,8 @@ def install(app: FastAPI, store: Store, session: Callable, day_cap: float) -> No
         try:
             result = await run_in_threadpool(client.transcribe, audio, fmt, max_tokens=MAX_TOKENS)
         except Exception as error:  # noqa: BLE001 — any provider failure: the customer types instead
-            log.error("voice transcription failed trace_id=%s error=%s", trace_id, type(error).__name__)
+            (log.info if isinstance(error, llm.ProviderUnavailable) else log.error)(
+                "voice transcription failed trace_id=%s error=%s", trace_id, type(error).__name__)
             raise unavailable(s) from None
         try:
             await run_in_threadpool(lambda: store.add_llm_call(

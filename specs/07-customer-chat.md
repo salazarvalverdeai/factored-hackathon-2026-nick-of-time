@@ -73,15 +73,20 @@ AC-01 to AC-05 are copied from issue #9 with the same numbers. None is dropped o
      Safari 18.4+), else `audio/ogg;codecs=opus`, else 16 kHz mono WAV encoded in the page; the raw blob is the POST
      body with its `Content-Type`. Never store the clip (no IndexedDB, no upload elsewhere); release the stream after
      each clip so the browser's mic indicator turns off.
-  2. **Silence:** Voxtral invents sentences for silence (spec 05 §8, live smoke), so the page measures the level with
-     an `AnalyserNode` and does not send a clip that never rose above the noise floor `[assumption]`; an empty `text`
+  2. **Silence:** Voxtral invents sentences for silence (spec 05 §8, live smoke). The api only gates silent 16-bit WAV,
+     so for WebM/Opus and Ogg/Opus the client level gate is **required**: the page measures the level with an
+     `AnalyserNode` and does not send a clip that never rose above the noise floor `[assumption]`; an empty `text`
      shows "No te escuchamos / Não ouvimos você".
-  3. **Draft, not send:** the transcript fills the composer, focused, for the customer to correct and send. The chat
-     path then works as for typed text (the LLM understands, the rules decide).
+  3. **Draft, not send:** every transcript, whatever the format (WebM/Opus included), fills the composer, focused, for
+     the customer to correct and send; it is never sent on its own. The chat path then works as for typed text (the
+     LLM understands, the rules decide).
   4. **Read aloud:** `speechSynthesis` with a voice of `es-MX` (else any `es-*`) or `pt-BR` (else any `pt-*`) by the
-     session language; it reads the reply text only, never chips, ids or the trace. A mute toggle in the chat header,
-     off by default `[assumption]` and remembered in `localStorage`, cancels speech at once; a new reply or a new
-     recording cancels the one being spoken.
+     session language, preferring voices with `localService === true`. A remote voice sends the reply text (amounts,
+     merchant, card last 4, case id) to the browser vendor's servers, the same objection ADR 0028 raises against
+     `SpeechRecognition`: when no local voice exists for the language, read-aloud stays off by default and the toggle
+     notes "uses an online voice". It reads the reply text only, never chips, ids or the trace. A mute toggle in the
+     chat header, off by default `[assumption]` and remembered in `localStorage`, cancels speech at once; a new reply
+     or a new recording cancels the one being spoken.
   5. **Accessibility:** the mic is a real `<button>` with `aria-pressed` and an ES/PT label ("Mantén para hablar /
      Segure para falar"); recording state is announced through an `aria-live="polite"` region and shown by more than
      color (icon and text); keyboard push-to-talk works; read-aloud respects the mute toggle and is never the only
