@@ -26,7 +26,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse, RedirectResponse, StreamingResponse
 
 from app.auth import AuthError, CognitoVerifier
-from app.catalog import Catalog, FixtureCatalog
+from app.catalog import Catalog, FixtureCatalog, catalog_from_env
 from app.main import (COOKIE, SESSION_TTL, AckOut, ApiError, CallIn, CallOut, ConsoleCaseOut, EmailIn,
                       EmailOut, EventOut, HealthOut, InfoIn, NotificationOut, PrefsIn, PrefsOut, ReevalIn, ReevalOut,
                       SessionIn, SessionOut, SettingsIn, SettingsOut, TelegramOut, ThreadOut, VerifyIn,
@@ -649,7 +649,9 @@ def create_live_app(store: Store, *, catalog: Optional[Catalog] = None, verifier
 
 
 def from_env() -> FastAPI:
-    """The production wiring: Postgres from DATABASE_URL, Cognito from COGNITO_*, Platform from LANGGRAPH_API_URL."""
+    """The production wiring: Postgres from DATABASE_URL, Cognito from COGNITO_*, Platform from LANGGRAPH_API_URL, gold
+    from GOLD_PATH."""
     from nick_of_time.store.postgres import PostgresStore
-    return create_live_app(PostgresStore(os.environ["DATABASE_URL"]), verifier=CognitoVerifier.from_env(),
+    return create_live_app(PostgresStore(os.environ["DATABASE_URL"]), catalog=catalog_from_env(),
+                           verifier=CognitoVerifier.from_env(),
                            platform=HttpPlatform.from_env())
