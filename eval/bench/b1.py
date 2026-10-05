@@ -5,15 +5,19 @@ mode and the temperature (D-016) recorded per arm. A missing or invalid tool cal
 so is a sentence whose call fails after the arm started: it is counted in the arm's `errors` and the run goes on."""
 from __future__ import annotations
 
+import hashlib
+import io
 import json
 import os
+import re
 import threading
 import time
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor
+from dataclasses import dataclass, field
 from datetime import date
 from pathlib import Path
-from typing import Callable
+from typing import Callable, Optional
 
 import jsonschema
 
@@ -38,10 +42,74 @@ JEV_CRITERIA = {  # the five intents of spec 11, as in scripts/checks/check_jev.
     "out_of_scope": "Anything that is not about disputing a card charge."}
 
 Sink = Callable[[dict], None]            # receives each scored item as soon as it exists (`run` writes it to disk)
+B1_FILE = "intent-b1-v1.joblib"          # the file name spec 11 exports B1 under (eval/classifier/evaluate.py)
+CLASSIFIER_RECORD = "apps/web/public/data/classifier.json"                     # spec 11 §7.1: classifier-test export
+CLASSIFIER_CLAIM = "eval/results/classifier-test/classifier-test.start.json"   # that run's claim_run marker (spec 10)
+HEX64 = re.compile(r"[0-9a-f]{64}")
 
 
 class BenchError(RuntimeError):
-    """The run cannot start as asked (no split file, unsealed protocol for the test split)."""
+    """The run cannot start as asked (no split file, unsealed protocol for the test split, no recorded B1 file)."""
+
+
+@dataclass(frozen=True)
+class B1Model:
+    """The spec 11 B1 arm for one bench run: the loaded model and the record benchmark.json keeps as `b1_model` (path,
+    sha256, scikit-learn version, where it came from), or the reason the arm cannot run (AC-06)."""
+    nlu: object = None
+    record: dict = field(default_factory=dict)
+    reason: Optional[str] = None
+
+
+def train_b1_model(root: Path, out_dir: Path) -> B1Model:
+    """Development runs: B1 built exactly as `make classifier` builds it (spec 11 T3): fit on train, sigmoid-calibrated
+    on validation, fixed seed, from the same split source (the promoted files, or the reviewed drafts before
+    promotion); the test split is never read. Saved into the run folder and recorded by path and sha256. It is
+    calibrated on validation, so its validation score is a development figure only (PROTOCOL §1.1)."""
+    from eval.classifier import evaluate as ev
+    data, source = ev.load_splits("validation", root)
+    train, val = ev.intents_only(data["train"]), ev.intents_only(data["validation"])
+    nlu = ev.B1NLU(ev.train_b1([r["text"] for r in train], [r["intent"] for r in train],
+                               [r["text"] for r in val], [r["intent"] for r in val]))
+    out_dir.mkdir(parents=True, exist_ok=True)
+    nlu.save(out_dir / B1_FILE)
+    return B1Model(nlu, {**ev.model_record(out_dir / B1_FILE, root),
+                         "source": f"trained by this development run: fit on train, calibrated on validation ({source})"})
+
+
+def official_b1_model(root: Path, seal: dict) -> B1Model:
+    """The test run (`make bench`) never fits B1: it loads the exact file the one classifier-test run exported and
+    recorded in classifier.json `b1_model` (path and sha256), under the same seal. Refused (BenchError) when that run
+    has not happened, its record is not a sealed test run or names another protocol, or the file is missing or its
+    bytes differ from the recorded sha256. The model is unpickled from the very bytes that were hashed."""
+    root = Path(root)
+    rec_path = root / CLASSIFIER_RECORD
+    if not rec_path.is_file() or not (root / CLASSIFIER_CLAIM).is_file():
+        raise BenchError(f"no classifier-test run ({CLASSIFIER_RECORD}, {CLASSIFIER_CLAIM}): run `make classifier-test` "
+                         "first, it exports the B1 file this run loads")
+    data = json.loads(rec_path.read_text(encoding="utf-8")).get("data") or {}
+    proto = data.get("protocol") or {}
+    if data.get("run") != "test" or proto.get("status") != "SEALED":
+        raise BenchError(f"{CLASSIFIER_RECORD} is not the sealed classifier-test record (run={data.get('run')!r})")
+    if proto.get("sha256") != seal.get("sha256"):
+        raise BenchError(f"{CLASSIFIER_RECORD} was written under protocol {proto.get('sha256')}, not the sealed "
+                         f"{seal.get('sha256')}")
+    rec = data.get("b1_model") or {}
+    rel, sha = rec.get("path"), rec.get("sha256") or ""
+    if not rel or not HEX64.fullmatch(sha):
+        raise BenchError(f"{CLASSIFIER_RECORD} records no B1 file (b1_model path and sha256)")
+    path = (root / rel).resolve()
+    if not path.is_relative_to(root.resolve()) or not path.is_file():
+        raise BenchError(f"the B1 file {rel} recorded by the classifier-test run is missing")
+    blob = path.read_bytes()
+    if hashlib.sha256(blob).hexdigest() != sha:
+        raise BenchError(f"the B1 file {rel} differs from the sha256 the classifier-test run recorded ({sha[:12]}…)")
+    import joblib
+    from nick_of_time.nlu.learned import B1NLU
+    loaded = joblib.load(io.BytesIO(blob))
+    return B1Model(B1NLU(loaded["model"], loaded["version"]),
+                   {"path": rel, "sha256": sha, "sklearn_version": rec.get("sklearn_version"),
+                    "source": f"loaded from the classifier-test run ({CLASSIFIER_RECORD} b1_model); never refit"})
 
 
 def load_split(split: str, root: Path = ROOT) -> list[dict]:
@@ -123,13 +191,23 @@ def llm_items(arm: dict, rows: list[dict], provider: smoke.Provider, price: dict
             "errors": errors}
 
 
-def b0_items(rows: list[dict], arm_name: str = "B0", sink: Sink | None = None) -> dict:
-    """The no-LLM arms of spec 11 through `load_nlu`; B1 TF-IDF + LR is reused from task 11b when it lands."""
+def b0_items(rows: list[dict], sink: Sink | None = None) -> dict:
+    """The B0 rules arm of spec 11 (no model file)."""
     from nick_of_time.nlu import load_nlu
-    try:
-        nlu = load_nlu(arm_name)
-    except (NotImplementedError, FileNotFoundError) as exc:
-        raise core.ProviderUnavailable(f"pending spec 11 (task 11b): {exc}") from exc
+    return nlu_items(load_nlu("B0"), rows, sink)
+
+
+def b1_items(rows: list[dict], model: B1Model | None, sink: Sink | None = None) -> dict:
+    """The B1 TF-IDF + LR arm of spec 11, from the model the command trained (development) or loaded by its recorded
+    sha256 (test); without one the arm is unavailable with the reason (AC-06). Its version names the file's hash."""
+    if model is None or model.nlu is None:
+        raise core.ProviderUnavailable((model and model.reason) or "no B1 model was given to this run")
+    out = nlu_items(model.nlu, rows, sink)
+    return {**out, "version": f"{model.nlu.version} sha256:{model.record['sha256'][:12]}"}
+
+
+def nlu_items(nlu, rows: list[dict], sink: Sink | None = None) -> dict:
+    """One no-LLM reading per sentence (no tokens, no price)."""
     out: list[dict] = []
     for row in rows:
         t0 = time.perf_counter()
@@ -191,12 +269,14 @@ def fake_provider(model_id: str, system: str, user: str, schema: dict, mode: str
 
 
 def run(arms: list[dict], rows: list[dict], provider: smoke.Provider, prices: dict, run_date: str,
-        workers: int = 6, budget: float = core.BUDGET_USD, items_path: Path | None = None) -> list[dict]:
+        workers: int = 6, budget: float = core.BUDGET_USD, items_path: Path | None = None,
+        b1_model: B1Model | None = None) -> list[dict]:
     """The budget guard on the whole run first (AC-08: smoke ladder + every sentence, per billable arm), then the
     arms in parallel (each arm's sentences in order, so its latency is its own). Unavailable arms are recorded and
     the run goes on (AC-06); an error an arm cannot recover from is recorded on that arm and never aborts the others.
     With `items_path`, each scored item is appended to that JSONL with its arm and flushed as soon as it exists, so
-    a crash leaves on disk every item already paid for; the file is opened for append and never truncated."""
+    a crash leaves on disk every item already paid for; the file is opened for append and never truncated. The B1
+    arm scores `b1_model`, which the command trains (development) or loads by its recorded hash (test), never this."""
     n = len(rows) + len(smoke.LADDER) + 1
     core.check_budget(core.projected_spend(arms, prices, n, IN_TOKENS, OUT_TOKENS), budget)
     lock, fh = threading.Lock(), None
@@ -218,9 +298,9 @@ def run(arms: list[dict], rows: list[dict], provider: smoke.Provider, prices: di
     def evaluate(arm: dict) -> dict:
         sink = sink_for(arm["id"])
         if arm["provider"] == "rules":
-            return b0_items(rows, "B0", sink)
+            return b0_items(rows, sink)
         if arm["provider"] == "classifier":
-            return b0_items(rows, "B1", sink)
+            return b1_items(rows, b1_model, sink)
         if arm["provider"] == "typesafe":
             return jev_items(arm, rows, prices[arm["id"]], sink)
         return llm_items(arm, rows, provider, prices[arm["id"]], sink)

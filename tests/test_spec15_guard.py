@@ -8,9 +8,12 @@ does; the real repository, its seal and its test split are never touched. Fake p
 """
 from __future__ import annotations
 
+import builtins
 import csv
 import hashlib
+import io
 import json
+import os
 import subprocess
 from pathlib import Path
 
@@ -18,7 +21,30 @@ import pytest
 
 from eval.bench import __main__ as cli
 from eval.bench import b1, core
+from eval.classifier import evaluate as ev
 from eval.harness import seal_guard
+from nick_of_time.nlu import learned
+from nick_of_time.nlu.learned import B1NLU
+from tests.test_spec11_learned_arms import rows as classifier_rows
+
+REAL_TEST_SPLIT = (Path(__file__).resolve().parents[1] / "eval/classifier/test.jsonl").resolve()
+
+
+def forbid_real_test_split(monkeypatch) -> None:
+    """Fails the test on any open of the real repository's test split, whoever opens it (PROTOCOL §0)."""
+    real_open = builtins.open
+
+    def guarded(file, *args, **kwargs):
+        if isinstance(file, (str, bytes, os.PathLike)) and Path(os.fsdecode(file)).resolve() == REAL_TEST_SPLIT:
+            pytest.fail(f"the real test split was opened: {file}")
+        return real_open(file, *args, **kwargs)
+    monkeypatch.setattr(builtins, "open", guarded)
+    monkeypatch.setattr(io, "open", guarded)
+
+
+@pytest.fixture(autouse=True)
+def never_the_real_test_split(monkeypatch):
+    forbid_real_test_split(monkeypatch)
 
 GIT = ["git", "-c", "user.name=t", "-c", "user.email=t@example.com", "-c", "commit.gpgsign=false",
        "-c", "tag.gpgsign=false", "-c", "init.defaultBranch=main", "-c", "core.hooksPath=/dev/null"]
@@ -162,3 +188,73 @@ def test_ac_07_dry_run_checks_the_seal_but_never_claims(repo, calls):
     """AC-08 with AC-07: a test dry run prints the projected spend under the guard and leaves the run unclaimed."""
     assert cli.main(["--split", "test", "--dry-run"]) == 0
     assert not (repo / MARKER).exists() and not calls
+
+
+B1_ARMS = [a for a in core.load_arms() if a["id"] in ("b0_rules", "b1_tfidf_lr", "nova-micro")]
+
+
+def record_b1(repo: Path, protocol_sha256: str | None = None) -> dict:
+    """What `make classifier-test` leaves behind in the throwaway repo: its claim marker, the B1 file it exported and
+    classifier.json with `b1_model` (path, sha256) under the sealed protocol. Synthetic sentences, committed."""
+    train = [r for r in classifier_rows("train", 8) if r["intent"]]
+    val = [r for r in classifier_rows("validation", 4) if r["intent"]]
+    model = B1NLU(ev.train_b1([r["text"] for r in train], [r["intent"] for r in train],
+                              [r["text"] for r in val], [r["intent"] for r in val]))
+    (repo / "models").mkdir(exist_ok=True)
+    model.save(repo / "models" / b1.B1_FILE)
+    rec = ev.model_record(repo / "models" / b1.B1_FILE, repo)
+    sealed = seal_guard.seal_fields((repo / seal_guard.PROTOCOL_PATH).read_text(encoding="utf-8"))["Protocol sha256"]
+    data = {"run": "test", "protocol": {"status": "SEALED", "sha256": protocol_sha256 or sealed}, "b1_model": rec}
+    write(repo, b1.CLASSIFIER_RECORD, json.dumps({"data": data}))
+    write(repo, b1.CLASSIFIER_CLAIM, json.dumps({"name": "classifier-test"}))
+    commit(repo, "classifier-test outputs")
+    return rec
+
+
+def b1_arms(monkeypatch) -> None:
+    monkeypatch.setattr(core, "load_arms", lambda: B1_ARMS)
+    monkeypatch.setattr(learned, "train_b1", lambda *a, **k: pytest.fail("B1 is never refit on the test run"))
+    monkeypatch.setattr(ev, "train_b1", lambda *a, **k: pytest.fail("B1 is never refit on the test run"))
+
+
+def test_ac_01_test_run_scores_the_b1_file_the_classifier_test_run_recorded(repo, monkeypatch, calls):
+    """AC-01, AC-05: on the test split the B1 arm is the exact file classifier.json `b1_model` names, checked by its
+    sha256 and never refit; benchmark.json records that path and hash."""
+    rec = record_b1(repo)
+    b1_arms(monkeypatch)
+    assert cli.main(["--split", "test"]) == 0
+    assert calls and all(calls)
+    data = json.loads(official(repo, "json").read_text(encoding="utf-8"))["data"]
+    assert data["b1_model"]["path"] == "models/intent-b1-v1.joblib" and data["b1_model"]["sha256"] == rec["sha256"]
+    assert data["b1_model"]["sha256"] == hashlib.sha256((repo / rec["path"]).read_bytes()).hexdigest()
+    arm = next(a for a in data["b1"]["arms"] if a["arm"] == "b1_tfidf_lr")
+    assert arm["status"] == "ok" and arm["version"] == f"b1-v1 sha256:{rec['sha256'][:12]}"
+    items = [json.loads(x) for x in official(repo, "items").read_text(encoding="utf-8").splitlines()]
+    assert sum(i["arm"] == "b1_tfidf_lr" for i in items) == len(ROWS)
+
+
+@pytest.mark.parametrize("breakage", ["no classifier-test run", "file missing", "file changed", "other protocol",
+                                      "a validation record"])
+def test_ac_01_test_run_refuses_without_the_recorded_b1_file_before_any_claim(repo, monkeypatch, calls, capsys,
+                                                                             breakage):
+    """AC-01, AC-07: `make classifier-test` comes first. Without its record, with the B1 file missing or changed, or
+    with a record of another protocol or of a development run, the test run is refused before the claim and before
+    any model call, so the one run is not spent."""
+    if breakage != "no classifier-test run":
+        rec = record_b1(repo, protocol_sha256="f" * 64 if breakage == "other protocol" else None)
+        if breakage == "file missing":
+            (repo / rec["path"]).unlink()
+        elif breakage == "file changed":
+            (repo / rec["path"]).write_bytes((repo / rec["path"]).read_bytes() + b"\0")
+        elif breakage == "a validation record":
+            doc = json.loads((repo / b1.CLASSIFIER_RECORD).read_text(encoding="utf-8"))
+            doc["data"]["run"] = ev.DEV_LABEL
+            write(repo, b1.CLASSIFIER_RECORD, json.dumps(doc))
+    b1_arms(monkeypatch)
+    assert cli.main(["--split", "test"]) == 2
+    why = {"no classifier-test run": "run `make classifier-test` first", "file missing": "is missing",
+           "file changed": "differs from the sha256", "other protocol": "was written under protocol",
+           "a validation record": "is not the sealed classifier-test record"}[breakage]
+    assert why in capsys.readouterr().err
+    assert not (repo / MARKER).exists() and not calls
+    assert cli.main(["--split", "test", "--dry-run"]) == 2         # the dry run checks it too

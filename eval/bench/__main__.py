@@ -10,7 +10,12 @@ model call it runs the shared seal guard (eval/harness/seal_guard.py): `check_se
 commit, the protocol and the classifier split manifest as sealed, no uncommitted sealed input), then
 `claim_run("bench")`, which writes eval/results/bench/bench.start.json and refuses a second run; it also refuses while
 any official output already exists. Test results carry `test_review: rules-v1` and the PROTOCOL §1.1 label (ADR 0028).
-Every other run goes to eval/.runs/bench/ (git-ignored), labeled a development run.
+Every other run goes to eval/.runs/bench/<DEMO_TODAY>-<split>-<provider>/ (git-ignored), labeled a development run.
+
+B1 TF-IDF + LR (spec 11): a development run trains it as `make classifier` does (fit on train, calibrated on
+validation) into its folder. The test run never fits it: it loads the file the classifier-test run recorded in
+classifier.json `b1_model`, refused before the claim when that record, the file or its sha256 is missing or differs,
+so `make classifier-test` runs before `make bench`. benchmark.json records the B1 file as `b1_model`.
 """
 from __future__ import annotations
 
@@ -25,7 +30,6 @@ from eval.bench import b1, chart, core, gate, report
 from eval.harness import seal_guard
 from eval.harness.report import git_sha, now, protocol_seal
 from eval.harness.seal_guard import SealError
-from nick_of_time import config
 
 ROOT = b1.ROOT
 SEAL_COMMIT = seal_guard.SEAL_COMMIT    # the sealing commit that tag protocol-v1 must resolve to
@@ -66,8 +70,23 @@ def existing_outputs(root: Path | None = None) -> list[str]:
 
 
 def run_date() -> str:
-    """The run date from the clock (ADR 0020): B1 runs only in replay, so it is DEMO_TODAY, never the system date."""
-    return config.today("replay").isoformat()
+    """The run date (AC-05, AC-09, ADR 0020): B1 runs only in replay, against the fixed DEMO_TODAY every arm reads
+    (`b1.TODAY`), never the system date nor a DEMO_TODAY set in the environment, so the run date, `demo_today` and
+    the development folder name all say the same day."""
+    return b1.TODAY
+
+
+def has_b1(arms: list[dict]) -> bool:
+    return any(a["provider"] == "classifier" for a in arms)
+
+
+def dev_b1_model(out_dir: Path) -> b1.B1Model:
+    """Development runs train B1 as `make classifier` does (train only, calibrated on validation, fixed seed) into the
+    run folder; a failure makes only the B1 arm unavailable, with its reason (AC-06)."""
+    try:
+        return b1.train_b1_model(ROOT, out_dir)
+    except Exception as exc:              # no splits, no scikit-learn, a class missing: the other arms still run
+        return b1.B1Model(reason=f"B1 could not be trained: {type(exc).__name__}: {exc}"[:300])
 
 
 def vendor(model_id: str | None) -> str | None:
@@ -84,9 +103,10 @@ def review_fields(split: str) -> dict:
     return {"test_review": TEST_REVIEW, "test_review_label": TEST_REVIEW_LABEL} if split == "test" else {}
 
 
-def export(rows, gate_rows, model_map, prices, split, seal, run_date, provider) -> dict:
+def export(rows, gate_rows, model_map, prices, split, seal, run_date, provider, b1_model=None) -> dict:
     """`{generated_at, git_sha, source, data}` with `data` in the shape of spec 15 §7.1. On the test split `seal` is
-    the dict of the seal guard, embedded whole as `protocol`."""
+    the dict of the seal guard, embedded whole as `protocol`. `b1_model` records the B1 file scored (path, sha256,
+    scikit-learn version, source) or why the arm could not run; None when the run had no B1 arm."""
     by_arm = {}
     for g in gate_rows:
         by_arm.setdefault(g["arm"], []).append(g)
@@ -111,7 +131,10 @@ def export(rows, gate_rows, model_map, prices, split, seal, run_date, provider) 
                                                      "evidence_url", "checked_on")} for g in by_arm.get(r["arm"], [])]}})
     kind = "pre-registered test run" if split == "test" else DEV_LABEL
     data = {"label": "[simulated]", "protocol": seal, "mode": "replay", "demo_today": b1.TODAY, "run_date": run_date,
-            "split": split, "run_kind": kind, **review_fields(split), "provider": provider, "b1": {"arms": arms},
+            "split": split, "run_kind": kind, **review_fields(split), "provider": provider,
+            "b1_model": None if b1_model is None else (b1_model.record or {"path": None, "sha256": None,
+                                                                          "reason": b1_model.reason}),
+            "b1": {"arms": arms},
             "word": {"arms": []}, "judge": {"arms": []}, "b2": {"set": "dev", "cases": 20, "runs_per_case": 4, "arms": []},
             "model_map": {"understand": model_map, "word": {"chosen": "templates"},
                           "judge": {"chosen": "haiku-4-5"}}}            # word: AC-12 pending; judge: spec 15 Q4
@@ -209,6 +232,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.from_items:
         return rerender(args, arms, prices)
     official = args.split == "test"
+    b1_model = None
     if official and (args.limit or args.arms or args.provider != "bedrock"):
         return refuse("the test split runs once, whole, on Bedrock (no --limit, --arms or fake provider)")
     if official:
@@ -219,6 +243,11 @@ def main(argv: list[str] | None = None) -> int:
         present = existing_outputs()
         if present:
             return refuse(f"official B1 outputs already exist and are never overwritten: {present[:5]}")
+        if has_b1(arms):
+            try:                                      # before the claim: a missing B1 file never burns the one run
+                b1_model = b1.official_b1_model(ROOT, seal)
+            except b1.BenchError as exc:
+                return refuse(str(exc))
         if not args.dry_run:
             try:
                 seal_guard.claim_run(RUN_NAME, ROOT / CLAIM_DIR, seal, root=ROOT)
@@ -246,10 +275,13 @@ def main(argv: list[str] | None = None) -> int:
         p.parent.mkdir(parents=True, exist_ok=True)
     if not official:
         paths["items"].unlink(missing_ok=True)       # a development rerun starts a fresh stream; the test run never
+        if has_b1(arms):
+            b1_model = dev_b1_model(paths["json"].parent)
     provider = b1.smoke.bedrock_provider() if args.provider == "bedrock" else b1.fake_provider
-    results = b1.run(arms, rows, provider, prices, date, items_path=paths["items"])   # items streamed as scored
+    results = b1.run(arms, rows, provider, prices, date, items_path=paths["items"],    # items streamed as scored
+                     b1_model=b1_model)
     gate_rows, model_map = score(results, arms, args.split, date, official)
-    payload = export(results, gate_rows, model_map, prices, args.split, seal, date, args.provider)
+    payload = export(results, gate_rows, model_map, prices, args.split, seal, date, args.provider, b1_model)
     paths["json"].write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     with paths["csv"].open("w", newline="", encoding="utf-8") as fh:
         writer = csv.DictWriter(fh, CSV_FIELDS, extrasaction="ignore")

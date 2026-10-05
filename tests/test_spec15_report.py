@@ -3,6 +3,7 @@ Fake provider only, no network (CLAUDE.md). The one-time test-split command is c
 throwaway repository: no test here reaches the real seal guard or the real test split."""
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 
@@ -10,6 +11,8 @@ import pytest
 
 from eval.bench import __main__ as cli
 from eval.bench import b1, chart, core, gate, report
+from tests.test_spec11_learned_arms import rows as classifier_rows
+from tests.test_spec15_guard import forbid_real_test_split
 
 
 @pytest.fixture(autouse=True)
@@ -17,6 +20,7 @@ def never_the_real_test_split(monkeypatch, tmp_path):
     """Safety net: the command never sees the real repository (so the real seal guard can never pass and claim the
     one-time run) and the real test split is never read."""
     monkeypatch.setattr(cli, "ROOT", tmp_path / "not-a-repo")
+    forbid_real_test_split(monkeypatch)
     real = b1.load_split
 
     def load(split, *a, **k):
@@ -243,12 +247,74 @@ def test_ac_04_chart_and_table_re_render_from_items_without_any_model_call(monke
     assert "haiku-4-5 · p95" in (out / "benchmark_cost_quality.svg").read_text(encoding="utf-8")
 
 
-def test_ac_05_run_date_comes_from_the_replay_clock(monkeypatch):
-    """AC-05, AC-09, ADR 0020: B1 runs in replay, so its run date is DEMO_TODAY, never the system date."""
-    monkeypatch.setenv("DEMO_TODAY", "2026-05-15")
-    assert cli.run_date() == "2026-05-15"
-    monkeypatch.delenv("DEMO_TODAY")
-    assert cli.run_date() == "2026-06-01"
+def test_ac_05_run_date_and_dev_folder_use_the_fixed_replay_date(monkeypatch, tmp_path):
+    """AC-05, AC-09, ADR 0020: B1 runs in replay against the fixed DEMO_TODAY every arm reads, never the system date;
+    a DEMO_TODAY in the environment changes neither the run date nor the development folder name."""
+    monkeypatch.setenv("DEMO_TODAY", "2026-06-03")
+    assert cli.run_date() == b1.TODAY == "2026-06-01"
+    monkeypatch.setattr(cli, "ROOT", tmp_path)
+    monkeypatch.setattr(cli, "generator", lambda split: None)
+    monkeypatch.setattr(b1, "load_split", lambda split: ROWS)
+    arms = [a for a in core.load_arms() if a["id"] == "b0_rules"]
+    monkeypatch.setattr(core, "load_arms", lambda: arms)
+    assert cli.main(["--split", "validation", "--provider", "fake"]) == 0
+    assert [p.name for p in (tmp_path / "eval/.runs/bench").iterdir()] == ["2026-06-01-validation-fake"]
+    data = json.loads((tmp_path / "eval/.runs/bench/2026-06-01-validation-fake/benchmark.json").read_text())["data"]
+    assert data["run_date"] == data["demo_today"] == "2026-06-01" and data["b1_model"] is None
+
+
+def write_splits(root) -> None:
+    """Synthetic promoted train and validation files; test.jsonl is a directory, so any open of it fails."""
+    d = root / "eval" / "classifier"
+    d.mkdir(parents=True)
+    for split, n in (("train", 8), ("validation", 4)):
+        (d / f"{split}.jsonl").write_text("".join(json.dumps(r) + "\n" for r in classifier_rows(split, n)),
+                                          encoding="utf-8")
+    (d / "test.jsonl").mkdir()
+
+
+def test_ac_01_dev_run_trains_b1_on_train_calibrates_on_validation_and_records_it(monkeypatch, tmp_path):
+    """AC-01, AC-05: `make bench-dev` scores the B1 TF-IDF + LR arm, trained as `make classifier` trains it (fit on
+    train, calibrated on validation, never test), saved in the run folder and recorded by path and sha256."""
+    write_splits(tmp_path)
+    monkeypatch.setattr(cli, "ROOT", tmp_path)
+    monkeypatch.setattr(cli, "generator", lambda split: None)
+    monkeypatch.setattr(b1, "load_split", lambda split: ROWS)
+    arms = [a for a in core.load_arms() if a["id"] in ("b0_rules", "b1_tfidf_lr")]
+    monkeypatch.setattr(core, "load_arms", lambda: arms)
+    from eval.classifier import evaluate as ev
+    seen, real_train = [], ev.train_b1
+    monkeypatch.setattr(ev, "train_b1", lambda *a: seen.append(a) or real_train(*a))
+    assert cli.main(["--split", "validation", "--provider", "fake"]) == 0
+    fit, _, cal, _ = seen[0]
+    assert len(seen) == 1 and set(fit) == {r["text"] for r in classifier_rows("train", 8) if r["intent"]}
+    assert set(cal) == {r["text"] for r in classifier_rows("validation", 4) if r["intent"]}
+    run = tmp_path / "eval/.runs/bench/2026-06-01-validation-fake"
+    data = json.loads((run / "benchmark.json").read_text())["data"]
+    rec = data["b1_model"]
+    assert rec["path"] == "eval/.runs/bench/2026-06-01-validation-fake/intent-b1-v1.joblib"
+    assert rec["sha256"] == hashlib.sha256((tmp_path / rec["path"]).read_bytes()).hexdigest()
+    assert "fit on train, calibrated on validation" in rec["source"]
+    arm = next(a for a in data["b1"]["arms"] if a["arm"] == "b1_tfidf_lr")
+    assert arm["status"] == "ok" and arm["version"] == f"b1-v1 sha256:{rec['sha256'][:12]}"
+    assert arm["macro_f1"]["es"] is not None
+
+
+def test_ac_06_dev_run_without_b1_training_data_records_b1_unavailable_and_goes_on(monkeypatch, tmp_path):
+    """AC-06: when B1 cannot be trained (no split files, no drafts) only that arm is unavailable, with the reason
+    in the arm and in `b1_model`; the other arms still run."""
+    monkeypatch.setattr(cli, "ROOT", tmp_path)
+    monkeypatch.setattr(cli, "generator", lambda split: None)
+    monkeypatch.setattr(b1, "load_split", lambda split: ROWS)
+    arms = [a for a in core.load_arms() if a["id"] in ("b0_rules", "b1_tfidf_lr")]
+    monkeypatch.setattr(core, "load_arms", lambda: arms)
+    assert cli.main(["--split", "validation", "--provider", "fake"]) == 0
+    data = json.loads((tmp_path / "eval/.runs/bench/2026-06-01-validation-fake/benchmark.json").read_text())["data"]
+    arms_out = {a["arm"]: a for a in data["b1"]["arms"]}
+    assert arms_out["b0_rules"]["status"] == "ok" and arms_out["b1_tfidf_lr"]["status"] == "unavailable"
+    assert arms_out["b1_tfidf_lr"]["unavailable_reason"].startswith("B1 could not be trained")
+    assert data["b1_model"]["sha256"] is None and data["b1_model"]["reason"].startswith("B1 could not be trained")
+    assert "pending spec 11" not in json.dumps(data)
 
 
 def test_ac_07_dev_run_with_no_measured_arm_refuses_to_choose(monkeypatch, tmp_path, capsys):
