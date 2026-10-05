@@ -1,8 +1,9 @@
-"""Spec 11 protocol tests (AC-01, AC-06), also covering the rule text of specs 15 (AC-07) and 17 (AC-06).
+"""Spec 11 protocol tests (AC-01, AC-04, AC-06), also covering the rule text of specs 15 (AC-07) and 17 (AC-06).
 
-Offline: reads eval/PROTOCOL.md, specs/11, specs/15 and (when present) eval/classifier. Once Diego fills the seal block, the
-hash checks become real evidence that the protocol and the split files were not edited afterwards.
+Offline: reads eval/PROTOCOL.md, specs/11, specs/15 and (when present) eval/classifier. Once Diego fills the seal
+block, the hash checks become real evidence that the protocol and the split files were not edited afterwards.
 """
+import datetime
 import hashlib
 import json
 import re
@@ -32,17 +33,18 @@ RESULT_GLOBS = (
     "apps/web/public/data/fraud_benchmark.json",
 )
 
-# Spec 15 §4.4 and §4.5 are read from specs/15 (see _spec15_block). The spec 17 copy stays embedded until PR #46 merges.
-# TODO(after #46 merges): read specs/17-fraud-model.md §4.4 with _spec15_block-style slicing and drop this copy.
-# Spec 17 §4.4 as on branch feat/17-screen (PR #46), 2026-10-04, with the "pending the lead" qualifiers of rules 1 and 2
-# replaced by the wording and tags of D-017b/c/d (decided 2026-10-04).
+# Spec 15 §4.4 and §4.5 are read from specs/15 (see _spec15_block). Spec 17 §4.4 stays embedded below until PR #66
+# (FEAT, stacked on #46) merges: on main it still carries the "pending the lead" qualifiers of rules 1 and 2.
+# TODO(after #66 merges): read specs/17-fraud-model.md from "### 4.4 Decision rule" up to its "Note on rule 1" with a
+# _spec15_block-style slice and assert it in PROTOCOL §3.3, then drop SPEC17_RULE. On #66 at ef51b8f that slice (rules
+# 1-5 and the D-022 line) equals PROTOCOL §3.3 after _norm; only the line wraps differ.
 SPEC17_RULE = """
 1. **Hard limits:** at the bank's precision levels (0.80 and 0.95), recall is at least the bank's; no country or segment
    has a recall below 80% of the overall recall `[assumption]`; scoring p95 ≤ 50 ms and model size ≤ 200 MB
-   `[assumption]`. The overall, per-country and per-segment recall of this floor are measured at the 1% alert budget (the
-   top 1% of the window by score) `[assumption]` (D-017b). The floor applies only to country and segment slices with at
-   least 20 frauds in the window; smaller slices are reported with their fraud count and not enforced `[assumption]`
-   (D-017c).
+   `[assumption]`. The overall, per-country and per-segment recall of this floor are measured at the 1% alert budget
+   (the top 1% of the window by score) `[assumption]` (D-017b). The floor applies only to country and segment slices
+   with at least 20 frauds in the window; smaller slices are reported with their fraud count and not enforced
+   `[assumption]` (D-017c).
 2. **Value:** the arm beats S-bank — PR-AUC higher with the 95% bootstrap CI of the difference above zero — **or** it
    catches at least 30% of the frauds with no bank score at an alert budget of 1% of those transactions (AC-04)
    `[assumption]` (D-017d).
@@ -150,15 +152,21 @@ def test_ac_06_split_by_author_60_15_25_and_test_minimums():
         assert f"`{intent}`" in text, intent
 
 
-def test_ac_06_split_files_by_author_when_spec09_delivers():
-    files = _split_files()
-    if not files:
-        pytest.skip("eval/classifier not delivered yet (spec 09); layout is an [assumption]")
+def _split_rows(files) -> dict:
+    """Rows per split, by the file-name prefix of the spec 09 layout ([assumption] until M02)."""
     rows = {s: [] for s in SPLITS}
     for f in files:
         split = next((s for s in SPLITS if f.stem.startswith(s)), None)
         assert split, f"not a train/validation/test file: {f.name}"
         rows[split] += [json.loads(x) for x in f.read_text().splitlines() if x.strip()]
+    return rows
+
+
+def test_ac_06_split_files_by_author_when_spec09_delivers():
+    files = _split_files()
+    if not files:
+        pytest.skip("eval/classifier not delivered yet (spec 09); layout is an [assumption]")
+    rows = _split_rows(files)
     test = [r for r in rows["test"] if r.get("label") != "injection"]  # injection rows count only for AC-04 (D-022)
     assert test, "empty test split"
     authors = {s: {r["author"] for r in v} for s, v in rows.items()}
@@ -174,13 +182,23 @@ def test_ac_06_split_files_by_author_when_spec09_delivers():
             assert sum(r["intent"] == intent for r in sub) >= 20, (lang, intent)
 
 
+def test_ac_04_injection_rows_reach_the_test_split_when_spec09_delivers():
+    """AC-04 scores the injection detector on the test split, so injection rows must be there, not only in train."""
+    files = _split_files()
+    if not files:
+        pytest.skip("TODO(spec 09): activates when eval/classifier is delivered; layout is an [assumption]")
+    rows = _split_rows(files)
+    assert any(r.get("label") == "injection" for r in rows["test"]), "no `label: injection` row in the test split"
+
+
 def test_spec15_ac_07_and_spec17_ac_06_rules_present():
     protocol = _norm(_text())
     rule15 = _spec15_block("### 4.4 Lean rule", "### 4.5").split("\n", 1)[1]  # drop the heading's tail
     assert _norm(rule15) in protocol, "spec 15 §4.4 lean rule not copied as one block"
     assert _norm(SPEC17_RULE) in protocol
     assert _norm(SPEC15_GATE_RULE) in protocol
-    rows = [x for x in _spec15_block("### 4.5", "- **Prices:**").splitlines() if x.startswith("| ")][1:]  # skip the header; the |--- line does not start with "| "
+    # skip the header; the |--- line does not start with "| "
+    rows = [x for x in _spec15_block("### 4.5", "- **Prices:**").splitlines() if x.startswith("| ")][1:]
     assert len(rows) == 9, rows
     for criterion in rows:
         assert _norm(criterion) in protocol, criterion
@@ -191,10 +209,22 @@ def test_spec15_ac_07_and_spec17_ac_06_rules_present():
     assert "never used to choose" in protocol
     assert "best supervised arm + the bank's score" in protocol
     assert "scoring p95 per transaction" in protocol
-    # D-011 and D-016
-    assert protocol.count("temperature 0") <= 1
+    # D-011 and D-016: no blanket temperature 0 in the protocol, and spec 15 §4.1 and §8 say the same
+    assert "temperature 0" not in protocol.lower(), "D-016: no blanket temperature 0 for every arm"
     assert "recorded per arm (`tool_choice_mode`) and reused in B1" in protocol
-    assert "0 where the model accepts it, otherwise the provider default; the value used is recorded per arm" in protocol
+    for needle in (
+        "**Temperature (D-016, decided by the lead on 2026-10-04):** 0 where the model accepts it, otherwise the "
+        "provider default; the value used is recorded per arm",
+        "**Structured output (D-011, decided by the lead on 2026-10-04):** Converse tool use",
+    ):
+        assert needle in protocol, needle
+    spec15_41 = _norm(_spec15_block("### 4.1", "### 4.2"))
+    assert "Temperature is 0 where the model accepts it, otherwise the provider default" in spec15_41
+    assert "temperature 0" not in spec15_41.lower(), "D-016: spec 15 §4.1 still says temperature 0"
+    assert _norm(
+        "- **D-016 — temperature (lead, 2026-10-04):** 0 where the model accepts it, otherwise the provider default; "
+        "the value used is recorded per arm (§4.1, `eval/PROTOCOL.md` §2.1)."
+    ) in _norm(_spec15_block("## 8.", "## 9.")), "spec 15 §8 D-016 bullet missing or changed"
     assert "cost and efficiency on the same machine" in protocol
 
 
@@ -211,30 +241,39 @@ def test_ac_01_every_assumption_threshold_keeps_its_label():
         # D-017 (spec 17 §4.3-4.4 on PR #46)
         "no supervised arm exceeds twice the validation base rate, the balanced `HistGradientBoostingClassifier`",
         "threshold is a heuristic `[assumption]`",
-        "The overall, per-country and per-segment recall of this floor are measured at the 1% alert budget (the top 1% of "
-        "the window by score) `[assumption]` (D-017b)",
-        "The floor applies only to country and segment slices with at least 20 frauds in the window; smaller slices are "
-        "reported with their fraud count and not enforced `[assumption]` (D-017c)",
+        "The overall, per-country and per-segment recall of this floor are measured at the 1% alert budget (the top "
+        "1% of the window by score) `[assumption]` (D-017b)",
+        "The floor applies only to country and segment slices with at least 20 frauds in the window; smaller slices "
+        "are reported with their fraud count and not enforced `[assumption]` (D-017c)",
         "at an alert budget of 1% of those transactions (AC-04) `[assumption]` (D-017d)",
         "within 3 points of 60/15/25 `[assumption]`",
         "`label: injection`",
         "spec 11 does not say",
         "The injection sentences live **inside the split files**",
         "top-level files whose names start with `train`, `validation` and `test`",
+        "each row with `author`, `language` and `intent`",
         "the best supervised arm by **validation** PR-AUC",
-        "`eval/heldout.sha256` holds exactly one sha256 (64 lowercase hex characters); SEALED requires 64-hex values in "
-        "both reference fields",
-        "Converse tool use with the schema, forced with `toolChoice`. Each LLM arm walks the ladder `tool` → `any` → "
-        "`auto` and steps down only when Bedrock rejects the mode; the first accepted mode decides",
+        "**Stacked base (D-017a, decided by the lead on 2026-10-04):**",
+        "`eval/heldout.sha256` holds exactly one sha256 (64 lowercase hex characters); SEALED requires 64-hex values "
+        "in both reference fields of (c) and the test fails otherwise",
+        "the first must equal the hash in `eval/heldout.sha256` when that file exists",
+        "Diego confirms at M02 that the spec 09 layout matches (b) below",
+        "the held-out reference of (c) needs the spec 10 held-out, so M02 waits for both",
+        "Converse tool use with the schema, forced with `toolChoice`. Each LLM arm walks the ladder `tool` → `any` "
+        "→ `auto` and steps down only when Bedrock rejects the mode; the first accepted mode decides",
         "a reply with no tool call, or whose tool input fails the schema, is scored as a wrong prediction for that "
         "message and stays in the denominator; the count is reported per arm `[assumption]` (D-022)",
-        "Rows with `label: injection` follow the author rule, the shares and the manifest hash, and are scored only by "
-        "the injection detector (AC-04); the test minimums and the intent metrics count only the other rows "
+        "Rows with `label: injection` follow the author rule, the shares and the manifest hash, and are scored only "
+        "by the injection detector (AC-04); the test minimums and the intent metrics count only the other rows "
         "`[assumption]` (D-022)",
         "Rules 1-2 are judged on all products; the card subset is reported with its CI and does not gate "
         "`[assumption]` (D-022); country is `customer_country`",
-        "Decided by the lead on 2026-10-04 and not yet in the specs:** the 20-fraud slice floor (D-017c, spec 17) and the "
-        "3-point share tolerance (D-017e, spec 11)",
+        # intro pointer for decisions a spec may not record yet (stays true once #66 copies them into spec 17)
+        "**Decided by the lead and binding here whether or not the cited spec records them yet:** the 20-fraud "
+        "slice floor (D-017c, spec 17) and the 3-point share tolerance (D-017e, spec 11), on 2026-10-04; the three "
+        "D-022 rules, on 2026-10-05: a missing tool call counts as a wrong B1 prediction (spec 15), injection rows "
+        "sit outside the test minimums and the intent metrics (spec 11), and rules 1-2 are judged on all products "
+        "with country as `customer_country` (spec 17).",
         "(D-017e, decided by the lead on 2026-10-04)",
     ):
         assert needle in protocol, needle
@@ -274,7 +313,10 @@ def test_ac_01_every_result_path_of_the_seal_procedure_blocks_unsealed(tmp_path,
 def _check_sealed_references(block: str, heldout: Path) -> None:
     """SEALED needs a name and date, 64-hex references, and one valid hash in eval/heldout.sha256 that matches."""
     for name in ("Sealed by", "Sealed on"):
-        assert _field(block, name) != "pending", f"sealed but {name} is pending"
+        assert _field(block, name).lower() != "pending", f"sealed but {name} is pending"
+    sealed_on = _field(block, "Sealed on")
+    assert re.fullmatch(r"\d{4}-\d{2}-\d{2}", sealed_on), "Sealed on must be a YYYY-MM-DD date"
+    datetime.date.fromisoformat(sealed_on)  # raises on an impossible date such as 2026-13-01
     for name in (HELDOUT_FIELD, FRAUD_FIELD):
         assert HEX64.fullmatch(_field(block, name)), f"sealed but {name} is not 64 lowercase hex"
     if heldout.exists():
@@ -286,8 +328,8 @@ def _check_sealed_references(block: str, heldout: Path) -> None:
 H1, H2 = "a" * 64, "b" * 64
 
 
-def _sealed_block(held=H1, fraud=H2):
-    return (f"- {HELDOUT_FIELD}: {held}\n- {FRAUD_FIELD}: {fraud}\n- Sealed by: Diego\n- Sealed on: 2026-10-05\n")
+def _sealed_block(held=H1, fraud=H2, by="Diego", on="2026-10-05"):
+    return f"- {HELDOUT_FIELD}: {held}\n- {FRAUD_FIELD}: {fraud}\n- Sealed by: {by}\n- Sealed on: {on}\n"
 
 
 @pytest.mark.parametrize("held,fraud,file_text", [
@@ -300,6 +342,15 @@ def test_ac_01_sealed_rejects_bad_reference_states(tmp_path, held, fraud, file_t
         heldout.write_text(file_text)
     with pytest.raises(AssertionError):
         _check_sealed_references(_sealed_block(held, fraud), heldout)
+
+
+@pytest.mark.parametrize("by,on", [
+    ("Pending", "2026-10-05"), ("PENDING", "2026-10-05"), ("Diego", "Pending"), ("Diego", "TBD"),
+    ("Diego", "2026-10-5"), ("Diego", "05/10/2026"), ("Diego", "2026-13-01"),
+])
+def test_ac_01_sealed_rejects_bad_name_or_date(tmp_path, by, on):
+    with pytest.raises((AssertionError, ValueError)):
+        _check_sealed_references(_sealed_block(by=by, on=on), tmp_path / "missing.sha256")
 
 
 def test_ac_01_sealed_accepts_valid_references(tmp_path):

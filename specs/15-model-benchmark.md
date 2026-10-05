@@ -78,9 +78,9 @@ Ohio), on-demand standard tier, read 2026-10-04, in USD per 1M tokens `[external
 | TypeSafe | Jev `jev-1.13.0` (typed answers, B1 only; in B2 only as the classifier inside S1) | 0.042 / free (gateway listing, not TypeSafe) |
 
 Models offered only through inference profiles in `us-east-2` (Nova Micro, Nova Pro, Nova 2 Lite, Llama 4, Claude) are
-called with their `us.` profile id. All LLM arms get the same prompt and the same structured-output schema. Temperature is 0 where the model accepts it,
-otherwise the provider default, and the value used is recorded per arm (D-016); with `tool_choice_mode` (D-011, below),
-these are the only request settings that may differ between arms.
+called with their `us.` profile id. All LLM arms get the same prompt and the same structured-output schema. Temperature
+is 0 where the model accepts it, otherwise the provider default, and the value used is recorded per arm (D-016); with
+`tool_choice_mode` (D-011, below), these are the only request settings that may differ between arms.
 
 **Structured-output method (D-011):** Converse tool use (`toolConfig` with the intent schema), `maxTokens` of at least
 512, the same request in the smoke test and B1. `toolChoice` `tool` is documented only for Anthropic Claude 3+ and Amazon
