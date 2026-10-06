@@ -42,7 +42,7 @@ export default function LoginPage() {
           <CardTitle>Sign in</CardTitle>
           <CardDescription>
             {api.mode === "mock"
-              ? "Mock accounts [simulated]: freddy, gianmarco, diego, judge, with any password. Live mode signs in with Cognito."
+              ? "Local test mode. Accounts: freddy, gianmarco, diego, judge, with any password."
               : "Use your analyst account (Amazon Cognito). Every action you take is recorded with your user."}
           </CardDescription>
         </CardHeader>

@@ -74,7 +74,7 @@ export function JuryGuide() {
           <Link href="/chat" className="underline underline-offset-2 hover:text-foreground">
             the chat
           </Link>
-          , pick a demo customer and enter the one-time code shown on screen <span className="font-mono text-xs">[simulated]</span>. Each
+          , pick a demo customer and enter the one-time code shown on screen. Each
           visit starts clean and sees only its own cases. Notifications appear in the case page&apos;s log; Telegram and e-mail are off in demo
           sessions.
         </p>
