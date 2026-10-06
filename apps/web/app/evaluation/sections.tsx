@@ -3,9 +3,9 @@
 // /evaluation content for benchmark.json, classifier.json and fraud_benchmark.json (spec 12 §7.3, parts 5 to 7).
 // Nothing is computed here: every number is the exporter's. Every rate shows its numerator, denominator and interval on
 // hover, on keyboard focus and in the table view (AC-06, AC-07).
-import { useState, type ReactNode } from "react";
+import { useState, type CSSProperties, type ReactNode } from "react";
 import { FOCUS, Swatch, TableView, TipBody, useTip } from "@/app/analytics/charts";
-import { Explain, IntervalBar } from "./explain";
+import { DevChip, Explain, IntervalBar } from "./explain";
 import {
   costQualityPoints,
   dollars,
@@ -30,22 +30,24 @@ import {
 const PALETTE = "[--arm-1:#7c3aed] dark:[--arm-1:#8b5cf6] [--arm-2:#0d9488] [--arm-3:#4c1d95] dark:[--arm-3:#c4b5fd]";
 const yes = (v: boolean | null) => (v === null ? "—" : v ? "yes" : "no");
 
-function Notice({ protocol }: { protocol: Protocol }) {
-  const text = protocolNotice(protocol);
-  return text ? (
-    <p role="note" data-slot="development-notice" className="rounded-lg border border-border bg-muted px-4 py-3 text-sm font-medium text-foreground">
-      {text}
-    </p>
-  ) : null;
-}
+// A wide table shows a shadow at the edge that has more columns, only while there is more to scroll (AC-09).
+const EDGE = "color-mix(in oklab, var(--foreground) 30%, transparent)";
+const SCROLL_SHADOW: CSSProperties = {
+  background: [
+    "linear-gradient(to right, var(--card) 40%, transparent) left / 2rem 100% no-repeat local",
+    "linear-gradient(to left, var(--card) 40%, transparent) right / 2rem 100% no-repeat local",
+    `linear-gradient(to right, ${EDGE}, transparent) left / 1rem 100% no-repeat scroll`,
+    `linear-gradient(to left, ${EDGE}, transparent) right / 1rem 100% no-repeat scroll`,
+  ].join(", "),
+};
 
 function Section({ title, hint, detail, file, data, children }: { title: string; hint: string; detail: keyof typeof DETAILS; file: Insight<{ label: string; protocol: Protocol }>; data: string; children: ReactNode }) {
   return (
     <section aria-label={title} className={`space-y-4 ${PALETTE}`} data-file={data}>
-      <Notice protocol={file.data.protocol} />
       <div className="rounded-lg border bg-card p-5 text-card-foreground">
         <h2 className="text-base font-semibold">
           {title} <span className="font-mono text-xs font-normal text-muted-foreground">{file.data.label}</span>
+          <DevChip show={protocolNotice(file.data.protocol) !== null} />
         </h2>
         <Explain detail={detail} className="mt-0.5">{hint}</Explain>
         {children}
@@ -57,16 +59,16 @@ function Section({ title, hint, detail, file, data, children }: { title: string;
   );
 }
 
-function Table({ head, rows }: { head: string[]; rows: string[][] }) {
+function Table({ head, rows, wrap = false }: { head: string[]; rows: string[][]; wrap?: boolean }) {
   return (
-    <div className="mt-4 overflow-x-auto">
+    <div className={`mt-4 overflow-x-auto rounded-sm ${FOCUS}`} style={SCROLL_SHADOW} tabIndex={0} role="region" aria-label={`Table: ${head.join(", ")}`}>
       <table className="w-full text-left text-xs tabular-nums">
         <thead className="text-muted-foreground">
           <tr>{head.map((h) => <th key={h} className="border-b py-1.5 pr-4 font-normal">{h}</th>)}</tr>
         </thead>
         <tbody>
           {rows.map((row, i) => (
-            <tr key={i}>{row.map((c, j) => <td key={j} className="border-b py-1.5 pr-4 whitespace-nowrap">{c}</td>)}</tr>
+            <tr key={i}>{row.map((c, j) => <td key={j} className={`border-b py-1.5 pr-4 ${wrap && j === row.length - 1 ? "" : "whitespace-nowrap"}`}>{c}</td>)}</tr>
           ))}
         </tbody>
       </table>
@@ -197,8 +199,11 @@ export function ClassifierSection({ file }: { file: Insight<ClassifierData> }) {
       a.arm + (a.arm === data.chosen_arm ? " (chosen)" : "") + (generatorFlag(a) ? " *" : ""), lang.toUpperCase(), scoreText(m.macro_f1, m.macro_f1_ci),
       rateText(m.dispute_recall), rateText(m.dispute_detected_recall), rateText(m.human_request_recall), rateText(m.slot_accuracy),
       rateText(m.coverage_at_tau), rateText(m.precision_at_tau), score(m.ece),
-      Object.entries(m.per_class_f1).map(([k, v]) => `${k.replace(/_/g, " ")} ${score(v)}`).join(" · "),
     ]),
+  );
+  // F1 per intent gets its own table, so the main one keeps its columns readable at 1280 px.
+  const perIntent = data.arms.flatMap((a) =>
+    Object.entries(a.by_language).map(([lang, m]) => [a.arm, lang.toUpperCase(), Object.entries(m.per_class_f1).map(([k, v]) => `${k.replace(/_/g, " ")} ${score(v)}`).join(" · ")]),
   );
   const { bind, node } = useTip();
   const languages = [...new Set(data.arms.flatMap((a) => Object.keys(a.by_language)))];
@@ -223,8 +228,9 @@ export function ClassifierSection({ file }: { file: Insight<ClassifierData> }) {
         </div>
       ))}
       <Table
-        head={["Arm", "Lang", "Macro-F1", "Dispute recall", "Dispute flag recall", "Person-request recall", "Slot accuracy", "Coverage at tau", "Precision at tau", "ECE", "F1 per intent"]}
+        head={["Arm", "Lang", "Macro-F1", "Dispute recall", "Dispute flag recall", "Person-request recall", "Slot accuracy", "Coverage at tau", "Precision at tau", "ECE"]}
         rows={rows} />
+      <Table head={["Arm", "Lang", "F1 per intent"]} rows={perIntent} wrap />
       <Table head={["Arm", "Version", "p95", "Per 1,000", "Meets floors", "McNemar p vs best", "Person requests answered out of scope", "Flag"]}
         rows={data.arms.map((a) => [a.arm, a.version, milliseconds(a.p95_ms), dollars(a.cost_per_1000_usd), yes(a.meets_floors), score(a.mcnemar_p_vs_best), String(a.human_request_answered_out_of_scope ?? "—"), generatorFlag(a) ?? "—"])} />
       <h3 className="mt-5 text-sm font-semibold">Prompt-injection detectors</h3>
