@@ -7,28 +7,31 @@
 import { CircleCheck, CircleMinus, CircleX, Sparkles } from "lucide-react";
 import { useState } from "react";
 import { Task, TaskContent, TaskTrigger } from "@/components/ai-elements/task";
+import { useLocale, useT } from "@/components/i18n-provider";
 import { ErrorState, LoadingState } from "@/components/states";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { type AuditResult, type SecondOpinion, consoleApi } from "@/lib/console-api";
 import {
-  AUDIT_STATE_LABELS,
-  AUDIT_STATE_SHORT,
   auditCheckLabel,
   auditState,
+  auditStateLabel,
+  auditStateShort,
   noOpinionReasonLabel,
   outcomeLabel,
   plain,
   verdictLabel,
 } from "@/lib/console-view";
 import { formatDateTime } from "@/lib/handoff-labels";
+import type { Translate } from "@/lib/i18n";
 import { type Query, useQuery } from "@/lib/use-query";
 import { ApiError } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
-export const AUDITOR_TITLE = "The outcome re-derives from the rules";
+// The panel titles are UI words (messages/console.ts `oversight`, spec 16 AC-06): `console.oversight.auditorTitle`,
+// `console.oversight.advisory` and `console.oversight.noOpinion`. ADVISORY_LABEL is the label the api and the mock
+// attach to an opinion; it is compared, never shown twice.
 export const ADVISORY_LABEL = "AI second opinion — advisory";
-export const NO_OPINION = "No second opinion";
 
 const STATE_ICON = {
   passed: { icon: CircleCheck, className: "text-brand-teal" },
@@ -37,30 +40,36 @@ const STATE_ICON = {
 };
 
 /** "7 checks · 6 passed · 1 not applicable" */
-function checksTitle(a: AuditResult): string {
+function checksTitle(a: AuditResult, t: Translate): string {
   const n = { passed: 0, finding: 0, na: 0 };
   for (const c of a.checks) n[auditState(c)] += 1;
-  const parts = [`${a.checks.length} checks`, `${n.passed} passed`];
-  if (n.finding) parts.push(`${n.finding} with a finding`);
-  if (n.na) parts.push(`${n.na} not applicable`);
+  const total = a.checks.length;
+  const parts = [
+    t(total === 1 ? "console.oversight.checks.one" : "console.oversight.checks.other", { n: total }),
+    t("console.oversight.passed", { n: n.passed }),
+  ];
+  if (n.finding) parts.push(t("console.oversight.finding", { n: n.finding }));
+  if (n.na) parts.push(t("console.oversight.na", { n: n.na }));
   return parts.join(" · ");
 }
 
 export function AuditChecklist({ query }: { query: Query<AuditResult> }) {
+  const t = useT();
+  const { locale } = useLocale();
   return (
-    <section aria-label={AUDITOR_TITLE} className="space-y-2 rounded-xl border bg-card p-3" data-slot="auditor">
+    <section aria-label={t("console.oversight.auditorTitle")} className="space-y-2 rounded-xl border bg-card p-3" data-slot="auditor">
       <h3 className="text-sm font-medium">
-        {AUDITOR_TITLE}
+        {t("console.oversight.auditorTitle")}
       </h3>
-      <p className="text-xs text-muted-foreground">A deterministic check, no model: it re-runs the rules on what the case recorded.</p>
+      <p className="text-xs text-muted-foreground">{t("console.oversight.auditorNote")}</p>
       {query.status === "loading" ? (
-        <LoadingState label="Re-deriving the outcome…" className="p-3" />
+        <LoadingState label={t("console.oversight.rederiving")} className="p-3" />
       ) : query.status === "error" ? (
-        <ErrorState title="Auditor not available" message={query.error.message} className="p-3" />
+        <ErrorState title={t("console.oversight.auditorUnavailable")} message={query.error.message} className="p-3" />
       ) : (
         <>
           <p className="text-sm">
-            Re-derived outcome: <b className="font-medium">{outcomeLabel(query.data.rederived_outcome)}</b>{" "}
+            {t("console.oversight.rederived")} <b className="font-medium">{outcomeLabel(query.data.rederived_outcome, locale)}</b>{" "}
             <span
               data-slot="audit-match"
               data-match={query.data.matches}
@@ -70,14 +79,14 @@ export function AuditChecklist({ query }: { query: Query<AuditResult> }) {
               )}
             >
               {query.data.matches ? <CircleCheck aria-hidden className="size-3.5" /> : <CircleX aria-hidden className="size-3.5" />}
-              {query.data.matches ? "Matches the case" : "Does not match the case"}
+              {query.data.matches ? t("console.oversight.matches") : t("console.oversight.notMatches")}
             </span>
           </p>
           {/* AI Elements `task`: the checks fold, open by default, like the chat's tool steps. */}
           <Task>
-            <TaskTrigger title={checksTitle(query.data)} />
+            <TaskTrigger title={checksTitle(query.data, t)} />
             <TaskContent>
-              <ul className="space-y-1.5" aria-label="Auditor checks">
+              <ul className="space-y-1.5" aria-label={t("console.oversight.checksAria")}>
                 {query.data.checks.map((c) => {
                   const s = auditState(c);
                   const I = STATE_ICON[s];
@@ -86,13 +95,13 @@ export function AuditChecklist({ query }: { query: Query<AuditResult> }) {
                       <I.icon aria-hidden className={cn("mt-0.5 size-4 shrink-0", I.className)} />
                       <span className="min-w-0">
                         <span className="font-medium">
-                          <span className="font-mono text-xs text-muted-foreground">{c.id}</span> {auditCheckLabel(c)}
+                          <span className="font-mono text-xs text-muted-foreground">{c.id}</span> {auditCheckLabel(c, locale)}
                         </span>
-                        <span className="sr-only"> — {AUDIT_STATE_LABELS[s]}</span>
+                        <span className="sr-only"> — {auditStateLabel(s, locale)}</span>
                         {c.detail ? <span className="block text-xs text-muted-foreground">{plain(c.detail)}</span> : null}
                       </span>
                       <span className="ml-auto shrink-0 text-xs text-muted-foreground" aria-hidden>
-                        {AUDIT_STATE_SHORT[s]}
+                        {auditStateShort(s, locale)}
                       </span>
                     </li>
                   );
@@ -113,6 +122,8 @@ type Asked =
   | { status: "error"; message: string };
 
 export function SecondOpinionPanel({ caseId }: { caseId: string }) {
+  const { locale } = useLocale();
+  const t = useT();
   // An opinion already issued for this case (the api runs the judge when a case enters review).
   const existing = useQuery(() => consoleApi.getSecondOpinion(caseId), [caseId]);
   const [asked, setAsked] = useState<{ caseId: string; state: Asked }>({ caseId, state: { status: "idle" } });
@@ -124,36 +135,36 @@ export function SecondOpinionPanel({ caseId }: { caseId: string }) {
       const { opinion, reason } = await consoleApi.requestSecondOpinion(caseId);
       setAsked({ caseId, state: { status: "done", opinion, reason } });
     } catch (err) {
-      setAsked({ caseId, state: { status: "error", message: err instanceof ApiError ? err.message : "Something went wrong." } });
+      setAsked({ caseId, state: { status: "error", message: err instanceof ApiError ? err.message : t("console.oversight.somethingWrong") } });
     }
   }
 
   const opinion = state.status === "done" ? state.opinion : existing.status === "ok" ? existing.data : null;
   return (
-    <section aria-label={ADVISORY_LABEL} className="space-y-2 rounded-xl border border-dashed p-3" data-slot="second-opinion">
+    <section aria-label={t("console.oversight.advisory")} className="space-y-2 rounded-xl border border-dashed p-3" data-slot="second-opinion">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h3 className="flex items-center gap-1.5 text-sm font-medium">
           <Sparkles aria-hidden className="size-4 text-brand-violet" />
-          {ADVISORY_LABEL}
+          {t("console.oversight.advisory")}
         </h3>
         <Button size="sm" variant="outline" onClick={ask} disabled={state.status === "asking"}>
-          {opinion ? "Ask again" : "Ask for a second opinion"}
+          {opinion ? t("console.oversight.askAgain") : t("console.oversight.ask")}
         </Button>
       </div>
-      <p className="text-xs text-muted-foreground">
-        A model reads the handoff card and its evidence. It cannot change the case or reach the customer: you decide.
-      </p>
+      <p className="text-xs text-muted-foreground">{t("console.oversight.modelNote")}</p>
       <div aria-live="polite">
         {state.status === "asking" ? (
-          <LoadingState label="Asking the judge model…" className="p-3" />
+          <LoadingState label={t("console.oversight.asking")} className="p-3" />
         ) : state.status === "error" ? (
-          <ErrorState title={NO_OPINION} message={state.message} className="p-3" />
+          <ErrorState title={t("console.oversight.noOpinion")} message={state.message} className="p-3" />
         ) : opinion ? (
           <OpinionBody o={opinion} />
         ) : state.status === "done" ? (
           <div className="space-y-0.5 text-sm" data-slot="no-opinion" data-reason={state.reason ?? "error"}>
-            <p className="font-medium">{NO_OPINION}</p>
-            <p className="text-muted-foreground">{noOpinionReasonLabel(state.reason)}. Nothing else changed.</p>
+            <p className="font-medium">{t("console.oversight.noOpinion")}</p>
+            <p className="text-muted-foreground">
+              {noOpinionReasonLabel(state.reason, locale)}. {t("console.oversight.noOpinionDetail")}
+            </p>
           </div>
         ) : null}
       </div>
@@ -168,9 +179,10 @@ const VERDICT_STYLE: Record<string, string> = {
 };
 
 function Evidence({ ids }: { ids: string[] }) {
+  const t = useT();
   if (!ids.length) return null;
   return (
-    <span className="mt-0.5 flex flex-wrap gap-1" aria-label="Evidence">
+    <span className="mt-0.5 flex flex-wrap gap-1" aria-label={t("console.oversight.evidence")}>
       {ids.map((id) => (
         <Badge key={id} variant="outline" className="rounded-md font-mono text-[0.7rem] font-normal text-muted-foreground">
           {id}
@@ -181,10 +193,12 @@ function Evidence({ ids }: { ids: string[] }) {
 }
 
 function OpinionBody({ o }: { o: SecondOpinion }) {
+  const t = useT();
+  const { locale } = useLocale();
   return (
     <div className="space-y-2 text-sm" data-verdict={o.verdict}>
       <p>
-        <Badge className={cn(VERDICT_STYLE[o.verdict] ?? "bg-muted text-muted-foreground")}>{verdictLabel(o.verdict)}</Badge>
+        <Badge className={cn(VERDICT_STYLE[o.verdict] ?? "bg-muted text-muted-foreground")}>{verdictLabel(o.verdict, locale)}</Badge>
       </p>
       {o.reasons.length ? (
         <ol className="list-decimal space-y-1.5 pl-5">
@@ -198,7 +212,7 @@ function OpinionBody({ o }: { o: SecondOpinion }) {
       ) : null}
       {o.questions?.length ? (
         <div>
-          <p className="text-xs font-medium text-muted-foreground">Questions for you</p>
+          <p className="text-xs font-medium text-muted-foreground">{t("console.oversight.questions")}</p>
           <ul className="list-disc space-y-1 pl-5">
             {o.questions.map((q, i) => (
               <li key={i}>
@@ -211,7 +225,7 @@ function OpinionBody({ o }: { o: SecondOpinion }) {
       ) : null}
       <p className="text-xs text-muted-foreground">
         {o.label && o.label !== ADVISORY_LABEL ? `${plain(o.label)} · ` : ""}
-        {plain(o.model)} · {formatDateTime(o.created_at)}
+        {plain(o.model)} · {formatDateTime(locale, o.created_at)}
       </p>
     </div>
   );

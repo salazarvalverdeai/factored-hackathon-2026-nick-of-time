@@ -12,7 +12,7 @@ from nick_of_time.contracts import ProgressItem, TurnResult
 from nick_of_time.events import ToolEvent
 from nick_of_time.nlu.rules import detect_language
 from tests.test_spec04_decide import server
-from tests.test_spec04_graph import Chat
+from tests.test_spec04_graph import Chat, fake_budget
 
 EV_0001_PT = "Não reconheço uma cobrança de 1250 USD na TIENDA X"     # MX debit, score 72 (high): block + case
 STATUS_ES = "¿Cómo va mi caso?"
@@ -27,7 +27,8 @@ def turn(chat: Chat, text: str | None, language: str | None = "es", action=None)
     async def go():
         return [(mode, chunk) async for mode, chunk in chat.graph.astream(payload, chat.config,
                                                                         stream_mode=["custom", "values"])]
-    chunks = asyncio.run(go())
+    with fake_budget():
+        chunks = asyncio.run(go())
     custom = [c for m, c in chunks if m == "custom"]
     progress = [ProgressItem.model_validate(c) for c in custom if "kind" not in c]
     tools = [ToolEvent.model_validate(c) for c in custom if c.get("kind") == "tool"]

@@ -1,18 +1,21 @@
-import { DEADLINES, FCR, POLICIES, PROBLEM_DOC, RESOLUTION, STATS } from "@/lib/landing";
+import { getT } from "@/lib/i18n-server";
+import { DEADLINES, FCR, POLICIES, PROBLEM_DOC, RESOLUTION, STATS, deadlineCountry } from "@/lib/landing";
 import { LabelTag, SourceLinks, StatCard } from "./figure";
 
 /** "The problem in numbers": the figures of docs/problem_in_numbers.md, each with its label and its linked source. */
-export function ProblemNumbers() {
+export async function ProblemNumbers() {
+  const { t } = await getT();
+  const [leadBefore, leadAfter] = t("landing.problem.lead").split("{label}");
   return (
     <section aria-labelledby="problem-title" className="space-y-6">
       <div className="max-w-2xl space-y-2">
         <h2 id="problem-title" className="text-2xl font-semibold tracking-tight">
-          The problem in numbers
+          {t("landing.problem.title")}
         </h2>
         <p className="text-muted-foreground">
-          Unrecognized and wrongful card charges, from the bank&apos;s synthetic dataset. These numbers describe the problem; none of
-          them measures this system. Its results are on the evaluation page, labeled <span className="font-mono text-xs">[simulated]</span>.
-          All figures and their queries:{" "}
+          {leadBefore}
+          <span className="font-mono text-xs">[simulated]</span>
+          {leadAfter}{" "}
           <a href={PROBLEM_DOC.href} className="underline underline-offset-2 hover:text-foreground" target="_blank" rel="noreferrer">
             {PROBLEM_DOC.label}
           </a>
@@ -20,52 +23,49 @@ export function ProblemNumbers() {
         </p>
       </div>
 
-      <StatCard stat={FCR} large />
+      <StatCard stat={FCR} t={t} large />
 
       <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {STATS.map((stat) => (
           <li key={stat.id}>
-            <StatCard stat={stat} />
+            <StatCard stat={stat} t={t} />
           </li>
         ))}
         <li>
-          <StatCard stat={RESOLUTION} />
+          <StatCard stat={RESOLUTION} t={t} />
         </li>
       </ul>
 
       <div className="space-y-3">
         <div className="flex flex-wrap items-center gap-2">
-          <h3 className="text-lg font-semibold tracking-tight">The only workflow with a legal clock</h3>
+          <h3 className="text-lg font-semibold tracking-tight">{t("landing.problem.clockTitle")}</h3>
           <LabelTag label="external" />
         </div>
-        <p className="max-w-2xl text-sm text-muted-foreground">
-          The system computes the deadline per country and product from the policy file and puts it on the customer&apos;s receipt and on the
-          analyst&apos;s card. For any other country the case still opens and a person decides; no deadline is invented.
-        </p>
+        <p className="max-w-2xl text-sm text-muted-foreground">{t("landing.problem.clockLead")}</p>
         <div className="overflow-hidden rounded-xl border border-l-4 border-l-brand-amber bg-card">
           <table className="w-full text-left text-sm">
-            <caption className="sr-only">Legal deadlines for a disputed card charge, by country</caption>
+            <caption className="sr-only">{t("landing.problem.caption")}</caption>
             <thead className="border-b text-xs text-muted-foreground">
               <tr>
                 <th scope="col" className="px-4 py-2 font-medium">
-                  Country
+                  {t("landing.problem.country")}
                 </th>
                 <th scope="col" className="px-4 py-2 font-medium">
-                  Obligation
+                  {t("landing.problem.obligation")}
                 </th>
                 <th scope="col" className="hidden px-4 py-2 font-medium sm:table-cell">
-                  Source
+                  {t("landing.problem.source")}
                 </th>
               </tr>
             </thead>
             <tbody>
               {DEADLINES.map((d) => (
-                <tr key={d.country} className="border-b align-top last:border-0">
+                <tr key={d.obligation} className="border-b align-top last:border-0">
                   <th scope="row" className="whitespace-nowrap px-4 py-2.5 font-medium">
-                    {d.country}
+                    {deadlineCountry(d, t)}
                   </th>
                   <td className="px-4 py-2.5">
-                    {d.obligation}
+                    {t(d.obligation)}
                     <a
                       href={d.source.href}
                       className="mt-1 block text-xs text-muted-foreground underline underline-offset-2 sm:hidden"
@@ -90,7 +90,7 @@ export function ProblemNumbers() {
             </tbody>
           </table>
         </div>
-        <SourceLinks sources={[PROBLEM_DOC, POLICIES]} />
+        <SourceLinks sources={[PROBLEM_DOC, POLICIES]} t={t} />
       </div>
     </section>
   );

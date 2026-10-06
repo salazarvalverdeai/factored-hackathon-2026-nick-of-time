@@ -241,5 +241,10 @@ AC-01 to AC-05 are copied from issue #9 with the same numbers. None is dropped o
 fields only (`lib/demo.ts`). Amounts use a dot decimal. The mock client has no demo flow (501): demo sessions need the
 live API. The persona draft goes into the composer, labeled "suggested", and is never sent on its own.
 
+**Task 5 notes.** The web never sends a `customer_id`; the session id (equal to the httpOnly cookie value) is kept in
+`sessionStorage` to address `/api/sessions/{id}/...`. Charge-chip text is local ES/PT copy built from tool-returned
+fields only (`lib/demo.ts`). Amounts use a dot decimal. The mock client has no demo flow (501): demo sessions need the
+live API. The persona draft goes into the composer, labeled "suggested", and is never sent on its own.
+
 **Closing checklist** (last PR): every AC has a passing test or check that cites it · status → Implemented · ADR for
 any decision taken · lessons added to `CLAUDE.md`.

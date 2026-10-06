@@ -6,6 +6,7 @@ import asyncio
 import importlib.util
 import json
 import sys
+from contextlib import contextmanager
 from pathlib import Path
 from unittest import mock
 
@@ -26,6 +27,17 @@ from mcp_server import fake  # noqa: E402
 # (retrieve's four parallel reads), which turned a read into a spurious UNAVAILABLE (#109 CI). The harness widens it to
 # FAKE_TIMEOUT_S unless a test set its own (the timeout tests in tests/test_spec04_act.py).
 POLICY_TIMEOUT_S, FAKE_TIMEOUT_S = intake.TIMEOUT_S, 30.0
+
+
+@contextmanager
+def fake_budget():
+    """The widened per-call budget for any turn run on the in-memory fake, through `Chat.say` or straight on the graph
+    (`astream`/`ainvoke`): a test that bypassed it got a spurious UNAVAILABLE on a loaded runner (#221 CI)."""
+    budget = FAKE_TIMEOUT_S if intake.TIMEOUT_S == POLICY_TIMEOUT_S else intake.TIMEOUT_S
+    with mock.patch.object(intake, "TIMEOUT_S", budget):
+        yield
+
+
 PERSON = {"Hablar con una persona", "Falar com uma pessoa", "Que me llame una persona", "Quero que me liguem"}
 
 
@@ -49,8 +61,7 @@ class Chat:
         only, so a node that forgets to hand respond a tool result it states (or a policy id) fails here, loudly."""
         payload = {"messages": [{"role": "user", "content": text}] if text else [], "language": language,
                    "action": action}
-        budget = FAKE_TIMEOUT_S if intake.TIMEOUT_S == POLICY_TIMEOUT_S else intake.TIMEOUT_S
-        with mock.patch.object(intake, "TIMEOUT_S", budget):
+        with fake_budget():
             out = asyncio.run(self.graph.ainvoke(payload, self.config))
         turn = TurnResult.model_validate(out)            # 2–3 chips are enforced by the contract (AC-29)
         assert turn.trace_id and turn.usage == []

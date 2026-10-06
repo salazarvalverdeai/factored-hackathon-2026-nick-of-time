@@ -2,7 +2,9 @@
 // each open case and the Closed tab. Pure functions over `listCases` + `getConsoleCase`; nothing here reads the system
 // clock. Days left come from the api's business clock (`deadline_countdown_days`, ADR 0020) or, in mock mode, from the
 // frozen demo date, exactly as `formatDeadline` counts them.
+// The words are in the UI language (spec 16 AC-06): messages/console.ts and messages/ui.ts.
 import type { ApiClient } from "./client.ts";
+import { type Locale, translator } from "./i18n.ts";
 import { DEMO_TODAY, daysBetween } from "./mock/store.ts";
 import type { CaseListItem, CaseStatus, ConsoleEvent, Deadline } from "./types.ts";
 
@@ -27,16 +29,30 @@ const TIME_ZONES: Record<string, string> = {
 /** The inbox summary plus, when it could be read, the case's events, opening time and time mode. */
 export type BoardCase = CaseListItem & { events?: ConsoleEvent[]; openedAt?: string; mode?: "replay" | "live" };
 
-export const DEFINITIONS = {
-  open: "Cases in status new, verification or review: a person has not resolved them yet.",
-  atRisk:
-    `Open cases whose legal deadline is ${AT_RISK_DAYS} calendar days away or less (today, tomorrow or the day after), ` +
-    "or already past, counted on the api's business clock. Cases with no legal deadline are not counted: a person decides.",
-  toVerification:
-    "Median time from the case opening to its first verified action (the block's post-condition read). " +
-    "Cases with no verified action, such as the ones sent straight to a person, are left out.",
-  label: "[simulated] Computed from the demo cases in this console (simulated customers), not from the dataset.",
-} as const;
+/** What each KPI counts, in the UI language (the info tips of the strip). */
+export function definitions(locale: Locale): { open: string; atRisk: string; toVerification: string; label: string } {
+  const t = translator(locale);
+  return {
+    open: t("console.board.definitions.open"),
+    atRisk: t("console.board.definitions.atRisk", { days: AT_RISK_DAYS }),
+    toVerification: t("console.board.definitions.toVerification"),
+    label: t("console.board.definitions.label"),
+  };
+}
+
+// --- day counts in words -------------------------------------------------------------------------------------------
+
+/** "3 days left" / "Quedan 3 días" / "Faltam 3 dias". */
+export function daysLeftText(locale: Locale, n: number): string {
+  const t = translator(locale);
+  return n === 1 ? t("ui.time.daysLeft.one", { n }) : t("ui.time.daysLeft.other", { n });
+}
+
+/** "Past due by 2 days" / "Vencido hace 2 días" / "Vencido há 2 dias". */
+export function pastDueText(locale: Locale, n: number): string {
+  const t = translator(locale);
+  return n === 1 ? t("ui.time.pastDue.one", { n }) : t("ui.time.pastDue.other", { n });
+}
 
 // --- deadlines -----------------------------------------------------------------------------------------------------
 
@@ -66,21 +82,34 @@ export interface Sla {
   label: string;
 }
 
-const days = (n: number) => `${n} day${n === 1 ? "" : "s"}`;
-
-/** The traffic light of a case from the days left to its legal deadline (spec 08 AC-08). */
-export function slaOf(c: Pick<CaseListItem, "deadline">): Sla {
-  if (!legalDeadline(c.deadline)) return { level: "none", daysLeft: null, label: "No legal deadline · a person decides" };
+/** The traffic light of a case from the days left to its legal deadline, without its words (spec 08 AC-08). */
+export function slaLevelOf(c: Pick<CaseListItem, "deadline">): Omit<Sla, "label"> {
+  if (!legalDeadline(c.deadline)) return { level: "none", daysLeft: null };
   const left = daysLeftOf(c.deadline);
-  if (left === null) return { level: "unknown", daysLeft: null, label: "Countdown not available" };
-  if (left < 0) return { level: "red", daysLeft: left, label: `Past due by ${days(-left)}` };
-  if (left === 0) return { level: "red", daysLeft: 0, label: "Due today" };
-  if (left <= AT_RISK_DAYS) return { level: "amber", daysLeft: left, label: `Due soon · ${days(left)} left` };
-  return { level: "green", daysLeft: left, label: `On track · ${days(left)} left` };
+  if (left === null) return { level: "unknown", daysLeft: null };
+  if (left <= 0) return { level: "red", daysLeft: left };
+  if (left <= AT_RISK_DAYS) return { level: "amber", daysLeft: left };
+  return { level: "green", daysLeft: left };
+}
+
+/** The traffic light of a case with its text in the UI language (spec 08 AC-08, spec 16 AC-06). */
+export function slaOf(c: Pick<CaseListItem, "deadline">, locale: Locale): Sla {
+  const t = translator(locale);
+  const { level, daysLeft: left } = slaLevelOf(c);
+  const plural = (one: "console.sla.onTrack.one" | "console.sla.dueSoon.one", other: "console.sla.onTrack.other" | "console.sla.dueSoon.other", n: number) =>
+    n === 1 ? t(one, { n }) : t(other, { n });
+  let label: string;
+  if (level === "none") label = t("console.sla.none");
+  else if (left === null) label = t("ui.time.countdownUnavailable");
+  else if (left < 0) label = pastDueText(locale, -left);
+  else if (left === 0) label = t("ui.time.dueToday");
+  else if (level === "amber") label = plural("console.sla.dueSoon.one", "console.sla.dueSoon.other", left);
+  else label = plural("console.sla.onTrack.one", "console.sla.onTrack.other", left);
+  return { level, daysLeft: left, label };
 }
 
 export const isOpen = (c: Pick<CaseListItem, "status">) => OPEN_STATUSES.includes(c.status);
-export const isAtRisk = (c: Pick<CaseListItem, "deadline">) => ["amber", "red"].includes(slaOf(c).level);
+export const isAtRisk = (c: Pick<CaseListItem, "deadline">) => ["amber", "red"].includes(slaLevelOf(c).level);
 
 // --- KPI strip -----------------------------------------------------------------------------------------------------
 
@@ -121,22 +150,23 @@ export function kpis(cases: BoardCase[]): Kpis {
   return {
     open: open.length,
     atRisk: open.filter(isAtRisk).length,
-    openWithoutDeadline: open.filter((c) => slaOf(c).level === "none").length,
+    openWithoutDeadline: open.filter((c) => slaLevelOf(c).level === "none").length,
     medianToVerificationMs: median(times),
     verifiedCases: times.length,
   };
 }
 
-/** "under 1 min", "12 min", "3 h 5 min", "2 d 4 h". */
-export function formatDuration(ms: number | null): string {
+/** "under 1 min", "12 min", "3 h 5 min", "2 d 4 h" (the units read the same in ES and PT; "under" is translated). */
+export function formatDuration(ms: number | null, locale: Locale): string {
   if (ms === null) return "—";
+  const t = translator(locale);
   const minutes = Math.floor(ms / 60_000);
-  if (minutes < 1) return "under 1 min";
-  if (minutes < 60) return `${minutes} min`;
+  if (minutes < 1) return t("ui.duration.underMinute");
+  if (minutes < 60) return t("ui.duration.minutes", { m: minutes });
   const hours = Math.floor(minutes / 60);
-  if (hours < 24) return minutes % 60 ? `${hours} h ${minutes % 60} min` : `${hours} h`;
+  if (hours < 24) return minutes % 60 ? t("ui.duration.hoursMinutes", { h: hours, m: minutes % 60 }) : t("ui.duration.hours", { h: hours });
   const d = Math.floor(hours / 24);
-  return hours % 24 ? `${d} d ${hours % 24} h` : `${d} d`;
+  return hours % 24 ? t("ui.duration.daysHours", { d, h: hours % 24 }) : t("ui.duration.days", { d });
 }
 
 // --- Closed tab ----------------------------------------------------------------------------------------------------
@@ -147,7 +177,8 @@ export interface ClosedRow {
   id: string;
   customerName: string;
   status: CaseStatus;
-  outcome: string;
+  /** What a person decided, as a code the Closed tab words in the UI language (`console.board.outcome`). */
+  outcome: "credit_approved" | "resolved";
   /** Who moved the case to resolved, as the event records it. */
   decidedBy: string | null;
   resolvedAt: string | null;
@@ -239,7 +270,7 @@ export function closedRows(cases: BoardCase[]): ClosedRow[] {
         id: c.id,
         customerName: c.customerName,
         status: c.status,
-        outcome: credit ? "Credit approved" : "Resolved by a person",
+        outcome: credit ? ("credit_approved" as const) : ("resolved" as const),
         decidedBy: resolvedBy,
         resolvedAt,
         closedAt,

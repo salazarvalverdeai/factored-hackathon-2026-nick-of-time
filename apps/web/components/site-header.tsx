@@ -1,13 +1,22 @@
-import Link from "next/link";
-import { ThemeToggle } from "@/components/theme-toggle";
+"use client";
 
-export const NAV = [
-  { href: "/chat", label: "Chat" },
-  { href: "/console", label: "Console" },
-  { href: "/data", label: "Data" },
-  { href: "/evaluation", label: "Evaluation" },
-  { href: "/analytics", label: "Analytics" },
-  { href: "/agent", label: "Agent" },
+import { Menu, X } from "lucide-react";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { useEffect, useId, useRef, useState } from "react";
+import { useT } from "@/components/i18n-provider";
+import { LanguageSelect } from "@/components/language-select";
+import { ThemeToggle } from "@/components/theme-toggle";
+import { Button } from "@/components/ui/button";
+import type { MessageKey } from "@/lib/i18n";
+
+export const NAV: { href: string; key: MessageKey }[] = [
+  { href: "/chat", key: "shell.nav.chat" },
+  { href: "/console", key: "shell.nav.console" },
+  { href: "/data", key: "shell.nav.data" },
+  { href: "/evaluation", key: "shell.nav.evaluation" },
+  { href: "/analytics", key: "shell.nav.analytics" },
+  { href: "/agent", key: "shell.nav.agent" },
 ];
 
 // The horizontal lockup's 1400 × 520 viewBox has the mark and the wordmark in its upper part and empty space below,
@@ -40,28 +49,92 @@ function Lockup() {
   );
 }
 
+const LINK = "rounded-md px-2.5 py-1.5 text-muted-foreground hover:bg-accent hover:text-foreground aria-[current=page]:text-foreground";
+
+/**
+ * The site header (spec 16): logo, navigation, the ES · PT · EN selector (AC-06) and the theme toggle. From 1024 px the
+ * links sit inline; below, a menu button opens them as a disclosure under the header (Escape closes it and focus goes
+ * back to the button), and below 640 px the language selector moves into that menu too, so 390 px never clips a word.
+ */
 export function SiteHeader() {
+  const t = useT();
+  const pathname = usePathname();
+  const [open, setOpen] = useState(false);
+  const [openedAt, setOpenedAt] = useState(pathname);
+  const menuId = useId();
+  const button = useRef<HTMLButtonElement>(null);
+  const panel = useRef<HTMLDivElement>(null);
+
+  // A link press navigates: close the menu on the new page.
+  if (open && openedAt !== pathname) {
+    setOpen(false);
+    setOpenedAt(pathname);
+  }
+
+  useEffect(() => {
+    if (!open) return;
+    panel.current?.querySelector<HTMLElement>("a,button")?.focus();
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      e.preventDefault();
+      setOpen(false);
+      button.current?.focus();
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [open]);
+
+  const links = (className: string) =>
+    NAV.map((n) => (
+      <Link
+        key={n.href}
+        href={n.href}
+        aria-current={pathname === n.href || pathname.startsWith(`${n.href}/`) ? "page" : undefined}
+        className={className}
+      >
+        {t(n.key)}
+      </Link>
+    ));
+
   return (
     <header className="sticky top-0 z-10 border-b bg-background/80 backdrop-blur">
-      <div className="mx-auto flex h-14 max-w-7xl items-center gap-4 px-4">
-        <Link href="/" aria-label="Nick of Time" className="shrink-0">
+      <div className="mx-auto flex h-14 max-w-7xl items-center gap-2 px-4 sm:gap-4">
+        <Link href="/" aria-label={t("shell.home")} className="shrink-0">
           {/* Approved logo assets (docs/brand): symbol on phones, horizontal lockup from 640 px. */}
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/brand/logo-symbol.svg" alt="" className="size-9 sm:hidden" />
           <Lockup />
         </Link>
-        <nav className="flex flex-1 gap-1 overflow-x-auto text-sm">
-          {NAV.map((n) => (
-            <Link
-              key={n.href}
-              href={n.href}
-              className="rounded-md px-2.5 py-1.5 text-muted-foreground hover:bg-accent hover:text-foreground"
-            >
-              {n.label}
-            </Link>
-          ))}
+        <nav aria-label={t("shell.nav.label")} className="hidden flex-1 gap-1 text-sm lg:flex">
+          {links(`${LINK} whitespace-nowrap`)}
         </nav>
-        <ThemeToggle />
+        <div className="ml-auto flex items-center gap-1 sm:gap-2">
+          <LanguageSelect className="hidden sm:inline-flex" />
+          <ThemeToggle />
+          <Button
+            ref={button}
+            variant="ghost"
+            size="icon"
+            className="lg:hidden"
+            aria-expanded={open}
+            aria-controls={menuId}
+            aria-label={open ? t("shell.nav.closeMenu") : t("shell.nav.openMenu")}
+            onClick={() => {
+              setOpenedAt(pathname);
+              setOpen((o) => !o);
+            }}
+          >
+            {open ? <X className="size-4" /> : <Menu className="size-4" />}
+          </Button>
+        </div>
+      </div>
+      <div id={menuId} ref={panel} hidden={!open} className="border-t lg:hidden">
+        <nav aria-label={t("shell.nav.menu")} className="mx-auto grid max-w-7xl gap-1 px-4 py-3 text-sm">
+          {links(`${LINK} block py-2`)}
+        </nav>
+        <div className="mx-auto max-w-7xl px-4 pb-3 sm:hidden">
+          <LanguageSelect />
+        </div>
       </div>
     </header>
   );
