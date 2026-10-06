@@ -48,6 +48,46 @@ export function guardrailLabel(id: string): string {
   return GUARDRAIL_LABELS[id] ?? id.replaceAll("_", " ");
 }
 
+/** Plain names of the trace's own steps and of the tools, so a row leads with words, not a node key. */
+export const STEP_TITLES: Record<string, string> = {
+  understand: "Understood the request",
+  decide: "Rules decided",
+  plan: "Plan stated",
+  verify: "Verification",
+  case: "Case",
+  deny: "Refused",
+  guardrail: "Guardrail",
+  decision: "Rules decided",
+  policy: "Rules decided",
+  confirm: "Customer's answer",
+  deadline: "Legal deadline",
+  search_transaction: "Searched the charge",
+  list_recent_transactions: "Listed recent charges",
+  evaluate_policy: "Checked the rules",
+  block_card: "Block the card",
+  "verify block_card": "Block read back",
+  open_case: "Open the case",
+  "verify open_case": "Case read back",
+  get_case: "Read the case back",
+  compute_deadline: "Computed the legal deadline",
+  request_call: "Requested a call",
+  get_case_status: "Read the case status",
+  send_case_summary: "Sent the case summary",
+  add_case_info: "Added the customer's details",
+  request_reevaluation: "Asked for a review",
+};
+
+/**
+ * One trace row as the panel shows it (design pass 1, finding 4): a known step leads with its plain name and keeps the
+ * result as detail; a streamed progress step (`reading_message`, `deciding`…) leads with the label it streamed, and
+ * its node key is dropped.
+ */
+export function traceRow(t: TraceStep): { title: string; detail: string | null } {
+  const title = STEP_TITLES[t.step];
+  if (title) return { title, detail: t.result || null };
+  return { title: t.result || t.step.replaceAll("_", " "), detail: null };
+}
+
 /** The engine's decision (`Decision` in contracts.py) in plain words. */
 export const DECISION_LABELS: Record<string, string> = {
   block_and_open_case: "Block the card and open a case",

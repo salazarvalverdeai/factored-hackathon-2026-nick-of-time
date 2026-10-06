@@ -2,11 +2,13 @@
 //  - mock mode (default): answers from lib/mock/store.ts, so every page works without the backend.
 //  - live mode (NEXT_PUBLIC_API_MODE=live): lib/live.ts answers from the spec 05 api; it never invents data.
 // Both implement `ApiClient` (lib/client.ts), so a page does not know which one it talks to.
+import { EMPTY_STREAM, applyTool, settleTools } from "./chat-stream.ts";
 import type { ApiClient, ApiMode, ChatContext } from "./client.ts";
 import { createLiveApi } from "./live.ts";
 import { runAgentTurn } from "./mock/agent.ts";
 import { DEMO_CUSTOMERS } from "./mock/fixtures.ts";
-import { ApiError, type MockStore, caseStatus, mockStore } from "./mock/store.ts";
+import { ApiError, DEMO_TODAY, type MockStore, caseStatus, mockStore } from "./mock/store.ts";
+import { mockTurnEvents, playEvents } from "./mock/stream.ts";
 import type {
   AgentReply,
   AnalystSession,
@@ -33,6 +35,7 @@ export interface ApiOptions {
 
 export function createApi(store: MockStore, options: ApiOptions = {}) {
   const delayMs = options.delayMs ?? (typeof window === "undefined" ? 0 : 450);
+  let turns = 0;
 
   async function call<T>(fn: () => T): Promise<T> {
     if (delayMs > 0) await new Promise((resolve) => setTimeout(resolve, delayMs));
@@ -51,7 +54,15 @@ export function createApi(store: MockStore, options: ApiOptions = {}) {
     verifyOtp: (otp: string): Promise<CustomerSession> => call(() => store.verifyOtp(otp)),
     logoutCustomer: (): Promise<void> => call(() => store.logoutCustomer()),
     expireCustomerSession: (): Promise<void> => call(() => store.expireCustomerSession()),
-    chat: (text: string, ctx?: ChatContext): Promise<AgentReply> => call(() => runAgentTurn(store, text, ctx)),
+    /** The scripted turn, then its `tool` and `text` events played as the live stream would send them (spec 01 §6.4.1). */
+    chat: async (text: string, ctx: ChatContext = {}): Promise<AgentReply> => {
+      const reply = await call(() => runAgentTurn(store, text, ctx));
+      const customer = store.customerOf(store.requireCustomerSession());
+      const events = mockTurnEvents(reply, { language: customer.language, last4: customer.last4, country: customer.country, today: DEMO_TODAY }, ++turns);
+      let stream = EMPTY_STREAM;
+      await playEvents(events, { onTool: (t) => ((stream = applyTool(stream, t)), ctx.onTool?.(t)), onText: ctx.onText }, delayMs > 0 ? 260 : 0);
+      return stream.tools.length ? { ...reply, tools: settleTools(stream.tools) } : reply;
+    },
     // cases
     /** GET /api/cases/{id}: the customer's projection. */
     getCase: (id: string): Promise<CustomerCaseView> => call(() => store.getCustomerCase(id)),
