@@ -43,9 +43,9 @@ themes:
   - name: Scope and process
     adrs: ["0001", "0002", "0003", "0014"]
   - name: Data and evaluation
-    adrs: ["0004", "0007", "0015", "0018", "0021", "0022", "0025", "0028"]
+    adrs: ["0004", "0007", "0015", "0018", "0021", "0022", "0025", "0028", "0031"]
   - name: Agent, rules and safety
-    adrs: ["0005", "0006", "0008", "0009", "0013", "0016", "0024", "0027"]
+    adrs: ["0005", "0006", "0008", "0009", "0013", "0016", "0024", "0027", "0030"]
   - name: Platform and identity
     adrs: ["0010", "0011", "0017", "0026", "0029"]
   - name: Time and regulation
@@ -111,7 +111,7 @@ evidence:
     kind: file
     label: "eval/PROTOCOL.md (sealed protocol)"
     path: eval/PROTOCOL.md
-    supports: [adr-0007, adr-0015, adr-0025, adr-0028]
+    supports: [adr-0007, adr-0015, adr-0025, adr-0028, adr-0031]
   - id: E-bench
     kind: metric
     label: "eval/bench/gate_evidence.yaml"

@@ -270,7 +270,7 @@
       "label": "0030 An LLM writer words chat replies, and the stream shows each tool call live",
       "status": "Accepted",
       "file": "docs/adr/0030-llm-writer-and-live-stream-events.md",
-      "theme": "Other"
+      "theme": "Agent, rules and safety"
     },
     {
       "id": "adr-0031",
@@ -278,7 +278,7 @@
       "label": "0031 Held-out scored under the sealed rules and, secondarily, under D-070",
       "status": "Accepted",
       "file": "docs/adr/0031-heldout-scored-under-sealed-rules-and-d070.md",
-      "theme": "Other"
+      "theme": "Data and evaluation"
     },
     {
       "id": "spec-01",
@@ -972,6 +972,12 @@
     },
     {
       "from": "adr-0028",
+      "kind": "evidenced_by",
+      "source": "extra",
+      "to": "E-protocol"
+    },
+    {
+      "from": "adr-0031",
       "kind": "evidenced_by",
       "source": "extra",
       "to": "E-protocol"
