@@ -33,6 +33,11 @@ ops:
 test:
 	$(PY) -m pytest -q
 
+# Regenerate docs/decisions/graph.md and graph.json from the ADR and spec headers.
+.PHONY: docs-graph
+docs-graph: $(PY)
+	$(PY) scripts/docs/decision_graph.py
+
 # Same pinned ruff as CI (ruff.toml); installs into the venv on first use.
 lint:
 	$(PY) -m pip install -q ruff==0.14.0

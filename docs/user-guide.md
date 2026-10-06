@@ -22,7 +22,7 @@ demo date of 1 June 2026, to see sample cases already processed from start to fi
 Where the evidence for each criterion lives:
 | Criterion | Evidence |
 |---|---|
-| Technical Judgment | [ADRs](adr/README.md) · [architecture](infrastructure.md) · [security model](security.md) *(pending)* · `/agent` |
+| Technical Judgment | [decisions graph](decisions/graph.md) · [ADRs](adr/README.md) · [architecture](infrastructure.md) · [security model](security.md) *(pending)* · `/agent` |
 | AI Engineering | the public URL · [contract](../specs/01-integration-contract.md) · CI on every PR · [testing](testing.md) |
 | Data Engineering | `/data` · [`data/pipeline/`](../data/pipeline/) · [quality report](../data/quality_report.md) · `make setup` |
 | Machine Learning | `/evaluation` · `eval/PROTOCOL.md` · model card *(pending)* · the model-selection ADR *(pending)* |

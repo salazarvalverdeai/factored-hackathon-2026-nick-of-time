@@ -1,0 +1,1984 @@
+{
+  "nodes": [
+    {
+      "id": "P1",
+      "layer": "problem",
+      "label": "[data] W3 = 36.4% of complaints (24,431 of 67,095)",
+      "evidence_label": "[data]",
+      "query": "queries/pitch/p01_w3_share_complaints.sql",
+      "csv": "queries/pitch/p01_w3_share_complaints.csv"
+    },
+    {
+      "id": "P2",
+      "layer": "problem",
+      "label": "[data] FCR 43.6% on complaint contacts vs 76.6% for the bank",
+      "evidence_label": "[data]",
+      "query": "queries/pitch/p02_fcr_complaint_vs_bank.sql",
+      "csv": "queries/pitch/p02_fcr_complaint_vs_bank.csv"
+    },
+    {
+      "id": "P3",
+      "layer": "problem",
+      "label": "[data] Follow-up needed in 63.0% of complaint contacts vs 34.8% for the bank",
+      "evidence_label": "[data]",
+      "query": "queries/pitch/p03_complaint_follow_up.sql",
+      "csv": "queries/pitch/p03_complaint_follow_up.csv"
+    },
+    {
+      "id": "P4",
+      "layer": "problem",
+      "label": "[data] fraud_score >= 50: precision 100%, recall of all frauds 38.7%",
+      "evidence_label": "[data]",
+      "query": "queries/pitch/p08_fraud_score_thresholds.sql",
+      "csv": "queries/pitch/p08_fraud_score_thresholds.csv"
+    },
+    {
+      "id": "adr-0001",
+      "layer": "decision",
+      "label": "0001 Record decisions as ADRs and build features from specs",
+      "status": "Accepted",
+      "file": "docs/adr/0001-record-decisions-and-work-spec-driven.md",
+      "theme": "Scope and process"
+    },
+    {
+      "id": "adr-0002",
+      "layer": "decision",
+      "label": "0002 English as the repository language",
+      "status": "Accepted",
+      "file": "docs/adr/0002-english-as-the-repository-language.md",
+      "theme": "Scope and process"
+    },
+    {
+      "id": "adr-0003",
+      "layer": "decision",
+      "label": "0003 Scope: regulatory-clock card dispute intake (W3)",
+      "status": "Accepted",
+      "file": "docs/adr/0003-scope-regulatory-clock-dispute-intake.md",
+      "theme": "Scope and process"
+    },
+    {
+      "id": "adr-0004",
+      "layer": "decision",
+      "label": "0004 Medallion pipeline on DuckDB with data contracts",
+      "status": "Accepted",
+      "file": "docs/adr/0004-medallion-pipeline-on-duckdb.md",
+      "theme": "Data and evaluation"
+    },
+    {
+      "id": "adr-0005",
+      "layer": "decision",
+      "label": "0005 Policy engine outside the model",
+      "status": "Accepted",
+      "file": "docs/adr/0005-policy-engine-outside-the-model.md",
+      "theme": "Agent, rules and safety"
+    },
+    {
+      "id": "adr-0006",
+      "layer": "decision",
+      "label": "0006 The bank's fraud score as an optional, swappable input",
+      "status": "Accepted",
+      "file": "docs/adr/0006-fraud-score-as-optional-swappable-input.md",
+      "theme": "Agent, rules and safety"
+    },
+    {
+      "id": "adr-0007",
+      "layer": "decision",
+      "label": "0007 Evaluation by final state on a sealed held-out",
+      "status": "Accepted",
+      "file": "docs/adr/0007-evaluation-by-final-state-on-sealed-held-out.md",
+      "theme": "Data and evaluation"
+    },
+    {
+      "id": "adr-0008",
+      "layer": "decision",
+      "label": "0008 Agent on LangGraph Platform, customer tools as an MCP server",
+      "status": "Accepted",
+      "file": "docs/adr/0008-agent-on-langgraph-platform-tools-over-mcp.md",
+      "theme": "Agent, rules and safety"
+    },
+    {
+      "id": "adr-0009",
+      "layer": "decision",
+      "label": "0009 LLM on Amazon Bedrock: Claude Sonnet 4.6 and Haiku 4.5",
+      "status": "Accepted",
+      "file": "docs/adr/0009-llm-on-amazon-bedrock.md",
+      "theme": "Agent, rules and safety"
+    },
+    {
+      "id": "adr-0010",
+      "layer": "decision",
+      "label": "0010 Postgres for case state and audit",
+      "status": "Accepted",
+      "file": "docs/adr/0010-postgres-for-case-state-and-audit.md",
+      "theme": "Platform and identity"
+    },
+    {
+      "id": "adr-0011",
+      "layer": "decision",
+      "label": "0011 One EC2 with Docker Compose, two subdomains, deploy through OIDC and SSM",
+      "status": "Accepted",
+      "file": "docs/adr/0011-single-ec2-compose-oidc-ssm-deploy.md",
+      "theme": "Platform and identity"
+    },
+    {
+      "id": "adr-0012",
+      "layer": "decision",
+      "label": "0012 Frozen demo date",
+      "status": "Superseded",
+      "file": "docs/adr/0012-frozen-demo-date.md",
+      "theme": "Time and regulation"
+    },
+    {
+      "id": "adr-0013",
+      "layer": "decision",
+      "label": "0013 The customer receives proof: verified receipt, case page and notifications",
+      "status": "Accepted",
+      "file": "docs/adr/0013-customer-receives-proof-receipt-case-page-notifications.md",
+      "theme": "Agent, rules and safety"
+    },
+    {
+      "id": "adr-0014",
+      "layer": "decision",
+      "label": "0014 Main objective: first-contact resolution of dispute contacts",
+      "status": "Accepted",
+      "file": "docs/adr/0014-main-objective-fcr.md",
+      "theme": "Scope and process"
+    },
+    {
+      "id": "adr-0015",
+      "layer": "decision",
+      "label": "0015 Learned components versus baselines, with a pre-registered selection rule",
+      "status": "Accepted",
+      "file": "docs/adr/0015-learned-component-vs-baseline-and-model-selection.md",
+      "theme": "Data and evaluation"
+    },
+    {
+      "id": "adr-0016",
+      "layer": "decision",
+      "label": "0016 Guardrails: injection detector with rules + LR, exact-match output grounding",
+      "status": "Accepted",
+      "file": "docs/adr/0016-guardrails-injection-detector-and-exact-grounding.md",
+      "theme": "Agent, rules and safety"
+    },
+    {
+      "id": "adr-0017",
+      "layer": "decision",
+      "label": "0017 Identity: mock session + OTP for customers, Cognito for analysts",
+      "status": "Accepted",
+      "file": "docs/adr/0017-identity-mock-otp-customers-cognito-analysts.md",
+      "theme": "Platform and identity"
+    },
+    {
+      "id": "adr-0018",
+      "layer": "decision",
+      "label": "0018 Data and model lifecycle: an operational medallion that feeds evaluation",
+      "status": "Accepted",
+      "file": "docs/adr/0018-data-and-model-lifecycle.md",
+      "theme": "Data and evaluation"
+    },
+    {
+      "id": "adr-0019",
+      "layer": "decision",
+      "label": "0019 Every regulatory or external figure cites an official public source and a verification date",
+      "status": "Accepted",
+      "file": "docs/adr/0019-official-sources-for-regulatory-figures.md",
+      "theme": "Time and regulation"
+    },
+    {
+      "id": "adr-0020",
+      "layer": "decision",
+      "label": "0020 Two time modes: historical (replay) for evaluation and processed cases, live for the demo",
+      "status": "Accepted",
+      "file": "docs/adr/0020-two-time-modes-historical-and-live.md",
+      "theme": "Time and regulation"
+    },
+    {
+      "id": "adr-0021",
+      "layer": "decision",
+      "label": "0021 Continuous evaluation and outcome audit: a deterministic auditor, an advisory judge and sealed regression sets",
+      "status": "Accepted",
+      "file": "docs/adr/0021-continuous-evaluation-and-outcome-audit.md",
+      "theme": "Data and evaluation"
+    },
+    {
+      "id": "adr-0022",
+      "layer": "decision",
+      "label": "0022 Fraud labels may train our fraud model, by time window, and never reach the runtime",
+      "status": "Accepted",
+      "file": "docs/adr/0022-fraud-labels-for-model-training.md",
+      "theme": "Data and evaluation"
+    },
+    {
+      "id": "adr-0023",
+      "layer": "decision",
+      "label": "0023 MX provisional credit covers unrecognized-charge claims within 90 calendar days; the 48 h window is for theft or loss only",
+      "status": "Accepted",
+      "file": "docs/adr/0023-mx-provisional-credit-90-days.md",
+      "theme": "Time and regulation"
+    },
+    {
+      "id": "adr-0024",
+      "layer": "decision",
+      "label": "0024 A call request in the high zone defers the card block to the analyst",
+      "status": "Accepted",
+      "file": "docs/adr/0024-high-zone-call-request-defers-block.md",
+      "theme": "Agent, rules and safety"
+    },
+    {
+      "id": "adr-0025",
+      "layer": "decision",
+      "label": "0025 The classifier set is written by three model families, one per split, none of them Claude",
+      "status": "Accepted",
+      "file": "docs/adr/0025-classifier-set-authored-by-distinct-model-families.md",
+      "theme": "Data and evaluation"
+    },
+    {
+      "id": "adr-0026",
+      "layer": "decision",
+      "label": "0026 Public demo sessions: a scenario picks the customer server-side and each session runs under its own run_id",
+      "status": "Accepted",
+      "file": "docs/adr/0026-demo-sessions-isolated-by-run-id.md",
+      "theme": "Platform and identity"
+    },
+    {
+      "id": "adr-0027",
+      "layer": "decision",
+      "label": "0027 Model selection per LLM task (understand, word, judge)",
+      "status": "Proposed",
+      "file": "docs/adr/0027-model-selection.md",
+      "theme": "Agent, rules and safety"
+    },
+    {
+      "id": "adr-0028",
+      "layer": "decision",
+      "label": "0028 The classifier test split is decided by fixed rules when no independent person can review it",
+      "status": "Accepted",
+      "file": "docs/adr/0028-test-split-decided-by-fixed-rules-without-independent-reviewer.md",
+      "theme": "Data and evaluation"
+    },
+    {
+      "id": "adr-0029",
+      "layer": "decision",
+      "label": "0029 Voice: Bedrock Voxtral speech-to-text on the api and the browser's text-to-speech",
+      "status": "Accepted",
+      "file": "docs/adr/0029-voice-input-voxtral-stt-browser-tts.md",
+      "theme": "Platform and identity"
+    },
+    {
+      "id": "spec-01",
+      "layer": "spec",
+      "label": "Spec 01 Integration contract + stubs",
+      "status": "Draft",
+      "file": "specs/01-integration-contract.md",
+      "components": [
+        "contracts/",
+        "packages/nick_of_time/contracts.py",
+        "packages/nick_of_time/store/"
+      ]
+    },
+    {
+      "id": "spec-02",
+      "layer": "spec",
+      "label": "Spec 02 Policy engine + regulatory clock",
+      "status": "In progress",
+      "file": "specs/02-policy-engine.md",
+      "components": [
+        "packages/nick_of_time/policy/",
+        "contracts/policies.yaml"
+      ]
+    },
+    {
+      "id": "spec-03",
+      "layer": "spec",
+      "label": "Spec 03 MCP server with the 16 customer tools",
+      "status": "Draft",
+      "file": "specs/03-mcp-tools.md",
+      "components": [
+        "apps/mcp/mcp_server/"
+      ]
+    },
+    {
+      "id": "spec-04",
+      "layer": "spec",
+      "label": "Spec 04 Agent graph on LangGraph Platform",
+      "status": "Draft",
+      "file": "specs/04-agent-graph.md",
+      "components": [
+        "apps/agent/agent/",
+        "langgraph.json"
+      ]
+    },
+    {
+      "id": "spec-05",
+      "layer": "spec",
+      "label": "Spec 05 Backend: API + Postgres + analyst login (Cognito) + customer session/OTP",
+      "status": "In progress",
+      "file": "specs/05-backend-api.md",
+      "components": [
+        "apps/api/app/"
+      ]
+    },
+    {
+      "id": "spec-06",
+      "layer": "spec",
+      "label": "Spec 06 Deploy + CI",
+      "status": "Draft",
+      "file": "specs/06-deploy-ci.md",
+      "components": [
+        "infra/",
+        ".github/workflows/deploy.yml"
+      ]
+    },
+    {
+      "id": "spec-07",
+      "layer": "spec",
+      "label": "Spec 07 Customer chat `/chat` with verified receipt and trace",
+      "status": "In progress",
+      "file": "specs/07-customer-chat.md",
+      "components": [
+        "apps/web/app/chat/"
+      ]
+    },
+    {
+      "id": "spec-08",
+      "layer": "spec",
+      "label": "Spec 08 Analyst login + console `/login`, `/console`",
+      "status": "In progress",
+      "file": "specs/08-analyst-console.md",
+      "components": [
+        "apps/web/app/console/"
+      ]
+    },
+    {
+      "id": "spec-09",
+      "layer": "spec",
+      "label": "Spec 09 Demo and evaluation data",
+      "status": "Implemented",
+      "file": "specs/09-demo-eval-data.md",
+      "components": [
+        "eval/demo/",
+        "eval/classifier/",
+        "eval/cases/"
+      ]
+    },
+    {
+      "id": "spec-10",
+      "layer": "spec",
+      "label": "Spec 10 Evaluation harness",
+      "status": "In progress",
+      "file": "specs/10-eval-harness.md",
+      "components": [
+        "eval/harness/"
+      ]
+    },
+    {
+      "id": "spec-11",
+      "layer": "spec",
+      "label": "Spec 11 Intent classifier, injection detector and selection protocol",
+      "status": "Draft",
+      "file": "specs/11-intent-classifier.md",
+      "components": [
+        "packages/nick_of_time/nlu/"
+      ]
+    },
+    {
+      "id": "spec-12",
+      "layer": "spec",
+      "label": "Spec 12 Insight pages: `/evaluation`, `/analytics`, `/data`",
+      "status": "In progress",
+      "file": "specs/12-insight-pages.md",
+      "components": [
+        "apps/web/app/evaluation/",
+        "apps/web/app/analytics/",
+        "apps/web/app/data/"
+      ]
+    },
+    {
+      "id": "spec-13",
+      "layer": "spec",
+      "label": "Spec 13 `/case/{id}` + Telegram + email notifications",
+      "status": "In progress",
+      "file": "specs/13-case-page-notifications.md",
+      "components": [
+        "apps/web/app/case/",
+        "apps/mcp/mcp_server/notify.py",
+        "apps/api/app/notify.py"
+      ]
+    },
+    {
+      "id": "spec-14",
+      "layer": "spec",
+      "label": "Spec 14 Operational lakehouse",
+      "status": "In progress",
+      "file": "specs/14-ops-lakehouse.md",
+      "components": [
+        "data/pipeline/",
+        "data/ops/"
+      ]
+    },
+    {
+      "id": "spec-15",
+      "layer": "spec",
+      "label": "Spec 15 Model benchmark (cost vs quality, lean choice)",
+      "status": "Draft",
+      "file": "specs/15-model-benchmark.md",
+      "components": [
+        "eval/bench/"
+      ]
+    },
+    {
+      "id": "spec-16",
+      "layer": "spec",
+      "label": "Spec 16 Web foundation + front-end standard",
+      "status": "Implemented",
+      "file": "specs/16-web-foundation.md",
+      "components": [
+        "apps/web/README.md",
+        "apps/web/components/"
+      ]
+    },
+    {
+      "id": "spec-17",
+      "layer": "spec",
+      "label": "Spec 17 Our fraud model versus the bank's score (small benchmark)",
+      "status": "Draft",
+      "file": "specs/17-fraud-model.md",
+      "components": [
+        "scripts/ml/"
+      ]
+    },
+    {
+      "id": "spec-18",
+      "layer": "spec",
+      "label": "Spec 18 Outcome auditor and AI second opinion for the analyst",
+      "status": "Draft",
+      "file": "specs/18-outcome-auditor.md",
+      "components": [
+        "packages/nick_of_time/audit/"
+      ]
+    },
+    {
+      "id": "E-audit",
+      "layer": "evidence",
+      "label": "tests/test_spec18_audit_a3_a7.py",
+      "kind": "test",
+      "path": "tests/test_spec18_audit_a3_a7.py"
+    },
+    {
+      "id": "E-bench",
+      "layer": "evidence",
+      "label": "eval/bench/gate_evidence.yaml",
+      "kind": "metric",
+      "path": "eval/bench/gate_evidence.yaml"
+    },
+    {
+      "id": "E-decide",
+      "layer": "evidence",
+      "label": "tests/test_spec02_decide.py",
+      "kind": "test",
+      "path": "tests/test_spec02_decide.py"
+    },
+    {
+      "id": "E-demo",
+      "layer": "evidence",
+      "label": "PR 188: demo sessions in replay mode",
+      "kind": "pr",
+      "url": "https://github.com/salazarvalverdeai/factored-hackathon-2026-nick-of-time/pull/188"
+    },
+    {
+      "id": "E-deploy",
+      "layer": "evidence",
+      "label": ".github/workflows/deploy.yml",
+      "kind": "file",
+      "path": ".github/workflows/deploy.yml"
+    },
+    {
+      "id": "E-fcr-panel",
+      "layer": "evidence",
+      "label": "PR 171: as-is vs with Nick of Time panel",
+      "kind": "pr",
+      "url": "https://github.com/salazarvalverdeai/factored-hackathon-2026-nick-of-time/pull/171"
+    },
+    {
+      "id": "E-fraud",
+      "layer": "evidence",
+      "label": "tests/test_spec17_screen.py",
+      "kind": "test",
+      "path": "tests/test_spec17_screen.py"
+    },
+    {
+      "id": "E-gold",
+      "layer": "evidence",
+      "label": "tests/test_spec14_gold.py",
+      "kind": "test",
+      "path": "tests/test_spec14_gold.py"
+    },
+    {
+      "id": "E-identity",
+      "layer": "evidence",
+      "label": "tests/test_spec05_guard.py",
+      "kind": "test",
+      "path": "tests/test_spec05_guard.py"
+    },
+    {
+      "id": "E-mcp",
+      "layer": "evidence",
+      "label": "tests/test_spec03_server.py",
+      "kind": "test",
+      "path": "tests/test_spec03_server.py"
+    },
+    {
+      "id": "E-notify",
+      "layer": "evidence",
+      "label": "PR 174: notify only after the verifying read",
+      "kind": "pr",
+      "url": "https://github.com/salazarvalverdeai/factored-hackathon-2026-nick-of-time/pull/174"
+    },
+    {
+      "id": "E-policies",
+      "layer": "evidence",
+      "label": "contracts/policies.yaml (default: deny)",
+      "kind": "file",
+      "path": "contracts/policies.yaml"
+    },
+    {
+      "id": "E-protocol",
+      "layer": "evidence",
+      "label": "eval/PROTOCOL.md (sealed protocol)",
+      "kind": "file",
+      "path": "eval/PROTOCOL.md"
+    },
+    {
+      "id": "E-respond",
+      "layer": "evidence",
+      "label": "tests/test_spec04_respond.py",
+      "kind": "test",
+      "path": "tests/test_spec04_respond.py"
+    },
+    {
+      "id": "E-store",
+      "layer": "evidence",
+      "label": "tests/test_spec01_store.py",
+      "kind": "test",
+      "path": "tests/test_spec01_store.py"
+    }
+  ],
+  "edges": [
+    {
+      "from": "adr-0023",
+      "kind": "amends",
+      "source": "adr-header",
+      "to": "adr-0019"
+    },
+    {
+      "from": "adr-0023",
+      "kind": "amends",
+      "source": "adr-header",
+      "to": "adr-0020"
+    },
+    {
+      "from": "adr-0028",
+      "kind": "amends",
+      "source": "adr-header",
+      "to": "adr-0025"
+    },
+    {
+      "from": "spec-03",
+      "kind": "depends_on",
+      "source": "spec-header",
+      "to": "spec-01"
+    },
+    {
+      "from": "spec-03",
+      "kind": "depends_on",
+      "source": "spec-header",
+      "to": "spec-02"
+    },
+    {
+      "from": "spec-04",
+      "kind": "depends_on",
+      "source": "spec-header",
+      "to": "spec-01"
+    },
+    {
+      "from": "spec-04",
+      "kind": "depends_on",
+      "source": "spec-header",
+      "to": "spec-02"
+    },
+    {
+      "from": "spec-04",
+      "kind": "depends_on",
+      "source": "spec-header",
+      "to": "spec-03"
+    },
+    {
+      "from": "spec-04",
+      "kind": "depends_on",
+      "source": "spec-header",
+      "to": "spec-11"
+    },
+    {
+      "from": "spec-05",
+      "kind": "depends_on",
+      "source": "spec-header",
+      "to": "spec-01"
+    },
+    {
+      "from": "spec-07",
+      "kind": "depends_on",
+      "source": "spec-header",
+      "to": "spec-04"
+    },
+    {
+      "from": "spec-07",
+      "kind": "depends_on",
+      "source": "spec-header",
+      "to": "spec-05"
+    },
+    {
+      "from": "spec-07",
+      "kind": "depends_on",
+      "source": "spec-header",
+      "to": "spec-16"
+    },
+    {
+      "from": "spec-08",
+      "kind": "depends_on",
+      "source": "spec-header",
+      "to": "spec-05"
+    },
+    {
+      "from": "spec-08",
+      "kind": "depends_on",
+      "source": "spec-header",
+      "to": "spec-16"
+    },
+    {
+      "from": "spec-10",
+      "kind": "depends_on",
+      "source": "spec-header",
+      "to": "spec-01"
+    },
+    {
+      "from": "spec-10",
+      "kind": "depends_on",
+      "source": "spec-header",
+      "to": "spec-04"
+    },
+    {
+      "from": "spec-10",
+      "kind": "depends_on",
+      "source": "spec-header",
+      "to": "spec-09"
+    },
+    {
+      "from": "spec-11",
+      "kind": "depends_on",
+      "source": "spec-header",
+      "to": "spec-09"
+    },
+    {
+      "from": "spec-12",
+      "kind": "depends_on",
+      "source": "spec-header",
+      "to": "spec-10"
+    },
+    {
+      "from": "spec-12",
+      "kind": "depends_on",
+      "source": "spec-header",
+      "to": "spec-11"
+    },
+    {
+      "from": "spec-12",
+      "kind": "depends_on",
+      "source": "spec-header",
+      "to": "spec-14"
+    },
+    {
+      "from": "spec-12",
+      "kind": "depends_on",
+      "source": "spec-header",
+      "to": "spec-15"
+    },
+    {
+      "from": "spec-12",
+      "kind": "depends_on",
+      "source": "spec-header",
+      "to": "spec-16"
+    },
+    {
+      "from": "spec-12",
+      "kind": "depends_on",
+      "source": "spec-header",
+      "to": "spec-17"
+    },
+    {
+      "from": "spec-13",
+      "kind": "depends_on",
+      "source": "spec-header",
+      "to": "spec-05"
+    },
+    {
+      "from": "spec-13",
+      "kind": "depends_on",
+      "source": "spec-header",
+      "to": "spec-16"
+    },
+    {
+      "from": "spec-14",
+      "kind": "depends_on",
+      "source": "spec-header",
+      "to": "spec-05"
+    },
+    {
+      "from": "spec-15",
+      "kind": "depends_on",
+      "source": "spec-header",
+      "to": "spec-04"
+    },
+    {
+      "from": "spec-15",
+      "kind": "depends_on",
+      "source": "spec-header",
+      "to": "spec-09"
+    },
+    {
+      "from": "spec-15",
+      "kind": "depends_on",
+      "source": "spec-header",
+      "to": "spec-10"
+    },
+    {
+      "from": "spec-15",
+      "kind": "depends_on",
+      "source": "spec-header",
+      "to": "spec-11"
+    },
+    {
+      "from": "spec-16",
+      "kind": "depends_on",
+      "source": "spec-header",
+      "to": "spec-01"
+    },
+    {
+      "from": "spec-18",
+      "kind": "depends_on",
+      "source": "spec-header",
+      "to": "spec-01"
+    },
+    {
+      "from": "spec-18",
+      "kind": "depends_on",
+      "source": "spec-header",
+      "to": "spec-02"
+    },
+    {
+      "from": "spec-18",
+      "kind": "depends_on",
+      "source": "spec-header",
+      "to": "spec-03"
+    },
+    {
+      "from": "spec-18",
+      "kind": "depends_on",
+      "source": "spec-header",
+      "to": "spec-04"
+    },
+    {
+      "from": "spec-18",
+      "kind": "depends_on",
+      "source": "spec-header",
+      "to": "spec-10"
+    },
+    {
+      "from": "spec-18",
+      "kind": "depends_on",
+      "source": "spec-header",
+      "to": "spec-15"
+    },
+    {
+      "from": "adr-0004",
+      "kind": "evidenced_by",
+      "source": "extra",
+      "to": "E-gold"
+    },
+    {
+      "from": "adr-0005",
+      "kind": "evidenced_by",
+      "source": "extra",
+      "to": "E-decide"
+    },
+    {
+      "from": "adr-0005",
+      "kind": "evidenced_by",
+      "source": "extra",
+      "to": "E-policies"
+    },
+    {
+      "from": "adr-0006",
+      "kind": "evidenced_by",
+      "source": "extra",
+      "to": "E-policies"
+    },
+    {
+      "from": "adr-0007",
+      "kind": "evidenced_by",
+      "source": "extra",
+      "to": "E-protocol"
+    },
+    {
+      "from": "adr-0008",
+      "kind": "evidenced_by",
+      "source": "extra",
+      "to": "E-mcp"
+    },
+    {
+      "from": "adr-0009",
+      "kind": "evidenced_by",
+      "source": "extra",
+      "to": "E-bench"
+    },
+    {
+      "from": "adr-0010",
+      "kind": "evidenced_by",
+      "source": "extra",
+      "to": "E-store"
+    },
+    {
+      "from": "adr-0011",
+      "kind": "evidenced_by",
+      "source": "extra",
+      "to": "E-deploy"
+    },
+    {
+      "from": "adr-0013",
+      "kind": "evidenced_by",
+      "source": "extra",
+      "to": "E-notify"
+    },
+    {
+      "from": "adr-0013",
+      "kind": "evidenced_by",
+      "source": "extra",
+      "to": "E-respond"
+    },
+    {
+      "from": "adr-0014",
+      "kind": "evidenced_by",
+      "source": "extra",
+      "to": "E-fcr-panel"
+    },
+    {
+      "from": "adr-0015",
+      "kind": "evidenced_by",
+      "source": "extra",
+      "to": "E-bench"
+    },
+    {
+      "from": "adr-0015",
+      "kind": "evidenced_by",
+      "source": "extra",
+      "to": "E-protocol"
+    },
+    {
+      "from": "adr-0016",
+      "kind": "evidenced_by",
+      "source": "extra",
+      "to": "E-respond"
+    },
+    {
+      "from": "adr-0017",
+      "kind": "evidenced_by",
+      "source": "extra",
+      "to": "E-identity"
+    },
+    {
+      "from": "adr-0018",
+      "kind": "evidenced_by",
+      "source": "extra",
+      "to": "E-gold"
+    },
+    {
+      "from": "adr-0019",
+      "kind": "evidenced_by",
+      "source": "extra",
+      "to": "E-policies"
+    },
+    {
+      "from": "adr-0020",
+      "kind": "evidenced_by",
+      "source": "extra",
+      "to": "E-demo"
+    },
+    {
+      "from": "adr-0021",
+      "kind": "evidenced_by",
+      "source": "extra",
+      "to": "E-audit"
+    },
+    {
+      "from": "adr-0022",
+      "kind": "evidenced_by",
+      "source": "extra",
+      "to": "E-fraud"
+    },
+    {
+      "from": "adr-0023",
+      "kind": "evidenced_by",
+      "source": "extra",
+      "to": "E-policies"
+    },
+    {
+      "from": "adr-0024",
+      "kind": "evidenced_by",
+      "source": "extra",
+      "to": "E-decide"
+    },
+    {
+      "from": "adr-0025",
+      "kind": "evidenced_by",
+      "source": "extra",
+      "to": "E-protocol"
+    },
+    {
+      "from": "adr-0026",
+      "kind": "evidenced_by",
+      "source": "extra",
+      "to": "E-demo"
+    },
+    {
+      "from": "adr-0027",
+      "kind": "evidenced_by",
+      "source": "extra",
+      "to": "E-bench"
+    },
+    {
+      "from": "adr-0028",
+      "kind": "evidenced_by",
+      "source": "extra",
+      "to": "E-protocol"
+    },
+    {
+      "from": "spec-01",
+      "kind": "evidenced_by",
+      "source": "extra",
+      "to": "E-store"
+    },
+    {
+      "from": "spec-02",
+      "kind": "evidenced_by",
+      "source": "extra",
+      "to": "E-decide"
+    },
+    {
+      "from": "spec-03",
+      "kind": "evidenced_by",
+      "source": "extra",
+      "to": "E-mcp"
+    },
+    {
+      "from": "spec-04",
+      "kind": "evidenced_by",
+      "source": "extra",
+      "to": "E-respond"
+    },
+    {
+      "from": "spec-05",
+      "kind": "evidenced_by",
+      "source": "extra",
+      "to": "E-identity"
+    },
+    {
+      "from": "spec-06",
+      "kind": "evidenced_by",
+      "source": "extra",
+      "to": "E-deploy"
+    },
+    {
+      "from": "spec-12",
+      "kind": "evidenced_by",
+      "source": "extra",
+      "to": "E-fcr-panel"
+    },
+    {
+      "from": "spec-13",
+      "kind": "evidenced_by",
+      "source": "extra",
+      "to": "E-notify"
+    },
+    {
+      "from": "spec-14",
+      "kind": "evidenced_by",
+      "source": "extra",
+      "to": "E-gold"
+    },
+    {
+      "from": "spec-15",
+      "kind": "evidenced_by",
+      "source": "extra",
+      "to": "E-bench"
+    },
+    {
+      "from": "spec-17",
+      "kind": "evidenced_by",
+      "source": "extra",
+      "to": "E-fraud"
+    },
+    {
+      "from": "spec-18",
+      "kind": "evidenced_by",
+      "source": "extra",
+      "to": "E-audit"
+    },
+    {
+      "from": "adr-0004",
+      "kind": "implemented_by",
+      "source": "spec-header",
+      "to": "spec-14"
+    },
+    {
+      "from": "adr-0005",
+      "kind": "implemented_by",
+      "source": "spec-header",
+      "to": "spec-01"
+    },
+    {
+      "from": "adr-0005",
+      "kind": "implemented_by",
+      "source": "spec-header",
+      "to": "spec-02"
+    },
+    {
+      "from": "adr-0005",
+      "kind": "implemented_by",
+      "source": "spec-header",
+      "to": "spec-03"
+    },
+    {
+      "from": "adr-0005",
+      "kind": "implemented_by",
+      "source": "spec-header",
+      "to": "spec-04"
+    },
+    {
+      "from": "adr-0006",
+      "kind": "implemented_by",
+      "source": "both-headers",
+      "to": "spec-02"
+    },
+    {
+      "from": "adr-0006",
+      "kind": "implemented_by",
+      "source": "spec-header",
+      "to": "spec-03"
+    },
+    {
+      "from": "adr-0006",
+      "kind": "implemented_by",
+      "source": "spec-header",
+      "to": "spec-17"
+    },
+    {
+      "from": "adr-0007",
+      "kind": "implemented_by",
+      "source": "spec-header",
+      "to": "spec-01"
+    },
+    {
+      "from": "adr-0007",
+      "kind": "implemented_by",
+      "source": "spec-header",
+      "to": "spec-09"
+    },
+    {
+      "from": "adr-0007",
+      "kind": "implemented_by",
+      "source": "spec-header",
+      "to": "spec-10"
+    },
+    {
+      "from": "adr-0007",
+      "kind": "implemented_by",
+      "source": "spec-header",
+      "to": "spec-12"
+    },
+    {
+      "from": "adr-0007",
+      "kind": "implemented_by",
+      "source": "spec-header",
+      "to": "spec-17"
+    },
+    {
+      "from": "adr-0007",
+      "kind": "implemented_by",
+      "source": "spec-header",
+      "to": "spec-18"
+    },
+    {
+      "from": "adr-0008",
+      "kind": "implemented_by",
+      "source": "both-headers",
+      "to": "spec-01"
+    },
+    {
+      "from": "adr-0008",
+      "kind": "implemented_by",
+      "source": "both-headers",
+      "to": "spec-03"
+    },
+    {
+      "from": "adr-0008",
+      "kind": "implemented_by",
+      "source": "both-headers",
+      "to": "spec-04"
+    },
+    {
+      "from": "adr-0009",
+      "kind": "implemented_by",
+      "source": "both-headers",
+      "to": "spec-04"
+    },
+    {
+      "from": "adr-0009",
+      "kind": "implemented_by",
+      "source": "adr-header",
+      "to": "spec-11"
+    },
+    {
+      "from": "adr-0009",
+      "kind": "implemented_by",
+      "source": "both-headers",
+      "to": "spec-15"
+    },
+    {
+      "from": "adr-0010",
+      "kind": "implemented_by",
+      "source": "both-headers",
+      "to": "spec-01"
+    },
+    {
+      "from": "adr-0010",
+      "kind": "implemented_by",
+      "source": "spec-header",
+      "to": "spec-03"
+    },
+    {
+      "from": "adr-0010",
+      "kind": "implemented_by",
+      "source": "both-headers",
+      "to": "spec-05"
+    },
+    {
+      "from": "adr-0010",
+      "kind": "implemented_by",
+      "source": "spec-header",
+      "to": "spec-06"
+    },
+    {
+      "from": "adr-0010",
+      "kind": "implemented_by",
+      "source": "spec-header",
+      "to": "spec-08"
+    },
+    {
+      "from": "adr-0010",
+      "kind": "implemented_by",
+      "source": "both-headers",
+      "to": "spec-14"
+    },
+    {
+      "from": "adr-0011",
+      "kind": "implemented_by",
+      "source": "both-headers",
+      "to": "spec-06"
+    },
+    {
+      "from": "adr-0012",
+      "kind": "implemented_by",
+      "source": "adr-header",
+      "to": "spec-02"
+    },
+    {
+      "from": "adr-0012",
+      "kind": "implemented_by",
+      "source": "adr-header",
+      "to": "spec-03"
+    },
+    {
+      "from": "adr-0012",
+      "kind": "implemented_by",
+      "source": "adr-header",
+      "to": "spec-05"
+    },
+    {
+      "from": "adr-0012",
+      "kind": "implemented_by",
+      "source": "adr-header",
+      "to": "spec-06"
+    },
+    {
+      "from": "adr-0012",
+      "kind": "implemented_by",
+      "source": "adr-header",
+      "to": "spec-09"
+    },
+    {
+      "from": "adr-0013",
+      "kind": "implemented_by",
+      "source": "spec-header",
+      "to": "spec-01"
+    },
+    {
+      "from": "adr-0013",
+      "kind": "implemented_by",
+      "source": "both-headers",
+      "to": "spec-04"
+    },
+    {
+      "from": "adr-0013",
+      "kind": "implemented_by",
+      "source": "both-headers",
+      "to": "spec-07"
+    },
+    {
+      "from": "adr-0013",
+      "kind": "implemented_by",
+      "source": "both-headers",
+      "to": "spec-13"
+    },
+    {
+      "from": "adr-0013",
+      "kind": "implemented_by",
+      "source": "spec-header",
+      "to": "spec-16"
+    },
+    {
+      "from": "adr-0014",
+      "kind": "implemented_by",
+      "source": "adr-header",
+      "to": "spec-10"
+    },
+    {
+      "from": "adr-0014",
+      "kind": "implemented_by",
+      "source": "spec-header",
+      "to": "spec-12"
+    },
+    {
+      "from": "adr-0014",
+      "kind": "implemented_by",
+      "source": "adr-header",
+      "to": "spec-15"
+    },
+    {
+      "from": "adr-0015",
+      "kind": "implemented_by",
+      "source": "both-headers",
+      "to": "spec-09"
+    },
+    {
+      "from": "adr-0015",
+      "kind": "implemented_by",
+      "source": "both-headers",
+      "to": "spec-10"
+    },
+    {
+      "from": "adr-0015",
+      "kind": "implemented_by",
+      "source": "both-headers",
+      "to": "spec-11"
+    },
+    {
+      "from": "adr-0015",
+      "kind": "implemented_by",
+      "source": "spec-header",
+      "to": "spec-12"
+    },
+    {
+      "from": "adr-0015",
+      "kind": "implemented_by",
+      "source": "both-headers",
+      "to": "spec-15"
+    },
+    {
+      "from": "adr-0015",
+      "kind": "implemented_by",
+      "source": "spec-header",
+      "to": "spec-17"
+    },
+    {
+      "from": "adr-0016",
+      "kind": "implemented_by",
+      "source": "spec-header",
+      "to": "spec-03"
+    },
+    {
+      "from": "adr-0016",
+      "kind": "implemented_by",
+      "source": "both-headers",
+      "to": "spec-04"
+    },
+    {
+      "from": "adr-0016",
+      "kind": "implemented_by",
+      "source": "spec-header",
+      "to": "spec-07"
+    },
+    {
+      "from": "adr-0016",
+      "kind": "implemented_by",
+      "source": "both-headers",
+      "to": "spec-11"
+    },
+    {
+      "from": "adr-0016",
+      "kind": "implemented_by",
+      "source": "spec-header",
+      "to": "spec-18"
+    },
+    {
+      "from": "adr-0017",
+      "kind": "implemented_by",
+      "source": "spec-header",
+      "to": "spec-01"
+    },
+    {
+      "from": "adr-0017",
+      "kind": "implemented_by",
+      "source": "both-headers",
+      "to": "spec-05"
+    },
+    {
+      "from": "adr-0017",
+      "kind": "implemented_by",
+      "source": "spec-header",
+      "to": "spec-07"
+    },
+    {
+      "from": "adr-0017",
+      "kind": "implemented_by",
+      "source": "both-headers",
+      "to": "spec-08"
+    },
+    {
+      "from": "adr-0017",
+      "kind": "implemented_by",
+      "source": "spec-header",
+      "to": "spec-13"
+    },
+    {
+      "from": "adr-0017",
+      "kind": "implemented_by",
+      "source": "spec-header",
+      "to": "spec-16"
+    },
+    {
+      "from": "adr-0018",
+      "kind": "implemented_by",
+      "source": "both-headers",
+      "to": "spec-14"
+    },
+    {
+      "from": "adr-0018",
+      "kind": "implemented_by",
+      "source": "spec-header",
+      "to": "spec-18"
+    },
+    {
+      "from": "adr-0019",
+      "kind": "implemented_by",
+      "source": "spec-header",
+      "to": "spec-01"
+    },
+    {
+      "from": "adr-0019",
+      "kind": "implemented_by",
+      "source": "both-headers",
+      "to": "spec-02"
+    },
+    {
+      "from": "adr-0019",
+      "kind": "implemented_by",
+      "source": "spec-header",
+      "to": "spec-03"
+    },
+    {
+      "from": "adr-0019",
+      "kind": "implemented_by",
+      "source": "spec-header",
+      "to": "spec-04"
+    },
+    {
+      "from": "adr-0019",
+      "kind": "implemented_by",
+      "source": "spec-header",
+      "to": "spec-15"
+    },
+    {
+      "from": "adr-0020",
+      "kind": "implemented_by",
+      "source": "both-headers",
+      "to": "spec-01"
+    },
+    {
+      "from": "adr-0020",
+      "kind": "implemented_by",
+      "source": "both-headers",
+      "to": "spec-02"
+    },
+    {
+      "from": "adr-0020",
+      "kind": "implemented_by",
+      "source": "both-headers",
+      "to": "spec-03"
+    },
+    {
+      "from": "adr-0020",
+      "kind": "implemented_by",
+      "source": "both-headers",
+      "to": "spec-04"
+    },
+    {
+      "from": "adr-0020",
+      "kind": "implemented_by",
+      "source": "both-headers",
+      "to": "spec-05"
+    },
+    {
+      "from": "adr-0020",
+      "kind": "implemented_by",
+      "source": "both-headers",
+      "to": "spec-09"
+    },
+    {
+      "from": "adr-0020",
+      "kind": "implemented_by",
+      "source": "both-headers",
+      "to": "spec-10"
+    },
+    {
+      "from": "adr-0020",
+      "kind": "implemented_by",
+      "source": "both-headers",
+      "to": "spec-11"
+    },
+    {
+      "from": "adr-0020",
+      "kind": "implemented_by",
+      "source": "spec-header",
+      "to": "spec-14"
+    },
+    {
+      "from": "adr-0020",
+      "kind": "implemented_by",
+      "source": "both-headers",
+      "to": "spec-15"
+    },
+    {
+      "from": "adr-0021",
+      "kind": "implemented_by",
+      "source": "spec-header",
+      "to": "spec-09"
+    },
+    {
+      "from": "adr-0021",
+      "kind": "implemented_by",
+      "source": "both-headers",
+      "to": "spec-10"
+    },
+    {
+      "from": "adr-0021",
+      "kind": "implemented_by",
+      "source": "adr-header",
+      "to": "spec-11"
+    },
+    {
+      "from": "adr-0021",
+      "kind": "implemented_by",
+      "source": "spec-header",
+      "to": "spec-14"
+    },
+    {
+      "from": "adr-0021",
+      "kind": "implemented_by",
+      "source": "adr-header",
+      "to": "spec-15"
+    },
+    {
+      "from": "adr-0021",
+      "kind": "implemented_by",
+      "source": "both-headers",
+      "to": "spec-17"
+    },
+    {
+      "from": "adr-0021",
+      "kind": "implemented_by",
+      "source": "both-headers",
+      "to": "spec-18"
+    },
+    {
+      "from": "adr-0022",
+      "kind": "implemented_by",
+      "source": "both-headers",
+      "to": "spec-17"
+    },
+    {
+      "from": "adr-0023",
+      "kind": "implemented_by",
+      "source": "both-headers",
+      "to": "spec-02"
+    },
+    {
+      "from": "adr-0024",
+      "kind": "implemented_by",
+      "source": "both-headers",
+      "to": "spec-02"
+    },
+    {
+      "from": "adr-0024",
+      "kind": "implemented_by",
+      "source": "adr-header",
+      "to": "spec-03"
+    },
+    {
+      "from": "adr-0024",
+      "kind": "implemented_by",
+      "source": "adr-header",
+      "to": "spec-04"
+    },
+    {
+      "from": "adr-0024",
+      "kind": "implemented_by",
+      "source": "adr-header",
+      "to": "spec-11"
+    },
+    {
+      "from": "adr-0025",
+      "kind": "implemented_by",
+      "source": "both-headers",
+      "to": "spec-09"
+    },
+    {
+      "from": "adr-0025",
+      "kind": "implemented_by",
+      "source": "adr-header",
+      "to": "spec-11"
+    },
+    {
+      "from": "adr-0025",
+      "kind": "implemented_by",
+      "source": "adr-header",
+      "to": "spec-15"
+    },
+    {
+      "from": "adr-0026",
+      "kind": "implemented_by",
+      "source": "adr-header",
+      "to": "spec-01"
+    },
+    {
+      "from": "adr-0026",
+      "kind": "implemented_by",
+      "source": "both-headers",
+      "to": "spec-05"
+    },
+    {
+      "from": "adr-0026",
+      "kind": "implemented_by",
+      "source": "adr-header",
+      "to": "spec-07"
+    },
+    {
+      "from": "adr-0026",
+      "kind": "implemented_by",
+      "source": "adr-header",
+      "to": "spec-09"
+    },
+    {
+      "from": "adr-0027",
+      "kind": "implemented_by",
+      "source": "adr-header",
+      "to": "spec-04"
+    },
+    {
+      "from": "adr-0027",
+      "kind": "implemented_by",
+      "source": "adr-header",
+      "to": "spec-11"
+    },
+    {
+      "from": "adr-0027",
+      "kind": "implemented_by",
+      "source": "adr-header",
+      "to": "spec-15"
+    },
+    {
+      "from": "adr-0028",
+      "kind": "implemented_by",
+      "source": "adr-header",
+      "to": "spec-09"
+    },
+    {
+      "from": "adr-0028",
+      "kind": "implemented_by",
+      "source": "adr-header",
+      "to": "spec-11"
+    },
+    {
+      "from": "adr-0029",
+      "kind": "implemented_by",
+      "source": "both-headers",
+      "to": "spec-05"
+    },
+    {
+      "from": "adr-0029",
+      "kind": "implemented_by",
+      "source": "both-headers",
+      "to": "spec-07"
+    },
+    {
+      "from": "P1",
+      "kind": "motivates",
+      "source": "extra",
+      "to": "adr-0003"
+    },
+    {
+      "from": "P1",
+      "kind": "motivates",
+      "source": "extra",
+      "to": "adr-0004"
+    },
+    {
+      "from": "P2",
+      "kind": "motivates",
+      "source": "extra",
+      "to": "adr-0013"
+    },
+    {
+      "from": "P2",
+      "kind": "motivates",
+      "source": "extra",
+      "to": "adr-0014"
+    },
+    {
+      "from": "P2",
+      "kind": "motivates",
+      "source": "extra",
+      "to": "adr-0015"
+    },
+    {
+      "from": "P3",
+      "kind": "motivates",
+      "source": "extra",
+      "to": "adr-0007"
+    },
+    {
+      "from": "P3",
+      "kind": "motivates",
+      "source": "extra",
+      "to": "adr-0013"
+    },
+    {
+      "from": "P4",
+      "kind": "motivates",
+      "source": "extra",
+      "to": "adr-0005"
+    },
+    {
+      "from": "P4",
+      "kind": "motivates",
+      "source": "extra",
+      "to": "adr-0006"
+    },
+    {
+      "from": "P4",
+      "kind": "motivates",
+      "source": "extra",
+      "to": "adr-0016"
+    },
+    {
+      "from": "P4",
+      "kind": "motivates",
+      "source": "extra",
+      "to": "adr-0022"
+    },
+    {
+      "from": "adr-0004",
+      "kind": "related",
+      "source": "adr-header",
+      "to": "adr-0018"
+    },
+    {
+      "from": "adr-0007",
+      "kind": "related",
+      "source": "adr-header",
+      "to": "adr-0015"
+    },
+    {
+      "from": "adr-0009",
+      "kind": "related",
+      "source": "adr-header",
+      "to": "adr-0015"
+    },
+    {
+      "from": "adr-0013",
+      "kind": "related",
+      "source": "adr-header",
+      "to": "adr-0014"
+    },
+    {
+      "from": "adr-0014",
+      "kind": "related",
+      "source": "adr-header",
+      "to": "adr-0013"
+    },
+    {
+      "from": "adr-0015",
+      "kind": "related",
+      "source": "adr-header",
+      "to": "adr-0007"
+    },
+    {
+      "from": "adr-0015",
+      "kind": "related",
+      "source": "adr-header",
+      "to": "adr-0009"
+    },
+    {
+      "from": "adr-0018",
+      "kind": "related",
+      "source": "adr-header",
+      "to": "adr-0004"
+    },
+    {
+      "from": "adr-0018",
+      "kind": "related",
+      "source": "adr-header",
+      "to": "adr-0007"
+    },
+    {
+      "from": "adr-0018",
+      "kind": "related",
+      "source": "adr-header",
+      "to": "adr-0015"
+    },
+    {
+      "from": "adr-0019",
+      "kind": "related",
+      "source": "adr-header",
+      "to": "adr-0005"
+    },
+    {
+      "from": "adr-0020",
+      "kind": "related",
+      "source": "adr-header",
+      "to": "adr-0007"
+    },
+    {
+      "from": "adr-0020",
+      "kind": "related",
+      "source": "adr-header",
+      "to": "adr-0012"
+    },
+    {
+      "from": "adr-0020",
+      "kind": "related",
+      "source": "adr-header",
+      "to": "adr-0019"
+    },
+    {
+      "from": "adr-0021",
+      "kind": "related",
+      "source": "adr-header",
+      "to": "adr-0006"
+    },
+    {
+      "from": "adr-0021",
+      "kind": "related",
+      "source": "adr-header",
+      "to": "adr-0007"
+    },
+    {
+      "from": "adr-0021",
+      "kind": "related",
+      "source": "adr-header",
+      "to": "adr-0015"
+    },
+    {
+      "from": "adr-0021",
+      "kind": "related",
+      "source": "adr-header",
+      "to": "adr-0016"
+    },
+    {
+      "from": "adr-0021",
+      "kind": "related",
+      "source": "adr-header",
+      "to": "adr-0018"
+    },
+    {
+      "from": "adr-0021",
+      "kind": "related",
+      "source": "adr-header",
+      "to": "adr-0022"
+    },
+    {
+      "from": "adr-0022",
+      "kind": "related",
+      "source": "adr-header",
+      "to": "adr-0006"
+    },
+    {
+      "from": "adr-0022",
+      "kind": "related",
+      "source": "adr-header",
+      "to": "adr-0007"
+    },
+    {
+      "from": "adr-0022",
+      "kind": "related",
+      "source": "adr-header",
+      "to": "adr-0021"
+    },
+    {
+      "from": "adr-0023",
+      "kind": "related",
+      "source": "adr-header",
+      "to": "adr-0005"
+    },
+    {
+      "from": "adr-0023",
+      "kind": "related",
+      "source": "adr-header",
+      "to": "adr-0019"
+    },
+    {
+      "from": "adr-0023",
+      "kind": "related",
+      "source": "adr-header",
+      "to": "adr-0020"
+    },
+    {
+      "from": "adr-0024",
+      "kind": "related",
+      "source": "adr-header",
+      "to": "adr-0005"
+    },
+    {
+      "from": "adr-0024",
+      "kind": "related",
+      "source": "adr-header",
+      "to": "adr-0006"
+    },
+    {
+      "from": "adr-0024",
+      "kind": "related",
+      "source": "adr-header",
+      "to": "adr-0014"
+    },
+    {
+      "from": "adr-0025",
+      "kind": "related",
+      "source": "adr-header",
+      "to": "adr-0007"
+    },
+    {
+      "from": "adr-0025",
+      "kind": "related",
+      "source": "adr-header",
+      "to": "adr-0015"
+    },
+    {
+      "from": "adr-0025",
+      "kind": "related",
+      "source": "adr-header",
+      "to": "adr-0021"
+    },
+    {
+      "from": "adr-0026",
+      "kind": "related",
+      "source": "adr-header",
+      "to": "adr-0004"
+    },
+    {
+      "from": "adr-0026",
+      "kind": "related",
+      "source": "adr-header",
+      "to": "adr-0017"
+    },
+    {
+      "from": "adr-0026",
+      "kind": "related",
+      "source": "adr-header",
+      "to": "adr-0020"
+    },
+    {
+      "from": "adr-0027",
+      "kind": "related",
+      "source": "adr-header",
+      "to": "adr-0009"
+    },
+    {
+      "from": "adr-0027",
+      "kind": "related",
+      "source": "adr-header",
+      "to": "adr-0015"
+    },
+    {
+      "from": "adr-0027",
+      "kind": "related",
+      "source": "adr-header",
+      "to": "adr-0021"
+    },
+    {
+      "from": "adr-0027",
+      "kind": "related",
+      "source": "adr-header",
+      "to": "adr-0025"
+    },
+    {
+      "from": "adr-0027",
+      "kind": "related",
+      "source": "adr-header",
+      "to": "adr-0028"
+    },
+    {
+      "from": "adr-0028",
+      "kind": "related",
+      "source": "adr-header",
+      "to": "adr-0015"
+    },
+    {
+      "from": "adr-0028",
+      "kind": "related",
+      "source": "adr-header",
+      "to": "adr-0021"
+    },
+    {
+      "from": "adr-0028",
+      "kind": "related",
+      "source": "adr-header",
+      "to": "adr-0025"
+    },
+    {
+      "from": "adr-0029",
+      "kind": "related",
+      "source": "adr-header",
+      "to": "adr-0009"
+    },
+    {
+      "from": "adr-0029",
+      "kind": "related",
+      "source": "adr-header",
+      "to": "adr-0017"
+    },
+    {
+      "from": "adr-0020",
+      "kind": "supersedes",
+      "source": "adr-header",
+      "to": "adr-0012"
+    }
+  ]
+}
