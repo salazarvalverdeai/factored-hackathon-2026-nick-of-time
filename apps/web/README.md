@@ -21,7 +21,8 @@ npm run lint && npm test && npm run build     # what CI runs
 
 ## Add a page (5 steps)
 1. `cp -r app/_template app/my-page` (the template is a private folder: it is linted and built but not routed).
-2. Change the title, the description and the query. Keep the `PageShell`.
+2. Change the title, the description and the query. Keep the `PageShell`. Put every visible string in a namespace of
+   `messages/` (English first, then Spanish and Portuguese) and read it with `useT()` (client) or `await getT()` (server).
 3. Read data with `useQuery((store) => …)` and handle all four states: loading, error, empty, content.
 4. Act through `api` from `@/lib/api` (it returns promises and throws `ApiError`); show the error with `ErrorState`.
 5. Add the route to `NAV` in `components/site-header.tsx` if it should appear in the header; run `npm run lint && npm test && npm run build`.
@@ -84,7 +85,9 @@ await api.analystAction(id, "take");                    // throws ApiError { cod
 - **Brand:** follow [`docs/brand/BRAND.md`](../../docs/brand/BRAND.md). Violet `#7C3AED` is the primary, teal `#0F766E` means verified, amber `#D97706` marks deadlines and
   urgency (restrained), dark base `#080812` with `#111827` panels, Sora for text and JetBrains Mono for code. Logos and avatars are copies of the
   SVG/PNG sources in `docs/brand/` under `public/brand/`: never redraw the mark, no glow or shadows. Use the tokens (`bg-primary`, `text-brand-teal`, `border-brand-amber`).
-- English for code, comments and UI; Spanish or Portuguese only for customer-facing text (agent replies, notifications).
+- English for code and comments. The UI ships in Spanish, Portuguese and English (selector in the header, spec 16 AC-06),
+  with English as the source keys; customer-facing agent text (agent replies, receipts, notifications) stays Spanish or
+  Portuguese only, in the conversation's language, and is never translated by the web.
 - Tailwind classes and the theme tokens (`bg-background`, `text-muted-foreground`, `border`…); no hard-coded colors except the zone and status badges.
 - Dark mode is the default and must stay readable; check both before asking for review.
 - Mobile first: the customer chat works at 390 px, the console switches to tabs below 1024 px. No horizontal page scroll.
@@ -92,6 +95,19 @@ await api.analystAction(id, "take");                    // throws ApiError { cod
 - Every figure on screen carries a label: `[data]` `[external]` `[assumption]` `[simulated]` `[projected]`.
 - Accepted is not verified: show them as different states (`accepted` vs `verified ✓`).
 - Color is never the only signal: badges always carry their text.
+
+## Languages (ES · PT · EN)
+- **Where the strings live:** `messages/<namespace>.ts`, each a `defineMessages({ en, es, pt })` with the three languages side
+  by side; `messages/{en,es,pt}.ts` assemble them. English is the source of the keys: a key missing or extra in Spanish or
+  Portuguese is a type error, and `lib/i18n.test.ts` fails on it too (and on an empty string or a changed `{placeholder}`).
+- **Reading them:** client components `const t = useT(); t("shell.nav.chat")` (`components/i18n-provider.tsx`); server
+  components `const { t, locale } = await getT()` (`lib/i18n-server.ts`); `generateMetadata` does the same for titles.
+- **Choosing:** the header selector writes the `not_locale` cookie (default `es`); the root layout reads it per request, so
+  `<html lang>` and the first paint are already in the right language. `useLocale()` gives the locale to client code.
+- **Dates and numbers:** `formatDateTime`, `formatDay`, `formatNumber` from `lib/i18n.ts` (es-MX, pt-BR, en-US, 24 h clock).
+- **What is not translated:** figures, their `[labels]` and sources; ids, tool and policy names; the agent's conversation, its
+  receipts and notifications. In `/chat` the chrome follows the UI language while the conversation (and the customer-visible
+  trace) follows the session's ES/PT choice; with the UI in English a new session starts in Spanish.
 
 ## Tests
 `npm test` checks that `messages.ts` matches the contract and that `agent-reference.ts` matches its sources (`npm run sync:agent` regenerates it), then runs Node's built-in runner on `lib/**/*.test.ts`. Each test cites the acceptance criterion

@@ -6,15 +6,18 @@
  * (`aria-hidden`), calm and precise per docs/brand/BRAND.md: no glow, beams or dense star fields, and never a redrawn
  * mark (use the SVGs in `public/brand/`). Until then it shows a calm card with the five-step summary (no product screenshot of the verified receipt exists in the repo yet).
  */
+import { getT } from "@/lib/i18n-server";
+
 const STEPS = [
-  ["Understands", "Spanish or Portuguese, in the customer's words"],
-  ["Rules decide", "Zone, block and legal deadline from the policy file"],
-  ["Tools act", "Only on the session's own customer"],
-  ["Verification confirms", "Reported only once it is read back"],
-  ["A person closes", "Provisional credit is always a human decision"],
+  ["landing.visual.s1", "landing.visual.s1Text"],
+  ["landing.visual.s2", "landing.visual.s2Text"],
+  ["landing.visual.s3", "landing.visual.s3Text"],
+  ["landing.visual.s4", "landing.visual.s4Text"],
+  ["landing.visual.s5", "landing.visual.s5Text"],
 ] as const;
 
-export function HeroVisual() {
+export async function HeroVisual() {
+  const { t } = await getT();
   return (
     <div data-slot="hero-visual" aria-hidden="true" className="w-full max-w-sm space-y-4 rounded-2xl border bg-card p-6">
       {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -26,8 +29,8 @@ export function HeroVisual() {
               {i + 1}
             </span>
             <span className="text-sm">
-              <span className="block font-medium">{title}</span>
-              <span className="block text-muted-foreground">{text}</span>
+              <span className="block font-medium">{t(title)}</span>
+              <span className="block text-muted-foreground">{t(text)}</span>
             </span>
           </li>
         ))}
