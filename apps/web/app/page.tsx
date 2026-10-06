@@ -70,7 +70,7 @@ export default function Home() {
                   <Icon aria-hidden="true" className="size-4" />
                   <span className="flex flex-col">
                     <span>{label}</span>
-                    <span className={`text-xs font-normal ${primary ? "text-primary-foreground/80" : "text-muted-foreground"}`}>
+                    <span className={`text-xs font-normal ${primary ? "text-primary-foreground" : "text-muted-foreground"}`}>
                       {hint}
                     </span>
                   </span>
