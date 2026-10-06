@@ -15,7 +15,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { ApiError, api } from "@/lib/api";
 import { EMPTY_RUN, type GraphRun, applyFrame, finishRun, startRun, stopRun } from "@/lib/chat-graph";
-import { customerText, formatDate, replyBody } from "@/lib/chat-stream";
+import { customerText, displayText, formatDate, replyBody } from "@/lib/chat-stream";
 import { CHAT_STRINGS } from "@/lib/chat-strings";
 import { greetingName, helloLine, showWebGreeting } from "@/lib/chat-view";
 import { DEMO_TODAY } from "@/lib/mock/store";
@@ -263,7 +263,7 @@ function Conversation({ onExpired }: { onExpired: () => void }) {
   const [graphOpen, setGraphOpen] = useState(false);
 
   const turn = usePacedTurn<AgentReply>({
-    streamText: customerText,
+    streamText: (text) => displayText(customerText(text), lang),
     finalText: (reply) => replyBody(reply.text, reply.receipt, lang),
     onFrame: (frame) => setGraphRun((run) => applyFrame(run, frame)),
     onComplete: (reply, view) => {

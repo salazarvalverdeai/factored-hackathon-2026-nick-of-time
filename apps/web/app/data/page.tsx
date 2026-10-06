@@ -8,11 +8,14 @@ import { TableView } from "@/app/analytics/charts";
 import { DetailButton } from "@/components/detail-button";
 import { Reveal } from "@/components/motion";
 import { DATA_CARDS, GOLD_CONSUMERS, OPS_STEPS, datasetLimits, medallionSteps, type Detail } from "@/lib/pipelines";
+import { dataProfile, type Profile } from "@/lib/data-profile";
+import { DataAtAGlance } from "./profile-charts";
 import quality from "@/public/data/data_quality.json";
 
-// /data (spec 12 AC-03): the medallion, the gold rules, the checks with counts, the manifest versions, the
-// late-arrival fixture result, the operational lakehouse and the dataset limits. Every value comes from
-// data_quality.json, written by `python -m data.pipeline report --json`; the page computes nothing.
+// /data (spec 12 AC-03): the medallion, the data at a glance (the charts of queries/data d02..d06), the gold rules, the
+// checks with counts, the manifest versions, the late-arrival fixture result, the operational lakehouse and the dataset
+// limits. Every value comes from data_quality.json, written by `python -m data.pipeline report --json`; the page only
+// regroups its rows for display (lib/data-profile.ts).
 const int = (n: number) => n.toLocaleString("en-US");
 const megabytes = (bytes: number | null) => (bytes === null ? "—" : `${(bytes / 1e6).toFixed(1)} MB`);
 const TH = "border-b py-1.5 pr-4 font-normal";
@@ -122,6 +125,8 @@ export default function Page() {
             rows={layers.flatMap((l) => l.tables.map((t) => [l.layer, t.table, `${int(t.rows)} [data]`, megabytes(t.bytes)]))}
           />
         </Section>
+
+        <DataAtAGlance data={dataProfile(quality.data.profile as Profile | null)} />
 
         <Section title="Versions" note="What this page was built from: one run of the pipeline on one source delivery." detail={DATA_CARDS.versions}>
           <dl className="grid grid-cols-2 gap-x-6 gap-y-3 text-sm sm:grid-cols-3 lg:grid-cols-6">
