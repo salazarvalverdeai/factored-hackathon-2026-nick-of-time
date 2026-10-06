@@ -163,6 +163,14 @@ AC-01 to AC-08 come from issue #6 with the same numbers; the rest are added by t
   `understand` may call the read-only tools `list_recent_transactions`, `search_transaction` and `get_case_status` (at
   most 4 rounds) before `clarify`, and shall show the candidates as options instead of asking again; actions keep the
   `decide → plan → act → verify` path. · [T]
+- **AC-43** — *(D-087 (lead, 2026-10-06))* When the customer's last message has at least 2 words of ES or PT and more
+  than of the other (`detect_language`), the turn shall be in that language: reply, chips, progress labels, `tool`
+  step titles and summaries, and the receipt, with `TurnResult.language` set to it. A message that does not tell them
+  apart, or a chip press with no text, shall keep the last turn's language `[assumption]` (a session language changed
+  since then by the web's toggle wins), else the session's. A G-IN-03 message (English or another language) shall keep
+  today's answer: the session language plus English once. The session's `language` is never rewritten, and
+  notifications (Telegram, e-mail) keep it, so spec 13 is unchanged (spec 01 AC-06). · [T]
+  `tests/test_spec04_turn_language.py`
 
 ## 4. Functional requirements
 
@@ -302,7 +310,8 @@ The writer is the only LLM that words customer text. It runs inside `respond` wh
 It receives the turn's facts as delimited data (never `policies.yaml`, never the score, never policy ids) and returns
 the reply text and the chip choice. Notifications (Telegram, e-mail) stay templates.
 
-Style (ES and PT, the session language; `docs/brand/BRAND.md` voice: calm and precise):
+Style (ES and PT, the turn's language, AC-43 / D-087 (lead, 2026-10-06); `docs/brand/BRAND.md` voice: calm and
+precise):
 - warm, second person (`tú` / `você`), the customer's first name from `get_customer_profile`; Spanish uses `tú` in
   every country (MX, CO, AR: no voseo, no `usted`) and Portuguese uses `você` (D-086, lead, 2026-10-06);
 - 2–3 short sentences; a list only for a plan or options; one question at a time;

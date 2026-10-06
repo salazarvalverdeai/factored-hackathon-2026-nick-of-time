@@ -44,6 +44,7 @@ from nick_of_time.ids import new_id
 from nick_of_time.llm import writer as wording
 from nick_of_time.receipt import build
 from nick_of_time.nlu import load_nlu
+from nick_of_time.nlu.rules import detect_language
 from nick_of_time.nlu.text import fold
 from nick_of_time.policy import DecisionInput, PolicyDecision, PolicyEngine
 
@@ -130,7 +131,8 @@ class Internal(TypedDict, total=False):     # spec 04 §4.1 fields outside TurnR
     branch: str
     body: list[str]
     row: Optional[str]                      # §4.5 row of this turn's chips
-    language_last: Optional[str]            # the thread's language, kept when a request sends language null
+    language_last: Optional[str]            # the last turn's language (D-087), kept when a request sends language null
+    session_language: Optional[str]         # the session language the last turn saw (D-087: a toggle wins over language_last)
     answer: Optional[dict[str, Any]]        # this turn's answer to a confirm question or an option card (task 04b)
     candidates: list[dict[str, Any]]        # search_transaction's last candidates
     selected_transaction: Optional[dict[str, Any]]   # the one candidate, with product_type and last4 of its card
@@ -250,7 +252,9 @@ async def greet(state: State, config: RunnableConfig) -> dict[str, Any]:
     """First turn of a verified session: the first name comes from get_customer_profile (AC-15)."""
     if state.get("profile") or state["session_state"] != "verified":
         return {}
-    progress(state, "reading_account")
+    texts = [m.get("content", "") for m in state.get("messages") or [] if m.get("role", "user") == "user"]
+    said = texts[-1].strip() if texts and not state.get("action") else ""
+    progress({**state, "language": turn_language(state, said)}, "reading_account")     # D-087: the turn's language
     profile = await call(config, "get_customer_profile")
     if isinstance(profile, ToolError):
         return {}                           # no greeting without a name read from the tool; retried next turn
@@ -269,16 +273,16 @@ async def understand(state: State, config: RunnableConfig) -> dict[str, Any]:
 
 async def understood(state: State, config: RunnableConfig) -> dict[str, Any]:
     """The turn's understanding (see `understand`)."""
-    progress(state, "reading_message")      # before any LLM call: the first label comes within 1 s (§5)
     profile = state.get("profile") or {}
     day = today(state["mode"], profile.get("country"))
     texts = [m.get("content", "") for m in state.get("messages") or [] if m.get("role", "user") == "user"]
     text, action = (texts[-1].strip() if texts else ""), state.get("action") or {}
-    # [assumption] the thread's language: the request's, else the last turn's, else the first message's, else the
-    # profile's. A customer who switches language mid-thread uses the web's language toggle.
-    hint = state.get("language") or state.get("language_last")
-    language = hint or profile.get("language") or "es"
-    base = {"today": day.isoformat(), "language": language, "slots": {}, "injection_flagged": False,
+    language = turn_language(state, text if not action else "")
+    # before any LLM call: the first label comes within 1 s (§5), in the turn's language (D-087)
+    progress({**state, "language": language}, "reading_message")
+    hint = language
+    base = {"today": day.isoformat(), "language": language, "session_language": session_language(state), "slots": {},
+            "injection_flagged": False,
             "cross_customer": False, "other_language": False, "intent": None, "intent_confidence": None, "dispute_detected": False}
     # the dispute being clarified: the last turn's, else the last dispute read (D-071), else an unrecognized charge
     pending = (state.get("intent") if state.get("intent") in DISPUTES
@@ -306,7 +310,9 @@ async def understood(state: State, config: RunnableConfig) -> dict[str, Any]:
     found = {"language": reading.language, "slots": reading.slots.model_dump(),
              "injection_flagged": reading.injection_flagged, "other_language": reading.other_language,
              "cross_customer": bool(CROSS_CUSTOMER.search(fold(text))) and not OWN_OR_DISPUTE.search(fold(text))}
-    chip = msg.offered_text_chip(text, state.get("suggestions") or [])
+    if found["other_language"]:             # G-IN-03 stays as it was: the session language, plus English once
+        found["language"] = base["language"] = session_language(state)
+    chip =msg.offered_text_chip(text, state.get("suggestions") or [])
     if chip:                                # typed label = pressed text chip: routed by the pending question (AC-33)
         intent = msg.TEXT_CHIP_INTENT[chip] or pending
         return {**base, **found, "intent": intent, "intent_confidence": 1.0, "dispute_detected": intent in DISPUTES,
@@ -323,6 +329,24 @@ async def understood(state: State, config: RunnableConfig) -> dict[str, Any]:
     out = {**base, **found, "intent": reading.intent, "intent_confidence": reading.confidence,
            "dispute_detected": reading.dispute_detected, **(heard or {}), **extra}
     return {**out, **kept(keep, out["slots"])}
+
+
+def session_language(state: State) -> str:
+    """The session's language: the request's (the api sends the session's, spec 01 §6.4), else the last turn's, else
+    the profile's. It stays the default and the language of notifications; the graph never rewrites it (D-087)."""
+    return (state.get("language") or state.get("language_last") or (state.get("profile") or {}).get("language")
+            or "es")
+
+
+def turn_language(state: State, text: str) -> str:
+    """D-087 (lead, 2026-10-06; spec 04 AC-43): the turn follows the language of the customer's last message when its
+    words tell ES from PT (`detect_language` with no hint, at least 2 words of one language and more than of the
+    other [assumption], so "ok" or a lone shared word never switches); a message they do not tell apart, or a chip
+    press with no text, keeps the last turn's language [assumption], else the session's. Another language is G-IN-03's (the session
+    language, set by the caller). A session language changed since the last turn (the web's toggle) wins over it."""
+    session = session_language(state)
+    last = state.get("language_last") if state.get("session_language") in (None, session) else None
+    return detect_language(text, None, default=last or session, min_words=2) if text else last or session
 
 
 def kept(keep: Optional[str], slots: dict[str, Any]) -> dict[str, Any]:
