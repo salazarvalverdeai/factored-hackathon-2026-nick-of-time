@@ -119,6 +119,15 @@ AC-01 to AC-05 are copied from issue #9 with the same numbers. None is dropped o
   ("spec 07 AC-27: every chat animation goes through …")
 - AC-27 — Under `prefers-reduced-motion` nothing shall move: no element gets animated props, the reply shows whole and
   the steps still show in order. · [T] ("spec 07 AC-27: …")
+- AC-28 — While a turn runs, the chat shall offer a compact view of the `dispute_intake` graph (the `/agent` drawing,
+  `components/agent/graph-view.tsx`, drawn final with no reveal) that marks the node the agent is on and the nodes it
+  passed this turn, following the frames as the customer sees them; progress keys and tool events map to node ids of
+  `lib/agent-reference.ts` as `intake.py` emits them (`lib/chat-graph.ts`), and the steps that stream nothing (route,
+  plan) are filled in along the graph's own edges. It carries one caption, "La IA entiende · las reglas deciden · las
+  herramientas actúan · la verificación confirma · una persona cierra" (ES/PT). It is closed by default and takes no
+  width from the conversation: on wide screens a slim right rail "Ver cómo trabaja" opens a non-modal panel; on narrow
+  screens a header button opens it as a sheet, with no horizontal scroll at 390 px; both are keyboard operable, follow
+  both themes, and do not move under reduced motion. · [T] `lib/chat-graph.test.ts` ("spec 07 AC-28: …")
 
 ## 8. Assumptions and open questions
 - Assumption `[assumption]`: the scripted agent in `lib/mock/agent.ts` stands in for the LangGraph graph; refusal,
@@ -224,6 +233,8 @@ AC-01 to AC-05 are copied from issue #9 with the same numbers. None is dropped o
   Copy, chips inside the thread, header bar with "Nuevo caso", timestamps, motion through one adapter · covers AC-16 to
   AC-27 · done when: the tests citing them pass (the live-node graph beside the chat follows once `graph-view` takes
   `activeNode`)
+- [x] Task 10 — the live graph beside the chat (`components/chat/live-graph.tsx`, `lib/chat-graph.ts`, `graph-view`'s
+  `fit` mode) · covers AC-28 · done when: the tests citing it pass
 
 **Task 5 notes.** The web never sends a `customer_id`; the session id (equal to the httpOnly cookie value) is kept in
 `sessionStorage` to address `/api/sessions/{id}/...`. Charge-chip text is local ES/PT copy built from tool-returned
