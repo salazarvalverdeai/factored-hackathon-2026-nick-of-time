@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { ChatDetailPanel } from "@/components/chat/chat-detail";
 import { ChatComposer } from "@/components/chat/composer";
 import { ChatHeader } from "@/components/chat/header";
+import { LiveGraph, LiveGraphToggle } from "@/components/chat/live-graph";
 import { type ChatDetail, type ChatMessage, ChatThread } from "@/components/chat/thread";
 import { usePacedTurn } from "@/components/chat/use-paced-turn";
 import { PageShell } from "@/components/page-shell";
@@ -13,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { ApiError, api } from "@/lib/api";
+import { EMPTY_RUN, type GraphRun, applyFrame, finishRun, startRun, stopRun } from "@/lib/chat-graph";
 import { customerText, displayText, formatDate, replyBody } from "@/lib/chat-stream";
 import { CHAT_STRINGS } from "@/lib/chat-strings";
 import { greetingName, helloLine, showWebGreeting } from "@/lib/chat-view";
@@ -256,11 +258,16 @@ function Conversation({ onExpired }: { onExpired: () => void }) {
   const nextId = useRef(0);
   const turnNo = useRef(0); // "Nuevo caso" bumps it: a reply of an older thread is dropped
   const speak = readAloud.speak;
+  // The live graph (spec 07 AC-31): closed by default; it follows the frames as the customer sees them.
+  const [graphRun, setGraphRun] = useState<GraphRun>(EMPTY_RUN);
+  const [graphOpen, setGraphOpen] = useState(false);
 
   const turn = usePacedTurn<AgentReply>({
     streamText: (text) => displayText(customerText(text), lang),
     finalText: (reply) => replyBody(reply.text, reply.receipt, lang),
+    onFrame: (frame) => setGraphRun((run) => applyFrame(run, frame)),
     onComplete: (reply, view) => {
+      setGraphRun(finishRun);
       setMessages((m) => [...m, { id: nextId.current++, role: "agent", text: reply.text, reply, at: Date.now(), progress: view.progress }]);
       setLiveId(null);
       setBusy(false);
@@ -281,12 +288,13 @@ function Conversation({ onExpired }: { onExpired: () => void }) {
     setHeard(false);
     setBusy(true);
     setError(null);
+    setGraphRun(startRun());
     const push = turn.start();
     try {
       const reply = await api.chat(text, {
         pendingRequest: pending,
         action,
-        onProgress: (p) => push({ kind: "progress", label: p.label }),
+        onProgress: (p) => push({ kind: "progress", label: p.label, step: p.step }),
         onTool: (event) => push({ kind: "tool", event }),
         onText: (c) => push({ kind: "text", delta: c.delta, messageId: c.message_id }),
       });
@@ -296,6 +304,7 @@ function Conversation({ onExpired }: { onExpired: () => void }) {
     } catch (e) {
       if (turnNo.current !== myTurn) return;
       turn.cancel();
+      setGraphRun(stopRun);
       setLiveId(null);
       setBusy(false);
       if (e instanceof ApiError && e.code === "SESSION_EXPIRED") onExpired();
@@ -309,6 +318,7 @@ function Conversation({ onExpired }: { onExpired: () => void }) {
     turn.cancel();
     readAloud.cancel();
     api.newThread();
+    setGraphRun(EMPTY_RUN);
     setMessages([]);
     setLiveId(null);
     setBusy(false);
@@ -332,6 +342,7 @@ function Conversation({ onExpired }: { onExpired: () => void }) {
     <div className={cn("grid gap-4", api.mode === "live" && "lg:grid-cols-[minmax(0,1fr)_18rem]")}>
       <section aria-label="Conversation" className="mx-auto flex h-[calc(100dvh-12rem)] min-h-[32rem] w-full min-w-0 max-w-3xl flex-col overflow-hidden rounded-2xl border bg-background">
         <ChatHeader lang={lang} name={speaker} onNewCase={newCase} newCaseDisabled={messages.length === 0 && !busy}>
+          <LiveGraphToggle lang={lang} open={graphOpen} onToggle={() => setGraphOpen((o) => !o)} />
           {voiceOn && readAloud.supported ? <ReadAloudToggle lang={lang} on={readAloud.on} online={readAloud.online} onToggle={readAloud.toggle} /> : null}
           {api.mode === "mock" ? (
             <Button size="sm" variant="ghost" onClick={() => api.expireCustomerSession()} className="hidden text-muted-foreground sm:inline-flex">
@@ -429,6 +440,7 @@ function Conversation({ onExpired }: { onExpired: () => void }) {
           />
         </div>
       ) : null}
+      <LiveGraph lang={lang} run={graphRun} open={graphOpen} onOpenChange={setGraphOpen} />
       <ChatDetailPanel detail={detail} lang={lang} country={country} onClose={() => setDetail(null)} />
     </div>
   );

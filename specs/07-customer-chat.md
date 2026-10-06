@@ -132,6 +132,15 @@ AC-01 to AC-05 are copied from issue #9 with the same numbers. None is dropped o
   turn language ("2 de junio de 2026", "2 de junho de 2026") from a fixed month table, never the system clock; ids,
   instants and amounts are left as they are, and a date a tool returned still links to its source (AC-22). Display
   only. · [T] `lib/chat-reply.test.ts` ("spec 07 AC-30: …")
+- AC-31 — While a turn runs, the chat shall offer a compact view of the `dispute_intake` graph (the `/agent` drawing,
+  `components/agent/graph-view.tsx`, drawn final with no reveal) that marks the node the agent is on and the nodes it
+  passed this turn, following the frames as the customer sees them; progress keys and tool events map to node ids of
+  `lib/agent-reference.ts` as `intake.py` emits them (`lib/chat-graph.ts`), and the steps that stream nothing (route,
+  plan) are filled in along the graph's own edges. It carries one caption, "La IA entiende · las reglas deciden · las
+  herramientas actúan · la verificación confirma · una persona cierra" (ES/PT). It is closed by default and takes no
+  width from the conversation: on wide screens a slim right rail "Ver cómo trabaja" opens a non-modal panel; on narrow
+  screens a header button opens it as a sheet, with no horizontal scroll at 390 px; both are keyboard operable, follow
+  both themes, and do not move under reduced motion. · [T] `lib/chat-graph.test.ts` ("spec 07 AC-31: …")
 
 ## 8. Assumptions and open questions
 - Assumption `[assumption]`: the scripted agent in `lib/mock/agent.ts` stands in for the LangGraph graph; refusal,
@@ -239,6 +248,8 @@ AC-01 to AC-05 are copied from issue #9 with the same numbers. None is dropped o
   `activeNode`)
 - [x] Task 10 — production fixes of the recomposed chat: the charge to confirm shows as a card, text after a list is
   its own paragraph, ISO dates in long form · covers AC-28 to AC-30 · done when: the tests citing them pass
+- [x] Task 11 — the live graph beside the chat (`components/chat/live-graph.tsx`, `lib/chat-graph.ts`, `graph-view`'s
+  `fit` mode) · covers AC-31 · done when: the tests citing it pass
 
 **Task 5 notes.** The web never sends a `customer_id`; the session id (equal to the httpOnly cookie value) is kept in
 `sessionStorage` to address `/api/sessions/{id}/...`. Charge-chip text is local ES/PT copy built from tool-returned

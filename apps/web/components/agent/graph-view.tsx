@@ -25,6 +25,8 @@ export interface GraphViewProps {
   path?: string[];
   /** Draw the graph in order when it scrolls into view, with a Replay button (default true). */
   reveal?: boolean;
+  /** Fit the drawing to a narrow container (the /chat rail or sheet): one column, scaled down, no sideways scroll. */
+  fit?: boolean;
   className?: string;
 }
 
@@ -47,7 +49,7 @@ const FADE = "transition-[opacity,stroke-width] duration-200 ease-out motion-red
 const kindOf = (e: GraphEdge): Kind => e.kind ?? "plain";
 const touches = (e: GraphEdge, id: string | null) => id !== null && (e.from === id || e.to === id);
 
-export function GraphView({ activeNode, path, reveal = true, className }: GraphViewProps = {}) {
+export function GraphView({ activeNode, path, reveal = true, fit = false, className }: GraphViewProps = {}) {
   const t = useT();
   const uid = useId().replace(/:/g, "");
   const frame = useRef<HTMLDivElement>(null);
@@ -70,7 +72,7 @@ export function GraphView({ activeNode, path, reveal = true, className }: GraphV
   };
 
   return (
-    <div onKeyDown={onKeyDown} className={cn("grid gap-4 xl:grid-cols-[minmax(0,1fr)_18rem]", className)}>
+    <div onKeyDown={onKeyDown} className={cn("grid gap-4", !fit && "xl:grid-cols-[minmax(0,1fr)_18rem]", className)}>
       <div className="min-w-0">
         <div className="flex flex-wrap items-start justify-between gap-2">
           <Legend />
@@ -81,15 +83,15 @@ export function GraphView({ activeNode, path, reveal = true, className }: GraphV
             </Button>
           ) : null}
         </div>
-        <p className="mt-2 text-xs text-muted-foreground sm:hidden">{t("agent.ui.graph.scrollHint")}</p>
-        <div ref={frame} className="mt-2 overflow-x-auto rounded-md border bg-background/40 p-2">
+        {fit ? null : <p className="mt-2 text-xs text-muted-foreground sm:hidden">{t("agent.ui.graph.scrollHint")}</p>}
+        <div ref={frame} className={cn("mt-2 rounded-md border bg-background/40 p-2", fit ? "overflow-hidden" : "overflow-x-auto")}>
           <svg
             role="group"
             aria-labelledby={`${uid}-title`}
             viewBox={`0 0 ${GRAPH_VIEW.width} ${GRAPH_VIEW.height}`}
             width={GRAPH_VIEW.width}
             height={GRAPH_VIEW.height}
-            className="mx-auto block h-auto w-full min-w-[560px]"
+            className={cn("mx-auto block h-auto w-full", !fit && "min-w-[560px]")}
             style={{ maxWidth: GRAPH_VIEW.width }}
             data-phase={phase}
           >
@@ -204,7 +206,7 @@ export function GraphView({ activeNode, path, reveal = true, className }: GraphV
           </svg>
         </div>
       </div>
-      <Panel active={focus ?? run$.current} current={run$.current} />
+      <Panel active={focus ?? run$.current} current={run$.current} fit={fit} />
     </div>
   );
 }
@@ -227,7 +229,7 @@ function Legend() {
   );
 }
 
-function Panel({ active, current }: { active: string | null; current: string | null }) {
+function Panel({ active, current, fit }: { active: string | null; current: string | null; fit?: boolean }) {
   const t = useT();
   const links = active ? linksOf(active) : null;
   return (
@@ -235,8 +237,9 @@ function Panel({ active, current }: { active: string | null; current: string | n
       aria-live="polite"
       aria-label={t("agent.ui.graph.panelLabel")}
       className={cn(
-        "z-10 self-start overflow-y-auto rounded-md border bg-card/95 p-3 text-sm backdrop-blur xl:sticky xl:top-20 xl:bottom-auto xl:max-h-none",
-        active && "sticky bottom-3 max-h-[38vh]",
+        "z-10 self-start overflow-y-auto rounded-md border bg-card/95 p-3 text-sm backdrop-blur",
+        !fit && "xl:sticky xl:top-20 xl:bottom-auto xl:max-h-none",
+        !fit && active && "sticky bottom-3 max-h-[38vh]",
       )}
     >
       {active && links ? (

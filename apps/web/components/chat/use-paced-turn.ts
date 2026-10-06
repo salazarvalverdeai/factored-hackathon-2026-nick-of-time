@@ -28,18 +28,20 @@ export interface PacedTurnOptions<R> {
   finalText: (reply: R) => string;
   /** The whole turn has been shown: it becomes a message. */
   onComplete: (reply: R, view: { tools: ToolEvent[]; progress: string[] }) => void;
+  /** Each frame as it is shown, after its dwell (the live graph follows the steps the customer sees, AC-31). */
+  onFrame?: (frame: TurnFrame<R>) => void;
 }
 
 const TICK_MS = 30;
 
-export function usePacedTurn<R>({ streamText, finalText, onComplete }: PacedTurnOptions<R>) {
+export function usePacedTurn<R>({ streamText, finalText, onComplete, onFrame }: PacedTurnOptions<R>) {
   const reduce = useReducedMotionGuard();
   const model = useRef<Model<R> | null>(null);
   const pacer = useRef<Pacer<TurnFrame<R>> | null>(null);
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
-  const opts = useRef({ streamText, finalText, onComplete, reduce });
+  const opts = useRef({ streamText, finalText, onComplete, onFrame, reduce });
   useEffect(() => {
-    opts.current = { streamText, finalText, onComplete, reduce };
+    opts.current = { streamText, finalText, onComplete, onFrame, reduce };
   });
   // What renders: a snapshot of the model, published after every change (the model itself lives in a ref).
   const [snap, setSnap] = useState<{ view: LiveTurnView | null; thinking: boolean }>({ view: null, thinking: false });
@@ -90,6 +92,7 @@ export function usePacedTurn<R>({ streamText, finalText, onComplete }: PacedTurn
       const m = model.current;
       if (!m) return;
       m.started = true;
+      opts.current.onFrame?.(frame);
       if (frame.kind === "progress") m.progress = [...m.progress, frame.label];
       else if (frame.kind === "tool") m.stream = applyTool(m.stream, frame.event);
       else if (frame.kind === "text") {
