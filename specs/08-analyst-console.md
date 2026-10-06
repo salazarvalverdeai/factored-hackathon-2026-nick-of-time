@@ -129,8 +129,9 @@ AC-23 and AC-24 make the console explain itself with drawings (PR `feat/08-conso
 - AC-24 — The console header shall have a "How it works" button that shows, on demand, a drawing of the analyst's flow
   in the /agent architecture view's visual language: queue → case card with its evidence (receipt, deadline, handoff,
   second opinion) → analyst action → verification → close, and what it runs on (Cognito, the api, Postgres events),
-  with one plain line; each box shall take focus and open the shared detail panel with its detail and source. A walk
-  through shall play the links in order once when opened and never with reduced motion; the drawing shall fit 390 px
+  with one plain line; each box shall take focus and open the shared detail panel with its detail and source. Its
+  edges shall be the motion kit's `FlowConnector` (`components/motion`), played once in the flow's order within the
+  kit's 1.5 s sequence and never with reduced motion; the drawing shall fit 390 px
   with no horizontal scroll, in both themes, with full keyboard use. · [T] `lib/console-flow.test.ts` · [U]
 
 ## 6. API contract (assisted console, AC-16 to AC-22)
