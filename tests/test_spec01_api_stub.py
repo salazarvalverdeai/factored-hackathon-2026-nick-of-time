@@ -95,7 +95,7 @@ KEYS = {
     main.ConsoleCaseOut: "case handoff events", main.ThreadOut: "thread_id", main.PrefsOut: "display_currency language", main.EventOut: "event_id",
     main.CallOut: "event_id expected_contact_by", main.ReevalOut: "event_id case_id",
     main.TelegramOut: "deep_link expires_at", main.EmailOut: "confirmation_sent", main.AckOut: "ok",
-    main.SettingsOut: "supervised_mode score_provider policies_version",
+    main.SettingsOut: "supervised_mode writer score_provider policies_version",
     main.ResetOut: "demo_transactions sample_cases", main.SeedOut: "session_id thread_id run_id arm mode",
     main.DemoCustomerOut: "customer_id display_name country segment scenario language",
     main.NotificationOut: "notification_id case_id event channel masked_address text delivery_status created_at",

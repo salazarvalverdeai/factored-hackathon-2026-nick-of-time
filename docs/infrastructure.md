@@ -106,7 +106,7 @@ Uptime > Run workflow (a manual run on a failing check always alerts). Reviewer:
 |---|---|---|---|
 | New demo sessions per IP | 100 / hour (global 1,000) | `infra/deploy.sh` → api (`RATE_SESSIONS_PER_IP_HOUR`, `RATE_SESSIONS_GLOBAL_HOUR`) | A jury behind one NAT IP must not be blocked |
 | Chat turns per IP | 600 / hour (global 6,000) | `RATE_TURNS_PER_IP_HOUR`, `RATE_TURNS_GLOBAL_HOUR` | Same |
-| Bedrock spend | 5 USD / day | `DAILY_LLM_CAP_USD` | The real cost guard: past it the agent understands by rules only (S0, G-OPS-01) |
+| Bedrock spend | 10 USD / day (5 before ADR 0030) | `DAILY_LLM_CAP_USD` | The real cost guard: past it the agent understands by rules only (S0, G-OPS-01) |
 | Voice clip | 30 s, size-capped | api `POST /api/voice/transcribe` | Cost and abuse |
 | Customer session | 15 min | `policies.yaml` `identity.session_ttl_minutes` | Mock OTP (ADR 0017) |
 
