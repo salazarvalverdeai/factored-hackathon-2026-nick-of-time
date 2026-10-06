@@ -333,3 +333,45 @@ def test_ac_37_on_the_graph_the_cards_spare_the_text_the_verification_ids_and_th
     assert not re.search(r"V-\w+|UTC|https?://|\*\*", turn.reply)
     assert re.search(r"Tu caso K-\d+ quedó abierto", turn.reply) and "hasta el 2026-06-03 para" in turn.reply
     assert "".join(c.delta for c in texts(chunks)) == turn.reply
+
+
+# ---- long dates (spec 01 AC-10, spec 04 AC-37): the long form of an ISO date is the same fact ----
+def long_gate(template, language):
+    sent: list[str] = []
+    return wording.Gate(template, FACTS, sent.append, shown=SHOWN, language=language), sent
+
+
+def test_spec01_ac_10_ac_37_a_long_es_date_keeps_the_iso_template_date_without_fallback():
+    g, _ = long_gate(TEMPLATE_ES[-1:], "es")
+    g.take("[1] Por ley, el banco tiene hasta el 3 de junio de 2026 para pronunciarse sobre los fondos.")
+    out = g.finish()
+    assert out == ["Por ley, el banco tiene hasta el 3 de junio de 2026 para pronunciarse sobre los fondos."]
+    assert g.dropped == 0
+
+
+def test_spec01_ac_10_ac_37_a_long_pt_date_keeps_the_iso_template_date_without_fallback():
+    g, _ = long_gate(TEMPLATE_PT[-1:], "pt")
+    g.take("[1] Por lei, o banco tem até 3 de junho de 2026 para se pronunciar sobre os valores.")
+    assert g.finish() == ["Por lei, o banco tem até 3 de junho de 2026 para se pronunciar sobre os valores."]
+    assert g.dropped == 0
+
+
+@pytest.mark.parametrize("language, text", [
+    ("es", "Por ley, el banco tiene hasta el 4 de junio de 2026 para pronunciarse."),    # wrong day
+    ("es", "Por ley, el banco tiene hasta el 3 de junio para pronunciarse."),            # no year
+    ("es", "Por ley, el banco tiene hasta el 3 de junho de 2026 para pronunciarse."),    # other language's month
+    ("pt", "Por lei, o banco tem até 3 de junho de 2025 para se pronunciar.")])           # wrong year
+def test_spec01_ac_10_ac_37_a_wrong_or_partial_long_date_falls_back_to_the_template(language, text):
+    template = TEMPLATE_ES if language == "es" else TEMPLATE_PT
+    g, _ = long_gate(template[-1:], language)
+    g.take(f"[1] {text}")
+    assert g.finish() == template[-1:] and g.dropped == 1
+
+
+def test_spec04_ac_37_an_ungrounded_long_date_fails_the_grounding_check_and_a_grounded_one_passes():
+    facts = [{"credit_deadline": "2026-06-03"}]
+    assert wording.build.bad(wording.isoed("Hasta el 3 de junio de 2026.", "es"), facts) is False
+    assert wording.build.bad(wording.isoed("Hasta el 9 de junio de 2026.", "es"), facts) is True
+    assert wording.build.bad(wording.isoed("Hasta el 3 de junio de 2026.", "es"), [{"credit_deadline": "2026-07-03"}])
+    assert wording.states("el 3 de junio de 2026", "2026-06-03", "es")
+    assert not wording.states("el 3 de junho de 2026", "2026-06-03", "es")

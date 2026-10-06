@@ -32,6 +32,13 @@ LINK = re.compile(r"https?://|www\.", re.I)
 LIST = re.compile(r"^(?:[-•*]\s|\d+[.)]\s)")
 MARKDOWN = re.compile(r"\*\*|__")
 VERIFICATION = re.compile(r"V-[0-9A-Z]+")
+ISO_DATE = re.compile(r"\d{4}-\d{2}-\d{2}")
+# [assumption] fixed month names (no locale dependency): the long form of an ISO date in the turn's language
+MONTHS = {"es": ("enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre",
+                 "noviembre", "diciembre"),
+          "pt": ("janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro",
+                 "novembro", "dezembro")}
+LONG_DATE = re.compile(r"(?<![\w-])(\d{1,2}) de ([^\W\d_]+) de (\d{4})(?![\w-])", re.I)
 FIGURE = re.compile(r"[^\s(),;:]*\d[^\s(),;:]*")
 
 SYSTEM = (
@@ -41,7 +48,9 @@ SYSTEM = (
     "vos or usted; pt: Brazilian Portuguese with você): calm "
     "and precise, warm, the customer's `first_name` when given, 2-3 short sentences, a list only for plan steps or "
     "options, one question at a time. Say what happened, what happens next and when. Use only facts in `lines`: "
-    "copy every number, amount, date, time and id exactly as written, never add, compute or reformat one, never "
+    "copy every number, amount, time and id exactly as written, never add, compute or reformat one; write a date "
+    "given as YYYY-MM-DD in its long form (es `3 de junio de 2026`, pt `3 de junho de 2026`: day, month name and "
+    "year), never in any other form; reword every line you cover, never copy one as it is; never "
     "promise money back or anything a line does not state, and tell an action only in the state its line gives "
     "(in progress, requested, verified, not confirmed). Never mention scores, zones, rules, policies, tools or "
     "internal names. Every line of facts must be covered, and every amount, date and id of a line you cover must be "
@@ -57,12 +66,12 @@ SYSTEM = (
     "es, lines 1 `Caso K-000001 abierto y verificado (verificación V-EXAMPLE0001, 2099-12-30 10:00 UTC).` and 2 "
     "`Plazo legal del banco para pronunciarse sobre los fondos en disputa: 2099-12-31. Fuente: …`:\n"
     "[1] Listo, Ana. Tu caso K-000001 quedó abierto y confirmado en el sistema.\n"
-    "[2] Una persona del banco lo revisa y decide; por ley, el banco tiene hasta el 2099-12-31 para pronunciarse "
+    "[2] Una persona del banco lo revisa y decide; por ley, el banco tiene hasta el 31 de diciembre de 2099 para pronunciarse "
     "sobre los fondos.\n"
     "pt, lines 1 `Caso K-000001 aberto e verificado (verificação V-EXAMPLE0001, 2099-12-30 10:00 UTC).` and 2 "
     "`Prazo legal do banco para se pronunciar sobre os valores contestados: 2099-12-31. Fonte: …`:\n"
     "[1] Pronto, Ana. Seu caso K-000001 foi aberto e confirmado no sistema.\n"
-    "[2] Uma pessoa do banco revisa e decide; por lei, o banco tem até 2099-12-31 para se pronunciar sobre os "
+    "[2] Uma pessoa do banco revisa e decide; por lei, o banco tem até 31 de dezembro de 2099 para se pronunciar sobre os "
     "valores.")
 
 
@@ -136,7 +145,7 @@ async def word(config: dict, template: list[str], facts: list[Any], *, language:
         except BaseException as exc:  # noqa: BLE001 — any provider failure gives the template (AC-37)
             loop.call_soon_threadsafe(queue.put_nowait, (done, exc))
 
-    gate = Gate(template, facts, emit, score=score, transcript=list(transcript), shown=shown)
+    gate = Gate(template, facts, emit, score=score, transcript=list(transcript), shown=shown, language=language)
     loop.run_in_executor(None, run)
     deadline, outcome = loop.time() + TIMEOUT_S, None
     try:
@@ -168,8 +177,9 @@ class Gate:
     not repeat them, and a list item of a block that lists one of them is left out."""
 
     def __init__(self, template: list[str], facts: list[Any], emit: Callable[[str], None], *, score: Any = None,
-                 transcript: list[str] = (), shown: Iterable[str] = ()) -> None:
+                 transcript: list[str] = (), shown: Iterable[str] = (), language: str = "es") -> None:
         self.template, self.facts, self.emit = template, facts, emit
+        self.language = language if language in MONTHS else "es"
         self.score, self.transcript = score, transcript
         self.shown = sorted({str(s) for s in shown if s}, key=len, reverse=True)
         self.times = {t.replace(second=0, microsecond=0) for t in map(build.when, self.shown) if t}
@@ -273,9 +283,9 @@ class Gate:
         if not text or not all(1 <= n <= len(self.template) for n in covers):
             return
         named = [self.template[n - 1] for n in covers]
-        ungrounded = bool(DIGIT.search(text)) and build.bad(text, self.facts)
+        ungrounded = bool(DIGIT.search(text)) and build.bad(isoed(text, self.language), self.facts)
         leaks = build.never_send(text, " ".join(named), score=self.score, transcript=self.transcript)
-        lost = [token for line in named for token in self.figures(line) if not states(text, token)]
+        lost = [token for line in named for token in self.figures(line) if not states(text, token, self.language)]
         if ungrounded or leaks or lost:                     # G-OUT-01: the template lines it named instead
             self.dropped += 1
             for n, line in zip(covers, named):
@@ -332,6 +342,30 @@ def render(lines: list[str]) -> str:
     return MARKDOWN.sub("", out)
 
 
-def states(text: str, token: str) -> bool:
-    """True when `text` holds `token` verbatim, not as part of a longer figure or id."""
+def long_date(iso: str, language: str) -> Optional[str]:
+    """An ISO date in the long form of `language` ('2026-06-03' -> '3 de junio de 2026'); None when it is no date."""
+    year, month, day = iso.split("-")
+    if not 1 <= int(month) <= 12:
+        return None
+    return f"{int(day)} de {MONTHS[language][int(month) - 1]} de {year}"
+
+
+def isoed(text: str, language: str) -> str:
+    """`text` with each long date of `language` written as its ISO date, so the grounding check judges it against the
+    turn's facts like any ISO date: a long date no tool returned is as ungrounded as its ISO form."""
+    names = [n.casefold() for n in MONTHS[language]]
+
+    def iso(m: re.Match) -> str:
+        if m.group(2).casefold() not in names:
+            return m.group()
+        return f"{m.group(3)}-{names.index(m.group(2).casefold()) + 1:02d}-{int(m.group(1)):02d}"
+    return LONG_DATE.sub(iso, text)
+
+
+def states(text: str, token: str, language: str = "es") -> bool:
+    """True when `text` holds `token` verbatim, not as part of a longer figure or id; an ISO date token is also held
+    by its long form in `language` (day, month name and year)."""
+    if ISO_DATE.fullmatch(token) and language in MONTHS and (long := long_date(token, language)):
+        if re.search(rf"(?<![\w-]){re.escape(long)}(?![\w-])", text, re.I):
+            return True
     return bool(re.search(rf"(?<![\w-]){re.escape(token)}(?![\w-]|[.,]\d)", text))
