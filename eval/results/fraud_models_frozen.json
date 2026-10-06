@@ -1,0 +1,69 @@
+{
+  "label": "[data]",
+  "source": "scripts/ml/fraud_screen.py on gold v1, train window, calibrated on validation (spec 17 T3); hashes copied from fraud_screen_validation.json, no re-fit",
+  "split_hash": "877a3a2386375dd35fe535e29f1f04d2326fa79bcc5c65349b151cda445df15a",
+  "screen_record_sha256": "6cb773e78d8cf8e9f80f4b026d2aa0b3b49075fdc3196d32db775adf35d6d03c",
+  "arms": {
+    "iforest": {
+      "arm": "IsolationForest",
+      "family": "no-labels",
+      "model_sha256": "04aa5dcf07785948c51e25ffdb4d38964c74204d91e9d325095d70dd6fede622",
+      "model_bytes": 1135247
+    },
+    "logreg": {
+      "arm": "LogisticRegression",
+      "family": "linear",
+      "model_sha256": "e313e601d39813c69c110f935378c2994970e302a21e914b760593ebf20c3637",
+      "model_bytes": 3990
+    },
+    "sgd": {
+      "arm": "SGDClassifier",
+      "family": "linear",
+      "model_sha256": "6864e9fe5d2633df841fab71990aa1ad3c97b41162ff99129ead4e93a97e70b4",
+      "model_bytes": 4387
+    },
+    "gnb": {
+      "arm": "GaussianNB",
+      "family": "probabilistic",
+      "model_sha256": "71132bc038f228e7ee68996991af04a3e4d247947d51952b5c08defe965e740d",
+      "model_bytes": 4643
+    },
+    "tree": {
+      "arm": "DecisionTreeClassifier",
+      "family": "tree",
+      "model_sha256": "44b955f9611ef023875663f0e18bdebc3a42f4e7fdf12489960a523b442f74a1",
+      "model_bytes": 8490
+    },
+    "rf": {
+      "arm": "RandomForestClassifier",
+      "family": "ensemble",
+      "model_sha256": "bb382590878860f63bc7b0eadbfb9121194c76b4a3b7efa6ca316ea06821bdf1",
+      "model_bytes": 28734202
+    },
+    "extra_trees": {
+      "arm": "ExtraTreesClassifier",
+      "family": "ensemble",
+      "model_sha256": "88ad0ccbc9f79be8181de2a00903dbbacdeffdf4446767831ae75e98f84c8047",
+      "model_bytes": 52385715
+    },
+    "hgb": {
+      "arm": "HistGradientBoostingClassifier",
+      "family": "ensemble",
+      "model_sha256": "002a905ae7cb87114d31bad07123e5b710cb0e43f831d69c74ee0f46afde05ea",
+      "model_bytes": 58603
+    },
+    "mlp": {
+      "arm": "MLPClassifier",
+      "family": "neural",
+      "model_sha256": "e4d32d5c047bc14db385e4139e003e3f143a700f235217be78c2d2d027eb7f53",
+      "model_bytes": 54123
+    },
+    "stacked": {
+      "arm": "stacked",
+      "family": "stacked",
+      "model_sha256": "7f047237dbc25f2e259220f10091ee348fcf16ca2250c67a27d79a7b4916079e",
+      "model_bytes": 151248,
+      "stacked_on": "hgb"
+    }
+  }
+}

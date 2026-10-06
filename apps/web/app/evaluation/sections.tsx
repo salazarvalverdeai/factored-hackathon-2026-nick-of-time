@@ -5,6 +5,7 @@
 // hover, on keyboard focus and in the table view (AC-06, AC-07).
 import { useState, type ReactNode } from "react";
 import { FOCUS, Swatch, TableView, TipBody, useTip } from "@/app/analytics/charts";
+import { Explain, IntervalBar } from "./explain";
 import {
   costQualityPoints,
   dollars,
@@ -13,6 +14,7 @@ import {
   interval,
   milliseconds,
   protocolNotice,
+  rateParts,
   rateText,
   score,
   scoreText,
@@ -21,10 +23,11 @@ import {
   type FraudData,
   type Insight,
   type Protocol,
+  type DETAILS,
   type Rate,
 } from "@/lib/evaluation";
 
-const PALETTE = "[--arm-1:#7c3aed] dark:[--arm-1:#8b5cf6] [--arm-2:#0d9488]";
+const PALETTE = "[--arm-1:#7c3aed] dark:[--arm-1:#8b5cf6] [--arm-2:#0d9488] [--arm-3:#4c1d95] dark:[--arm-3:#c4b5fd]";
 const yes = (v: boolean | null) => (v === null ? "—" : v ? "yes" : "no");
 
 function Notice({ protocol }: { protocol: Protocol }) {
@@ -36,7 +39,7 @@ function Notice({ protocol }: { protocol: Protocol }) {
   ) : null;
 }
 
-function Section({ title, hint, file, data, children }: { title: string; hint: string; file: Insight<{ label: string; protocol: Protocol }>; data: string; children: ReactNode }) {
+function Section({ title, hint, detail, file, data, children }: { title: string; hint: string; detail: keyof typeof DETAILS; file: Insight<{ label: string; protocol: Protocol }>; data: string; children: ReactNode }) {
   return (
     <section aria-label={title} className={`space-y-4 ${PALETTE}`} data-file={data}>
       <Notice protocol={file.data.protocol} />
@@ -44,7 +47,7 @@ function Section({ title, hint, file, data, children }: { title: string; hint: s
         <h2 className="text-base font-semibold">
           {title} <span className="font-mono text-xs font-normal text-muted-foreground">{file.data.label}</span>
         </h2>
-        <p className="mt-0.5 text-sm text-muted-foreground">{hint}</p>
+        <Explain detail={detail} className="mt-0.5">{hint}</Explain>
         {children}
         <p className="mt-4 font-mono text-xs text-muted-foreground">
           {file.data.label} {file.source} · generated {file.generated_at.slice(0, 10)} at {file.git_sha}
@@ -71,6 +74,25 @@ function Table({ head, rows }: { head: string[]; rows: string[][] }) {
   );
 }
 
+type BarRow = { key: string; label: string; color: string; value: number | null; low: number | null; high: number | null; aria: string; tip: ReactNode; right: ReactNode };
+
+/** Rows of a bar with its 95% interval on a 0 to 1 scale; each row is focusable and shows its tooltip on hover and focus. */
+function BarRows({ rows, bind }: { rows: BarRow[]; bind: ReturnType<typeof useTip>["bind"] }) {
+  return (
+    <div className="mt-2 space-y-1.5">
+      {rows.map((r) => (
+        <div key={r.key} tabIndex={0} role="img" aria-label={r.aria} className={`grid items-center gap-x-3 rounded-sm sm:grid-cols-[10rem_1fr_11rem] ${FOCUS}`} {...bind(r.tip)}>
+          <span className="flex items-center gap-1.5 truncate text-xs"><Swatch color={r.color} />{r.label}</span>
+          <div className="flex"><IntervalBar value={r.value} low={r.low} high={r.high} color={r.color} /></div>
+          <span className="text-xs tabular-nums">{r.right}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+const armColor = (i: number) => (i < 3 ? `var(--arm-${i + 1})` : "var(--arm-rest, var(--muted-foreground))");
+
 // ---- (5) benchmark: cost on x, quality on y ----
 const W = 640, H = 300, L = 52, R = 16, T = 12, B = 40;
 
@@ -88,7 +110,7 @@ export function BenchmarkSection({ file }: { file: Insight<BenchmarkData> }) {
   const front = points.filter((p) => p.pareto).sort((a, b) => a.cost - b.cost);
   const chosen = data.model_map.understand?.chosen;
   return (
-    <Section title="Model benchmark: cost against quality" file={file} data="benchmark.json"
+    <Section title="Model benchmark: cost against quality" file={file} data="benchmark.json" detail="benchmark"
       hint={`Understanding task: one dot per model, macro-F1 on the ${language.toUpperCase()} test sentences against USD per 1,000 messages. Filled dots are on the Pareto front; the ringed one is the chosen model${chosen ? ` (${chosen})` : ""}. Axis starts at ${yMin.toFixed(1)}.`}>
       <div className="mt-3 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
         {languages.map((l) => (
@@ -144,6 +166,20 @@ export function BenchmarkSection({ file }: { file: Insight<BenchmarkData> }) {
           milliseconds(a.p95_ms), dollars(a.cost_per_1000_usd), yes(a.pareto), yes(a.meets_bar), yes(a.gate.production_pass), generatorFlag(a) ?? "—"])}
       />
       <h3 className="mt-5 text-sm font-semibold">Whole system on the dev cases ({data.b2.set}, {data.b2.cases} cases x {data.b2.runs_per_case} runs)</h3>
+      <p className="mt-0.5 text-sm text-muted-foreground">The same cases on each arm: higher is better for safe automated resolution, lower for unsafe outcomes. Scale 0% to 100%.</p>
+      {[["safe_automated_resolution", "Safe automated resolution"], ["unsafe_outcomes", "Unsafe outcomes"]].map(([key, name]) => (
+        <div key={key} className="mt-3">
+          <h4 className="text-xs font-medium">{name}</h4>
+          <BarRows bind={bind} rows={data.b2.arms.map((a, i) => {
+            const rate = a[key] as Rate;
+            const has = rate.value !== null && rate.denominator > 0;
+            return { key: a.arm, label: a.arm, color: armColor(i), value: has ? rate.value : null, low: rate.ci_low, high: rate.ci_high,
+              aria: `${name}, ${a.arm}: ${rateText(rate)}`,
+              tip: <TipBody title={`${name} · ${a.arm}`} rows={[["Rate", rateParts(rate).value], ["Runs", rateParts(rate).count], ["95% interval", rateParts(rate).interval]]} note="[simulated] dev cases, final state compared" />,
+              right: <>{rateParts(rate).value}<span className="text-muted-foreground"> · {has ? `${rate.numerator}/${rate.denominator}` : "n/a"}</span></> };
+          })} />
+        </div>
+      ))}
       <Table head={["Arm", "Safe automated resolution", "Unsafe outcomes", "Receipt with its deadline", "Status told = status read", "p95 per turn", "Cost per case"]}
         rows={data.b2.arms.map((a) => [a.arm, rateText(a.safe_automated_resolution as Rate), rateText(a.unsafe_outcomes as Rate), rateText(a.receipt_rate as Rate),
           rateText(a.coherence_rate as Rate), milliseconds(a.p95_ms as number | null), dollars(a.cost_per_case_usd)])} />
@@ -164,9 +200,28 @@ export function ClassifierSection({ file }: { file: Insight<ClassifierData> }) {
       Object.entries(m.per_class_f1).map(([k, v]) => `${k.replace(/_/g, " ")} ${score(v)}`).join(" · "),
     ]),
   );
+  const { bind, node } = useTip();
+  const languages = [...new Set(data.arms.flatMap((a) => Object.keys(a.by_language)))];
   return (
-    <Section title="Intent classifier" file={file} data="classifier.json"
-      hint={`Frozen test split: ${sentences} sentences, ${data.test_split.injection_rows ?? "—"} injection rows apart. Confidence threshold tau ${score(data.tau)}. Rates show their count and 95% Wilson interval; macro-F1 its 95% bootstrap interval.`}>
+    <Section title="Intent classifier" file={file} data="classifier.json" detail="classifier"
+      hint={`Does the system read what the customer wants? Macro-F1 is the average score over the intents, from 0 (always wrong) to 1 (always right), per arm and language, with its 95% bootstrap interval. Frozen test split: ${sentences} sentences, ${data.test_split.injection_rows ?? "—"} injection rows apart. Confidence threshold tau ${score(data.tau)}.`}>
+      {languages.map((lang) => (
+        <div key={lang} className="mt-4">
+          <h3 className="text-sm font-semibold">Macro-F1, {lang.toUpperCase()}</h3>
+          <BarRows bind={bind} rows={data.arms.flatMap((a, i) => {
+            const m = a.by_language[lang];
+            if (!m) return [];
+            const chosen = a.arm === data.chosen_arm;
+            const flag = generatorFlag(a);
+            return [{ key: a.arm, label: `${a.arm}${chosen ? " (chosen)" : ""}${flag ? " *" : ""}`, color: armColor(i), value: m.macro_f1, low: m.macro_f1_ci?.[0] ?? null, high: m.macro_f1_ci?.[1] ?? null,
+              aria: `${a.arm}, ${lang.toUpperCase()}: macro-F1 ${scoreText(m.macro_f1, m.macro_f1_ci)}${flag ? `, ${flag}` : ""}`,
+              tip: <TipBody title={`${a.arm} · ${lang.toUpperCase()}${chosen ? " · chosen" : ""}`}
+                rows={[["Macro-F1", score(m.macro_f1)], ["95% interval", interval(m.macro_f1_ci)], ["Dispute recall", rateText(m.dispute_recall)], ["Person-request recall", rateText(m.human_request_recall)]]}
+                note={`[simulated] frozen test split${data.test_review === "rules-v1" ? ", decided by fixed rules" : ""}${flag ? ` · ${flag}` : ""}`} />,
+              right: <>{score(m.macro_f1)}<span className="text-muted-foreground"> · {interval(m.macro_f1_ci)}</span></> }];
+          })} />
+        </div>
+      ))}
       <Table
         head={["Arm", "Lang", "Macro-F1", "Dispute recall", "Dispute flag recall", "Person-request recall", "Slot accuracy", "Coverage at tau", "Precision at tau", "ECE", "F1 per intent"]}
         rows={rows} />
@@ -174,6 +229,7 @@ export function ClassifierSection({ file }: { file: Insight<ClassifierData> }) {
         rows={data.arms.map((a) => [a.arm, a.version, milliseconds(a.p95_ms), dollars(a.cost_per_1000_usd), yes(a.meets_floors), score(a.mcnemar_p_vs_best), String(a.human_request_answered_out_of_scope ?? "—"), generatorFlag(a) ?? "—"])} />
       <h3 className="mt-5 text-sm font-semibold">Prompt-injection detectors</h3>
       <Table head={["Detector", "Recall", "False positives"]} rows={data.injection.map((d) => [d.arm, rateText(d.recall), rateText(d.false_positive_rate)])} />
+      {node}
     </Section>
   );
 }
@@ -185,8 +241,8 @@ export function FraudSection({ file }: { file: Insight<FraudData> }) {
   const test = data.windows.test;
   const subsets = ["all", "card"];
   return (
-    <Section title="Fraud model against the bank's score" file={file} data="fraud_benchmark.json"
-      hint={`Test window ${test.from} to ${test.to}: ${test.transactions?.toLocaleString("en-US") ?? "—"} transactions, ${test.frauds ?? "—"} frauds. PR-AUC (scale 0 to 1) with its 95% bootstrap interval; S-bank is the bank's own score. Chosen: ${data.chosen_arm ?? "—"}.`}>
+    <Section title="Fraud model against the bank's score" file={file} data="fraud_benchmark.json" detail="fraud"
+      hint={`Does a model of ours rank fraud better than the bank's score? PR-AUC is the share of top-ranked transactions that are fraud, averaged over thresholds: higher is better. Test window ${test.from} to ${test.to}: ${test.transactions?.toLocaleString("en-US") ?? "—"} transactions, ${test.frauds ?? "—"} frauds. Scale 0 to 1, with the 95% bootstrap interval; S-bank is the bank's own score. Chosen: ${data.chosen_arm ?? "—"}.`}>
       <div className="mt-4 space-y-4">
         {subsets.map((s) => (
           <div key={s}>
@@ -202,11 +258,7 @@ export function FraudSection({ file }: { file: Insight<FraudData> }) {
                     {...bind(<TipBody title={`${a.arm} · ${s}`} rows={[["PR-AUC", score(m?.pr_auc)], ["95% interval", interval(ci)], ["Brier", score(m?.brier)],
                       ["Recall at bank precision 0.80", rateText(m?.recall_at_bank_precision?.["0.80"])]]} note="[data] test window, labels read once" />)}>
                     <span className="flex items-center gap-1.5 truncate text-xs"><Swatch color={color} />{a.arm}{a.arm === data.chosen_arm ? " (chosen)" : ""}</span>
-                    <div className="relative h-4">
-                      <div className="absolute inset-x-0 top-1/2 h-px bg-border" />
-                      {has && ci && ci[0] !== null && ci[1] !== null ? <div className="absolute top-1/2 h-1.5 -translate-y-1/2 rounded-full opacity-35" style={{ left: `${ci[0] * 100}%`, width: `${Math.max((ci[1] - ci[0]) * 100, 0.5)}%`, background: color }} /> : null}
-                      {has ? <div className="absolute top-1/2 size-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full ring-2 ring-card" style={{ left: `${(m!.pr_auc ?? 0) * 100}%`, background: color }} /> : null}
-                    </div>
+                    <IntervalBar value={has ? m!.pr_auc ?? null : null} low={ci?.[0] ?? null} high={ci?.[1] ?? null} color={color} />
                     <span className="text-xs tabular-nums">{score(m?.pr_auc)}<span className="text-muted-foreground"> · {interval(ci)}</span></span>
                   </div>
                 );
