@@ -301,11 +301,14 @@ def add_eval_routes(app: FastAPI, *, store: Any, gold: Any, catalog: Any, platfo
             resolve(body.arm)
         except ValueError:
             raise ApiError(400, "INVALID", f"unknown arm {body.arm!r}") from None
-        customer = None if state == "none" else body.initial_state.get("customer_id")
+        # the case's customer owns the fixtures even when there is no session: "none" only means the session is not
+        # bound to anyone, so the fixtures are still checked against the case's customer in gold
+        owner = body.initial_state.get("customer_id")
+        customer = None if state == "none" else owner
         if state != "none" and (not customer or gold.customer(customer) is None):
             raise ApiError(422, "INVALID", "the case's customer is not in gold")
         for item in body.initial_state.get("fixtures") or []:
-            row = gold.transaction(customer, item["transaction_id"]) if customer else None
+            row = gold.transaction(owner, item["transaction_id"]) if owner else None
             if row is None or row.product_id != item.get("product_id", row.product_id):
                 raise ApiError(422, "INVALID", f"fixture {item['transaction_id']} is not the customer's gold row; "
                                                "overlays are not supported by the local stack")
