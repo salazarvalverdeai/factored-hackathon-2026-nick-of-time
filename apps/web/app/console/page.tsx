@@ -3,12 +3,15 @@
 // The analyst console (spec 08) in the UI language (spec 16 AC-06): only labels are translated; the handoff card's
 // facts, evidence, tool names, ids and figures are shown exactly as the tools returned them (constitution #5).
 import { copilotActionLabel, formatTime, handoffReasonLabel } from "@/lib/handoff-labels";
+import { CircleHelp } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { StatusBadge, ZoneBadge } from "@/components/badges";
 import { useLocale, useT } from "@/components/i18n-provider";
+import { AgentPath } from "@/components/console/agent-path";
 import { AgentSummary } from "@/components/console/agent-summary";
 import { CaseHeader } from "@/components/console/case-header";
+import { ConsoleFlow } from "@/components/console/console-flow";
 import { ConversationTranscript } from "@/components/console/conversation-transcript";
 import { CopilotProposal } from "@/components/console/copilot-proposal";
 import { CustomerHistory } from "@/components/console/customer-history";
@@ -65,6 +68,7 @@ function Console({ actor }: { actor: string }) {
   const [message, setMessage] = useState<string | null>(null);
   const [confirming, setConfirming] = useState<{ caseId: string; action: AnalystActionName } | null>(null);
   const [reason, setReason] = useState("");
+  const [howOpen, setHowOpen] = useState(false);
 
   // The inbox lists summaries; the selected case (the first open one until a person picks) is read with its handoff card.
   const firstId =
@@ -253,6 +257,10 @@ function Console({ actor }: { actor: string }) {
           </span>
           {t("console.page.supervised", { state: supervised ? t("console.page.on") : t("console.page.off") })}
         </button>
+        <Button size="sm" variant="outline" aria-expanded={howOpen} aria-controls="console-how" onClick={() => setHowOpen((o) => !o)}>
+          <CircleHelp aria-hidden="true" />
+          {t("console.flow.button")}
+        </Button>
         <Button
           size="sm"
           variant="outline"
@@ -264,6 +272,18 @@ function Console({ actor }: { actor: string }) {
           {t("console.page.signOut")}
         </Button>
       </div>
+
+      {/* How the console works, on demand so it never crowds the working view (spec 08 AC-24). */}
+      {howOpen ? (
+        <Card id="console-how" className="mb-4">
+          <CardHeader>
+            <CardTitle>{t("console.flow.title")}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ConsoleFlow />
+          </CardContent>
+        </Card>
+      ) : null}
 
       <KpiStrip board={all} />
 
@@ -449,6 +469,9 @@ function CaseDetail({
         {/* The auditor's facts first, then the advisory opinion (spec 18 AC-09). */}
         <AuditChecklist query={auditor} />
         <SecondOpinionPanel caseId={c.id} />
+
+        {/* The agent's run for this case, reconstructed from its events (spec 08 AC-23). */}
+        <AgentPath c={c} />
 
         <section aria-label={t("console.detail.timeline")}>
           <h3 className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">{t("console.detail.timeline")}</h3>

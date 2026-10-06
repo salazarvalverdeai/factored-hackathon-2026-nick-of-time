@@ -117,6 +117,23 @@ web side, PR `feat/08-assisted-console-web`); the shapes are in §6.
   notification. Without a Platform that can search threads, the route shall answer 503 `UNAVAILABLE`. · [T]
   `tests/test_spec08_console_conversation.py`
 
+AC-23 and AC-24 make the console explain itself with drawings (PR `feat/08-console-path-flow`).
+- AC-23 — The case view shall offer, collapsed, "Agent path for this case": the /agent graph drawing (spec 04 AC-08,
+  `GraphView` with `path`, no reveal, fitted to the column) with the nodes this case's run went through standing out,
+  labeled "Reconstructed from the case events". The path shall come from the case events and the handoff card through
+  `lib/console-path.ts` (`case_opened` pins `act` and the graph forces the way in from START; `block_verified` or
+  `action_verified` pin `verify`; a handoff card with that turn's actions pins `connect` or `respond`;
+  `handoff_emitted` or `receipt_issued` pin `respond`), every id shall be a node of `lib/agent-reference.ts`, and a node
+  the data cannot pin shall be left out, never guessed; "How it was read" shall open the shared detail panel with the
+  evidence for each node. · [T] `lib/console-path.test.ts` · [U]
+- AC-24 — The console header shall have a "How it works" button that shows, on demand, a drawing of the analyst's flow
+  in /agent's diagram language: queue → case card with its evidence (receipt, deadline, handoff, second opinion) →
+  analyst action → verification → close, and what it runs on (Cognito, the api, Postgres events), with one plain line;
+  each box shall take focus and open the shared detail panel with its detail and source. Its edges shall be the motion
+  kit's `FlowConnector` (`components/motion`), played once in the flow's order within the kit's 1.5 s sequence and never
+  with reduced motion; its words shall be in `messages/console.ts` in EN, ES and PT; the drawing shall fit 390 px with
+  no horizontal scroll, in both themes, with full keyboard use. · [T] `lib/console-flow.test.ts` · [U]
+
 ## 6. API contract (assisted console, AC-16 to AC-22)
 All routes take `Authorization: Bearer <Cognito id token>` and the case id in the path; they read and never write a
 case. Dates are ISO `YYYY-MM-DD`, times ISO 8601 with offset.
@@ -189,6 +206,9 @@ GET  /api/console/cases/{id}         (existing, same ConsoleCaseOut) handoff.cop
 - Assumption `[assumption]` (AC-10 to AC-13, AC-15): until the api lane's routes are on `main`, mock mode answers them from
   `apps/web/lib/mock/console.ts`, derived from the mock case (simulated); live mode calls the routes with the analyst's
   id token and never invents data. A `GET …/second-opinion` 404 and a `POST` 204 or `null` read as no opinion.
+- Assumption `[assumption]` (AC-23): the console holds no agent trace and its events carry no trace id, so only the
+  opening turn is drawn; a call request by the agent that no handoff card places in that turn stops the path at
+  `verify` rather than guess `connect`. A call the customer asked for on the case page is not the agent's and does not.
 - Open question: the approval payload becomes `POST /api/cases/{id}/action` with `AnalystActionIn` when the live API is wired.
 
 ## 9. Out of scope
@@ -209,5 +229,8 @@ GET  /api/console/cases/{id}         (existing, same ConsoleCaseOut) handoff.cop
   case's conversation (`apps/api/app/console.py`, thread marks in `app/live.py` and `app/platform.py`) · covers AC-16
   to AC-22 · done when: `tests/test_spec08_assisted_console.py` and `tests/test_spec08_console_conversation.py` pass
 
+- [x] Task 9 — agent path for the case and the "How it works" drawing (`lib/console-path.ts`, `lib/console-flow.ts`,
+  `components/console/agent-path.tsx`, `components/console/console-flow.tsx`) · covers AC-23, AC-24 · done when:
+  `lib/console-path.test.ts` and `lib/console-flow.test.ts` pass and both views work at 1440 px and 390 px
 **Closing checklist** (last PR): every AC has a passing test or check that cites it · status → Implemented · ADR for
 any decision taken · lessons added to `CLAUDE.md`.
