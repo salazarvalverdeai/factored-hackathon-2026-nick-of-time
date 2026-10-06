@@ -10,6 +10,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input, Textarea } from "@/components/ui/input";
 import { ApiError, api } from "@/lib/api";
 import { MESSAGES, fill } from "@/lib/mock/messages";
+import { formatDateTime } from "@/lib/handoff-labels";
+import { demoDateLabel } from "@/lib/demo-date";
 import { DEMO_TODAY, statusLabel } from "@/lib/mock/store";
 import type { Language, NotificationEntry } from "@/lib/types";
 import { useQuery } from "@/lib/use-query";
@@ -53,6 +55,8 @@ export function CaseView({ id }: { id: string }) {
   const linked = c.channels.telegram;
   const confirmedEmail = c.channels.email;
   const live = api.mode === "live";
+  // The mock api runs on the frozen demo date; the live api sends no date for this page, so nothing is invented there.
+  const demoDate = c.mode === "live" || live ? null : DEMO_TODAY;
 
   /** Runs an action; the feedback is the text the action returns, or `done`. */
   async function act(action: () => Promise<unknown>, done = "") {
@@ -87,7 +91,7 @@ export function CaseView({ id }: { id: string }) {
                 <p>{c.credit_deadline ?? "Pending: a person will confirm it"}</p>
                 <p className="text-xs text-muted-foreground">
                   Source: {c.deadline_source ?? "pending"}
-                  {c.mode === "live" ? "" : ` · demo date ${live ? "(replay)" : DEMO_TODAY} [simulated]`}
+                  {demoDate ? ` · ${demoDateLabel(demoDate, c.language)}` : ""}
                 </p>
               </div>
               <Button disabled={busy} variant="outline" onClick={() =>
@@ -188,9 +192,6 @@ export function CaseView({ id }: { id: string }) {
                           </a>
                         ) : (
                           <>
-                            <p className="break-all">
-                              Deep link [simulated]: <span className="font-mono">{link.deepLink}</span>
-                            </p>
                             <Button size="xs" variant="outline" disabled={busy} onClick={() => act(() => api.simulateTelegramStart(id, link.token), "Telegram linked.")}>
                               Simulate “/start” in Telegram
                             </Button>
@@ -248,7 +249,7 @@ function NotificationItem({ n, lang }: { n: NotificationEntry; lang: Language })
           </span>
         ))}
       </span>
-      <span className="mt-1 block text-xs text-muted-foreground">{new Date(n.at).toLocaleString()}</span>
+      <span className="mt-1 block text-xs text-muted-foreground">{formatDateTime(n.at)}</span>
     </li>
   );
 }

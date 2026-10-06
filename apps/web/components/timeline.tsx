@@ -1,3 +1,4 @@
+import { formatDateTime } from "@/lib/handoff-labels";
 import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
 
@@ -43,7 +44,7 @@ export function Timeline({ events, className }: { events: TimelineEvent[]; class
             {e.badge}
           </div>
           <p className="text-xs text-muted-foreground">
-            {new Date(e.at).toLocaleString()}
+            {formatDateTime(e.at)}
             {e.meta ? ` · ${e.meta}` : ""}
           </p>
         </li>
