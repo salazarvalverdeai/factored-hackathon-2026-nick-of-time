@@ -5,8 +5,12 @@
 import Link from "next/link";
 import { useRef, useState } from "react";
 import type { KeyboardEvent } from "react";
+import { DetailField, DetailFields, DetailPanel } from "@/components/detail-panel";
 import { EmptyState } from "@/components/states";
-import { DETAIL, POSITIONS, days, opsState, pct, tableRows, type Chart, type OpsSeries, type Position } from "@/lib/ops";
+import {
+  POSITIONS, chartDetail, days, limitationDetail, opsState, pct, pendingDetail, tableRows,
+  type Chart, type Detail, type OpsSeries, type Position,
+} from "@/lib/ops";
 import { FOCUS, PALETTE, TableView, TipBody, useTip } from "./charts";
 
 const COLOR: Record<string, string> = { bank_today: "var(--series-1)", replay: "var(--series-2)" };
@@ -54,8 +58,8 @@ function Switch({ value, onChange }: { value: Position; onChange: (p: Position) 
 
 const LINK = `whitespace-nowrap text-primary underline-offset-4 hover:underline ${FOCUS}`;
 
-function MetricChart({ chart, color, other, tag }: {
-  chart: Chart; color: string; other: { text: string; label: string } | null; tag: string;
+function MetricChart({ chart, color, other, tag, onDetail }: {
+  chart: Chart; color: string; other: { text: string; label: string } | null; tag: string; onDetail: () => void;
 }) {
   const { bind, node } = useTip();
   const months = `${chart.points.length} months`;
@@ -96,9 +100,9 @@ function MetricChart({ chart, color, other, tag }: {
       </div>
       <p className="mt-3 text-sm">
         {chart.note}{" "}
-        <a href={chart.label === "[data]" ? DETAIL.bank_today : DETAIL.replay} className={LINK}>
+        <button type="button" onClick={onDetail} className={`${LINK} rounded-sm`}>
           Detail →
-        </a>
+        </button>
       </p>
       {chart.secondary.map((extra) => (
         <div key={extra.title} className="mt-3 rounded-md border border-dashed px-3 py-2 text-xs text-muted-foreground">
@@ -121,6 +125,8 @@ export function Operations({ file }: { file: { data?: { series?: OpsSeries } } |
   const state = opsState(file, position);
   const otherKey = position === "bank_today" ? "replay" : "bank_today";
   const twin = opsState(file, otherKey);
+  const all = file?.data?.series;
+  const [detail, setDetail] = useState<Detail | null>(null);
   return (
     <section aria-labelledby="ops-title" className={`mt-12 ${PALETTE}`}>
       <h2 id="ops-title" className="text-lg font-semibold">
@@ -147,9 +153,9 @@ export function Operations({ file }: { file: { data?: { series?: OpsSeries } } |
           The window starts in January 2026 because the repository has verified bank holiday calendars for 2026 only;
           without them no legal deadline is computed. The bank&apos;s complaints could not be replayed as they are: the
           dataset does not link a complaint to the charge it is about.{" "}
-          <a href={DETAIL.limitation} className={LINK}>
+          <button type="button" onClick={() => setDetail(limitationDetail(all))} className={`${LINK} rounded-sm`}>
             Detail →
-          </a>
+          </button>
         </p>
       </div>
       <div className="mt-4">
@@ -159,9 +165,9 @@ export function Operations({ file }: { file: { data?: { series?: OpsSeries } } |
         <>
           <EmptyState className="mt-4" title={state.title} hint={state.missing} />
           <p className="mt-2 text-sm">
-            <a href={state.detail} className={LINK}>
+            <button type="button" onClick={() => setDetail(pendingDetail(state, all))} className={`${LINK} rounded-sm`}>
               Detail →
-            </a>
+            </button>
           </p>
         </>
       ) : (
@@ -180,7 +186,10 @@ export function Operations({ file }: { file: { data?: { series?: OpsSeries } } |
                 ? { text: `${twin.series.name}, ${match.title.toLowerCase()} ${fmt(match, match.total.value)}`, label: match.label }
                 : null;
               const tag = twin.kind === "ready" ? `Compared with: ${twin.series.name}` : "Comparison";
-              return <MetricChart key={chart.metric.id} chart={chart} color={COLOR[position]} other={other} tag={tag} />;
+              return (
+                <MetricChart key={chart.metric.id} chart={chart} color={COLOR[position]} other={other} tag={tag}
+                             onDetail={() => setDetail(chartDetail(chart, state.series))} />
+              );
             })}
           </div>
           <h3 className="mt-8 text-sm font-semibold">Context for {state.series.name} only</h3>
@@ -191,11 +200,36 @@ export function Operations({ file }: { file: { data?: { series?: OpsSeries } } |
           <div className="mt-3 grid gap-4 md:grid-cols-2">
             {state.charts.filter((c) => c.metric.role === "context").map((chart) => (
               <MetricChart key={chart.metric.id} chart={chart} color={COLOR[position]} other={null}
-                           tag={`Context · ${state.series.name} only`} />
+                           tag={`Context · ${state.series.name} only`}
+                           onDetail={() => setDetail(chartDetail(chart, state.series))} />
             ))}
           </div>
         </>
       )}
+      <DetailPanel
+        open={detail !== null}
+        onClose={() => setDetail(null)}
+        title={detail?.title ?? ""}
+        description={detail?.description}
+        footer={detail ? (
+          <a href={detail.href} className={LINK}>
+            Read spec 14 §11 →
+          </a>
+        ) : null}
+      >
+        {detail ? (
+          <DetailFields>
+            <DetailField label="Method">
+              {detail.method.map((line) => (
+                <p key={line} className="mt-1 first:mt-0">{line}</p>
+              ))}
+            </DetailField>
+            <DetailField label="Source query" mono>{detail.source}</DetailField>
+            <DetailField label="Window">{detail.window}</DetailField>
+            <DetailField label="Label of the figures" mono>{detail.label}</DetailField>
+          </DetailFields>
+        ) : null}
+      </DetailPanel>
     </section>
   );
 }

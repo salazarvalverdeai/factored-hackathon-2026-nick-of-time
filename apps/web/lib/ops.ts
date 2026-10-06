@@ -35,6 +35,56 @@ export const DETAIL = {
   live: `${SPEC14}#10-plan-tasks-and-verification`,
 };
 
+/** What the shared detail panel shows for a chart or a note (plan §14): method, source query, window, label, link. */
+export type Detail = { title: string; description: string; method: string[]; source: string; window: string; label: string; href: string };
+
+const METHOD: Record<SeriesKey, string> = {
+  bank_today: "The bank's own unrecognized and wrongful charge complaints, chosen with the rules of the pitch query " +
+    "p01 and counted by the month they were created. The figures are the dataset's own records.",
+  replay: "Real approved card charges from the dataset, as many each month as the bank's complaints of that kind. A " +
+    "customer reports each charge the next day in a written message that names the amount, the date and the merchant. " +
+    "The rules engine reads it, the transaction search finds the charge and the policy decides, with no language " +
+    "model. The cases go into a test store and the operational job measures them.",
+};
+const SOURCE: Record<SeriesKey, string> = {
+  bank_today: "queries/ops/asis_monthly.sql",
+  replay: "queries/ops/replay_sample.sql · data/ops/replay.py",
+};
+const monthLabel = (m: string) => new Date(`${m}-15T00:00:00Z`).toLocaleDateString("en-US", { month: "long", year: "numeric", timeZone: "UTC" });
+export const windowText = (w: [string, string]) => `${monthLabel(w[0])} to ${monthLabel(w[1])} (${w[0]} to ${w[1]})`;
+
+/** The panel of one chart: the series' method, then the figure's own definition. */
+export function chartDetail(chart: Chart, series: Series): Detail {
+  return { title: chart.title, description: series.name, method: [METHOD[series.key], chart.note].filter(Boolean),
+           source: SOURCE[series.key], window: windowText(series.window), label: series.label,
+           href: series.key === "bank_today" ? DETAIL.method : DETAIL.replay };
+}
+
+/** The panel of a pending position: what is missing and what will fill it. */
+export function pendingDetail(state: { title: string; missing: string; detail: string }, all: OpsSeries | undefined): Detail {
+  return { title: state.title, description: "No figure yet", method: [state.missing,
+           "Live will read the cases of real conversations from the database through the same operational job; until "
+           + "then the page shows no number for it."],
+           source: "data/ops (spec 14 T5, the Postgres source)", window: all ? windowText(all.window) : "",
+           label: "none yet", href: state.detail };
+}
+
+/** The panel of the section's note on the dataset limitation. */
+export function limitationDetail(all: OpsSeries | undefined): Detail {
+  return {
+    title: "Why the bank's complaints are not replayed", description: "Dataset limitation",
+    method: ["The dataset does not link a complaint to the charge it is about. Of the 8,129 unrecognized or wrongful " +
+             "charge complaints from June 2025 to May 2026, only about one in five came from a customer with any card " +
+             "charge in the 30 days before, and no claimed amount matched one. Replayed as they are, the system would " +
+             "ask which charge in nine contacts out of ten, which describes the data rather than the system.",
+             "So the simulation uses real card charges with a written message, and the bank's complaints keep only " +
+             "their own figures. The window starts in January 2026 because the repository has verified bank holiday " +
+             "calendars for 2026 only."],
+    source: "queries/ops/replay_sample.sql · data/ops/replay.py", window: all ? windowText(all.window) : "",
+    label: "[simulated]", href: DETAIL.limitation,
+  };
+}
+
 /**
  * One chart slot. A "comparison" slot is filled by both series (the pairs of `data.series.compare`) and shares one
  * axis; a "context" slot belongs to one series only, with its own definition, and is never drawn next to the other.
@@ -97,7 +147,7 @@ function secondary(series: Series): Secondary[] {
     const [a, b] = [sens.named, sens.amount_and_date];
     out.push({ title: "If the message names only the amount and the date",
                value: `complete intake ${pct(b.complete_intake.value)}, asks ${pct(b.asked.value)}`,
-               note: `With the merchant named too: complete intake ${pct(a.complete_intake.value)}, asks ${pct(a.asked.value)}. Same contacts, ${sens.variant}.` });
+               note: `With the merchant named too: complete intake ${pct(a.complete_intake.value)}, asks ${pct(a.asked.value)}. Same contacts and same charges; only the message changes.` });
   }
   return out;
 }

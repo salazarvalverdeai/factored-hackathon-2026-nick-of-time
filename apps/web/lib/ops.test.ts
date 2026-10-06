@@ -2,7 +2,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import { METRICS, POSITIONS, opsState, tableRows, type OpsSeries } from "./ops.ts";
+import { METRICS, POSITIONS, chartDetail, limitationDetail, opsState, tableRows, type OpsSeries } from "./ops.ts";
 
 const read = (p: string) => JSON.parse(readFileSync(new URL(p, import.meta.url), "utf-8"));
 const FILE = read("../public/data/ops_kpis.json") as { source: string; data: { series: OpsSeries } };
@@ -94,4 +94,21 @@ test("spec 12 AC-07: every bar answers hover and keyboard focus, every chart has
   assert.match(SRC, /href="\/agent"/, "the system links to /agent, no diagram here");
   assert.match(SRC, /does not\s+model the final resolution time,\s+which a person decides/);
   assert.doesNotMatch(SRC, /\[(data|simulated|projected)\]\s*[a-z]/i, "labels sit on figures, not in prose");
+});
+
+test("spec 12 AC-07: 'Detail →' opens the shared detail panel with method, source query, window, label and spec link", () => {
+  const sim = opsState(FILE, "replay");
+  if (sim.kind !== "ready") return assert.fail("replay is ready");
+  const detail = chartDetail(sim.charts[0], sim.series);
+  assert.equal(detail.title, "Complete intake at first contact (upper bound)");
+  assert.ok(detail.method.length === 2 && /no language\s+model/.test(detail.method[0]), "the method in plain sentences");
+  assert.equal(detail.source, "queries/ops/replay_sample.sql · data/ops/replay.py");
+  assert.equal(detail.window, "January 2026 to May 2026 (2026-01 to 2026-05)");
+  assert.equal(detail.label, "[simulated]");
+  assert.match(detail.href, /^https:\/\/github\.com\/.*specs\/14-ops-lakehouse\.md#11/);
+  assert.match(limitationDetail(SERIES).method[0], /does not link a complaint to the charge/);
+  assert.match(SRC, /<DetailPanel/);
+  assert.match(SRC, /Read spec 14 §11 →/);
+  assert.match(SRC, /<DetailField label="Source query" mono>/);
+  assert.doesNotMatch(SRC, /<a href=\{[^}]*\}[^>]*>\s*Detail →/, "Detail opens the panel, never a plain link");
 });
