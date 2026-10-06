@@ -13,6 +13,7 @@ import { Input } from "@/components/ui/input";
 import { ApiError, api } from "@/lib/api";
 import { EMPTY_STREAM, type TurnStream, applyText, applyTool } from "@/lib/chat-stream";
 import { greetingName, helloLine, showWebGreeting } from "@/lib/chat-view";
+import { DEMO_TODAY } from "@/lib/mock/store";
 import { VERIFY_COPY } from "@/lib/demo";
 import { MESSAGES } from "@/lib/mock/messages";
 import type { DemoCustomer, Language, PersonaDraft, Suggestion, TurnAction } from "@/lib/types";
@@ -314,6 +315,7 @@ function Conversation({ onExpired }: { onExpired: () => void }) {
           live={busy ? live : null}
           lang={lang}
           country={customer?.country}
+          demoDate={customerSession?.mode === "live" ? null : DEMO_TODAY}
           busy={busy}
           onSend={send}
           onOpen={setDetail}

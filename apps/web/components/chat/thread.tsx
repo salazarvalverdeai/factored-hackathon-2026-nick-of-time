@@ -106,6 +106,7 @@ function AgentTurn({
   streaming,
   lang,
   country,
+  demoDate,
   pickable,
   onSend,
   onOpen,
@@ -116,6 +117,7 @@ function AgentTurn({
   streaming: boolean;
   lang: Language;
   country?: string;
+  demoDate?: string | null;
   pickable: boolean;
   onSend: (text: string, action?: TurnAction) => void;
   onOpen: (detail: ChatDetail) => void;
@@ -148,7 +150,7 @@ function AgentTurn({
         ) : streaming ? (
           <p className="text-sm text-muted-foreground motion-safe:animate-pulse">{COPY.working[lang]}</p>
         ) : null}
-        {reply?.receipt ? <ReceiptCard receipt={reply.receipt} country={country} /> : null}
+        {reply?.receipt ? <ReceiptCard receipt={reply.receipt} country={country} demoDate={demoDate} /> : null}
         {reply && !streaming && (reply.trace.length > 0 || reply.guardrails.length > 0) ? (
           <Button variant="ghost" size="xs" className="-ml-2 text-muted-foreground" onClick={() => onOpen({ kind: "trace", reply })}>
             {COPY.why[lang]} →
@@ -164,6 +166,7 @@ export function ChatThread({
   live,
   lang,
   country,
+  demoDate,
   greeting,
   footer,
   busy,
@@ -176,6 +179,8 @@ export function ChatThread({
   live: TurnStream | null;
   lang: Language;
   country?: string;
+  /** Replay sessions only: the demo "today", shown on the receipt instead of the real clock. */
+  demoDate?: string | null;
   greeting?: ReactNode;
   /** Shown after the last message (an error). */
   footer?: ReactNode;
@@ -211,6 +216,7 @@ export function ChatThread({
               streaming={false}
               lang={lang}
               country={country}
+              demoDate={demoDate}
               pickable={m.id === lastAgent && !busy}
               onSend={onSend}
               onOpen={onOpen}
@@ -218,7 +224,7 @@ export function ChatThread({
           ),
         )}
         {live ? (
-          <AgentTurn text={live.text} tools={live.tools} streaming lang={lang} country={country} pickable={false} onSend={onSend} onOpen={onOpen} />
+          <AgentTurn text={live.text} tools={live.tools} streaming lang={lang} country={country} demoDate={demoDate} pickable={false} onSend={onSend} onOpen={onOpen} />
         ) : null}
         {footer}
       </ConversationContent>
