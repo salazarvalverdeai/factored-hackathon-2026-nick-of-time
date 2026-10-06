@@ -216,6 +216,32 @@ test("spec 08 AC-10 to AC-12: the live client calls the analyst routes with the 
   await assert.rejects(noToken.getContext("K-1"), (e: Error & { code?: string }) => e.code === "UNAUTHORIZED");
 });
 
+test("spec 08 AC-15: the conversation tab is a read-only transcript next to the handoff card, which stays first", async () => {
+  const { console: c } = mockConsole();
+  const conv = await c.getConversation("NOT-0002");
+  assert.equal(conv.threads.length, 1);
+  const t = conv.threads[0];
+  for (const k of ["thread_id", "session_started_at", "messages"]) assert.ok(k in t, k);
+  assert.ok(t.messages.some((m) => m.role === "customer") && t.messages.some((m) => m.role === "agent"));
+  for (const m of t.messages) assert.ok(["customer", "agent"].includes(m.role) && m.text && m.at);
+  assert.match(t.messages.find((m) => m.role === "agent")!.text, /Olá/); // NOT-0002 is a Portuguese case
+
+  const view = src("../components/console/conversation-transcript.tsx");
+  assert.ok(view.includes('from "@/components/chat/markdown"')); // the chat's safe markdown, reused
+  assert.ok(view.includes('from "@/components/ai-elements/conversation"'));
+  assert.ok(!/onSend|<Input|<textarea|Suggestion/.test(view)); // nothing can be sent from here
+  const page = src("../app/console/page.tsx");
+  assert.ok(page.indexOf('value="handoff"') < page.indexOf('value="conversation"'));
+  assert.ok(page.includes('useState<{ caseId: string; view: string }>({ caseId: c.id, view: "handoff" })'));
+
+  const live = createLiveConsoleApi({
+    token: () => "tok",
+    fetch: (async (url: string) =>
+      url === "/api/console/cases/K-1/conversation" ? Response.json({ threads: [] }) : new Response(null, { status: 500 })) as unknown as typeof fetch,
+  });
+  assert.deepEqual(await live.getConversation("K-1"), { threads: [] });
+});
+
 test("spec 08 AC-10 to AC-12: the analyst token is read from lib/live.ts's session entry, never past its expiry", () => {
   const store = (v: unknown) => ({ getItem: () => JSON.stringify(v) });
   assert.equal(storedAnalystToken(store({ analyst: { token: "t", expiresAt: Date.now() + 60_000 } })), "t");

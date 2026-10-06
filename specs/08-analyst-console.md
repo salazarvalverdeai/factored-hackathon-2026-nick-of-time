@@ -49,8 +49,8 @@ by the console KPI work (PR `feat/web-console-kpis`).
   resolved) and whether the nearest legal deadline was **met** (resolved on or before it on the case's business clock),
   **missed**, or did not exist (**no legal deadline**). A case's status is its last event. · [T] ("spec 08 AC-09: …") · [U]
 
-AC-10 to AC-14 are added by the assisted case view (PR `feat/08-assisted-console-web`); the routes they read are the
-analyst-only `GET /api/console/cases/{id}/context`, `/summary`, `/audit` and `GET|POST …/second-opinion`.
+AC-10 to AC-15 are added by the assisted case view (PR `feat/08-assisted-console-web`); the routes they read are the
+analyst-only `GET /api/console/cases/{id}/context`, `/summary`, `/audit`, `/conversation` and `GET|POST …/second-opinion`.
 - AC-10 — When the analyst opens a case, the case view shall start with the agent's summary (its lines and who wrote
   them, model or template) and the nearest legal deadline with its countdown and its source as a named link; if the
   case has no legal deadline, then it shall say a person decides and show no date. · [T] `lib/console-assist.test.ts` · [U]
@@ -67,6 +67,10 @@ analyst-only `GET /api/console/cases/{id}/context`, `/summary`, `/audit` and `GE
 - AC-14 — The case header shall show a status stepper (new → verification or review → resolved → closed, each step's
   state in words) and the SLA light of AC-08; every enum shall read as a human label, dates as es-MX on a 24 h clock,
   with no bracket tags, no horizontal scroll at 390 px, both themes and full keyboard use. · [T] · [U]
+- AC-15 — The case view shall offer a "Conversation" tab next to the handoff card, which stays the first and default
+  tab: a read-only transcript of the customer–agent conversation by chat session (`GET /api/console/cases/{id}/conversation`,
+  analyst only), drawn like the chat (the chat's safe markdown, the AI Elements conversation log), with nothing to send.
+  · [T] · [U]
 
 ## 8. Assumptions and open questions
 - Assumption `[assumption]`: mock accounts `freddy`, `gianmarco`, `diego`, `judge` with any non-empty password stand in for
@@ -81,7 +85,7 @@ analyst-only `GET /api/console/cases/{id}/context`, `/summary`, `/audit` and `GE
   detail (`GET /api/console/cases/{id}`, six at a time). The api's events carry no payload, so a live credit approval
   shows as "Resolved by a person" with the analyst who resolved it; the mock names "Credit approved". Adding either to
   the list is a spec 01 change and is out of this PR.
-- Assumption `[assumption]` (AC-10 to AC-13): until the api lane's routes are on `main`, mock mode answers them from
+- Assumption `[assumption]` (AC-10 to AC-13, AC-15): until the api lane's routes are on `main`, mock mode answers them from
   `apps/web/lib/mock/console.ts`, derived from the mock case (simulated); live mode calls the routes with the analyst's
   id token and never invents data. A `GET …/second-opinion` 404 and a `POST` 204 or `null` read as no opinion.
 - Open question: the approval payload becomes `POST /api/cases/{id}/action` with `AnalystActionIn` when the live API is wired.
@@ -97,8 +101,8 @@ analyst-only `GET /api/console/cases/{id}/context`, `/summary`, `/audit` and `GE
 - [x] Task 4 — responsive tabs · covers AC-06 · done when: tabs below 1024 px, grid from 1024 px
 - [x] Task 6 — KPI strip, SLA light and Closed tab · covers AC-07 to AC-09 · done when: `lib/console-metrics.test.ts`
   passes and the console shows them at 1440 px and 390 px
-- [ ] Task 7 — assisted case view: summary, customer history, auditor, second opinion, proposal, stepper · covers
-  AC-10 to AC-14 · done when: `lib/console-assist.test.ts` passes on the mock and the view works against the live routes
+- [ ] Task 7 — assisted case view: summary, customer history, auditor, second opinion, proposal, stepper, conversation tab · covers
+  AC-10 to AC-15 · done when: `lib/console-assist.test.ts` passes on the mock and the view works against the live routes
 - [ ] Task 5 — Cognito login and `POST /api/cases/{id}/action` · covers AC-01, AC-04, AC-05 · done when: same flow on the public URL
 
 **Closing checklist** (last PR): every AC has a passing test or check that cites it · status → Implemented · ADR for

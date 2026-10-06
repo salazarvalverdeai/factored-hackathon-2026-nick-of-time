@@ -1,5 +1,6 @@
 // The assisted console's own api calls (spec 08 assisted case view, spec 18 T5/T5b). Analyst-only routes:
 //   GET  /api/console/cases/{id}/context         customer history around the case
+//   GET  /api/console/cases/{id}/conversation    the customer–agent transcript, read-only
 //   GET  /api/console/cases/{id}/summary         the agent's summary and the nearest legal deadline
 //   GET  /api/console/cases/{id}/second-opinion  the judge's advisory opinion (404 = none yet)
 //   POST /api/console/cases/{id}/second-opinion  ask the judge; null or 204 = "No second opinion" (spec 18 AC-11)
@@ -8,7 +9,7 @@
 // analyst's id token and never invents data. Kept apart from lib/live.ts and lib/types.ts, which the /chat lane owns.
 import { api } from "./api.ts";
 import { ApiError } from "./mock/store.ts";
-import { mockAudit, mockContext, mockSecondOpinion, mockSummary } from "./mock/console.ts";
+import { mockAudit, mockContext, mockConversation, mockSecondOpinion, mockSummary } from "./mock/console.ts";
 import type { ConsoleCase, NotificationEntry } from "./types.ts";
 
 // --- shapes (the api lane's contract for these routes) ----------------------------------------------------------------
@@ -110,8 +111,20 @@ export interface CopilotProposal {
   explanation?: string;
 }
 
+export interface TranscriptMessage {
+  role: "customer" | "agent";
+  text: string;
+  at: string;
+}
+
+/** The customer–agent transcript of a case, one thread per chat session (analyst only, read-only). */
+export interface CaseConversation {
+  threads: { thread_id: string; session_started_at: string; messages: TranscriptMessage[] }[];
+}
+
 export interface ConsoleApi {
   getContext: (caseId: string) => Promise<CaseContext>;
+  getConversation: (caseId: string) => Promise<CaseConversation>;
   getSummary: (caseId: string) => Promise<CaseSummary>;
   /** The opinion already issued for this case, or null. */
   getSecondOpinion: (caseId: string) => Promise<SecondOpinion | null>;
@@ -137,6 +150,9 @@ export function createMockConsoleApi(deps: MockDeps): ConsoleApi {
       const c = await deps.getCase(id);
       const notes = deps.getNotifications ? await deps.getNotifications(id).catch(() => []) : [];
       return mockContext(c, notes);
+    },
+    async getConversation(id) {
+      return mockConversation(await deps.getCase(id));
     },
     async getSummary(id) {
       return mockSummary(await deps.getCase(id));
@@ -221,6 +237,7 @@ export function createLiveConsoleApi(deps: LiveDeps = {}): ConsoleApi {
 
   return {
     getContext: async (id) => (await send(path(id, "context"))) as CaseContext,
+    getConversation: async (id) => ((await send(path(id, "conversation"))) as CaseConversation | null) ?? { threads: [] },
     getSummary: async (id) => (await send(path(id, "summary"))) as CaseSummary,
     getSecondOpinion: async (id) => opinion(await send(path(id, "second-opinion"), "GET", true)),
     requestSecondOpinion: async (id) => opinion(await send(path(id, "second-opinion"), "POST")),

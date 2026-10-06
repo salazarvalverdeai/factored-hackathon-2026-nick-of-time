@@ -6,7 +6,9 @@
 // (AC-11).
 import { CircleCheck, CircleMinus, CircleX, Sparkles } from "lucide-react";
 import { useState } from "react";
+import { Task, TaskContent, TaskTrigger } from "@/components/ai-elements/task";
 import { ErrorState, LoadingState } from "@/components/states";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { type AuditResult, type SecondOpinion, consoleApi } from "@/lib/console-api";
 import { AUDIT_STATE_LABELS, auditCheckLabel, auditState, outcomeLabel, plain, verdictLabel } from "@/lib/console-view";
@@ -24,6 +26,16 @@ const STATE_ICON = {
   finding: { icon: CircleX, className: "text-red-600 dark:text-red-400" },
   na: { icon: CircleMinus, className: "text-muted-foreground" },
 };
+
+/** "7 checks · 6 passed · 1 not applicable" */
+function checksTitle(a: AuditResult): string {
+  const n = { passed: 0, finding: 0, na: 0 };
+  for (const c of a.checks) n[auditState(c)] += 1;
+  const parts = [`${a.checks.length} checks`, `${n.passed} passed`];
+  if (n.finding) parts.push(`${n.finding} with a finding`);
+  if (n.na) parts.push(`${n.na} not applicable`);
+  return parts.join(" · ");
+}
 
 export function AuditChecklist({ query }: { query: Query<AuditResult> }) {
   return (
@@ -52,27 +64,33 @@ export function AuditChecklist({ query }: { query: Query<AuditResult> }) {
               {query.data.matches ? "Matches the case" : "Does not match the case"}
             </span>
           </p>
-          <ul className="space-y-1.5" aria-label="Auditor checks">
-            {query.data.checks.map((c) => {
-              const s = auditState(c);
-              const I = STATE_ICON[s];
-              return (
-                <li key={c.id} data-check={c.id} data-state={s} className="flex gap-2 text-sm">
-                  <I.icon aria-hidden className={cn("mt-0.5 size-4 shrink-0", I.className)} />
-                  <span className="min-w-0">
-                    <span className="font-medium">
-                      <span className="font-mono text-xs text-muted-foreground">{c.id}</span> {auditCheckLabel(c)}
-                    </span>
-                    <span className="sr-only"> — {AUDIT_STATE_LABELS[s]}</span>
-                    {c.detail ? <span className="block text-xs text-muted-foreground">{plain(c.detail)}</span> : null}
-                  </span>
-                  <span className="ml-auto shrink-0 text-xs text-muted-foreground" aria-hidden>
-                    {AUDIT_STATE_LABELS[s]}
-                  </span>
-                </li>
-              );
-            })}
-          </ul>
+          {/* AI Elements `task`: the checks fold, open by default, like the chat's tool steps. */}
+          <Task>
+            <TaskTrigger title={checksTitle(query.data)} />
+            <TaskContent>
+              <ul className="space-y-1.5" aria-label="Auditor checks">
+                {query.data.checks.map((c) => {
+                  const s = auditState(c);
+                  const I = STATE_ICON[s];
+                  return (
+                    <li key={c.id} data-check={c.id} data-state={s} className="flex gap-2 text-sm text-foreground">
+                      <I.icon aria-hidden className={cn("mt-0.5 size-4 shrink-0", I.className)} />
+                      <span className="min-w-0">
+                        <span className="font-medium">
+                          <span className="font-mono text-xs text-muted-foreground">{c.id}</span> {auditCheckLabel(c)}
+                        </span>
+                        <span className="sr-only"> — {AUDIT_STATE_LABELS[s]}</span>
+                        {c.detail ? <span className="block text-xs text-muted-foreground">{plain(c.detail)}</span> : null}
+                      </span>
+                      <span className="ml-auto shrink-0 text-xs text-muted-foreground" aria-hidden>
+                        {AUDIT_STATE_LABELS[s]}
+                      </span>
+                    </li>
+                  );
+                })}
+              </ul>
+            </TaskContent>
+          </Task>
         </>
       )}
     </section>
@@ -140,9 +158,9 @@ function Evidence({ ids }: { ids: string[] }) {
   return (
     <span className="mt-0.5 flex flex-wrap gap-1" aria-label="Evidence">
       {ids.map((id) => (
-        <span key={id} className="rounded-md border px-1.5 font-mono text-[0.7rem] text-muted-foreground">
+        <Badge key={id} variant="outline" className="rounded-md font-mono text-[0.7rem] font-normal text-muted-foreground">
           {id}
-        </span>
+        </Badge>
       ))}
     </span>
   );
@@ -152,7 +170,7 @@ function OpinionBody({ o }: { o: SecondOpinion }) {
   return (
     <div className="space-y-2 text-sm" data-verdict={o.verdict}>
       <p>
-        <span className={cn("rounded-4xl px-2 py-0.5 text-xs font-medium", VERDICT_STYLE[o.verdict] ?? "bg-muted")}>{verdictLabel(o.verdict)}</span>
+        <Badge className={cn(VERDICT_STYLE[o.verdict] ?? "bg-muted text-muted-foreground")}>{verdictLabel(o.verdict)}</Badge>
       </p>
       {o.reasons.length ? (
         <ol className="list-decimal space-y-1.5 pl-5">

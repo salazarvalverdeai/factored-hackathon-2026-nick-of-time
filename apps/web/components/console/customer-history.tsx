@@ -7,6 +7,7 @@ import { ArrowRight } from "lucide-react";
 import { type ReactNode, useState } from "react";
 import { DetailField, DetailFields, DetailPanel } from "@/components/detail-panel";
 import { ErrorState, LoadingState } from "@/components/states";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import type { CaseContext, ContextTransaction } from "@/lib/console-api";
 import {
@@ -152,7 +153,7 @@ function TxRow({ t }: { t: ContextTransaction }) {
     >
       <span className="flex items-baseline justify-between gap-2">
         <span className="min-w-0 truncate">
-          {t.disputed ? <span className="mr-1 rounded-4xl bg-brand-amber/20 px-1.5 text-xs font-medium">Disputed</span> : null}
+          {t.disputed ? <Badge className="mr-1 bg-brand-amber/20 text-foreground">Disputed</Badge> : null}
           {t.merchant}
         </span>
         <span className="shrink-0 font-mono text-xs tabular-nums">{formatAmount(t.amount, t.currency)}</span>

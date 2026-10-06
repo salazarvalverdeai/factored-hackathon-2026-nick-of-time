@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { StatusBadge, ZoneBadge } from "@/components/badges";
 import { AgentSummary } from "@/components/console/agent-summary";
 import { CaseHeader } from "@/components/console/case-header";
+import { ConversationTranscript } from "@/components/console/conversation-transcript";
 import { CopilotProposal } from "@/components/console/copilot-proposal";
 import { CustomerHistory } from "@/components/console/customer-history";
 import { AuditChecklist, SecondOpinionPanel } from "@/components/console/oversight";
@@ -305,6 +306,10 @@ function CaseDetail({
   const summary = useQuery(() => consoleApi.getSummary(c.id), [c.id]);
   const context = useQuery(() => consoleApi.getContext(c.id), [c.id]);
   const auditor = useQuery(() => consoleApi.getAudit(c.id), [c.id]);
+  const [viewOf, setViewOf] = useState<{ caseId: string; view: string }>({ caseId: c.id, view: "handoff" });
+  const view = viewOf.caseId === c.id ? viewOf.view : "handoff";
+  const setView = (v: string) => setViewOf({ caseId: c.id, view: v });
+  const conversation = useQuery(() => (view === "conversation" ? consoleApi.getConversation(c.id) : Promise.resolve({ threads: [] })), [c.id, view]);
   const path = {
     verification: c.events.some((e) => e.status === "verification" || e.type.includes("verification")),
     review: c.events.some((e) => e.status === "review" || e.type.includes("review")),
@@ -324,7 +329,61 @@ function CaseDetail({
         />
       </CardHeader>
       <CardContent className="space-y-4 text-sm">
-        <AgentSummary query={summary} />
+        {/* The handoff card stays first; the conversation is a read-only transcript next to it (spec 08 AC-15). */}
+        <Tabs value={view} onValueChange={(v) => setView(String(v))}>
+          <TabsList className="w-full">
+            <TabsTrigger value="handoff">Handoff card</TabsTrigger>
+            <TabsTrigger value="conversation">Conversation</TabsTrigger>
+          </TabsList>
+          <TabsContent value="handoff" className="space-y-4">
+            <AgentSummary query={summary} />
+            <section aria-label="Handoff card" className="space-y-2 rounded-xl border bg-card p-3">
+              <h3 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Handoff card</h3>
+              {c.handoffEmitted === false ? (
+                <p className="text-muted-foreground">The agent has not written the handoff card for this case yet.</p>
+              ) : null}
+              <p>
+                <b>Request:</b> {h.request || "—"}
+              </p>
+              <p>
+                <b>Deadline:</b> {formatDeadline(c.deadline)}
+                <span className="block text-xs text-muted-foreground">{plain(h.deadline.deadline_source)}</span>
+              </p>
+              {h.handoff_reason ? (
+                <p>
+                  <b>Handoff reason:</b> {handoffReasonLabel(h.handoff_reason)}
+                </p>
+              ) : null}
+              <p>
+                <b>Verified facts:</b> {h.verified_facts.map((f) => plain(f.fact)).join("; ") || "—"}
+              </p>
+              <p>
+                <b>Actions:</b>{" "}
+                {h.actions.length
+                  ? h.actions.map((a) => `${a.tool.replace(/_/g, " ")}: ${a.result}${a.verified ? " (verified ✓)" : ""}`).join("; ")
+                  : "none taken"}
+              </p>
+              <p>
+                <b>Evidence:</b> {h.evidence.map(plain).join("; ") || "—"}
+              </p>
+              <p>
+                <b>Open questions:</b> {h.open_questions.map(plain).join("; ") || "—"}
+              </p>
+              {h.copilot_proposal ? (
+                <p>
+                  <b>Copilot proposal:</b> {copilotActionLabel(h.copilot_proposal.action)} (a person decides)
+                </p>
+              ) : null}
+              <p className="text-xs text-muted-foreground">
+                {h.score === null || h.score === undefined ? "Score del banco: sin dato" : `Score del banco: ${h.score}`}
+                {h.trace_id ? ` · trace ${h.trace_id}` : ""}
+              </p>
+            </section>
+          </TabsContent>
+          <TabsContent value="conversation">
+            {view === "conversation" ? <ConversationTranscript query={conversation} /> : null}
+          </TabsContent>
+        </Tabs>
 
         {proposal ? (
           <CopilotProposal
@@ -370,49 +429,6 @@ function CaseDetail({
         {/* The auditor's facts first, then the advisory opinion (spec 18 AC-09). */}
         <AuditChecklist query={auditor} />
         <SecondOpinionPanel caseId={c.id} />
-
-        <section aria-label="Handoff card" className="space-y-2">
-          <h3 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Handoff card</h3>
-          {c.handoffEmitted === false ? (
-            <p className="text-muted-foreground">The agent has not written the handoff card for this case yet.</p>
-          ) : null}
-          <p>
-            <b>Request:</b> {h.request || "—"}
-          </p>
-          <p>
-            <b>Deadline:</b> {formatDeadline(c.deadline)}
-            <span className="block text-xs text-muted-foreground">{plain(h.deadline.deadline_source)}</span>
-          </p>
-          {h.handoff_reason ? (
-            <p>
-              <b>Handoff reason:</b> {handoffReasonLabel(h.handoff_reason)}
-            </p>
-          ) : null}
-          <p>
-            <b>Verified facts:</b> {h.verified_facts.map((f) => plain(f.fact)).join("; ") || "—"}
-          </p>
-          <p>
-            <b>Actions:</b>{" "}
-            {h.actions.length
-              ? h.actions.map((a) => `${a.tool.replace(/_/g, " ")}: ${a.result}${a.verified ? " (verified ✓)" : ""}`).join("; ")
-              : "none taken"}
-          </p>
-          <p>
-            <b>Evidence:</b> {h.evidence.map(plain).join("; ") || "—"}
-          </p>
-          <p>
-            <b>Open questions:</b> {h.open_questions.map(plain).join("; ") || "—"}
-          </p>
-          {h.copilot_proposal ? (
-            <p>
-              <b>Copilot proposal:</b> {copilotActionLabel(h.copilot_proposal.action)} (a person decides)
-            </p>
-          ) : null}
-          <p className="text-xs text-muted-foreground">
-            {h.score === null || h.score === undefined ? "Score del banco: sin dato" : `Score del banco: ${h.score}`}
-            {h.trace_id ? ` · trace ${h.trace_id}` : ""}
-          </p>
-        </section>
 
         <section aria-label="Timeline">
           <h3 className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">Timeline</h3>

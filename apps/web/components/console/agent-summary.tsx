@@ -1,6 +1,7 @@
 // The agent's summary at the top of the case: a few lines and the nearest legal deadline with its countdown and its
 // source as a named link (spec 08 assisted console). With no verified clock entry it says a person decides, no date.
 import { CalendarClock, ExternalLink } from "lucide-react";
+import { Source } from "@/components/ai-elements/sources";
 import { ErrorState, LoadingState } from "@/components/states";
 import type { CaseSummary } from "@/lib/console-api";
 import { countdown, deadlineKindLabel, formatDay, plain, writerLabel } from "@/lib/console-view";
@@ -61,11 +62,12 @@ function SummaryBody({ s }: { s: CaseSummary }) {
             <span className="text-xs text-muted-foreground">
               Source:{" "}
               {d.source_url ? (
-                <a href={d.source_url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-0.5 underline underline-offset-2 hover:text-foreground">
+                // AI Elements `source`: always a named link, the URL is its target, never its text.
+                <Source href={d.source_url} className="items-center gap-0.5 underline">
                   {plain(d.source_label)}
                   <ExternalLink aria-hidden className="size-3" />
                   <span className="sr-only">(opens in a new tab)</span>
-                </a>
+                </Source>
               ) : (
                 plain(d.source_label)
               )}

@@ -3,6 +3,7 @@
 import { Check } from "lucide-react";
 import type { ReactNode } from "react";
 import { StatusBadge, ZoneBadge } from "@/components/badges";
+import { Badge } from "@/components/ui/badge";
 import { type Step, stepperSteps } from "@/lib/console-view";
 import type { CaseStatus, Priority, Zone } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -71,7 +72,7 @@ export function CaseHeader({
         <ZoneBadge zone={zone} />
         <StatusBadge status={status} />
         {priority === "high" ? (
-          <span className="inline-flex h-5 items-center rounded-4xl border border-brand-amber/50 px-2 text-xs font-medium">High priority</span>
+          <Badge variant="outline" className="border-brand-amber/50">High priority</Badge>
         ) : null}
       </div>
       <div className="flex flex-wrap items-center justify-between gap-2">

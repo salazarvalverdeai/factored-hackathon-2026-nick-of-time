@@ -1,7 +1,15 @@
 // Simulated answers of the assisted console routes (lib/console-api.ts), built from the mock case so the console works
 // without the backend. Nothing here comes from the dataset; every value is derived from the case the mock store holds,
 // deterministically (same case → same answer). Live mode never reads this file.
-import type { AuditResult, CaseContext, CaseSummary, ContextNotification, SecondOpinion } from "../console-api.ts";
+import type {
+  AuditResult,
+  CaseContext,
+  CaseConversation,
+  CaseSummary,
+  ContextNotification,
+  SecondOpinion,
+  TranscriptMessage,
+} from "../console-api.ts";
 import type { ConsoleCase, NotificationEntry } from "../types.ts";
 import { DEMO_TODAY, daysBetween } from "./store.ts";
 
@@ -81,6 +89,43 @@ export function mockContext(c: ConsoleCase, notes: NotificationEntry[] = []): Ca
     calls: c.events.filter((e) => e.type === "call_requested").map((e) => ({ requested_at: e.at, status: "requested" })),
     notifications: (fromStore.length ? fromStore : derived).sort((a, b) => b.at.localeCompare(a.at)),
   };
+}
+
+/** A short scripted transcript in the customer's language, built from the case's own request (simulated). */
+export function mockConversation(c: ConsoleCase): CaseConversation {
+  const pt = c.language === "pt";
+  const t0 = Date.parse(c.openedAt) - 4 * 60_000;
+  const at = (min: number) => new Date(t0 + min * 60_000).toISOString();
+  const blocks = c.zone !== "human";
+  const messages: TranscriptMessage[] = [
+    {
+      role: "agent",
+      text: pt
+        ? "Olá! Posso ajudar com uma **cobrança que você não reconhece**: encontro a transação, abro o caso e digo o prazo legal."
+        : "¡Hola! Puedo ayudarte con un **cargo que no reconoces**: encuentro la transacción, abro el caso y te digo el plazo legal.",
+      at: at(0),
+    },
+    { role: "customer", text: c.handoff.request, at: at(1) },
+    {
+      role: "agent",
+      text: pt
+        ? "Encontrei a transação. Vou fazer isto:\n1. Abrir o caso\n2. Verificar o resultado"
+        : "Encontré la transacción. Voy a hacer esto:\n1. Abrir el caso\n2. Verificar el resultado",
+      at: at(2),
+    },
+    {
+      role: "agent",
+      text: blocks
+        ? pt
+          ? `Caso **${c.id}** aberto e cartão bloqueado (verificado).`
+          : `Caso **${c.id}** abierto y tarjeta bloqueada (verificado).`
+        : pt
+          ? `Caso **${c.id}** aberto. Uma pessoa vai revisar e decidir.`
+          : `Caso **${c.id}** abierto. Una persona lo revisará y decidirá.`,
+      at: at(4),
+    },
+  ];
+  return { threads: [{ thread_id: `TH-${c.id}`, session_started_at: at(0), messages }] };
 }
 
 export function mockSummary(c: ConsoleCase): CaseSummary {
