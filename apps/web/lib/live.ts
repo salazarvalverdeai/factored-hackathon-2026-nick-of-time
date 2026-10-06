@@ -518,6 +518,11 @@ export function createLiveApi(options: LiveOptions = {}): ApiClient {
       expireLocally();
     },
 
+    // "Nuevo caso": the next message opens a new thread on the api; the session (and its cases) stay.
+    newThread() {
+      threadId = null;
+    },
+
     async chat(text: string, ctx: ChatContext = {}): Promise<AgentReply> {
       if (!stored.customer || stored.customer.expiresAt <= now()) throw new ApiError("SESSION_EXPIRED", 401, "Session expired: verify again.");
       threadId ??= (await json<{ thread_id: string }>("/api/agent/threads", { method: "POST" })).thread_id;

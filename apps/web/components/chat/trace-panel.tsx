@@ -1,4 +1,6 @@
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+// The technical trace of a turn (spec 07 AC-03, AC-08), shown inside the right panel behind "Ver traza técnica": each
+// step with its result and the guardrails that fired by name. "requested" is not "verified" (constitution #4); no score,
+// zone or policy id (D-013).
 import { GUARDRAIL_LABELS, guardrailLabel, traceRow } from "@/lib/trace";
 import type { TraceStep } from "@/lib/types";
 
@@ -65,22 +67,3 @@ export function TraceSteps({ trace, guardrails }: { trace: TraceStep[]; guardrai
   );
 }
 
-/**
- * Each step of the last turn with its result, and the guardrails that fired by name (spec 07 AC-03, AC-08).
- * "requested" is not "verified" (constitution #4). It shows no score, zone or policy id (D-013).
- */
-export function TracePanel({ trace, guardrails }: { trace: TraceStep[]; guardrails: string[] }) {
-  return (
-    <aside aria-label="Trace" className="min-w-0">
-      <Card>
-        <CardHeader>
-          <CardTitle>Trace</CardTitle>
-          <CardDescription>What the agent did on the last message</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <TraceSteps trace={trace} guardrails={guardrails} />
-        </CardContent>
-      </Card>
-    </aside>
-  );
-}

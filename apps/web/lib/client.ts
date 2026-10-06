@@ -63,6 +63,8 @@ export interface ApiClient {
   /** Demo button: ends the session now. Live mode has no such route, so the page does not offer it. */
   expireCustomerSession: () => Promise<void>;
   chat: (text: string, ctx?: ChatContext) => Promise<AgentReply>;
+  /** "Nuevo caso" (spec 07 AC-24): the next message starts a fresh agent thread; the session and its cases stay. */
+  newThread: () => void;
 
   // cases
   getCase: (id: string) => Promise<CustomerCaseView>;

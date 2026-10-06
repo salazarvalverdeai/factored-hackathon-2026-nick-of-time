@@ -72,6 +72,53 @@ AC-01 to AC-05 are copied from issue #9 with the same numbers. None is dropped o
 - AC-15 — A step, a card or "how I decided" shall open the shared right panel (`components/detail-panel.tsx`): a modal
   sheet that Escape closes, that keeps and then returns focus, that fits 390 px; motion stays off under
   `prefers-reduced-motion`. · [U]
+- AC-16 — (lead, iteration 2) Each assistant message shall show "how I decided" inline, on AI Elements
+  `chain-of-thought`: while the turn runs it is open and each step shows with its icon, its status and a one-line result
+  (an action's state and `V-` id beside it); when the reply completes it shall collapse to one line that says what the
+  steps did and how many there were ("Revisó tus cargos, aplicó la regla y abrió el caso · 4 pasos"; a requested action
+  never reads as done), and a click opens it again. A step opens the right panel as an AI Elements `tool` with its
+  status; the technical trace of AC-03 and AC-08 is a "Ver traza técnica" toggle inside the panel, not a permanent
+  column. · [U] · [T] `lib/chat-reveal.test.ts` ("spec 07 AC-16: …")
+- AC-17 — While a turn runs, the chat shall show a "Pensando…" shimmer until the first event, then release the steps in
+  the order they arrived, each result no sooner than 350 ms after its step showed as running. This is display only: no
+  step is added, dropped or reordered, and a slow step is not slowed further. Under `prefers-reduced-motion` every step
+  shows as it arrives. · [T] `lib/chat-reveal.test.ts` ("spec 07 AC-17: …", fake timers)
+- AC-18 — The reply shall be revealed word by word at about 35 words per second, streamed (writer `llm`) or template,
+  as safe markdown: a mark or a link not yet closed is held back. Under `prefers-reduced-motion` it shows whole. · [T]
+  ("spec 07 AC-18: …")
+- AC-19 — The receipt shall lead with the deadline: the credit date (else the ruling date) with a business-day
+  countdown ("faltan 2 días hábiles" / "faltam 2 dias úteis") counted from the demo date in replay and from the
+  receipt's issue date in the case's zone in live mode, never from the system clock; the ruling date follows a credit
+  hero. Ids are small and monospaced. · [T] `lib/receipt-view.test.ts` ("spec 07 AC-19: …")
+- AC-20 — The receipt shall not repeat as a bullet the "case opened and verified" line (`act.case_opened`) or any fact
+  naming a `V-` id its action rows already list; in replay a receipt line drops its real-clock instant. · [T]
+  ("spec 07 AC-20: …", "spec 07 AC-14, AC-20: …")
+- AC-21 — The receipt shall offer "Copiar" (AI Elements message actions), which copies a plain-text receipt with the
+  same verified facts, the countdown, the source and the case link, and no score, zone or policy id. · [T] ("spec 07
+  AC-21: …")
+- AC-22 — Where a figure of a finished reply (an amount, a date, a case or verification id) was returned by a tool of
+  the turn, the chat shall mark it as an AI Elements inline citation that names that tool and opens its detail; a
+  figure no tool returned is left as it is. · [T] `lib/chat-reveal.test.ts` ("spec 07 AC-22: …")
+- AC-23 — The chips shall sit inside the conversation under the last message, wrap instead of scrolling (nothing
+  clipped at 390 px or zoomed), show the turn's main next step filled, and always include the person chip. The
+  composer is AI Elements `prompt-input` with the mic inside it; its send button never clips. · [T]
+  `lib/chat-reveal.test.ts`, `lib/chat-view.test.ts` ("spec 07 AC-05, AC-23: …", "spec 07 AC-13, AC-23: …")
+- AC-24 — The chat shall have a header bar with the agent avatar, "Asistente de disputas", the customer's name and
+  "Nuevo caso", which drops a running turn, clears the conversation and makes the next message open a new agent thread
+  (`ApiClient.newThread`); the session and the cases already opened stay. · [U]
+- AC-25 — Each message shall show its time (HH:MM, 24 h, in the case's zone), the time this browser sent or received it;
+  the date the customer sees is the demo date of the one-line demo note in replay. · [U]
+- AC-26 — Motion shall be calm and short (150–300 ms, ease-out, no glow, no bounce): messages fade in and rise 8 px
+  (the customer's from the right, the agent's from the left); the parts of a reply enter 60 ms apart in the fixed order
+  steps → text → cards → chips; option cards rise 40 ms apart, lift their border on hover, and on a pick the chosen one
+  grows to 1.02 while the others fade; a finished step's check is drawn; "verified" pulses once; the receipt scales
+  from 0.97, its seal stamps in and its countdown number ticks in once; the steps collapse with a height animation;
+  the scroll-to-bottom button fades in; the mic pulses while recording. Every chat animation goes through one adapter,
+  `components/chat/motion.tsx` (Reveal, Stagger, DrawCheck, Collapse, useReducedMotionGuard), so the shared web motion
+  kit can replace it in one place. · [T] `lib/chat-reveal.test.ts` ("spec 07 AC-26: …"), `lib/chat-view.test.ts`
+  ("spec 07 AC-27: every chat animation goes through …")
+- AC-27 — Under `prefers-reduced-motion` nothing shall move: no element gets animated props, the reply shows whole and
+  the steps still show in order. · [T] ("spec 07 AC-27: …")
 
 ## 8. Assumptions and open questions
 - Assumption `[assumption]`: the scripted agent in `lib/mock/agent.ts` stands in for the LangGraph graph; refusal,
@@ -171,6 +218,12 @@ AC-01 to AC-05 are copied from issue #9 with the same numbers. None is dropped o
   `sources`, `task`, restyled to BRAND.md) with live tool steps, cards, streaming markdown, the receipt with its
   verified seal and named sources, chips as pills and the shared right panel; a mock stream in the exact §6.4.1 shapes
   (`lib/mock/stream.ts`) so it works with no backend · covers AC-11 to AC-15 · done when: the tests citing them pass
+- [x] Task 9 — agentic chat, iteration 2 (lead, 2026-10-05): /chat recomposed on AI Elements (`message`,
+  `chain-of-thought`, `tool`, `task`, `confirmation`, `inline-citation`, `prompt-input`, message actions, `shimmer`),
+  restyled to BRAND.md; inline "how I decided" that collapses, paced reveal, the receipt with the deadline hero and
+  Copy, chips inside the thread, header bar with "Nuevo caso", timestamps, motion through one adapter · covers AC-16 to
+  AC-27 · done when: the tests citing them pass (the live-node graph beside the chat follows once `graph-view` takes
+  `activeNode`)
 
 **Task 5 notes.** The web never sends a `customer_id`; the session id (equal to the httpOnly cookie value) is kept in
 `sessionStorage` to address `/api/sessions/{id}/...`. Charge-chip text is local ES/PT copy built from tool-returned

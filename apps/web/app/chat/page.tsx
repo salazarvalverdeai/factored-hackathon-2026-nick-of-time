@@ -1,23 +1,27 @@
 "use client";
 
+import { LogOutIcon } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { ChatDetailPanel } from "@/components/chat/chat-detail";
-import { ChatChips } from "@/components/chat/chips";
+import { ChatComposer } from "@/components/chat/composer";
+import { ChatHeader } from "@/components/chat/header";
 import { type ChatDetail, type ChatMessage, ChatThread } from "@/components/chat/thread";
-import { TracePanel } from "@/components/chat/trace-panel";
+import { usePacedTurn } from "@/components/chat/use-paced-turn";
 import { PageShell } from "@/components/page-shell";
 import { ErrorState, LoadingState } from "@/components/states";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { ApiError, api } from "@/lib/api";
-import { EMPTY_STREAM, type TurnStream, applyText, applyTool } from "@/lib/chat-stream";
+import { customerText, formatDate, replyBody } from "@/lib/chat-stream";
+import { CHAT_STRINGS } from "@/lib/chat-strings";
 import { greetingName, helloLine, showWebGreeting } from "@/lib/chat-view";
 import { DEMO_TODAY } from "@/lib/mock/store";
 import { VERIFY_COPY } from "@/lib/demo";
 import { MESSAGES } from "@/lib/mock/messages";
-import type { DemoCustomer, Language, PersonaDraft, Suggestion, TurnAction } from "@/lib/types";
+import type { AgentReply, DemoCustomer, Language, PersonaDraft, Suggestion, TurnAction } from "@/lib/types";
 import { useMounted, useSession } from "@/lib/use-query";
+import { cn } from "@/lib/utils";
 import { VOICE_COPY } from "@/lib/voice";
 import { DemoStart, Toggle } from "./demo-start";
 import { DemoTools } from "./demo-tools";
@@ -223,7 +227,7 @@ function Verify({ expired, onVerified }: { expired: boolean; onVerified: () => v
   );
 }
 
-// --- the conversation: messages, receipt widget and the trace panel ------------------------------------------------
+// --- the conversation: header bar, thread with inline steps and cards, chips, composer with the mic ----------------
 
 function Conversation({ onExpired }: { onExpired: () => void }) {
   const { customerSession } = useSession();
@@ -232,167 +236,185 @@ function Conversation({ onExpired }: { onExpired: () => void }) {
   // ("assign me one"); the agent then greets with gold's name (spec 07 AC-07). Never a placeholder such as "you".
   const lang = customer?.language ?? customerSession?.language ?? "es";
   const speaker = greetingName(customer?.display_name ?? customerSession?.displayName);
+  const country = customer?.country;
+  const demoDate = customerSession?.mode === "live" ? null : DEMO_TODAY;
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState<string | undefined>(undefined);
-  const [step, setStep] = useState<string | null>(null);
-  // The turn running now (spec 01 §6.4.1): tool calls and the reply being written; and what the right panel shows.
-  const [live, setLive] = useState<TurnStream | null>(null);
+  const [liveId, setLiveId] = useState<number | null>(null);
   const [detail, setDetail] = useState<ChatDetail | null>(null);
   // Demo tools (spec 07 §8.6 to §8.8) and voice (AC-10): the chosen charge, a persona draft and a heard draft.
   const [chosenTx, setChosenTx] = useState<string | null>(null);
   const [draftSource, setDraftSource] = useState<PersonaDraft["source"] | null>(null);
+  const [micNote, setMicNote] = useState<string | null>(null);
   const readAloud = useReadAloud(lang);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
   const [heard, setHeard] = useState(false);
   const voiceOn = api.mode === "live"; // voice needs the live api (spec 05 AC-24)
+  const nextId = useRef(0);
+  const turnNo = useRef(0); // "Nuevo caso" bumps it: a reply of an older thread is dropped
+  const speak = readAloud.speak;
+
+  const turn = usePacedTurn<AgentReply>({
+    streamText: customerText,
+    finalText: (reply) => replyBody(reply.text, reply.receipt, lang),
+    onComplete: (reply, view) => {
+      setMessages((m) => [...m, { id: nextId.current++, role: "agent", text: reply.text, reply, at: Date.now(), progress: view.progress }]);
+      setLiveId(null);
+      setBusy(false);
+      speak(reply.text); // the reply text only, never chips, ids or the trace (§8 D-072.4)
+    },
+  });
 
   const lastReply = [...messages].reverse().find((m) => m.reply)?.reply;
 
   /** A typed message, or a chip press: an action chip sends its action and skips the classifier (spec 01 §6.4). */
   async function send(text: string, action?: TurnAction) {
     if (!text.trim() || busy) return;
-    setMessages((m) => [...m, { id: m.length, role: "customer", text }]);
+    const myTurn = turnNo.current;
+    setMessages((m) => [...m, { id: nextId.current++, role: "customer", text, at: Date.now() }]);
+    setLiveId(nextId.current); // the id the agent's message will take, so the running turn keeps its element
     setInput("");
     setDraftSource(null);
     setHeard(false);
     setBusy(true);
     setError(null);
-    setStep(null);
-    setLive(EMPTY_STREAM);
+    const push = turn.start();
     try {
       const reply = await api.chat(text, {
         pendingRequest: pending,
         action,
-        onProgress: (p) => setStep(p.label),
-        onTool: (t) => setLive((s) => applyTool(s ?? EMPTY_STREAM, t)),
-        onText: (c) => setLive((s) => applyText(s ?? EMPTY_STREAM, c)),
+        onProgress: (p) => push({ kind: "progress", label: p.label }),
+        onTool: (event) => push({ kind: "tool", event }),
+        onText: (c) => push({ kind: "text", delta: c.delta, messageId: c.message_id }),
       });
+      if (turnNo.current !== myTurn) return; // "Nuevo caso" while it ran
       setPending(reply.awaitingConfirmation ? text : undefined);
-      setMessages((m) => [...m, { id: m.length, role: "agent", text: reply.text, reply }]);
-      readAloud.speak(reply.text); // the reply text only, never chips, ids or the trace (§8 D-072.4)
+      push({ kind: "reply", reply });
     } catch (e) {
+      if (turnNo.current !== myTurn) return;
+      turn.cancel();
+      setLiveId(null);
+      setBusy(false);
       if (e instanceof ApiError && e.code === "SESSION_EXPIRED") onExpired();
       else setError(e instanceof ApiError ? e.message : "unexpected error");
-    } finally {
-      setBusy(false);
-      setStep(null);
-      setLive(null);
     }
   }
 
+  /** "Nuevo caso" (spec 07 AC-24): a fresh thread; the session and the cases already opened stay. */
+  function newCase() {
+    turnNo.current++;
+    turn.cancel();
+    readAloud.cancel();
+    api.newThread();
+    setMessages([]);
+    setLiveId(null);
+    setBusy(false);
+    setPending(undefined);
+    setError(null);
+    setDetail(null);
+    setChosenTx(null);
+    setInput("");
+    setDraftSource(null);
+    setHeard(false);
+  }
+
+  const note = (
+    <>
+      {CHAT_STRINGS.demoNote[lang]}
+      {demoDate ? ` · ${CHAT_STRINGS.demoDate[lang]}: ${formatDate(demoDate, lang)}` : null}
+    </>
+  );
+
   return (
-    <div className="grid gap-4 lg:grid-cols-[1fr_20rem]">
-      <section aria-label="Conversation" className="min-w-0 space-y-3">
-        <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
-          <span>
-            {speaker ? (
-              <>
-                Talking as <b>{speaker}</b> ·{" "}
-              </>
-            ) : null}
-            Session until{" "}
-            {customerSession ? new Date(customerSession.expiresAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "—"}
-          </span>
-          <span className="flex gap-2">
-            {voiceOn && readAloud.supported ? <ReadAloudToggle lang={lang} on={readAloud.on} online={readAloud.online} onToggle={readAloud.toggle} /> : null}
-            {api.mode === "mock" ? (
-              <Button size="xs" variant="outline" onClick={() => api.expireCustomerSession()}>
-                Expire session (demo)
-              </Button>
-            ) : null}
-            <Button size="xs" variant="outline" onClick={() => api.logoutCustomer()}>
-              Sign out
+    <div className={cn("grid gap-4", api.mode === "live" && "lg:grid-cols-[minmax(0,1fr)_18rem]")}>
+      <section aria-label="Conversation" className="mx-auto flex h-[calc(100dvh-12rem)] min-h-[32rem] w-full min-w-0 max-w-3xl flex-col overflow-hidden rounded-2xl border bg-background">
+        <ChatHeader lang={lang} name={speaker} onNewCase={newCase} newCaseDisabled={messages.length === 0 && !busy}>
+          {voiceOn && readAloud.supported ? <ReadAloudToggle lang={lang} on={readAloud.on} online={readAloud.online} onToggle={readAloud.toggle} /> : null}
+          {api.mode === "mock" ? (
+            <Button size="sm" variant="ghost" onClick={() => api.expireCustomerSession()} className="hidden text-muted-foreground sm:inline-flex">
+              {CHAT_STRINGS.expire}
             </Button>
-          </span>
-        </div>
+          ) : null}
+          <Button size="sm" variant="ghost" onClick={() => api.logoutCustomer()} className="text-muted-foreground" aria-label={CHAT_STRINGS.signOut} title={CHAT_STRINGS.signOut}>
+            <LogOutIcon aria-hidden className="size-3.5" />
+            <span className="hidden sm:inline">{CHAT_STRINGS.signOut}</span>
+          </Button>
+        </ChatHeader>
 
         <ChatThread
-          className="h-[calc(100dvh-17rem)] min-h-80"
+          className="flex-1"
           messages={messages}
-          live={busy ? live : null}
+          live={liveId !== null ? { id: liveId, view: turn.view, thinking: turn.thinking } : null}
           lang={lang}
-          country={customer?.country}
-          demoDate={customerSession?.mode === "live" ? null : DEMO_TODAY}
+          country={country}
+          demoDate={demoDate}
+          note={note}
           busy={busy}
           onSend={send}
           onOpen={setDetail}
+          // Examples before the first reply; then the turn's chips (the person chip is always added, AC-13).
+          chips={lastReply ? (lastReply.suggestions ?? []) : EXAMPLES[lang].map((ex): Suggestion => ({ label: ex, text: ex }))}
           greeting={
             showWebGreeting(messages) ? (
-              <>
+              <div className="space-y-1 text-sm">
                 {/* spec 04 AC-15, spec 07 AC-07: one greeting, gone once the agent greets; texts from contracts/messages.yaml */}
                 <p>{helloLine(lang, speaker)}</p>
                 <p>{MESSAGES.greet.capability_1[lang]}</p>
                 <p>{MESSAGES.greet.capability_2[lang]}</p>
                 <p>{MESSAGES.greet.capability_3[lang]}</p>
                 <p>{MESSAGES.greet.human_review[lang]}</p>
-              </>
+              </div>
             ) : null
           }
-          footer={
-            <>
-              {busy && step && !live?.tools.length && !live?.text ? <LoadingState label={step} className="p-3" /> : null}
-              {error ? <ErrorState title="The agent did not answer" message={error} onRetry={() => setError(null)} /> : null}
-            </>
-          }
+          footer={error ? <ErrorState title="The agent did not answer" message={error} onRetry={() => setError(null)} /> : null}
         />
 
-        {/* Chips as pills under the last reply; "talk to a person" is always among them (spec 04 AC-20). */}
-        <ChatChips
-          suggestions={lastReply?.suggestions ?? EXAMPLES[lang].map((ex): Suggestion => ({ label: ex, text: ex }))}
-          lang={lang}
-          disabled={busy}
-          onSend={send}
-        />
-
-        {draftSource ? (
-          <p className="text-xs text-muted-foreground">
-            Suggested message ({draftSource === "llm" ? "written by a model" : "from a template"}): edit it, then send it yourself.
-          </p>
-        ) : null}
-        {heard ? <p className="text-xs text-muted-foreground">{VOICE_COPY[lang].draft}</p> : null}
-        <form
-          className="sticky bottom-0 z-10 flex flex-wrap gap-2 bg-background py-2"
-          onSubmit={(e) => {
-            e.preventDefault();
-            send(input);
-          }}
-        >
-          <Input
-            ref={inputRef}
-            className="min-w-0 flex-1"
+        <div className="border-t px-3 pb-3 pt-2.5 sm:px-4">
+          {draftSource ? (
+            <p className="mb-1.5 text-xs text-muted-foreground">
+              Suggested message ({draftSource === "llm" ? "written by a model" : "from a template"}): edit it, then send it yourself.
+            </p>
+          ) : null}
+          {heard ? <p className="mb-1.5 text-xs text-muted-foreground">{VOICE_COPY[lang].draft}</p> : null}
+          <ChatComposer
+            lang={lang}
             value={input}
-            onChange={(e) => {
-              setInput(e.target.value);
+            onChange={(text) => {
+              setInput(text);
               setDraftSource(null);
               setHeard(false);
             }}
-            placeholder={lang === "es" ? "Escribe tu mensaje…" : "Escreva sua mensagem…"}
-            aria-label="Message"
+            onSubmit={(text) => send(text)}
+            busy={busy}
+            voice={voiceOn}
+            textareaRef={inputRef}
+            tools={
+              voiceOn ? (
+                <MicButton
+                  lang={lang}
+                  disabled={busy}
+                  compact
+                  onNote={setMicNote}
+                  onRecordStart={readAloud.cancel}
+                  onTranscript={(text) => {
+                    setInput(text);
+                    setDraftSource(null);
+                    setHeard(true);
+                    inputRef.current?.focus();
+                  }}
+                />
+              ) : null
+            }
           />
-          {voiceOn ? (
-            <MicButton
-              lang={lang}
-              disabled={busy}
-              onRecordStart={readAloud.cancel}
-              onTranscript={(text) => {
-                setInput(text);
-                setDraftSource(null);
-                setHeard(true);
-                inputRef.current?.focus();
-              }}
-            />
-          ) : null}
-          <Button type="submit" disabled={busy || !input.trim()}>
-            {lang === "es" ? "Enviar" : "Enviar"}
-          </Button>
-        </form>
+          <p className="mt-1.5 text-xs text-muted-foreground">{micNote ?? CHAT_STRINGS.composerHint[lang]}</p>
+        </div>
       </section>
 
-      <div className="min-w-0 space-y-4">
-        {api.mode === "live" ? (
+      {api.mode === "live" ? (
+        <div className="min-w-0 space-y-4">
           <DemoTools
             lang={lang}
             mode={customerSession?.mode}
@@ -405,10 +427,9 @@ function Conversation({ onExpired }: { onExpired: () => void }) {
               setDraftSource(draft.source);
             }}
           />
-        ) : null}
-        <TracePanel trace={lastReply?.trace ?? []} guardrails={lastReply?.guardrails ?? []} />
-      </div>
-      <ChatDetailPanel detail={detail} lang={lang} country={customer?.country} onClose={() => setDetail(null)} />
+        </div>
+      ) : null}
+      <ChatDetailPanel detail={detail} lang={lang} country={country} onClose={() => setDetail(null)} />
     </div>
   );
 }
