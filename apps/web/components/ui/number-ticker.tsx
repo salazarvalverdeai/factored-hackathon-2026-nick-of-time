@@ -1,8 +1,8 @@
 "use client"
 
 // Magic UI number ticker (added with `npx shadcn add https://magicui.design/r/number-ticker`), adapted for this app:
-// - the server render and a page without JavaScript show the final value, never the start value;
-// - it animates only when it scrolls into view after the page loads (a number already on screen never jumps back);
+// - the server render, the first client render and any capture that never scrolls show the final value, never a start value;
+// - it counts up subtly (from 90% of the value, never 0) only when it scrolls into view after the page loads (a number already on screen never jumps back);
 // - a fixed-duration tween instead of the spring, so it always lands on the exact value and never rests in between;
 // - with `prefers-reduced-motion: reduce` it never animates;
 // - screen readers get the final value once; the moving digits are hidden from them;
@@ -11,9 +11,11 @@ import { useEffect, useRef, type ComponentPropsWithoutRef } from "react"
 import { animate, useInView } from "motion/react"
 
 import { cn } from "@/lib/utils"
+import { formatTicker as format, tickerStart } from "@/lib/ticker"
 
 interface NumberTickerProps extends ComponentPropsWithoutRef<"span"> {
   value: number
+  /** Optional start of the subtle count; defaults to 90% of the value, never 0. */
   startValue?: number
   delay?: number
   /** Seconds. */
@@ -21,16 +23,9 @@ interface NumberTickerProps extends ComponentPropsWithoutRef<"span"> {
   decimalPlaces?: number
 }
 
-function format(n: number, decimalPlaces: number) {
-  return Intl.NumberFormat("en-US", {
-    minimumFractionDigits: decimalPlaces,
-    maximumFractionDigits: decimalPlaces,
-  }).format(Number(n.toFixed(decimalPlaces)))
-}
-
 export function NumberTicker({
   value,
-  startValue = 0,
+  startValue,
   delay = 0,
   duration = 1.2,
   className,
@@ -39,6 +34,7 @@ export function NumberTicker({
 }: NumberTickerProps) {
   const ref = useRef<HTMLSpanElement>(null)
   const armed = useRef(false)
+  const from = tickerStart(value, startValue)
   const isInView = useInView(ref, { once: true, margin: "0px" })
 
   // On mount: arm the animation only when motion is allowed and the number is still below the fold.
@@ -48,18 +44,18 @@ export function NumberTicker({
     if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return
     const rect = el.getBoundingClientRect()
     if (rect.top < window.innerHeight && rect.bottom > 0) return
+    // The final value stays in the DOM: a capture that never triggers the observer must show it, not a start state.
     armed.current = true
-    el.textContent = format(startValue, decimalPlaces)
     return () => {
       armed.current = false
       el.textContent = format(value, decimalPlaces)
     }
-  }, [startValue, value, decimalPlaces])
+  }, [value, decimalPlaces])
 
   useEffect(() => {
     const el = ref.current
     if (!el || !isInView || !armed.current) return
-    const controls = animate(startValue, value, {
+    const controls = animate(from, value, {
       duration,
       delay,
       ease: "easeOut",
@@ -74,7 +70,7 @@ export function NumberTicker({
       controls.stop()
       el.textContent = format(value, decimalPlaces)
     }
-  }, [isInView, startValue, value, duration, delay, decimalPlaces])
+  }, [isInView, from, value, duration, delay, decimalPlaces])
 
   return (
     <span className={cn("inline-block tabular-nums", className)} {...props}>
