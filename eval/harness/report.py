@@ -154,6 +154,8 @@ def web_summary(records: list[dict[str, Any]], run_meta: dict[str, Any],
             "data": {"label": "[simulated]", "set": next(iter({record["set"] for record in records}), None),
                      "cases": len(cases), "variant_cases": len(variants), "runs_per_case": per_case,
                      "cases_sha256": run_meta["cases_sha256"],
+                     # AC-09: failed runs stay in every denominator; the count is carried when the run meta has it
+                     **{key: run_meta[key] for key in ("runs", "failed_runs") if key in run_meta},
                      "protocol": run_meta["protocol"], "arms": arms, **scoring(records)}}
 
 
