@@ -29,7 +29,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse, RedirectResponse, StreamingResponse
 from pydantic import ValidationError
 
-from app import demo, persona, stream_events, voice
+from app import console, demo, persona, stream_events, voice
 from app.auth import AuthError, CognitoVerifier
 from app.catalog import Catalog, FixtureCatalog, catalog_from_env
 from app.guard import install as install_guard
@@ -129,7 +129,8 @@ class LinkTokens:
 
 def create_live_app(store: Store, *, catalog: Optional[Catalog] = None, verifier: Optional[CognitoVerifier] = None,
                     platform: Optional[Platform] = None, notifier: Optional[Notifier] = None,
-                    now=_now, link_key: Optional[str] = None, persona_llm: Optional[llm.LLMClient] = None) -> FastAPI:
+                    now=_now, link_key: Optional[str] = None, persona_llm: Optional[llm.LLMClient] = None,
+                    judge_llm: Optional[llm.LLMClient] = None, summary_llm: Optional[llm.LLMClient] = None) -> FastAPI:
     catalog = catalog or FixtureCatalog()
     policies = load_policies()
     tokens = LinkTokens(link_key or os.getenv("LINK_SIGNING_KEY"))      # a dedicated key (SSM), never a shared secret
@@ -137,6 +138,7 @@ def create_live_app(store: Store, *, catalog: Optional[Catalog] = None, verifier
                   openapi_url="/api/openapi.json")
     app.state.store, app.state.runs, app.state.now = store, deque(maxlen=200), now
     app.state.charges = {}                          # session id -> its last synthetic charge (AC-19)
+    app.state.tagged = set()                        # (thread, case) marks already sent to Platform (spec 08 AC-22)
     app.state.personas = persona.Budget()            # LLM openings per session and persona spend per day (AC-20)
     notifier = notifier or HttpNotifier.from_env()
     day_cap = float(os.getenv("DAILY_LLM_CAP_USD") or DAILY_LLM_CAP_USD)   # read once, at app creation
@@ -498,13 +500,28 @@ def create_live_app(store: Store, *, catalog: Optional[Catalog] = None, verifier
         except StoreError as error:
             log.error("receipt write failed trace_id=%s error=%s", turn.trace_id, error)
 
-    def log_turn(raw: dict, s: dict) -> TurnResult:
-        """The api's bookkeeping of a turn from Platform (never from the client): its usage, its handoff card and its
-        receipt. Returns the validated turn."""
+    def tag_thread(thread_id: Optional[str], turn: TurnResult, s: dict) -> None:
+        """Spec 08 AC-22: mark the thread with the case its turn named, when that case is the session's own customer's
+        in the session's run, so the console can show the conversation. Once per thread and case; best effort."""
+        if not thread_id or not turn.case_id or (thread_id, turn.case_id) in app.state.tagged:
+            return
+        try:
+            if store.get_case(turn.case_id, run_id=s["run_id"], customer_id=s["customer_id"]) is None:
+                return
+            if platform is not None and hasattr(platform, "tag_case"):
+                platform.tag_case(thread_id, turn.case_id)
+                app.state.tagged.add((thread_id, turn.case_id))
+        except (PlatformError, StoreError) as error:
+            log.error("thread tag failed trace_id=%s error=%s", turn.trace_id, type(error).__name__)
+
+    def log_turn(raw: dict, s: dict, thread_id: Optional[str] = None) -> TurnResult:
+        """The api's bookkeeping of a turn from Platform (never from the client): its usage, its handoff card, its
+        receipt and the thread's case mark. Returns the validated turn."""
         turn = turn_of(raw)
         log_usage(turn, s)
         record_handoff(turn, s)
         record_receipt(turn, raw, s)
+        tag_thread(thread_id, turn, s)
         return turn
 
     def reconcile(thread_id: str, s: dict) -> None:
@@ -513,7 +530,7 @@ def create_live_app(store: Store, *, catalog: Optional[Catalog] = None, verifier
         try:
             raw = need_platform().state(thread_id)
             if raw is not None:
-                log_turn(raw, s)
+                log_turn(raw, s, thread_id)
         except Exception as error:  # noqa: BLE001 — bookkeeping only, never the turn's failure
             log.error("usage reconcile failed thread=%s error=%s", thread_id, type(error).__name__)
 
@@ -571,7 +588,7 @@ def create_live_app(store: Store, *, catalog: Optional[Catalog] = None, verifier
                     if event == "progress" and (item := progress_event(data)):
                         yield item
                     elif event == "turn":       # only the customer projection leaves the api (D-013)
-                        turn = log_turn(data, s)
+                        turn = log_turn(data, s, thread_id)
                         turned = True
                         yield _sse("turn", turn.for_customer().model_dump(mode="json"))
             except (PlatformError, ValueError) as error:
@@ -891,7 +908,9 @@ def create_live_app(store: Store, *, catalog: Optional[Catalog] = None, verifier
             raise ApiError(404, "NOT_FOUND", "Case not found")
         events = store.events(case_id)
         # AC-21: the api writes the graph's handoff card as the `handoff` of a `handoff_emitted` event; {} until then
-        return {"case": view(record), "handoff": last_payload(events, "handoff_emitted", "handoff") or {},
+        card = last_payload(events, "handoff_emitted", "handoff") or {}
+        # spec 08 AC-20: the proposal gains a plain-words `explanation` in the response; the stored card is unchanged
+        return {"case": view(record), "handoff": console.with_explanation(card, record),
                 "events": [{"event_id": e.event_id, "type": e.type, "actor": e.actor, "created_at": e.created_at}
                            for e in events]}
 
@@ -938,6 +957,11 @@ def create_live_app(store: Store, *, catalog: Optional[Catalog] = None, verifier
             for event, text in sends:                              # after the transaction: a send never rolls it back
                 deliver(record, event, text)
         return result.result
+
+    # spec 08 AC-16 to AC-19 and AC-22: context, summary, audit and the advisory second opinion (app/console.py)
+    console.install(app, store=store, catalog=catalog, analyst=analyst, charge_of=charge_of, run_charges=run_charges,
+                    today=today, day_cap=day_cap, judge_llm=judge_llm, summary_llm=summary_llm,
+                    platform=platform)
 
     def _settings() -> dict:
         return {"supervised_mode": supervised(), "writer": writer(), "score_provider": os.getenv("SCORE_PROVIDER", "dataset"),
