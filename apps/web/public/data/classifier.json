@@ -1,0 +1,461 @@
+{
+  "generated_at": "2026-10-06T01:43:25Z",
+  "git_sha": "9242dc5",
+  "data": {
+    "label": "[simulated]",
+    "protocol": {
+      "status": "SEALED",
+      "sha256": "533fc516c78509868b95e1d674bbeeee2555285d68bc4856f229623aa7aaa2d2",
+      "split_manifest_sha256": "6334f41a5c9c6787cd2d107fd051e24cd38ad7c82de9897ed8ce6a4a6496e99b"
+    },
+    "run": "test",
+    "split_source": "promoted split files",
+    "test_split": {
+      "sentences": {
+        "es": 118,
+        "pt": 118
+      },
+      "injection_rows": 22
+    },
+    "tau": 0.7364,
+    "chosen_arm": "B0",
+    "arms": [
+      {
+        "arm": "B0",
+        "version": "b0-v1",
+        "p50_ms": 0.15,
+        "p95_ms": 0.32,
+        "cost_per_1000_usd": 0.0,
+        "meets_floors": false,
+        "mcnemar_p_vs_best": 0.0,
+        "human_request_answered_out_of_scope": 15,
+        "missing_tool_calls": 0,
+        "provider_errors": 0,
+        "same_family_as_generator": false,
+        "by_language": {
+          "es": {
+            "macro_f1": 0.5828,
+            "macro_f1_ci": [
+              0.4852,
+              0.6663
+            ],
+            "per_class_f1": {
+              "unrecognized_charge": 0.7907,
+              "wrongful_charge": 0.4,
+              "status_inquiry": 0.4667,
+              "human_request": 0.7568,
+              "out_of_scope": 0.5
+            },
+            "dispute_recall": {
+              "value": 0.4792,
+              "numerator": 23,
+              "denominator": 48,
+              "ci_low": 0.3447,
+              "ci_high": 0.6167
+            },
+            "dispute_detected_recall": {
+              "value": 0.4688,
+              "numerator": 30,
+              "denominator": 64,
+              "ci_low": 0.3518,
+              "ci_high": 0.5893
+            },
+            "human_request_recall": {
+              "value": 0.6087,
+              "numerator": 14,
+              "denominator": 23,
+              "ci_low": 0.4079,
+              "ci_high": 0.7784
+            },
+            "slot_accuracy": {
+              "value": 0.8958,
+              "numerator": 43,
+              "denominator": 48,
+              "ci_low": 0.7783,
+              "ci_high": 0.9547
+            },
+            "ece": 0.1746,
+            "coverage_at_tau": {
+              "value": 0.4746,
+              "numerator": 56,
+              "denominator": 118,
+              "ci_low": 0.3867,
+              "ci_high": 0.564
+            },
+            "precision_at_tau": {
+              "value": 0.9643,
+              "numerator": 54,
+              "denominator": 56,
+              "ci_low": 0.8788,
+              "ci_high": 0.9902
+            }
+          },
+          "pt": {
+            "macro_f1": 0.6683,
+            "macro_f1_ci": [
+              0.5758,
+              0.7456
+            ],
+            "per_class_f1": {
+              "unrecognized_charge": 0.7805,
+              "wrongful_charge": 0.5,
+              "status_inquiry": 0.7027,
+              "human_request": 0.8,
+              "out_of_scope": 0.5581
+            },
+            "dispute_recall": {
+              "value": 0.5217,
+              "numerator": 24,
+              "denominator": 46,
+              "ci_low": 0.3814,
+              "ci_high": 0.6588
+            },
+            "dispute_detected_recall": {
+              "value": 0.459,
+              "numerator": 28,
+              "denominator": 61,
+              "ci_low": 0.3401,
+              "ci_high": 0.5828
+            },
+            "human_request_recall": {
+              "value": 0.6667,
+              "numerator": 16,
+              "denominator": 24,
+              "ci_low": 0.4671,
+              "ci_high": 0.8203
+            },
+            "slot_accuracy": {
+              "value": 0.5217,
+              "numerator": 24,
+              "denominator": 46,
+              "ci_low": 0.3814,
+              "ci_high": 0.6588
+            },
+            "ece": 0.1475,
+            "coverage_at_tau": {
+              "value": 0.5847,
+              "numerator": 69,
+              "denominator": 118,
+              "ci_low": 0.4945,
+              "ci_high": 0.6696
+            },
+            "precision_at_tau": {
+              "value": 0.9565,
+              "numerator": 66,
+              "denominator": 69,
+              "ci_low": 0.8798,
+              "ci_high": 0.9851
+            }
+          }
+        }
+      },
+      {
+        "arm": "B1",
+        "version": "b1-v1",
+        "p50_ms": 1.04,
+        "p95_ms": 1.68,
+        "cost_per_1000_usd": 0.0,
+        "meets_floors": false,
+        "mcnemar_p_vs_best": 0.8555,
+        "human_request_answered_out_of_scope": 0,
+        "missing_tool_calls": 0,
+        "provider_errors": 0,
+        "same_family_as_generator": false,
+        "by_language": {
+          "es": {
+            "macro_f1": 0.916,
+            "macro_f1_ci": [
+              0.8617,
+              0.9595
+            ],
+            "per_class_f1": {
+              "unrecognized_charge": 0.8163,
+              "wrongful_charge": 0.875,
+              "status_inquiry": 1.0,
+              "human_request": 0.8889,
+              "out_of_scope": 1.0
+            },
+            "dispute_recall": {
+              "value": 0.9583,
+              "numerator": 46,
+              "denominator": 48,
+              "ci_low": 0.8602,
+              "ci_high": 0.9885
+            },
+            "dispute_detected_recall": {
+              "value": 0.8594,
+              "numerator": 55,
+              "denominator": 64,
+              "ci_low": 0.7538,
+              "ci_high": 0.9242
+            },
+            "human_request_recall": {
+              "value": 0.8696,
+              "numerator": 20,
+              "denominator": 23,
+              "ci_low": 0.6787,
+              "ci_high": 0.9546
+            },
+            "slot_accuracy": {
+              "value": 0.8958,
+              "numerator": 43,
+              "denominator": 48,
+              "ci_low": 0.7783,
+              "ci_high": 0.9547
+            },
+            "ece": 0.1502,
+            "coverage_at_tau": {
+              "value": 0.6695,
+              "numerator": 79,
+              "denominator": 118,
+              "ci_low": 0.5805,
+              "ci_high": 0.7478
+            },
+            "precision_at_tau": {
+              "value": 0.962,
+              "numerator": 76,
+              "denominator": 79,
+              "ci_low": 0.8942,
+              "ci_high": 0.987
+            }
+          },
+          "pt": {
+            "macro_f1": 0.9136,
+            "macro_f1_ci": [
+              0.8563,
+              0.9599
+            ],
+            "per_class_f1": {
+              "unrecognized_charge": 0.8261,
+              "wrongful_charge": 0.8261,
+              "status_inquiry": 0.9796,
+              "human_request": 0.9362,
+              "out_of_scope": 1.0
+            },
+            "dispute_recall": {
+              "value": 0.9565,
+              "numerator": 44,
+              "denominator": 46,
+              "ci_low": 0.8547,
+              "ci_high": 0.988
+            },
+            "dispute_detected_recall": {
+              "value": 0.8361,
+              "numerator": 51,
+              "denominator": 61,
+              "ci_low": 0.7239,
+              "ci_high": 0.9084
+            },
+            "human_request_recall": {
+              "value": 0.9167,
+              "numerator": 22,
+              "denominator": 24,
+              "ci_low": 0.7415,
+              "ci_high": 0.9768
+            },
+            "slot_accuracy": {
+              "value": 0.5217,
+              "numerator": 24,
+              "denominator": 46,
+              "ci_low": 0.3814,
+              "ci_high": 0.6588
+            },
+            "ece": 0.1627,
+            "coverage_at_tau": {
+              "value": 0.5763,
+              "numerator": 68,
+              "denominator": 118,
+              "ci_low": 0.4861,
+              "ci_high": 0.6616
+            },
+            "precision_at_tau": {
+              "value": 1.0,
+              "numerator": 68,
+              "denominator": 68,
+              "ci_low": 0.9465,
+              "ci_high": 1.0
+            }
+          }
+        }
+      },
+      {
+        "arm": "B2",
+        "version": "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+        "p50_ms": 1123.75,
+        "p95_ms": 1592.36,
+        "cost_per_1000_usd": 1.8379,
+        "meets_floors": false,
+        "mcnemar_p_vs_best": 1.0,
+        "human_request_answered_out_of_scope": 0,
+        "missing_tool_calls": 0,
+        "provider_errors": 0,
+        "same_family_as_generator": false,
+        "by_language": {
+          "es": {
+            "macro_f1": 0.9322,
+            "macro_f1_ci": [
+              0.8787,
+              0.9733
+            ],
+            "per_class_f1": {
+              "unrecognized_charge": 0.9412,
+              "wrongful_charge": 0.9787,
+              "status_inquiry": 0.902,
+              "human_request": 0.9302,
+              "out_of_scope": 0.9091
+            },
+            "dispute_recall": {
+              "value": 0.9792,
+              "numerator": 47,
+              "denominator": 48,
+              "ci_low": 0.891,
+              "ci_high": 0.9963
+            },
+            "dispute_detected_recall": {
+              "value": 0.9844,
+              "numerator": 63,
+              "denominator": 64,
+              "ci_low": 0.9167,
+              "ci_high": 0.9972
+            },
+            "human_request_recall": {
+              "value": 0.8696,
+              "numerator": 20,
+              "denominator": 23,
+              "ci_low": 0.6787,
+              "ci_high": 0.9546
+            },
+            "slot_accuracy": {
+              "value": 0.6042,
+              "numerator": 29,
+              "denominator": 48,
+              "ci_low": 0.4631,
+              "ci_high": 0.7298
+            },
+            "ece": 0.0449,
+            "coverage_at_tau": {
+              "value": 0.9746,
+              "numerator": 115,
+              "denominator": 118,
+              "ci_low": 0.9279,
+              "ci_high": 0.9913
+            },
+            "precision_at_tau": {
+              "value": 0.9304,
+              "numerator": 107,
+              "denominator": 115,
+              "ci_low": 0.8687,
+              "ci_high": 0.9643
+            }
+          },
+          "pt": {
+            "macro_f1": 0.9147,
+            "macro_f1_ci": [
+              0.8555,
+              0.963
+            ],
+            "per_class_f1": {
+              "unrecognized_charge": 0.9167,
+              "wrongful_charge": 0.8696,
+              "status_inquiry": 0.92,
+              "human_request": 0.9583,
+              "out_of_scope": 0.9091
+            },
+            "dispute_recall": {
+              "value": 1.0,
+              "numerator": 46,
+              "denominator": 46,
+              "ci_low": 0.9229,
+              "ci_high": 1.0
+            },
+            "dispute_detected_recall": {
+              "value": 0.9672,
+              "numerator": 59,
+              "denominator": 61,
+              "ci_low": 0.8881,
+              "ci_high": 0.991
+            },
+            "human_request_recall": {
+              "value": 0.9583,
+              "numerator": 23,
+              "denominator": 24,
+              "ci_low": 0.7976,
+              "ci_high": 0.9926
+            },
+            "slot_accuracy": {
+              "value": 0.3043,
+              "numerator": 14,
+              "denominator": 46,
+              "ci_low": 0.1908,
+              "ci_high": 0.4481
+            },
+            "ece": 0.0423,
+            "coverage_at_tau": {
+              "value": 1.0,
+              "numerator": 118,
+              "denominator": 118,
+              "ci_low": 0.9685,
+              "ci_high": 1.0
+            },
+            "precision_at_tau": {
+              "value": 0.9153,
+              "numerator": 108,
+              "denominator": 118,
+              "ci_low": 0.851,
+              "ci_high": 0.9533
+            }
+          }
+        }
+      }
+    ],
+    "b1_model": {
+      "path": "models/intent-b1-v1.joblib",
+      "sha256": "8017f0230e6c99d0263d100e70f4124edf138ec79b5b83d35def59c66d7fd726",
+      "sklearn_version": "1.9.1"
+    },
+    "injection": [
+      {
+        "arm": "rules",
+        "recall": {
+          "value": 0.3636,
+          "numerator": 8,
+          "denominator": 22,
+          "ci_low": 0.1973,
+          "ci_high": 0.5705
+        },
+        "false_positive_rate": {
+          "value": 0.0,
+          "numerator": 0,
+          "denominator": 236,
+          "ci_low": 0.0,
+          "ci_high": 0.016
+        }
+      }
+    ],
+    "llm": {
+      "provider": "bedrock",
+      "model": "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+      "tool_choice_mode": "tool",
+      "temperature": 0,
+      "cost_usd": 0.4338,
+      "preflight": {
+        "row": "CLS-VA-0001",
+        "cost_usd": 0.001983
+      }
+    },
+    "seal_guard": {
+      "status": "SEALED",
+      "sha256": "533fc516c78509868b95e1d674bbeeee2555285d68bc4856f229623aa7aaa2d2",
+      "tag": "protocol-v1",
+      "commit": "7b18f72f4f7c427e51f54dadf9435b0896af476a",
+      "head": "9242dc53fb673b1695e5d4f6e4dde8484c74c699",
+      "test_review": "rules-v1",
+      "inputs": {
+        "classifier_splits": "6334f41a5c9c6787cd2d107fd051e24cd38ad7c82de9897ed8ce6a4a6496e99b"
+      }
+    },
+    "test_review": "rules-v1",
+    "test_review_label": "test split decided by fixed rules, without independent human review"
+  },
+  "source": "eval/classifier/evaluate.py [simulated], test split (promoted split files)"
+}
