@@ -1,11 +1,13 @@
 """Customer-facing text of the agent (spec 04 §4.2 `respond`, §4.5 chips) from `contracts/messages.yaml`.
 
-Templates only, filled with tool facts (ADR 0016). Chips come from the rule table below, never from the LLM (AC-29);
+Templates filled with tool facts (ADR 0016). Chips come from the rule table below (AC-29); with the §4.6 writer
+(ADR 0030) the table is the allowed set the writer picks and words 2–3 chips from (AC-39);
 the action payload and the route of a chip are set here, by server code (AC-32). The receipt and the handoff card
 are built in `nick_of_time.receipt.build` (T5).
 """
 from __future__ import annotations
 
+import re
 from functools import cache
 from typing import Any, Optional
 
@@ -116,14 +118,49 @@ PERSON = {"talk_to_person", "request_call"}
 CALL_OPEN = {"connect_person", "connect_person_case", "block_held", "confirm_call"}   # rows where a call is already registered
 
 
-def suggestions(row: str, language: str, case_id: Optional[str] = None) -> list[Suggestion]:
-    """The §4.5 row, checked against the state (AC-30): a chip about a case only when the turn has one. Then a person
-    stays reachable (AC-20, except right after connect_person) and 2 or 3 chips remain (AC-29)."""
+def allowed(row: str, case_id: Optional[str] = None) -> list[str]:
+    """The chips the §4.5 row allows this turn, checked against the state (AC-30): a chip about a case only when the
+    turn has one; a person stays reachable (AC-20, except right after connect_person); filled to 2 chips. The template
+    reply shows the first 3; the §4.6 writer picks 2–3 of them (spec 04 AC-39, ADR 0030)."""
     ids = [c for c in ROWS[row] if case_id or c not in NEEDS_CASE]
     if not PERSON & set(ids) and row not in CALL_OPEN:
         ids.append("talk_to_person")
-    ids += [c for c in ("check_case", "report_unrecognized") if c not in ids][:max(0, 2 - len(ids))]
+    return ids + [c for c in ("check_case", "report_unrecognized") if c not in ids][:max(0, 2 - len(ids))]
+
+
+CHIP_MAX = 40                                   # spec 04 AC-39: a longer worded chip is dropped
+LINK_LIKE = re.compile(r"https?://|www\.|\b[\w-]+\.(?:com|net|org|la|io|ai|br|mx|co|pe|cl|ar)\b", re.I)
+
+
+def suggestions(row: str, language: str, case_id: Optional[str] = None,
+                chosen: Optional[list[tuple[str, str]]] = None) -> list[Suggestion]:
+    """The §4.5 row's chips (AC-29, AC-30): 2 or 3 of `allowed(row)`. `chosen` is the writer's pick, (id, label) pairs
+    (spec 04 AC-39): a chip outside the allowed set, longer than CHIP_MAX, holding a URL or a digit, or repeated is
+    dropped; the row's person chip is always kept; fewer than 2 left → the row as without a writer."""
+    ids = allowed(row, case_id)
+    if chosen:
+        picked = worded(chosen, ids, language, case_id)
+        if picked:
+            return picked
     return [chip(chip_id, language, case_id) for chip_id in ids[:3]]
+
+
+def worded(chosen: list[tuple[str, str]], ids: list[str], language: str,
+           case_id: Optional[str] = None) -> Optional[list[Suggestion]]:
+    """The writer's chips that survive AC-39's filter, with the row's person chip added when missing, or None."""
+    person = next((c for c in ids if c in PERSON), None)
+    kept: dict[str, str] = {}
+    for chip_id, label in chosen:
+        label = " ".join(str(label).split())
+        if (chip_id in ids and chip_id not in kept and 0 < len(label) <= CHIP_MAX and not LINK_LIKE.search(label)
+                and not re.search(r"\d", label)):
+            kept[chip_id] = label
+    picks = [(chip_id, label) for chip_id, label in kept.items() if chip_id != person][:3 - bool(person)]
+    if person:
+        picks.append((person, kept.get(person) or chip(person, language).label))
+    if len(picks) < 2:
+        return None
+    return [chip(chip_id, language, case_id).model_copy(update={"label": label}) for chip_id, label in picks]
 
 
 def offered_text_chip(message: str, offered: list[dict[str, Any]]) -> Optional[str]:

@@ -1,7 +1,9 @@
 """`bedrock` provider: boto3 Converse in us-east-2 (ADR 0008/0009). Credentials only from the environment."""
 from __future__ import annotations
 
-from .base import TOOL_DESCRIPTION, LLMClient, ProviderUnavailable, classify_validation
+import time
+
+from .base import DEFAULT_TOOL, TOOL_DESCRIPTION, LLMClient, LLMResult, ProviderUnavailable, classify_validation
 
 REGION = "us-east-2"
 # [assumption] short enough for spec 04 section 5 (degrade to S0, turn p95 <= 6 s): 2 attempts of at most 15 s.
@@ -63,3 +65,24 @@ class BedrockClient(LLMClient):
                 "tool_input": next((b["toolUse"]["input"] for b in blocks if "toolUse" in b), None),
                 "stop_reason": r.get("stopReason", ""), "tokens_in": usage.get("inputTokens", 0),
                 "tokens_out": usage.get("outputTokens", 0)}
+
+    def stream(self, system, user, on_text, *, max_tokens=512) -> LLMResult:
+        """ConverseStream: each text delta goes to `on_text` as it arrives; usage comes in the closing metadata."""
+        t0, text, stop, usage = time.perf_counter(), [], "", {}
+        try:
+            r = self._client.converse_stream(**self.request(system, user, None, DEFAULT_TOOL, max_tokens, None,
+                                                            self.temperature))
+            for event in r["stream"]:
+                delta = (event.get("contentBlockDelta") or {}).get("delta", {}).get("text")
+                if delta:
+                    text.append(delta)
+                    on_text(delta)
+                stop = (event.get("messageStop") or {}).get("stopReason", stop)
+                usage = (event.get("metadata") or {}).get("usage", usage)
+        except Exception as exc:
+            mapped = provider_error(exc)
+            if mapped is None:
+                raise
+            raise mapped from exc
+        return self._result({"text": "".join(text), "stop_reason": stop, "tokens_in": usage.get("inputTokens", 0),
+                             "tokens_out": usage.get("outputTokens", 0)}, t0)

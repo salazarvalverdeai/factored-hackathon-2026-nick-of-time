@@ -313,6 +313,23 @@ Style (ES and PT, the session language; `docs/brand/BRAND.md` voice: calm and pr
 Streaming: text without digits is released as it is written; a line with a digit is released when complete and
 grounded (spec 01 AC-10). Budget: the writer shares the per-day cap (G-OPS-01); past it the reply is the template.
 
+Implementation (task 04-writer, `nick_of_time.llm.writer`):
+- The writer gets the turn's gated template lines, numbered, and writes each reply line as `[n,…] text`, naming the
+  template lines it rewords; a last `[chips] id: label | …` line is never shown. A line is released when complete
+  `[assumption]`: one `text` chunk per line, so a failing line is never on screen. A failing line (grounding or
+  `build.never_send`) gives the template lines it named; an untagged line is never released; a template line no
+  released line named is appended as it is, so no fact is lost.
+- Its spend counts toward the daily cap only, not the conversation's S1 budget `[assumption]`; its usage row reaches
+  `llm_calls` with the other calls of the turn (AC-14). `llm_calls` has no `task` column: the writer's rows are the
+  ones with the S2 model id `[assumption]`.
+- The person chip AC-39 keeps is the row's (`talk_to_person` or `request_call`); rows where a call is already
+  registered (`connect_person`, `connect_person_case`, `block_held`, `confirm_call`) add none, as AC-20 and AC-30
+  say `[assumption]`. A chip label with a digit is dropped too.
+- `tool` events: `search_transaction` (charge cards; `done` after the card read gives `last4`), `evaluate_policy`
+  (the verdict of `decide`), `open_case` and `block_card` (`running` in `act`, `done` after `verify` reads them back,
+  with the action, case and deadline cards; `failed` when the tool refused), `request_call` and `get_case` (a status
+  question). Deadlines travel as `open_case` cards; no separate `compute_deadline` event `[assumption]`.
+
 ## 5. Non-functional requirements
 - **Latency:** p95 per turn ≤ 6 s with S1 `[assumption]`; first progress label within 1 s.
 - **Cost:** ≤ 0.02 USD per case with S1 `[assumption]`, measured by the harness.
