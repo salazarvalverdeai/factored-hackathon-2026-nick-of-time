@@ -144,7 +144,7 @@ AC-01 to AC-05 are copied from issue #9 with the same numbers. None is dropped o
   filled on live turns with named guardrails · covers AC-07 to AC-09 · done when: the tests citing them pass
 - [ ] Task 7 — voice (D-072, the contract in §8): mic, push-to-talk, draft, read-aloud and mute · covers AC-10 · done
   when: a visitor speaks a claim in ES and in PT on the public URL and hears the reply
-- [x] Task 7 — agentic chat, stage 1 (ADR 0030, plan of 2026-10-05): AI Elements (`conversation`, `suggestion`,
+- [x] Task 8 — agentic chat, stage 1 (ADR 0030, plan of 2026-10-05): AI Elements (`conversation`, `suggestion`,
   `sources`, `task`, restyled to BRAND.md) with live tool steps, cards, streaming markdown, the receipt with its
   verified seal and named sources, chips as pills and the shared right panel; a mock stream in the exact §6.4.1 shapes
   (`lib/mock/stream.ts`) so it works with no backend · covers AC-11 to AC-15 · done when: the tests citing them pass
