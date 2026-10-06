@@ -17,7 +17,7 @@ from nick_of_time.events import TextChunk
 from nick_of_time.llm import FakeClient, ProviderUnavailable
 from nick_of_time.llm import writer as wording
 from tests.test_spec04_decide import server
-from tests.test_spec04_graph import Chat
+from tests.test_spec04_graph import Chat, fake_budget
 
 EV_0001 = "No reconozco un cargo de 1250 USD en TIENDA X"        # MX, debit, score 72 (high), replay
 CALM = "Con calma: "
@@ -59,7 +59,8 @@ def run(chat: Chat, text: str | None, language: str = "es") -> tuple[list[tuple[
     async def go():
         return [(mode, chunk) async for mode, chunk in chat.graph.astream(payload, chat.config,
                                                                         stream_mode=["custom", "values"])]
-    chunks = asyncio.run(go())
+    with fake_budget():
+        chunks = asyncio.run(go())
     return chunks, TurnResult.model_validate({k: v for k, v in chunks[-1][1].items() if k in TurnResult.model_fields})
 
 

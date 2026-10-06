@@ -19,7 +19,7 @@ from nick_of_time.contracts import TurnResult
 from nick_of_time.llm import FakeClient, ProviderUnavailable, steps
 from nick_of_time.llm.base import TOOL_DESCRIPTION
 from nick_of_time.receipt import build
-from tests.test_spec04_graph import PERSON, Chat, fake, intake
+from tests.test_spec04_graph import PERSON, Chat, fake, fake_budget, intake
 
 ROOT = Path(__file__).resolve().parents[1]
 SLOTS = {"amount": None, "currency": None, "date": None, "merchant": None}
@@ -40,7 +40,8 @@ def client(*script) -> FakeClient:
 def run(chat: Chat, text: str) -> TurnResult:
     """One turn without Chat.say's S0 check that usage is empty."""
     payload = {"messages": [{"role": "user", "content": text}], "language": "es", "action": None}
-    return TurnResult.model_validate(asyncio.run(chat.graph.ainvoke(payload, chat.config)))
+    with fake_budget():
+        return TurnResult.model_validate(asyncio.run(chat.graph.ainvoke(payload, chat.config)))
 
 
 def s0(*texts: str) -> list[str]:
