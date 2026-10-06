@@ -55,7 +55,70 @@ AC-01 to AC-05 are copied from issue #9 with the same numbers. None is dropped o
   the customer sends like typed text (never sent on its own); with the read-aloud toggle on, each agent reply shall be
   spoken with the browser's `speechSynthesis` in the session language. A 413, 415 or 503 shall show the api's calm
   message and keep typing available; with no microphone, no permission or no `speechSynthesis`, the chat works as
-  today. · [U] · [T] (to add with the web work)
+  today. · [U] · [T] `lib/voice.test.ts`, `lib/live.test.ts` ("spec 07 AC-10: …")
+- AC-11 — While a turn runs, the chat shall show each `tool` event of spec 01 §6.4.1 as a checklist row in its state
+  (running, done, failed) with the cards built from tool results (charge, verdict, deadline, case) and each action's
+  state; a call with no result when the turn ends shall show as failed, and an action shall show as verified only with
+  a `V-` id (constitution #4). · [T] `lib/chat-stream.test.ts` ("spec 07 AC-11: …")
+- AC-12 — When `text` chunks arrive (writer `llm`), the chat shall render the reply as it is written, as safe markdown
+  (no raw HTML, no half-written mark), and shall replace it with `turn.reply` when the turn ends. · [T] ("spec 07
+  AC-12: …")
+- AC-13 — The chips under the last reply shall be pills, at most three, and shall always include "talk to a person"
+  (spec 04 AC-20, AC-39). · [T] ("spec 07 AC-13: …")
+- AC-14 — A customer screen of the chat shall show no bracket label (`[simulated]`, `[data]`…) and no raw URL: a
+  source is a named link; times and dates are in the session language (es-MX, pt-BR, 24 h) in the zone of the case's
+  country, never from the system clock; beside a receipt, the reply shall not repeat its deadlines or sources, and the
+  trace rows lead with a plain name, not a node key. · [T] ("spec 07 AC-14: …")
+- AC-15 — A step, a card or "how I decided" shall open the shared right panel (`components/detail-panel.tsx`): a modal
+  sheet that Escape closes, that keeps and then returns focus, that fits 390 px; motion stays off under
+  `prefers-reduced-motion`. · [U]
+- AC-16 — (lead, iteration 2) Each assistant message shall show "how I decided" inline, on AI Elements
+  `chain-of-thought`: while the turn runs it is open and each step shows with its icon, its status and a one-line result
+  (an action's state and `V-` id beside it); when the reply completes it shall collapse to one line that says what the
+  steps did and how many there were ("Revisó tus cargos, aplicó la regla y abrió el caso · 4 pasos"; a requested action
+  never reads as done), and a click opens it again. A step opens the right panel as an AI Elements `tool` with its
+  status; the technical trace of AC-03 and AC-08 is a "Ver traza técnica" toggle inside the panel, not a permanent
+  column. · [U] · [T] `lib/chat-reveal.test.ts` ("spec 07 AC-16: …")
+- AC-17 — While a turn runs, the chat shall show a "Pensando…" shimmer until the first event, then release the steps in
+  the order they arrived, each result no sooner than 350 ms after its step showed as running. This is display only: no
+  step is added, dropped or reordered, and a slow step is not slowed further. Under `prefers-reduced-motion` every step
+  shows as it arrives. · [T] `lib/chat-reveal.test.ts` ("spec 07 AC-17: …", fake timers)
+- AC-18 — The reply shall be revealed word by word at about 35 words per second, streamed (writer `llm`) or template,
+  as safe markdown: a mark or a link not yet closed is held back. Under `prefers-reduced-motion` it shows whole. · [T]
+  ("spec 07 AC-18: …")
+- AC-19 — The receipt shall lead with the deadline: the credit date (else the ruling date) with a business-day
+  countdown ("faltan 2 días hábiles" / "faltam 2 dias úteis") counted from the demo date in replay and from the
+  receipt's issue date in the case's zone in live mode, never from the system clock; the ruling date follows a credit
+  hero. Ids are small and monospaced. · [T] `lib/receipt-view.test.ts` ("spec 07 AC-19: …")
+- AC-20 — The receipt shall not repeat as a bullet the "case opened and verified" line (`act.case_opened`) or any fact
+  naming a `V-` id its action rows already list; in replay a receipt line drops its real-clock instant. · [T]
+  ("spec 07 AC-20: …", "spec 07 AC-14, AC-20: …")
+- AC-21 — The receipt shall offer "Copiar" (AI Elements message actions), which copies a plain-text receipt with the
+  same verified facts, the countdown, the source and the case link, and no score, zone or policy id. · [T] ("spec 07
+  AC-21: …")
+- AC-22 — Where a figure of a finished reply (an amount, a date, a case or verification id) was returned by a tool of
+  the turn, the chat shall mark it as an AI Elements inline citation that names that tool and opens its detail; a
+  figure no tool returned is left as it is. · [T] `lib/chat-reveal.test.ts` ("spec 07 AC-22: …")
+- AC-23 — The chips shall sit inside the conversation under the last message, wrap instead of scrolling (nothing
+  clipped at 390 px or zoomed), show the turn's main next step filled, and always include the person chip. The
+  composer is AI Elements `prompt-input` with the mic inside it; its send button never clips. · [T]
+  `lib/chat-reveal.test.ts`, `lib/chat-view.test.ts` ("spec 07 AC-05, AC-23: …", "spec 07 AC-13, AC-23: …")
+- AC-24 — The chat shall have a header bar with the agent avatar, "Asistente de disputas", the customer's name and
+  "Nuevo caso", which drops a running turn, clears the conversation and makes the next message open a new agent thread
+  (`ApiClient.newThread`); the session and the cases already opened stay. · [U]
+- AC-25 — Each message shall show its time (HH:MM, 24 h, in the case's zone), the time this browser sent or received it;
+  the date the customer sees is the demo date of the one-line demo note in replay. · [U]
+- AC-26 — Motion shall be calm and short (150–300 ms, ease-out, no glow, no bounce): messages fade in and rise 8 px
+  (the customer's from the right, the agent's from the left); the parts of a reply enter 60 ms apart in the fixed order
+  steps → text → cards → chips; option cards rise 40 ms apart, lift their border on hover, and on a pick the chosen one
+  grows to 1.02 while the others fade; a finished step's check is drawn; "verified" pulses once; the receipt scales
+  from 0.97, its seal stamps in and its countdown number ticks in once; the steps collapse with a height animation;
+  the scroll-to-bottom button fades in; the mic pulses while recording. Every chat animation goes through one adapter,
+  `components/chat/motion.tsx` (Reveal, Stagger, DrawCheck, Collapse, useReducedMotionGuard), so the shared web motion
+  kit can replace it in one place. · [T] `lib/chat-reveal.test.ts` ("spec 07 AC-26: …"), `lib/chat-view.test.ts`
+  ("spec 07 AC-27: every chat animation goes through …")
+- AC-27 — Under `prefers-reduced-motion` nothing shall move: no element gets animated props, the reply shows whole and
+  the steps still show in order. · [T] ("spec 07 AC-27: …")
 
 ## 8. Assumptions and open questions
 - Assumption `[assumption]`: the scripted agent in `lib/mock/agent.ts` stands in for the LangGraph graph; refusal,
@@ -75,7 +138,8 @@ AC-01 to AC-05 are copied from issue #9 with the same numbers. None is dropped o
      ending {last4}".
   7. demo type C (DEMOCD, only when the session's `mode` is `live`): a "register a test charge" form (amount in the
      country's currency, merchant) that posts `POST /api/sessions/{id}/synthetic-charge` (spec 05 AC-19); the answer
-     and its chip carry the `[simulated]` label, and the chip list is re-read so the charge shows first. A 429 shows
+     and its chip say "test charge" in plain words (AC-14: no bracket label on a customer screen; the api's answer
+     keeps its `label` field), and the chip list is re-read so the charge shows first. A 429 shows
      "one test charge per minute"; a 403 hides the form (a replay session).
   8. demo type D (DEMOCD): six character chips (aggressive, passive, terse, verbose, confused, code-switching ES/PT)
      that post `POST /api/demo/persona {character, transaction_id?}` (spec 05 AC-20; the chosen transaction chip, else
@@ -83,7 +147,22 @@ AC-01 to AC-05 are copied from issue #9 with the same numbers. None is dropped o
      draft is labeled "suggested" (`source: "llm"`, or "template" when the model was not used).
   The agent greets with the typed name, else the gold name, from `get_customer_profile`. Each session starts clean.
   Telegram and e-mail are off in a demo session (the link routes answer 403): the case page and the in-app log show
-  every update.
+  every update. Every live-api session is a demo run (ADR 0026), so in live mode the case page does not offer the
+  channel links and says that the page and its notifications show every update.
+- Decided (lead, 2026-10-05, integration of #192/#193):
+  1. **Test charge path:** the start screen asks what to dispute: "a charge from the scenario" (no `mode` sent: the
+     api's default, `replay` since #188) or "a test charge I register", which sends `mode: "live"` so demo type C
+     (item 7) is reachable. · [T] `lib/live.test.ts` ("spec 07 AC-01 §8.7: only the test-charge path …")
+  2. **Example-customer picker (D-084 (a)):** in live mode the start screen offers "Start by scenario" (default) and
+     "Pick an example customer", the `GET /api/demo/customers` picker of AC-01, so AC-01 holds as written.
+  3. **Web greeting name:** the typed name, else the picked scenario's `customer_name` (display only, never sent),
+     else no name for "assign me one": "Hola. Soy…", never a placeholder. · [T] `lib/chat-view.test.ts`,
+     `lib/live.test.ts` ("spec 07 AC-07: …")
+  4. **No bracket tags on the identity step (lead decision 5):** one plain line above it, "Demo con datos sintéticos
+     del hackathon: elige un cliente de ejemplo." (PT "Demo com dados sintéticos do hackathon: escolha um cliente de
+     exemplo."); the step title "1 · ¿Quién eres?" (PT "1 · Quem é você?"); the code line "Tu código es {otp}. En un
+     banco real llegaría por SMS." (PT "Seu código é {otp}. Em um banco real, chegaria por SMS."). The language is
+     the one chosen on the start screen, else the picked customer's, else ES (plan §5). · [T] `lib/demo.test.ts`
 - Decided (lead, D-072, 2026-10-05; ADR 0029): voice for live mode, built by the web owner on spec 05 AC-24.
   1. **Mic button and push-to-talk:** hold (pointer or Space while focused) to record, release to send; a tap toggles
      for touch users. Recording stops at 30 s. `MediaRecorder` with `audio/webm;codecs=opus` (Chrome, Firefox,
@@ -109,6 +188,12 @@ AC-01 to AC-05 are copied from issue #9 with the same numbers. None is dropped o
      color (icon and text); keyboard push-to-talk works; read-aloud respects the mute toggle and is never the only
      channel (every reply stays on screen). Without mic permission the button explains how to enable it and typing
      stays the default.
+  6. **Web notes (`app/chat/voice.tsx`, `lib/voice.ts`):** a 413, 415 or 503 shows the api's own ES/PT message;
+     the page's copy is only the fallback when that message is empty. Voice shows only in live mode (the mock answers
+     501). A press longer than 0.4 s sends on release; a shorter tap records until the next tap. The `AudioContext`
+     is created inside the press and resumed after the permission prompt (Safari starts it suspended, which would make
+     every clip look silent); a second press while the prompt is open starts nothing, and a release before the
+     microphone is ready cancels quietly. The read-aloud toggle has one fixed label with `aria-pressed`.
 - Open question: the receipt deadline line uses `status.credit_deadline` until the stub returns `source_url` and
   `verified_on` (ADR 0019); then it uses `receipt.credit_deadline`.
 
@@ -120,14 +205,30 @@ AC-01 to AC-05 are copied from issue #9 with the same numbers. None is dropped o
 - [x] Task 1 — OTP picker, chat, receipt widget, trace panel · covers AC-01 to AC-04 · done when: browser walk-through passes
 - [x] Task 2 — mobile layout at 390 px · covers AC-05 · done when: no horizontal scroll
 - [x] Task 3 — confirm-first flow and session-only identity · covers AC-06 · done when: the two tests pass
-- [ ] Task 4 — call the live agent proxy (`/api/agent/...`, spec 05 M05) · covers AC-01 to AC-04 · done when: same flow on the public URL
-- [ ] Task 5 — demo-mode start screen (D-068, the contract in §8) · covers AC-01 · done when: a visitor opens a demo
-  session by scenario and picks a recent transaction on the public URL
-
+- [x] Task 4 — call the live agent proxy (`/api/agent/...`, spec 05 M05) · covers AC-01 to AC-04 · done when: same flow on the public URL (shipped with the live mode, PR #168; checked here against a local backend)
+- [ ] Task 5 — demo-mode start screen (D-068, the contract in §8; `app/chat/demo-start.tsx`, `demo-tools.tsx`, tests in `lib/demo.test.ts` and `lib/live.test.ts`) · covers AC-01 · done when: a visitor opens a demo
+  session by scenario and picks a recent transaction on the public URL (code and tests in place; the public-URL check
+  follows the deploy)
 - [x] Task 6 — production walkthrough fixes (2026-10-05): one greeting with the gold name, line breaks kept, trace
   filled on live turns with named guardrails · covers AC-07 to AC-09 · done when: the tests citing them pass
 - [ ] Task 7 — voice (D-072, the contract in §8): mic, push-to-talk, draft, read-aloud and mute · covers AC-10 · done
-  when: a visitor speaks a claim in ES and in PT on the public URL and hears the reply
+  when: a visitor speaks a claim in ES and in PT on the public URL and hears the reply (code and tests in place; the
+  public-URL check follows the deploy)
+- [x] Task 8 — agentic chat, stage 1 (ADR 0030, plan of 2026-10-05): AI Elements (`conversation`, `suggestion`,
+  `sources`, `task`, restyled to BRAND.md) with live tool steps, cards, streaming markdown, the receipt with its
+  verified seal and named sources, chips as pills and the shared right panel; a mock stream in the exact §6.4.1 shapes
+  (`lib/mock/stream.ts`) so it works with no backend · covers AC-11 to AC-15 · done when: the tests citing them pass
+- [x] Task 9 — agentic chat, iteration 2 (lead, 2026-10-05): /chat recomposed on AI Elements (`message`,
+  `chain-of-thought`, `tool`, `task`, `confirmation`, `inline-citation`, `prompt-input`, message actions, `shimmer`),
+  restyled to BRAND.md; inline "how I decided" that collapses, paced reveal, the receipt with the deadline hero and
+  Copy, chips inside the thread, header bar with "Nuevo caso", timestamps, motion through one adapter · covers AC-16 to
+  AC-27 · done when: the tests citing them pass (the live-node graph beside the chat follows once `graph-view` takes
+  `activeNode`)
+
+**Task 5 notes.** The web never sends a `customer_id`; the session id (equal to the httpOnly cookie value) is kept in
+`sessionStorage` to address `/api/sessions/{id}/...`. Charge-chip text is local ES/PT copy built from tool-returned
+fields only (`lib/demo.ts`). Amounts use a dot decimal. The mock client has no demo flow (501): demo sessions need the
+live API. The persona draft goes into the composer, labeled "suggested", and is never sent on its own.
 
 **Closing checklist** (last PR): every AC has a passing test or check that cites it · status → Implemented · ADR for
 any decision taken · lessons added to `CLAUDE.md`.

@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-10-05T13:11:19Z",
-  "git_sha": "65ee820",
+  "generated_at": "2026-10-06T00:25:22Z",
+  "git_sha": "d574f4c",
   "source": "data/pipeline report [data] — data/gold/run_results.json and the late_arrival fixture",
   "data": {
     "label": "[data]",
@@ -565,6 +565,36 @@
         "matched": 98,
         "total": 98
       }
+    },
+    "complaint_link": {
+      "query": "queries/data/d01_complaint_transaction_link.sql",
+      "rows": [
+        {
+          "metric": "w3_complaints_with_card_txn_30d",
+          "numerator": 1633,
+          "denominator": 7482
+        },
+        {
+          "metric": "w3_complainants_with_card_txn_30d",
+          "numerator": 1612,
+          "denominator": 7291
+        },
+        {
+          "metric": "other_complaints_with_card_txn_30d",
+          "numerator": 2835,
+          "denominator": 13163
+        },
+        {
+          "metric": "w3_claimed_amount_matches_card_txn_2pct",
+          "numerator": 2,
+          "denominator": 579
+        },
+        {
+          "metric": "w3_affected_product_of_other_customer",
+          "numerator": 4962,
+          "denominator": 4962
+        }
+      ]
     }
   }
 }

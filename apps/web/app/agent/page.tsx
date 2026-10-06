@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
+import { GraphView } from "@/components/agent/graph-view";
 import { PageShell } from "@/components/page-shell";
 import { AGENT_REFERENCE } from "@/lib/agent-reference";
 import {
@@ -22,6 +23,7 @@ import {
 export const metadata: Metadata = { title: "Agent" };
 
 const { policies, tools, graph, sources } = AGENT_REFERENCE;
+const branchLabel = (from: string, to: string) => graph.branches.find((b) => b.from === from && b.to === to)?.label;
 const TH = "border-b py-2 pr-4 align-bottom font-normal";
 const TD = "border-b py-2 pr-4 align-top";
 const KIND = { R: "Read", W: "Write", N: "Notification" } as const;
@@ -167,28 +169,43 @@ export default function Page() {
             <>
               {graph.nodes.length} nodes; the run starts at <Mono>{start.join(", ")}</Mono> and ends after{" "}
               <Mono>{graph.edges.find((e) => (e.to as readonly string[]).includes("END"))?.from}</Mono>. A branch follows the policy engine&apos;s
-              result or a tool read, never the LLM&apos;s text. Source: <Source path={sources.graph} />.
+              result, a tool read or the understood input, never the LLM&apos;s text; each label is read from the
+              graph&apos;s routers. Source: <Source path={sources.graph} />.
             </>
           }
         >
-          <Table
-            label="Graph nodes"
-            head={["#", "Node", "What it does", "Next"]}
-            rows={graph.nodes.map((node, i) => {
-              const next = nextOf(node);
-              return [
-                <span key="n" className="tabular-nums text-muted-foreground">
-                  {i + 1}
-                </span>,
-                <Mono key="id">{node}</Mono>,
-                NODE_INFO[node as GraphNode],
-                <span key="next" className="font-mono">
-                  {next.conditional ? <span className="font-sans text-muted-foreground">one of </span> : null}
-                  {next.to.join(" · ")}
-                </span>,
-              ];
-            })}
-          />
+          <GraphView />
+          <h3 className="mt-6 text-sm font-semibold">Table view</h3>
+          <p className="mt-0.5 text-xs text-muted-foreground">The same nodes and edges; a branch shows what decides it.</p>
+          <div className="mt-2">
+            <Table
+              label="Graph nodes"
+              head={["#", "Node", "What it does", "Next"]}
+              rows={graph.nodes.map((node, i) => {
+                const next = nextOf(node);
+                return [
+                  <span key="n" className="tabular-nums text-muted-foreground">
+                    {i + 1}
+                  </span>,
+                  <Mono key="id">{node}</Mono>,
+                  NODE_INFO[node as GraphNode],
+                  <span key="next" className="font-mono">
+                    {next.conditional ? <span className="font-sans text-muted-foreground">one of </span> : null}
+                    {next.to.map((to, j) => {
+                      const label = branchLabel(node, to);
+                      return (
+                        <span key={to}>
+                          {j ? " · " : ""}
+                          {to}
+                          {label ? <span className="text-muted-foreground"> ({label})</span> : null}
+                        </span>
+                      );
+                    })}
+                  </span>,
+                ];
+              })}
+            />
+          </div>
         </Section>
 
         <Section

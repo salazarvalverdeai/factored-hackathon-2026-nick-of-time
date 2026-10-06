@@ -36,7 +36,7 @@ function setup(routes: Record<string, Handler>, options: { cognito?: boolean; cl
       method: init?.method ?? "GET",
       url,
       headers: (init?.headers ?? {}) as Record<string, string>,
-      body: init?.body ? JSON.parse(String(init.body)) : undefined,
+      body: init?.body instanceof Blob ? init.body : init?.body ? JSON.parse(String(init.body)) : undefined,
     };
     calls.push(call);
     const path = url.replace("http://api.test", "");
@@ -312,6 +312,149 @@ test("the SSE reader splits events across chunks and drops a malformed one", asy
   const out: unknown[] = [];
   for await (const e of readSse(body)) out.push(e);
   assert.deepEqual(out, [{ event: "progress", data: { a: 1 } }, { event: "turn", data: { b: 2 } }]);
+});
+
+// --- demo-mode start screen (spec 07 §8, D-068; spec 05 AC-14 to AC-20) ----------------------------------------------
+
+const DEMO_ROUTES: Record<string, Handler> = {
+  "GET /api/demo/scenarios?language=es&country=MX": () => jsonResponse([{ scenario_id: "SCN-MX-1", title: "Cargo no reconocido", country: "MX", language: "es", segment: "mass", customer_name: "Ana", cases: [], tags: [] }]),
+  "GET /api/demo/scenarios?language=pt": () => jsonResponse([]),
+  "POST /api/sessions": () => jsonResponse({ session_id: "S-9", mode: "live", today: "2026-10-05", otp_demo: "654321", expires_at: "2026-10-05T15:15:00Z" }, 201),
+  "POST /api/sessions/S-9/verify": () => jsonResponse({ verified: true, expires_at: "2026-10-05T15:15:00Z" }),
+};
+
+async function demoLogin(api: ReturnType<typeof setup>["api"], name?: string) {
+  const otp = await api.startDemoSession({ displayName: name, language: "es", country: "MX", scenario: "SCN-MX-1" });
+  return api.verifyOtp(otp);
+}
+
+test("spec 07 AC-01: the scenario cards come from the api for a language and a country, with no customer id", async () => {
+  const { api, calls } = setup(DEMO_ROUTES);
+  const list = await api.listScenarios({ language: "es", country: "MX" });
+  assert.deepEqual(list.map((s) => [s.scenario_id, s.customer_name]), [["SCN-MX-1", "Ana"]]);
+  assert.ok(!JSON.stringify(list).match(/customer_id|score|zone/));
+  assert.equal(calls[0].url, "http://api.test/api/demo/scenarios?language=es&country=MX");
+  assert.deepEqual(await api.listScenarios({ language: "pt" }), []);
+});
+
+test("spec 07 §8.5: a demo session is opened by scenario and the body never carries a customer id", async () => {
+  const { api, calls } = setup(DEMO_ROUTES);
+  const otp = await api.startDemoSession({ displayName: "  Ana  ", language: "es", country: "MX", scenario: "SCN-MX-1" });
+  assert.equal(otp, "654321");
+  assert.deepEqual(calls[0].body, { display_name: "Ana", language: "es", country: "MX", scenario: "SCN-MX-1" });
+  assert.ok(!JSON.stringify(calls[0].body).includes("customer_id"));
+});
+
+test("spec 07 AC-01 §8.7: only the test-charge path (demo type C) opens the session in live mode; scenarios keep replay", async () => {
+  const dataset = setup(DEMO_ROUTES);
+  await dataset.api.startDemoSession({ language: "es", country: "MX", scenario: "SCN-MX-1" });
+  assert.ok(!("mode" in (dataset.calls[0].body as object)), "a dataset scenario sends no mode: the api's default (replay)");
+  const testCharge = setup(DEMO_ROUTES);
+  await testCharge.api.startDemoSession({ language: "es", country: "MX", scenario: "auto", mode: "live" });
+  assert.deepEqual(testCharge.calls[0].body, { language: "es", country: "MX", scenario: "auto", mode: "live" });
+  assert.equal((await testCharge.api.verifyOtp("654321")).mode, "live", "the session's mode comes back from the api");
+});
+
+test("spec 07 AC-07: the web greets with the typed name, else the scenario's gold name, which is never sent", async () => {
+  const typed = setup(DEMO_ROUTES);
+  await typed.api.startDemoSession({ displayName: "Lucía", customerName: "Ana", language: "es", scenario: "SCN-MX-1" });
+  assert.equal((await typed.api.verifyOtp("654321")).displayName, "Lucía");
+  const gold = setup(DEMO_ROUTES);
+  await gold.api.startDemoSession({ customerName: "Ana", language: "es", scenario: "SCN-MX-1" });
+  assert.ok(!JSON.stringify(gold.calls[0].body).includes("Ana"), "the gold name is display only");
+  assert.equal((await gold.api.verifyOtp("654321")).displayName, "Ana");
+  const auto = setup(DEMO_ROUTES);
+  await auto.api.startDemoSession({ language: "es", scenario: "auto" });
+  assert.equal((await auto.api.verifyOtp("654321")).displayName, undefined, "'assign me one' greets with no name");
+});
+
+test("spec 07 AC-10: a voice clip is the raw POST body with its container type, for a verified session only", async () => {
+  const { api, calls } = setup({
+    ...DEMO_ROUTES,
+    "POST /api/voice/transcribe": () => jsonResponse({ text: "No reconozco un cargo", language: "es" }),
+  });
+  const clip = new Blob([new Uint8Array([1, 2, 3])], { type: "audio/webm;codecs=opus" });
+  await assert.rejects(api.transcribe(clip, "audio/webm"), (e: unknown) => e instanceof ApiError && e.code === "SESSION_EXPIRED");
+  assert.equal(calls.length, 0, "no clip leaves the page before the code");
+  await demoLogin(api);
+  assert.deepEqual(await api.transcribe(clip, "audio/webm"), { text: "No reconozco un cargo", language: "es" });
+  const call = calls.find((c) => c.url.endsWith("/api/voice/transcribe"))!;
+  assert.equal(call.method, "POST");
+  assert.equal(call.headers["Content-Type"], "audio/webm");
+  assert.ok(call.body instanceof Blob, "the body is the clip itself, not JSON");
+  assert.equal(call.body, clip);
+});
+
+test("spec 07 AC-10: the api's calm 413 message reaches the page as it is", async () => {
+  const calm = "Tu audio es muy largo. Graba hasta 30 segundos o escríbenos tu mensaje.";
+  const { api } = setup({ ...DEMO_ROUTES, "POST /api/voice/transcribe": () => jsonResponse({ code: "INVALID", message: calm }, 413) });
+  await demoLogin(api);
+  await assert.rejects(api.transcribe(new Blob([new Uint8Array([0])]), "audio/ogg"), (e: unknown) => e instanceof ApiError && e.status === 413 && e.message === calm);
+});
+
+test("spec 07 §8.1: with no name the request carries none, and 'assign me one' sends auto", async () => {
+  const { api, calls } = setup(DEMO_ROUTES);
+  await api.startDemoSession({ displayName: "   ", language: "pt", scenario: "auto" });
+  assert.deepEqual(calls[0].body, { language: "pt", scenario: "auto" });
+});
+
+test("spec 07 §8.1: the api's 422 message for a name is what the page shows", async () => {
+  const { api } = setup({ ...DEMO_ROUTES, "POST /api/sessions": () => jsonResponse({ code: "INVALID", message: "Use a plain first name" }, 422) });
+  await assert.rejects(api.startDemoSession({ displayName: "x@y.co", language: "es", scenario: "auto" }), (e: unknown) => e instanceof ApiError && e.status === 422 && /plain first name/.test(e.message));
+});
+
+test("spec 07 §8.5: after the code the demo session knows its name, language and mode, and no customer", async () => {
+  const { api } = setup(DEMO_ROUTES);
+  const session = await demoLogin(api, "Ana");
+  assert.deepEqual(session, { customerId: "", expiresAt: Date.parse("2026-10-05T15:15:00Z"), language: "es", displayName: "Ana", mode: "live" });
+});
+
+test("spec 07 §8.6: the recent charges are read for the verified session, and not before the code", async () => {
+  const txs = [{ transaction_id: "T-1", date: "2026-10-05", amount: 99.5, currency: "MXN", merchant: "TIENDA X", last4: "4417", synthetic: true }];
+  const { api, calls } = setup({ ...DEMO_ROUTES, "GET /api/sessions/S-9/recent-transactions?limit=10": () => jsonResponse(txs) });
+  await assert.rejects(api.listRecentTransactions(), (e: unknown) => e instanceof ApiError && e.code === "SESSION_EXPIRED");
+  await api.startDemoSession({ language: "es", scenario: "auto" });
+  await assert.rejects(api.listRecentTransactions(), (e: unknown) => e instanceof ApiError, "a session that is not verified has no charges");
+  await api.verifyOtp("654321");
+  assert.deepEqual(await api.listRecentTransactions(), txs);
+  assert.ok(calls.some((c) => c.url.endsWith("/api/sessions/S-9/recent-transactions?limit=10")));
+});
+
+test("spec 07 §8.7: a test charge carries only an amount and a store, and the chip list reads again", async () => {
+  const { api, calls } = setup({
+    ...DEMO_ROUTES,
+    "POST /api/sessions/S-9/synthetic-charge": () => jsonResponse({ transaction_id: "T-9", date: "2026-10-05", amount: 1250.5, currency: "MXN", merchant: "TIENDA Y", last4: "4417", synthetic: true, label: "[simulated]" }, 201),
+  });
+  await demoLogin(api);
+  let changes = 0;
+  api.subscribe(() => changes++);
+  const charge = await api.registerTestCharge(1250.5, "TIENDA Y");
+  assert.equal(charge.label, "[simulated]");
+  assert.deepEqual(calls.find((c) => c.url.endsWith("/synthetic-charge"))!.body, { amount: 1250.5, merchant: "TIENDA Y" });
+  assert.equal(changes, 1, "pages read the list again");
+});
+
+test("spec 07 §8.7: a 429 and a 403 reach the page as they are", async () => {
+  const { api } = setup({
+    ...DEMO_ROUTES,
+    "POST /api/sessions/S-9/synthetic-charge": () => jsonResponse({ code: "DENY", message: "One synthetic charge per minute, three per session" }, 429),
+  });
+  await demoLogin(api);
+  await assert.rejects(api.registerTestCharge(10, "TIENDA"), (e: unknown) => e instanceof ApiError && e.status === 429);
+  const replay = setup({ ...DEMO_ROUTES, "POST /api/sessions/S-9/synthetic-charge": () => jsonResponse({ code: "DENY", message: "Synthetic charges exist only in a live demo session" }, 403) });
+  await demoLogin(replay.api);
+  await assert.rejects(replay.api.registerTestCharge(10, "TIENDA"), (e: unknown) => e instanceof ApiError && e.status === 403);
+});
+
+test("spec 07 §8.8: a persona answer is a suggested draft, and the chosen charge goes with it only when there is one", async () => {
+  const draft = { message: "Mira, no reconozco ese cargo.", source: "template", language: "es", character: "aggressive", transaction_id: "T-1", synthetic: false, suggested: true };
+  const { api, calls } = setup({ ...DEMO_ROUTES, "POST /api/demo/persona": () => jsonResponse(draft) });
+  await demoLogin(api);
+  const out = await api.suggestPersona("aggressive");
+  assert.equal(out.source, "template");
+  await api.suggestPersona("terse", "T-1");
+  const bodies = calls.filter((c) => c.url.endsWith("/api/demo/persona")).map((c) => c.body);
+  assert.deepEqual(bodies, [{ character: "aggressive" }, { character: "terse", transaction_id: "T-1" }]);
 });
 
 // --- case pages ---------------------------------------------------------------------------------------------------

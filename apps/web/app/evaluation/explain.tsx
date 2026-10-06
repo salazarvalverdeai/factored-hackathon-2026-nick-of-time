@@ -1,21 +1,27 @@
-// Small shared parts of /evaluation (spec 12 AC-11): a plain explanation with its "Detail" link, the limitations block,
+// Small shared parts of /evaluation (spec 12 AC-11): a plain explanation with its "Detail →" button (opens the shared side panel), the limitations block,
 // and one interval row that every chart of the page reuses. Plain SVG-free markup, no dependency.
 import type { ReactNode } from "react";
-import { detailUrl, type DETAILS } from "@/lib/evaluation";
-
-// Same ring as the charts (a client module's constant cannot be read from here on the server).
-const FOCUS = "outline-none focus-visible:ring-2 focus-visible:ring-ring";
+import { DetailButton } from "@/components/detail-button";
+import { DETAILS, DEVELOPMENT_CHIP, detailUrl } from "@/lib/evaluation";
 
 /** One or two plain lines on what a chart means, and a link to the markdown that defines it. */
 export function Explain({ children, detail, className = "" }: { children: ReactNode; detail: keyof typeof DETAILS; className?: string }) {
+  const d = DETAILS[detail];
   return (
     <p data-slot="explain" className={`text-sm text-muted-foreground ${className}`}>
       {children}{" "}
-      <a href={detailUrl(detail)} className={`whitespace-nowrap rounded-sm underline underline-offset-2 hover:text-foreground ${FOCUS}`}>
-        Detail →
-      </a>
+      <DetailButton title={d.title} detail={{ meaning: d.meaning, method: d.method, source: d.source, label: d.label, spec: detailUrl(detail) }} />
     </p>
   );
+}
+
+/** spec 12 AC-05: the small chip beside the title of a section whose file is a development run (the page notice says why). */
+export function DevChip({ show }: { show: boolean }) {
+  return show ? (
+    <span data-slot="development-chip" className="ml-2 whitespace-nowrap rounded-full border border-brand-amber px-2 py-0.5 align-middle text-xs font-normal text-foreground">
+      {DEVELOPMENT_CHIP}
+    </span>
+  ) : null;
 }
 
 /** spec 12 AC-11: plain sentences for the files that exist, no tags. Nothing renders when there is no limitation. */

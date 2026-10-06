@@ -64,7 +64,12 @@
   --secondary: #f1f5f9;
   --secondary-foreground: #080812;
   --muted: #f1f5f9;
-  --muted-foreground: #475569;
+  --muted-foreground: #475569; /* 6.9:1 on muted, 7.5:1 on white */
+  /* Text-role tokens (fills keep --primary / --brand-*): AA >= 4.5:1 on background, card and tinted badges. */
+  --primary-text: #7c3aed;
+  --teal-text: #115e59;
+  --amber-text: #92400e;
+  --card-text-size: 0.9375rem;
   --accent: #ede9fe;
   --accent-foreground: #5b21b6;
   --destructive: oklch(0.577 0.245 27.325);
@@ -100,7 +105,10 @@
   --secondary: #1e293b;
   --secondary-foreground: #f8fafc;
   --muted: #1e293b;
-  --muted-foreground: #94a3b8;
+  --muted-foreground: #b4c0d1; /* 7.9:1 on muted, 9.6:1 on card */
+  --primary-text: #a78bfa;
+  --teal-text: #5eead4;
+  --amber-text: #fbbf24;
   --accent: #2e1065;
   --accent-foreground: #ede9fe;
   --destructive: oklch(0.704 0.191 22.216);
@@ -138,7 +146,26 @@
   --color-brand-teal: var(--brand-teal);
   --color-brand-amber: var(--brand-amber);
   --color-brand-violet: var(--brand-violet);
+  --color-primary-text: var(--primary-text);
+  --color-teal-text: var(--teal-text);
+  --color-amber-text: var(--amber-text);
   --color-zone-high: #10b981;
   --color-zone-medium: #f59e0b;
   --color-zone-human: #f43f5e;
+}
+
+/* Contrast fixes for text that pages (including chat) already style with palette utilities: tokens win here, once. */
+:root {
+  --color-amber-700: var(--amber-text);
+  --color-teal-700: var(--teal-text);
+}
+.dark .text-primary {
+  color: var(--primary-text);
+}
+.dark .text-brand-teal {
+  color: var(--teal-text);
+}
+/* Shared card body size (15 px) so small grey text stays readable. */
+[data-slot="card-content"] {
+  font-size: var(--card-text-size);
 }

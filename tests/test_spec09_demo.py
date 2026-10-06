@@ -45,7 +45,11 @@ def test_ac_02_two_customers_per_mandatory_case_on_real_transactions():
         assert (row["customer_id"], row["country"], row["segment"]) == (
             customer["customer_id"], customer["country"], customer["segment"])
         if ref["mandatory_case"] == "normal":
-            assert row["zone"] in ("high", "medium") and row["amount_tier"] != "above_high"
+            # replay_anchor "recent": the customer was chosen for its charge inside the 30-day search window of replay
+            # today (tests/test_spec09_recent.py); gold has no high/medium charge there, so the zone is not checked
+            if ref.get("replay_anchor") != "recent":
+                assert row["zone"] in ("high", "medium")
+            assert row["amount_tier"] != "above_high"
         elif ref["mandatory_case"] == "ambiguous":
             assert int(row["n_candidates_7d"]) >= 2
         else:

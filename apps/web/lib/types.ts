@@ -2,6 +2,7 @@
 // Shapes follow spec 01 §6.2 and packages/nick_of_time/contracts.py (customer projections: no score, zone, priority or
 // policy ids), contracts/handoff.schema.json (analyst only) and the case queue in contracts/policies.yaml.
 // Customer-facing types use the contract's snake_case names; the mock's internal records keep camelCase.
+import type { ToolEvent } from "./chat-stream.ts";
 
 export type Zone = "high" | "medium" | "human";
 export type Language = "es" | "pt";
@@ -185,8 +186,64 @@ export interface AuditEntry {
 }
 
 export interface CustomerSession {
+  /** The mock's picked customer. A live demo session has none here: the api chose the customer server-side (D-068). */
   customerId: string;
   expiresAt: number; // epoch ms
+  /** Live demo: what the start screen knew (the typed name or the scenario's customer name), the session language and mode. */
+  displayName?: string;
+  language?: Language;
+  mode?: "live" | "replay";
+}
+
+/** One scenario card of `GET /api/demo/scenarios` (spec 05 AC-15): no customer id, score or zone. */
+export interface Scenario {
+  scenario_id: string;
+  title: string;
+  country: string;
+  language: Language;
+  segment: string;
+  customer_name: string | null;
+  cases: string[];
+  tags: string[];
+}
+
+export interface DemoStart {
+  /** Optional, at most 40 characters; the api refuses a name that is not a plain name (422). */
+  displayName?: string;
+  language: Language;
+  country?: "MX" | "CO" | "AR";
+  /** A `scenario_id`, or "auto" to be assigned one. */
+  scenario: string;
+  /** "live" only for demo type C (the visitor registers a test charge, dated today); omitted, the api's default (replay). */
+  mode?: "live";
+  /** The picked scenario's `customer_name` (gold's first name): the web greets with it when no name is typed. Never sent. */
+  customerName?: string;
+}
+
+/** `GET /api/sessions/{id}/recent-transactions` (spec 05 AC-17): the customer's latest card charges, no score or label. */
+export interface RecentTransaction {
+  transaction_id: string;
+  date: string; // YYYY-MM-DD
+  amount: number;
+  currency: string;
+  merchant: string | null;
+  last4: string | null;
+  /** A live demo run's test charge [simulated] (spec 05 AC-19). */
+  synthetic: boolean;
+  /** Only on the answer of a test charge: always "[simulated]". */
+  label?: "[simulated]";
+}
+
+export type PersonaCharacter = "aggressive" | "passive" | "terse" | "verbose" | "confused" | "code_switching";
+
+/** `POST /api/demo/persona` (spec 05 AC-20): a suggested first message. A draft for the composer, never sent on its own. */
+export interface PersonaDraft {
+  message: string;
+  source: "llm" | "template";
+  language: Language;
+  character: PersonaCharacter;
+  transaction_id: string;
+  synthetic: boolean;
 }
 
 export interface AnalystSession {
@@ -238,6 +295,10 @@ export interface Receipt {
   /** Live: the verified facts and actions of the contract's receipt, shown as they are. */
   facts?: string[];
   actions?: { label: string; state: string; verification_id?: string }[];
+  /** The legal source of the deadlines, shown as a named link (never a raw URL); `url` only when the tool returned one. */
+  source?: { label: string; url: string | null; verified_on: string | null };
+  /** Live: the ruling date `YYYY-MM-DD`, when the country's clock has one. */
+  ruling_deadline?: string | null;
 }
 
 export interface Suggestion {
@@ -258,4 +319,8 @@ export interface AgentReply {
   suggestions?: Suggestion[];
   deny?: boolean;
   awaitingConfirmation?: boolean;
+  /** The plan the agent stated (`CustomerTurn.plan`), one line per step. */
+  plan?: string[];
+  /** The tool calls the turn streamed (spec 01 §6.4.1), settled: a call with no result is shown as failed. */
+  tools?: ToolEvent[];
 }

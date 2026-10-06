@@ -2,11 +2,13 @@
 //  - mock mode (default): answers from lib/mock/store.ts, so every page works without the backend.
 //  - live mode (NEXT_PUBLIC_API_MODE=live): lib/live.ts answers from the spec 05 api; it never invents data.
 // Both implement `ApiClient` (lib/client.ts), so a page does not know which one it talks to.
+import { EMPTY_STREAM, applyTool, settleTools } from "./chat-stream.ts";
 import type { ApiClient, ApiMode, ChatContext } from "./client.ts";
 import { createLiveApi } from "./live.ts";
 import { runAgentTurn } from "./mock/agent.ts";
 import { DEMO_CUSTOMERS } from "./mock/fixtures.ts";
-import { ApiError, type MockStore, caseStatus, mockStore } from "./mock/store.ts";
+import { ApiError, DEMO_TODAY, type MockStore, caseStatus, mockStore } from "./mock/store.ts";
+import { mockTurnEvents, playEvents } from "./mock/stream.ts";
 import type {
   AgentReply,
   AnalystSession,
@@ -31,8 +33,17 @@ export interface ApiOptions {
   delayMs?: number;
 }
 
+function noVoice(): never {
+  throw new ApiError("UNAVAILABLE", 501, "Voice needs the live api.");
+}
+
+function noDemo(): never {
+  throw new ApiError("UNAVAILABLE", 501, "Demo sessions by scenario need the live api.");
+}
+
 export function createApi(store: MockStore, options: ApiOptions = {}) {
   const delayMs = options.delayMs ?? (typeof window === "undefined" ? 0 : 450);
+  let turns = 0;
 
   async function call<T>(fn: () => T): Promise<T> {
     if (delayMs > 0) await new Promise((resolve) => setTimeout(resolve, delayMs));
@@ -47,11 +58,28 @@ export function createApi(store: MockStore, options: ApiOptions = {}) {
     // customer
     /** GET /api/demo/customers (spec 01 §6.2): never carries the score. */
     listDemoCustomers: (): Promise<DemoCustomer[]> => call(() => DEMO_CUSTOMERS),
+    // Demo sessions by scenario, test charges and personas are the live api's (spec 05 AC-14 to AC-20): the mock has none.
+    startDemoSession: (): Promise<string> => noDemo(),
+    listScenarios: (): Promise<never[]> => noDemo(),
+    listRecentTransactions: (): Promise<never[]> => noDemo(),
+    registerTestCharge: (): Promise<never> => noDemo(),
+    transcribe: (): Promise<never> => noVoice(),
+    suggestPersona: (): Promise<never> => noDemo(),
     requestOtp: (customerId: string): Promise<string> => call(() => store.requestOtp(customerId)),
     verifyOtp: (otp: string): Promise<CustomerSession> => call(() => store.verifyOtp(otp)),
     logoutCustomer: (): Promise<void> => call(() => store.logoutCustomer()),
     expireCustomerSession: (): Promise<void> => call(() => store.expireCustomerSession()),
-    chat: (text: string, ctx?: ChatContext): Promise<AgentReply> => call(() => runAgentTurn(store, text, ctx)),
+    /** The mock keeps no thread: the page drops its pending confirmation itself. */
+    newThread: (): void => {},
+    /** The scripted turn, then its `tool` and `text` events played as the live stream would send them (spec 01 §6.4.1). */
+    chat: async (text: string, ctx: ChatContext = {}): Promise<AgentReply> => {
+      const reply = await call(() => runAgentTurn(store, text, ctx));
+      const customer = store.customerOf(store.requireCustomerSession());
+      const events = mockTurnEvents(reply, { language: customer.language, last4: customer.last4, country: customer.country, today: DEMO_TODAY }, ++turns);
+      let stream = EMPTY_STREAM;
+      await playEvents(events, { onTool: (t) => ((stream = applyTool(stream, t)), ctx.onTool?.(t)), onText: ctx.onText }, delayMs > 0 ? 260 : 0);
+      return stream.tools.length ? { ...reply, tools: settleTools(stream.tools) } : reply;
+    },
     // cases
     /** GET /api/cases/{id}: the customer's projection. */
     getCase: (id: string): Promise<CustomerCaseView> => call(() => store.getCustomerCase(id)),

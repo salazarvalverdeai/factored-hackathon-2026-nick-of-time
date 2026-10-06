@@ -551,7 +551,613 @@ export const AGENT_REFERENCE = {
         "conditional": false
       }
     ],
-    "nluArm": "B0"
+    "branches": [
+      {
+        "from": "route",
+        "to": "refuse",
+        "label": "reauthenticate | deny",
+        "kind": "policy",
+        "when": "screen() = reauthenticate | deny"
+      },
+      {
+        "from": "route",
+        "to": "connect",
+        "label": "connect_person",
+        "kind": "policy",
+        "when": "screen() = connect_person"
+      },
+      {
+        "from": "route",
+        "to": "retrieve",
+        "label": "screen() = none",
+        "kind": "policy",
+        "when": "screen() = none"
+      },
+      {
+        "from": "route",
+        "to": "status",
+        "label": "answer_status",
+        "kind": "policy",
+        "when": "screen() = answer_status"
+      },
+      {
+        "from": "route",
+        "to": "respond",
+        "label": "no intent | other_language",
+        "kind": "input",
+        "when": "no intent and session_state = verified; or other_language and session_state = verified and not (injection_flagged or cross_customer)"
+      },
+      {
+        "from": "retrieve",
+        "to": "decide",
+        "label": "no read_failed",
+        "kind": "tool",
+        "when": "no read_failed"
+      },
+      {
+        "from": "retrieve",
+        "to": "respond",
+        "label": "read_failed",
+        "kind": "tool",
+        "when": "read_failed"
+      },
+      {
+        "from": "decide",
+        "to": "clarify",
+        "label": "ask",
+        "kind": "policy",
+        "when": "decide() = ask"
+      },
+      {
+        "from": "decide",
+        "to": "refuse",
+        "label": "deny",
+        "kind": "policy",
+        "when": "decide() = deny"
+      },
+      {
+        "from": "decide",
+        "to": "plan",
+        "label": "no existing_case",
+        "kind": "tool",
+        "when": "open_case in allowed_actions or decide() = confirm, no existing_case"
+      },
+      {
+        "from": "decide",
+        "to": "duplicate",
+        "label": "existing_case",
+        "kind": "tool",
+        "when": "open_case in allowed_actions or decide() = confirm, existing_case"
+      },
+      {
+        "from": "decide",
+        "to": "connect",
+        "label": "request_call",
+        "kind": "policy",
+        "when": "not (open_case in allowed_actions or decide() = confirm), request_call"
+      },
+      {
+        "from": "decide",
+        "to": "respond",
+        "label": "no request_call",
+        "kind": "policy",
+        "when": "not (open_case in allowed_actions or decide() = confirm), no request_call"
+      },
+      {
+        "from": "plan",
+        "to": "act",
+        "label": "decision ≠ confirm",
+        "kind": "policy",
+        "when": "decision ≠ confirm"
+      },
+      {
+        "from": "plan",
+        "to": "respond",
+        "label": "decision = confirm",
+        "kind": "policy",
+        "when": "decision = confirm"
+      },
+      {
+        "from": "verify",
+        "to": "connect",
+        "label": "request_call",
+        "kind": "policy",
+        "when": "row ≠ reauthenticate, request_call"
+      },
+      {
+        "from": "verify",
+        "to": "respond",
+        "label": "row = reauthenticate | no request_call",
+        "kind": "tool",
+        "when": "row = reauthenticate; or row ≠ reauthenticate, no request_call"
+      },
+      {
+        "from": "duplicate",
+        "to": "connect",
+        "label": "request_call",
+        "kind": "policy",
+        "when": "request_call"
+      },
+      {
+        "from": "duplicate",
+        "to": "respond",
+        "label": "no request_call",
+        "kind": "policy",
+        "when": "no request_call"
+      }
+    ],
+    "nluArm": "B0",
+    "layout": {
+      "width": 752,
+      "height": 730,
+      "nodes": [
+        {
+          "id": "START",
+          "x": 397.5,
+          "y": 23,
+          "w": 60,
+          "h": 30,
+          "rank": 0
+        },
+        {
+          "id": "identity",
+          "x": 397.6,
+          "y": 75,
+          "w": 82,
+          "h": 30,
+          "rank": 1
+        },
+        {
+          "id": "greet",
+          "x": 398.3,
+          "y": 127,
+          "w": 60,
+          "h": 30,
+          "rank": 2
+        },
+        {
+          "id": "understand",
+          "x": 399.6,
+          "y": 179,
+          "w": 96,
+          "h": 30,
+          "rank": 3
+        },
+        {
+          "id": "route",
+          "x": 401.4,
+          "y": 231,
+          "w": 60,
+          "h": 30,
+          "rank": 4
+        },
+        {
+          "id": "retrieve",
+          "x": 425.9,
+          "y": 295,
+          "w": 82,
+          "h": 30,
+          "rank": 5
+        },
+        {
+          "id": "status",
+          "x": 550.6,
+          "y": 295,
+          "w": 67,
+          "h": 30,
+          "rank": 5
+        },
+        {
+          "id": "decide",
+          "x": 326.7,
+          "y": 359,
+          "w": 67,
+          "h": 30,
+          "rank": 6
+        },
+        {
+          "id": "refuse",
+          "x": 41.5,
+          "y": 423,
+          "w": 67,
+          "h": 30,
+          "rank": 7
+        },
+        {
+          "id": "clarify",
+          "x": 151.6,
+          "y": 423,
+          "w": 74,
+          "h": 30,
+          "rank": 7
+        },
+        {
+          "id": "plan",
+          "x": 366,
+          "y": 423,
+          "w": 53,
+          "h": 30,
+          "rank": 7
+        },
+        {
+          "id": "act",
+          "x": 314.9,
+          "y": 487,
+          "w": 46,
+          "h": 30,
+          "rank": 8
+        },
+        {
+          "id": "verify",
+          "x": 333,
+          "y": 539,
+          "w": 67,
+          "h": 30,
+          "rank": 9
+        },
+        {
+          "id": "duplicate",
+          "x": 585.9,
+          "y": 539,
+          "w": 89,
+          "h": 30,
+          "rank": 9
+        },
+        {
+          "id": "connect",
+          "x": 361.7,
+          "y": 603,
+          "w": 74,
+          "h": 30,
+          "rank": 10
+        },
+        {
+          "id": "respond",
+          "x": 463.8,
+          "y": 655,
+          "w": 74,
+          "h": 30,
+          "rank": 11
+        },
+        {
+          "id": "END",
+          "x": 457.1,
+          "y": 707,
+          "w": 46,
+          "h": 30,
+          "rank": 12
+        }
+      ],
+      "edges": [
+        {
+          "from": "START",
+          "to": "identity",
+          "label": null,
+          "kind": null,
+          "path": "M397.5 38 C397.5 49 397.6 49 397.6 60",
+          "labelBox": null
+        },
+        {
+          "from": "identity",
+          "to": "greet",
+          "label": null,
+          "kind": null,
+          "path": "M397.6 90 C397.6 101 398.3 101 398.3 112",
+          "labelBox": null
+        },
+        {
+          "from": "greet",
+          "to": "understand",
+          "label": null,
+          "kind": null,
+          "path": "M398.3 142 C398.3 153 399.6 153 399.6 164",
+          "labelBox": null
+        },
+        {
+          "from": "understand",
+          "to": "route",
+          "label": null,
+          "kind": null,
+          "path": "M399.6 194 C399.6 205 401.4 205 401.4 216",
+          "labelBox": null
+        },
+        {
+          "from": "route",
+          "to": "refuse",
+          "label": "reauthenticate | deny",
+          "kind": "policy",
+          "path": "M401.4 246 C401.4 254.5 152.4 254.5 152.4 263 C152.4 335.5 41.5 335.5 41.5 408",
+          "labelBox": {
+            "x": 83.4,
+            "y": 254,
+            "w": 138,
+            "h": 18
+          }
+        },
+        {
+          "from": "route",
+          "to": "connect",
+          "label": "connect_person",
+          "kind": "policy",
+          "path": "M401.4 246 C401.4 254.5 285.4 254.5 285.4 263 C285.4 327 81.8 327 81.8 391 C81.8 481 97.4 481 97.4 571 C97.4 579.5 361.7 579.5 361.7 588",
+          "labelBox": {
+            "x": 237.4,
+            "y": 254,
+            "w": 96,
+            "h": 18
+          }
+        },
+        {
+          "from": "route",
+          "to": "retrieve",
+          "label": "screen() = none",
+          "kind": "policy",
+          "path": "M401.4 246 C401.4 254.5 400.4 254.5 400.4 263 C400.4 271.5 425.9 271.5 425.9 280",
+          "labelBox": {
+            "x": 349.4,
+            "y": 254,
+            "w": 102,
+            "h": 18
+          }
+        },
+        {
+          "from": "route",
+          "to": "status",
+          "label": "answer_status",
+          "kind": "policy",
+          "path": "M401.4 246 C401.4 254.5 512.4 254.5 512.4 263 C512.4 271.5 550.6 271.5 550.6 280",
+          "labelBox": {
+            "x": 467.4,
+            "y": 254,
+            "w": 90,
+            "h": 18
+          }
+        },
+        {
+          "from": "route",
+          "to": "respond",
+          "label": "no intent | other_language",
+          "kind": "input",
+          "path": "M401.4 246 C401.4 254.5 657.4 254.5 657.4 263 C657.4 327 707.4 327 707.4 391 C707.4 481 743.4 481 743.4 571 C743.4 600 562.5 600 562.5 629 C562.5 634.5 463.8 634.5 463.8 640",
+          "labelBox": {
+            "x": 573.4,
+            "y": 254,
+            "w": 168,
+            "h": 18
+          }
+        },
+        {
+          "from": "refuse",
+          "to": "respond",
+          "label": null,
+          "kind": null,
+          "path": "M41.5 438 C41.5 504.5 89.4 504.5 89.4 571 C89.4 587 211.3 587 211.3 603 C211.3 616 335.3 616 335.3 629 C335.3 634.5 463.8 634.5 463.8 640",
+          "labelBox": null
+        },
+        {
+          "from": "connect",
+          "to": "respond",
+          "label": null,
+          "kind": null,
+          "path": "M361.7 618 C361.7 629 463.8 629 463.8 640",
+          "labelBox": null
+        },
+        {
+          "from": "retrieve",
+          "to": "decide",
+          "label": "no read_failed",
+          "kind": "tool",
+          "path": "M425.9 310 C425.9 318.5 377.1 318.5 377.1 327 C377.1 335.5 326.7 335.5 326.7 344",
+          "labelBox": {
+            "x": 329.1,
+            "y": 318,
+            "w": 96,
+            "h": 18
+          }
+        },
+        {
+          "from": "retrieve",
+          "to": "respond",
+          "label": "read_failed",
+          "kind": "tool",
+          "path": "M425.9 310 C425.9 318.5 499.9 318.5 499.9 327 C499.9 359 643.8 359 643.8 391 C643.8 481 727.4 481 727.4 571 C727.4 600 546.5 600 546.5 629 C546.5 634.5 463.8 634.5 463.8 640",
+          "labelBox": {
+            "x": 460.9,
+            "y": 318,
+            "w": 78,
+            "h": 18
+          }
+        },
+        {
+          "from": "decide",
+          "to": "clarify",
+          "label": "ask",
+          "kind": "policy",
+          "path": "M326.7 374 C326.7 382.5 164.8 382.5 164.8 391 C164.8 399.5 151.6 399.5 151.6 408",
+          "labelBox": {
+            "x": 149.8,
+            "y": 382,
+            "w": 30,
+            "h": 18
+          }
+        },
+        {
+          "from": "decide",
+          "to": "refuse",
+          "label": "deny",
+          "kind": "policy",
+          "path": "M326.7 374 C326.7 382.5 115.8 382.5 115.8 391 C115.8 399.5 41.5 399.5 41.5 408",
+          "labelBox": {
+            "x": 97.8,
+            "y": 382,
+            "w": 36,
+            "h": 18
+          }
+        },
+        {
+          "from": "decide",
+          "to": "plan",
+          "label": "no existing_case",
+          "kind": "tool",
+          "path": "M326.7 374 C326.7 382.5 349.8 382.5 349.8 391 C349.8 399.5 366 399.5 366 408",
+          "labelBox": {
+            "x": 295.8,
+            "y": 382,
+            "w": 108,
+            "h": 18
+          }
+        },
+        {
+          "from": "decide",
+          "to": "duplicate",
+          "label": "existing_case",
+          "kind": "tool",
+          "path": "M326.7 374 C326.7 382.5 464.8 382.5 464.8 391 C464.8 452 563 452 563 513 C563 518.5 585.9 518.5 585.9 524",
+          "labelBox": {
+            "x": 419.8,
+            "y": 382,
+            "w": 90,
+            "h": 18
+          }
+        },
+        {
+          "from": "decide",
+          "to": "connect",
+          "label": "request_call",
+          "kind": "policy",
+          "path": "M326.7 374 C326.7 382.5 237.8 382.5 237.8 391 C237.8 481 113.4 481 113.4 571 C113.4 579.5 361.7 579.5 361.7 588",
+          "labelBox": {
+            "x": 195.8,
+            "y": 382,
+            "w": 84,
+            "h": 18
+          }
+        },
+        {
+          "from": "decide",
+          "to": "respond",
+          "label": "no request_call",
+          "kind": "policy",
+          "path": "M326.7 374 C326.7 382.5 576.8 382.5 576.8 391 C576.8 481 719.4 481 719.4 571 C719.4 600 538.5 600 538.5 629 C538.5 634.5 463.8 634.5 463.8 640",
+          "labelBox": {
+            "x": 525.8,
+            "y": 382,
+            "w": 102,
+            "h": 18
+          }
+        },
+        {
+          "from": "plan",
+          "to": "act",
+          "label": "decision ≠ confirm",
+          "kind": "policy",
+          "path": "M366 438 C366 446.5 306.1 446.5 306.1 455 C306.1 463.5 314.9 463.5 314.9 472",
+          "labelBox": {
+            "x": 246.1,
+            "y": 446,
+            "w": 120,
+            "h": 18
+          }
+        },
+        {
+          "from": "plan",
+          "to": "respond",
+          "label": "decision = confirm",
+          "kind": "policy",
+          "path": "M366 438 C366 446.5 442.1 446.5 442.1 455 C442.1 513 485.4 513 485.4 571 C485.4 605.5 463.8 605.5 463.8 640",
+          "labelBox": {
+            "x": 382.1,
+            "y": 446,
+            "w": 120,
+            "h": 18
+          }
+        },
+        {
+          "from": "act",
+          "to": "verify",
+          "label": null,
+          "kind": null,
+          "path": "M314.9 502 C314.9 513 333 513 333 524",
+          "labelBox": null
+        },
+        {
+          "from": "verify",
+          "to": "connect",
+          "label": "request_call",
+          "kind": "policy",
+          "path": "M333 554 C333 562.5 427.4 562.5 427.4 571 C427.4 579.5 361.7 579.5 361.7 588",
+          "labelBox": {
+            "x": 385.4,
+            "y": 562,
+            "w": 84,
+            "h": 18
+          }
+        },
+        {
+          "from": "verify",
+          "to": "respond",
+          "label": "row = reauthenticate | no request_call",
+          "kind": "tool",
+          "path": "M333 554 C333 562.5 249.4 562.5 249.4 571 C249.4 587 308.7 587 308.7 603 C308.7 616 385.1 616 385.1 629 C385.1 634.5 463.8 634.5 463.8 640",
+          "labelBox": {
+            "x": 129.4,
+            "y": 562,
+            "w": 240,
+            "h": 18
+          }
+        },
+        {
+          "from": "duplicate",
+          "to": "connect",
+          "label": "request_call",
+          "kind": "policy",
+          "path": "M585.9 554 C585.9 562.5 543.4 562.5 543.4 571 C543.4 579.5 361.7 579.5 361.7 588",
+          "labelBox": {
+            "x": 501.4,
+            "y": 562,
+            "w": 84,
+            "h": 18
+          }
+        },
+        {
+          "from": "duplicate",
+          "to": "respond",
+          "label": "no request_call",
+          "kind": "policy",
+          "path": "M585.9 554 C585.9 562.5 652.4 562.5 652.4 571 C652.4 600 524.2 600 524.2 629 C524.2 634.5 463.8 634.5 463.8 640",
+          "labelBox": {
+            "x": 601.4,
+            "y": 562,
+            "w": 102,
+            "h": 18
+          }
+        },
+        {
+          "from": "clarify",
+          "to": "respond",
+          "label": null,
+          "kind": null,
+          "path": "M151.6 438 C151.6 504.5 105.4 504.5 105.4 571 C105.4 587 223.3 587 223.3 603 C223.3 616 343.3 616 343.3 629 C343.3 634.5 463.8 634.5 463.8 640",
+          "labelBox": null
+        },
+        {
+          "from": "status",
+          "to": "respond",
+          "label": null,
+          "kind": null,
+          "path": "M550.6 310 C550.6 318.5 588.6 318.5 588.6 327 C588.6 359 651.8 359 651.8 391 C651.8 481 735.4 481 735.4 571 C735.4 600 554.5 600 554.5 629 C554.5 634.5 463.8 634.5 463.8 640",
+          "labelBox": null
+        },
+        {
+          "from": "respond",
+          "to": "END",
+          "label": null,
+          "kind": null,
+          "path": "M463.8 670 C463.8 681 457.1 681 457.1 692",
+          "labelBox": null
+        }
+      ]
+    }
   },
   "models": {
     "s1": "us.anthropic.claude-haiku-4-5-20251001-v1:0",

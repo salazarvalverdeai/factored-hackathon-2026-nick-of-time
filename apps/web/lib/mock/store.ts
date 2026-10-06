@@ -24,7 +24,7 @@ import type {
 import { ANALYSTS, CUSTOMERS, DEADLINE_RULES } from "./fixtures.ts";
 import { MESSAGES } from "./messages.ts";
 
-export const DEMO_TODAY = "2026-06-03"; // ADR 0012: the demo date is frozen
+export const DEMO_TODAY = "2026-06-01"; // ADR 0020: replay runs on the frozen date 2026-06-01 (config.today("replay")); mock, receipt and /case use this one constant
 export const SESSION_TTL_MS = 15 * 60 * 1000;
 export const TELEGRAM_TOKEN_TTL_MS = 15 * 60 * 1000;
 const STORAGE_KEY = "nickoftime.mock.v1";

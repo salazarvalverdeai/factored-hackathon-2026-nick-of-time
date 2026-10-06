@@ -24,6 +24,12 @@ The column names and group labels in these `.sql` files and CSVs were translated
 
 The EDA queries are in `docs/eda/queries/`, where the documents reference them.
 
+## `ops/`: Bank today and the replay sample for `/analytics` (spec 14 §11)
+| Query | Output CSV | What it holds |
+|---|---|---|
+| `asis_monthly.sql` | `ops/asis_monthly.csv` | W3 complaints per month 2026-01..2026-05: days to first response, escalated, `sla_breached`, resolution days `[data]`; `make ops-replay` runs it on this repo's gold |
+| `replay_sample.sql` | none (the replay reads it) | the replay's contacts: a seeded sample of approved card charges per month, sized to the W3 complaints `[data]` |
+
 ## `policy/`: sources of `contracts/policies.yaml` values
 | Query | Value |
 |---|---|
@@ -33,3 +39,10 @@ The EDA queries are in `docs/eda/queries/`, where the documents reference them.
 | Query | Output CSV | What it holds |
 |---|---|---|
 | `demo_index.sql` | `eval/demo_index.csv` | approved card transactions per country × zone × split, 2026-03-03 to 2026-05-31 `[data]` (spec 09 §7.2); `python -m eval.demo_index` runs it on this repo's gold |
+
+## `data/`: dataset limits
+| Query | Output CSV | What it holds |
+|---|---|---|
+| `d01_complaint_transaction_link.sql` | `d01_complaint_transaction_link.csv` | whether a disputed-charge (W3) complaint can be linked to a card transaction of the same customer in the 30 days before it, and whether its claimed amount matches one within ±2% `[data]`; shown as the "Dataset limitations" card of `/data` |
+
+`python queries/data/run.py --gold PATH` runs every `queries/data/*.sql` on a gold folder (read-only) and rewrites the CSVs; `python -m data.pipeline report --json` copies the CSV into `data_quality.json`.

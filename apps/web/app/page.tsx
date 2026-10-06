@@ -70,7 +70,7 @@ export default function Home() {
                   <Icon aria-hidden="true" className="size-4" />
                   <span className="flex flex-col">
                     <span>{label}</span>
-                    <span className={`text-xs font-normal ${primary ? "text-primary-foreground/80" : "text-muted-foreground"}`}>
+                    <span className={`text-xs font-normal ${primary ? "text-primary-foreground" : "text-muted-foreground"}`}>
                       {hint}
                     </span>
                   </span>
@@ -88,14 +88,6 @@ export default function Home() {
         <HowItWorks />
         <JuryGuide />
       </main>
-      <footer className="mx-auto w-full max-w-7xl border-t px-4 py-6 text-xs text-muted-foreground">
-        <p>
-          Factored AI &amp; Data Hackathon 2026 · workflow W3, card dispute intake. The bank, its customers and its transactions are
-          synthetic. Labels: <span className="font-mono">[data]</span> from the dataset, <span className="font-mono">[external]</span> from an
-          official source, <span className="font-mono">[assumption]</span> stated by the team, <span className="font-mono">[simulated]</span>{" "}
-          produced by the demo or the evaluation.
-        </p>
-      </footer>
     </>
   );
 }

@@ -1,5 +1,6 @@
 // The surface the pages use (spec 16 AC-03). Two implementations answer it: the mock (lib/api.ts, over lib/mock/store.ts)
 // and the live one (lib/live.ts, over the spec 05 api). A page never knows which one it is talking to.
+import type { TextChunk, ToolEvent } from "./chat-stream.ts";
 import type {
   AgentReply,
   AnalystSession,
@@ -9,7 +10,12 @@ import type {
   CustomerCaseView,
   CustomerSession,
   DemoCustomer,
+  DemoStart,
   NotificationEntry,
+  PersonaCharacter,
+  PersonaDraft,
+  RecentTransaction,
+  Scenario,
   ProgressLabel,
   SessionSnapshot,
   TurnAction,
@@ -24,6 +30,10 @@ export interface ChatContext {
   action?: TurnAction;
   /** Live: one label per step of the run, as the agent works (spec 04 AC-17). */
   onProgress?: (item: ProgressLabel) => void;
+  /** Each tool call as it starts and ends, with its cards (spec 01 §6.4.1). The mock plays the same events. */
+  onTool?: (event: ToolEvent) => void;
+  /** Each chunk of the reply being written (writer `llm` only; spec 01 AC-10). */
+  onText?: (chunk: TextChunk) => void;
 }
 
 export interface ApiClient {
@@ -36,11 +46,25 @@ export interface ApiClient {
   listDemoCustomers: () => Promise<DemoCustomer[]>;
   /** Opens a session for the picked demo customer and returns the one-time code to show on screen [simulated]. */
   requestOtp: (customerId: string) => Promise<string>;
+  /** Live only (D-068): opens a demo session by scenario; the api chooses the customer. Returns the code to show on screen. */
+  startDemoSession: (start: DemoStart) => Promise<string>;
+  /** Live only: the scenario cards for a language (and country). */
+  listScenarios: (filter: { language: "es" | "pt"; country?: string }) => Promise<Scenario[]>;
+  /** Live only: the verified session's latest card charges, the run's test charges first. */
+  listRecentTransactions: (limit?: number) => Promise<RecentTransaction[]>;
+  /** Live only, demo type C: one test charge [simulated] on the session's own run. */
+  registerTestCharge: (amount: number, merchant: string) => Promise<RecentTransaction>;
+  /** Voice (spec 07 AC-10): the clip is the raw POST body; the text is a draft for the composer, never sent on its own. */
+  transcribe: (clip: Blob, contentType: string) => Promise<{ text: string; language: string }>;
+  /** Live only, demo type D: a suggested first message for the composer. */
+  suggestPersona: (character: PersonaCharacter, transactionId?: string) => Promise<PersonaDraft>;
   verifyOtp: (otp: string) => Promise<CustomerSession>;
   logoutCustomer: () => Promise<void>;
   /** Demo button: ends the session now. Live mode has no such route, so the page does not offer it. */
   expireCustomerSession: () => Promise<void>;
   chat: (text: string, ctx?: ChatContext) => Promise<AgentReply>;
+  /** "Nuevo caso" (spec 07 AC-24): the next message starts a fresh agent thread; the session and its cases stay. */
+  newThread: () => void;
 
   // cases
   getCase: (id: string) => Promise<CustomerCaseView>;

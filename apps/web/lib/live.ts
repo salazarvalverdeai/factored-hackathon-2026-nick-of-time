@@ -6,6 +6,7 @@
 //    verifies it (spec 05 AC-07). The token lives in sessionStorage for this tab only.
 //  - The agent: `POST /api/agent/threads` and the SSE `runs/stream`; the LangSmith key never reaches the browser (AC-05).
 // Nothing here invents data: a call that fails answers an ApiError the page shows (UNAVAILABLE, DENY, RATE_LIMITED…).
+import { EMPTY_STREAM, type TurnStream, applyTool, parseTextChunk, parseToolEvent, settleTools } from "./chat-stream.ts";
 import type { ApiClient, ChatContext } from "./client.ts";
 import { MESSAGES, fill } from "./mock/messages.ts";
 import { ApiError } from "./mock/store.ts";
@@ -20,10 +21,15 @@ import type {
   CustomerCaseView,
   CustomerSession,
   DemoCustomer,
+  DemoStart,
   HandoffCard,
   Language,
   NotificationEntry,
+  PersonaCharacter,
+  PersonaDraft,
   Receipt,
+  RecentTransaction,
+  Scenario,
   SessionSnapshot,
   Suggestion,
   TurnAction,
@@ -65,7 +71,17 @@ interface WireReceipt {
   issued_at: string;
   verified_facts: { fact: string }[];
   actions: { label: string; state: string; verification_id?: string | null }[];
-  deadline: { country: string; product: string; credit_deadline?: string | null; ruling_deadline?: string | null; deadline_source: string; source_url: string; verified_on: string } | null;
+  deadline: {
+    country: string;
+    product: string;
+    credit_deadline?: string | null;
+    ruling_deadline?: string | null;
+    deadline_source: string;
+    /** The customer's name of the source in the session language (DLANG), when the api sends it. */
+    deadline_source_label?: string | null;
+    source_url: string;
+    verified_on: string;
+  } | null;
   what_ai_did: string;
   what_a_person_does: string;
 }
@@ -167,6 +183,7 @@ export function replyFromTurn(turn: WireTurn, streamed: WireProgress[] = []): Ag
     deny: denied || undefined,
     awaitingConfirmation: turn.decision === "confirm",
     receipt: turn.receipt ? receiptFrom(turn.receipt) : undefined,
+    ...(turn.plan?.length ? { plan: turn.plan } : {}),
   };
 }
 
@@ -197,6 +214,17 @@ function receiptFrom(r: WireReceipt): Receipt {
     case_url: `/case/${encodeURIComponent(r.case_id)}`, // our own path, never a host the api sent
     facts: r.verified_facts.map((f) => f.fact),
     actions: r.actions.map((a) => ({ label: a.label, state: a.state, ...(a.verification_id ? { verification_id: a.verification_id } : {}) })),
+    // The card names the source and links it; the raw URL is never shown (design pass 1).
+    ...(d
+      ? {
+          source: {
+            label: d.deadline_source_label || d.deadline_source,
+            url: /^https:\/\//.test(d.source_url ?? "") ? d.source_url : null,
+            verified_on: d.verified_on || null,
+          },
+          ruling_deadline: d.ruling_deadline ?? null,
+        }
+      : {}),
   };
 }
 
@@ -211,6 +239,16 @@ function claimsOf(token: string): Record<string, unknown> {
   }
 }
 
+function sessionOf(c: NonNullable<Stored["customer"]>): CustomerSession {
+  return {
+    customerId: c.customerId,
+    expiresAt: c.expiresAt,
+    language: c.language,
+    ...(c.displayName ? { displayName: c.displayName } : {}),
+    ...(c.mode ? { mode: c.mode } : {}),
+  };
+}
+
 function browserSession(): Pick<Storage, "getItem" | "setItem" | "removeItem"> | null {
   try {
     return window.sessionStorage;
@@ -220,7 +258,15 @@ function browserSession(): Pick<Storage, "getItem" | "setItem" | "removeItem"> |
 }
 
 interface Stored {
-  customer: { customerId: string; expiresAt: number; language: Language } | null;
+  /** `sessionId` is what the session routes of the api take in the path (recent transactions, test charge); the same id the cookie holds. */
+  customer: {
+    customerId: string;
+    expiresAt: number;
+    language: Language;
+    sessionId?: string;
+    displayName?: string;
+    mode?: "live" | "replay";
+  } | null;
   analyst: { username: string; displayName: string; token: string; expiresAt: number } | null;
 }
 
@@ -243,12 +289,12 @@ export function createLiveApi(options: LiveOptions = {}): ApiClient {
   const stored: Stored = load();
   const SERVER: SessionSnapshot = { customerSession: null, analystSession: null, supervised: false, audit: [] };
   let snapshot: SessionSnapshot = {
-    customerSession: stored.customer ? { customerId: stored.customer.customerId, expiresAt: stored.customer.expiresAt } : null,
+    customerSession: stored.customer ? sessionOf(stored.customer) : null,
     analystSession: stored.analyst ? { username: stored.analyst.username, displayName: stored.analyst.displayName } : null,
     supervised: false,
     audit: [],
   };
-  let pending: { sessionId: string; customerId: string; language: Language } | null = null;
+  let pending: { sessionId: string; customerId: string; language: Language; displayName?: string; mode?: "live" | "replay" } | null = null;
   let threadId: string | null = null;
   let customers: Promise<DemoCustomer[]> | null = null;
 
@@ -274,6 +320,13 @@ export function createLiveApi(options: LiveOptions = {}): ApiClient {
     listeners.forEach((l) => l());
   }
 
+  function verifiedSessionId(): string {
+    if (!stored.customer?.sessionId || stored.customer.expiresAt <= now()) {
+      throw new ApiError("SESSION_EXPIRED", 401, "Session expired: verify again.");
+    }
+    return stored.customer.sessionId;
+  }
+
   const customerLanguage = (): Language => stored.customer?.language ?? "es";
 
   // --- http ----------------------------------------------------------------------------------------------------
@@ -297,12 +350,13 @@ export function createLiveApi(options: LiveOptions = {}): ApiClient {
   function expireLocally(): void {
     if (stored.customer) stored.customer = { ...stored.customer, expiresAt: now() };
     threadId = null;
-    commit({ customerSession: stored.customer ? { customerId: stored.customer.customerId, expiresAt: stored.customer.expiresAt } : null });
+    commit({ customerSession: stored.customer ? sessionOf(stored.customer) : null });
   }
 
-  async function send(path: string, opts: { method?: string; body?: unknown; analyst?: boolean } = {}): Promise<Response> {
+  async function send(path: string, opts: { method?: string; body?: unknown; analyst?: boolean; raw?: { blob: Blob; contentType: string } } = {}): Promise<Response> {
     const headers: Record<string, string> = { Accept: "application/json" };
-    if (opts.body !== undefined) headers["Content-Type"] = "application/json";
+    if (opts.raw) headers["Content-Type"] = opts.raw.contentType;
+    else if (opts.body !== undefined) headers["Content-Type"] = "application/json";
     if (opts.analyst) {
       if (!stored.analyst) throw new ApiError("UNAUTHORIZED", 401, "Sign in first.");
       headers.Authorization = `Bearer ${stored.analyst.token}`;
@@ -313,7 +367,7 @@ export function createLiveApi(options: LiveOptions = {}): ApiClient {
         method: opts.method ?? "GET",
         headers,
         credentials: "same-origin",
-        ...(opts.body !== undefined ? { body: JSON.stringify(opts.body) } : {}),
+        ...(opts.raw ? { body: opts.raw.blob } : opts.body !== undefined ? { body: JSON.stringify(opts.body) } : {}),
       });
     } catch {
       throw new ApiError("UNAVAILABLE", 0, "Cannot reach the server. Check your connection and try again.");
@@ -372,12 +426,63 @@ export function createLiveApi(options: LiveOptions = {}): ApiClient {
 
     async requestOtp(customerId) {
       const picked = (await demoCustomers()).find((c) => c.customer_id === customerId);
-      const out = await json<{ session_id: string; otp_demo: string }>("/api/sessions", {
+      const out = await json<{ session_id: string; otp_demo: string; mode?: "live" | "replay" }>("/api/sessions", {
         method: "POST",
         body: { customer_id: customerId },
       });
-      pending = { sessionId: out.session_id, customerId, language: picked?.language ?? "es" };
+      pending = { sessionId: out.session_id, customerId, language: picked?.language ?? "es", ...(out.mode ? { mode: out.mode } : {}) };
       return out.otp_demo;
+    },
+
+    // Demo session (D-068, ADR 0026): the body never carries a customer id; the api chooses the customer from the scenario.
+    async startDemoSession(start: DemoStart) {
+      const name = start.displayName?.trim();
+      const out = await json<{ session_id: string; mode: "live" | "replay"; otp_demo: string }>("/api/sessions", {
+        method: "POST",
+        body: {
+          ...(name ? { display_name: name } : {}),
+          language: start.language,
+          ...(start.country ? { country: start.country } : {}),
+          scenario: start.scenario,
+          ...(start.mode === "live" ? { mode: "live" } : {}),
+        },
+      });
+      // The web greets with the typed name, else the scenario's gold name; "assign me one" has none (spec 07 AC-07).
+      const greet = name || start.customerName?.trim() || undefined;
+      pending = { sessionId: out.session_id, customerId: "", language: start.language, displayName: greet, mode: out.mode };
+      return out.otp_demo;
+    },
+
+    async listScenarios(filter) {
+      const q = new URLSearchParams({ language: filter.language, ...(filter.country ? { country: filter.country } : {}) });
+      return json<Scenario[]>(`/api/demo/scenarios?${q}`);
+    },
+
+    async listRecentTransactions(limit = 10): Promise<RecentTransaction[]> {
+      const id = verifiedSessionId();
+      return json<RecentTransaction[]>(`/api/sessions/${encodeURIComponent(id)}/recent-transactions?limit=${limit}`);
+    },
+
+    async registerTestCharge(amount, merchant): Promise<RecentTransaction> {
+      const id = verifiedSessionId();
+      const out = await json<RecentTransaction>(`/api/sessions/${encodeURIComponent(id)}/synthetic-charge`, {
+        method: "POST",
+        body: { amount, merchant },
+      });
+      commit({}); // the chip list reads again and shows the new charge first
+      return out;
+    },
+
+    async transcribe(clip: Blob, contentType: string): Promise<{ text: string; language: string }> {
+      verifiedSessionId(); // the route needs the session cookie; an expired session says so
+      return (await send("/api/voice/transcribe", { method: "POST", raw: { blob: clip, contentType } })).json();
+    },
+
+    async suggestPersona(character: PersonaCharacter, transactionId?: string): Promise<PersonaDraft> {
+      return json<PersonaDraft>("/api/demo/persona", {
+        method: "POST",
+        body: { character, ...(transactionId ? { transaction_id: transactionId } : {}) },
+      });
     },
 
     async verifyOtp(otp) {
@@ -386,8 +491,15 @@ export function createLiveApi(options: LiveOptions = {}): ApiClient {
         method: "POST",
         body: { otp },
       });
-      const session: CustomerSession = { customerId: pending.customerId, expiresAt: Date.parse(out.expires_at) };
-      stored.customer = { ...session, language: pending.language };
+      stored.customer = {
+        customerId: pending.customerId,
+        expiresAt: Date.parse(out.expires_at),
+        language: pending.language,
+        sessionId: pending.sessionId,
+        displayName: pending.displayName,
+        mode: pending.mode,
+      };
+      const session = sessionOf(stored.customer);
       pending = null;
       threadId = null; // a new session never reuses another's thread
       commit({ customerSession: session });
@@ -406,6 +518,11 @@ export function createLiveApi(options: LiveOptions = {}): ApiClient {
       expireLocally();
     },
 
+    // "Nuevo caso": the next message opens a new thread on the api; the session (and its cases) stay.
+    newThread() {
+      threadId = null;
+    },
+
     async chat(text: string, ctx: ChatContext = {}): Promise<AgentReply> {
       if (!stored.customer || stored.customer.expiresAt <= now()) throw new ApiError("SESSION_EXPIRED", 401, "Session expired: verify again.");
       threadId ??= (await json<{ thread_id: string }>("/api/agent/threads", { method: "POST" })).thread_id;
@@ -418,6 +535,7 @@ export function createLiveApi(options: LiveOptions = {}): ApiClient {
       if (!res.body) throw new ApiError("UNAVAILABLE", 502, "The agent sent no answer.");
       let turn: WireTurn | null = null;
       const streamed: WireProgress[] = [];
+      let stream: TurnStream = EMPTY_STREAM;
       for await (const { event, data } of readSse(res.body)) {
         if (event === "progress") {
           const p = data as WireProgress;
@@ -425,12 +543,23 @@ export function createLiveApi(options: LiveOptions = {}): ApiClient {
             streamed.push(p);
             ctx.onProgress?.({ step: p.step, label: p.label });
           }
+        } else if (event === "tool") {
+          // spec 01 §6.4.1: a chunk that does not follow the contract is dropped, never shown.
+          const t = parseToolEvent(data);
+          if (t) {
+            stream = applyTool(stream, t);
+            ctx.onTool?.(t);
+          }
+        } else if (event === "text") {
+          const c = parseTextChunk(data);
+          if (c) ctx.onText?.(c);
         } else if (event === "turn") {
           turn = data as WireTurn;
         }
       }
       if (!turn) throw new ApiError("UNAVAILABLE", 502, "The agent did not finish the turn.");
-      return replyFromTurn(turn, streamed);
+      // The streamed text is replaced by turn.reply (spec 01 §6.4.1): the final reply holds only released lines.
+      return { ...replyFromTurn(turn, streamed), ...(stream.tools.length ? { tools: settleTools(stream.tools) } : {}) };
     },
 
     // cases

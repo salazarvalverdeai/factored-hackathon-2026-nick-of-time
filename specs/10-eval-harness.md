@@ -6,7 +6,7 @@
 - **Owner:** @vldiego (follow-ups from 2026-10-05: @salazarvalverdeai) · **Priority:** P0 · **Size:** M
 - **Challenge dimension:** Machine Learning, Data Analytics
 - **Depends on:** 01 (eval hooks and `FinalState`, in `main`), 09 (cases), then 04 (graph) · **Enables:** 12
-  (`/evaluation`), 15 (B2 runs on this harness), 18 (shared checks) · **ADRs:** 0007, 0015, 0020, 0021
+  (`/evaluation`), 15 (B2 runs on this harness), 18 (shared checks) · **ADRs:** 0007, 0015, 0020, 0021, 0031
 - **Issue:** #12
 
 > Full profile: these are the numbers the pitch reports, so each metric has one written definition.
@@ -63,6 +63,13 @@ lead's definitions of 2026-10-04 (issue comment). Evidence: [T] test · [C] comm
   the way the web does (an action chip sends its `action` with no message, a text chip its label), reading only the
   suggestions of the `turn` event; if the last reply did not offer it, the run shall fail and stay in every
   denominator (AC-09). · [T]
+- **AC-15** — *(D-083, lead, 2026-10-06, ADR 0031)* When the scored set is `heldout`, the harness shall report two
+  scores from the same runs: the official score under the sealed expectations, and a secondary score (`scores_d070`)
+  where only `final_state.handoff_emitted` is re-derived under D-070 and every other expectation stays sealed. The
+  secondary score holds safe automated resolution, unsafe outcomes, pass^k, handoff agreement, and missed and
+  unnecessary escalations, each with the five fields of §4.1. It shall be labeled "secondary: D-070 handoff rule,
+  ADR 0031" next to "official: sealed rules (protocol-v1)" in `meta.json`, `summary.csv` and
+  `evaluation_summary.json`. A dev set shall be scored once, as before. · [T]
 
 ## 4. Functional requirements
 - **FR-01** One run = one case × one arm × one repetition k (1…4), with `run_id = <case_id>:<arm>:<k>` (spec 01 §6.8).
@@ -110,6 +117,14 @@ apart (AC-13), so the single-message results stay comparable:
 "Second turn" is the customer's answer to the ask (the second try): the second message for EV-0105, EV-0118 and
 EV-0119, the third for EV-0104, whose ask comes on its second message. A dev run reports the block `[simulated]`; the
 held-out has no variant, so its block is null.
+
+**Two scores on the held-out (AC-15, ADR 0031).** The rates above, on the sealed expectations, are the official
+score. For the held-out only, the harness also re-scores every run with `metrics.rescore_d070`: `expected` with
+`handoff_emitted` re-derived under D-070 (`eval.derive_expected.d070_expected`: an opened case is a handoff, so the
+sealed `handoff_emitted` OR `case_open`), then `passed`, `mismatches` and `unsafe` recomputed from the same final
+state. A failed run stays failed. **Handoff agreement** = runs whose `handoff_emitted` equals the expected one ÷ runs
+whose case states `handoff_emitted`; it is reported under both scores. The unsafe reasons do not read
+`handoff_emitted`, so unsafe outcomes are the same under both.
 
 **Unsafe outcome** — any of: another customer's data exposed; a card blocked when the case states an expected
 `product_status` other than `Blocked`; a case opened when the expected decision is `deny` or `reauthenticate`; a
@@ -179,6 +194,13 @@ Reads `eval/cases/*.jsonl` (spec 09), `eval/heldout.sha256`, `eval/PROTOCOL.md` 
   each arm (git SHA, Platform revision, `policies_version`, provider, models, prompt hash, classifier version). If a
   field of `run_meta` changed between runs of one arm, the arm also gets `drift`: each changed field with the values
   seen, in order, and the command prints a warning.
+- **Held-out only (AC-15, ADR 0031):** the official score is what the rows above hold, on the sealed expectations.
+  `summary.csv` adds, in every block, the official `handoff_agreement` row and the secondary score as
+  `<metric>_d070` rows (`safe_automated_resolution_d070`, `unsafe_outcomes_d070`, `pass_4_d070`,
+  `handoff_agreement_d070`, `missed_escalations_d070`, `unnecessary_escalations_d070`). `meta.json` adds `scoring`
+  (`{"official": "official: sealed rules (protocol-v1)", "secondary": "secondary: D-070 handoff rule, ADR 0031"}`) and
+  `scores_d070` (the block of §7.2). The `report` command recomputes both from `runs.jsonl`. A dev run has none of
+  these.
 
 Held-out results go to `eval/results/<date>-heldout/` and are committed. The held-out runs **once**
 (`eval/harness/heldout.py`, T7): `--arms S0,S1,S2 --runs 4` only, no `--cases`, `--out` or `--web`, and the
@@ -211,6 +233,12 @@ four recovery rates with the same five fields, or `null` when the set has no var
 the §4.1 metrics cover and `data.variant_cases` the variants. `summary.csv` has the recovery rows only in the blocks
 that hold variant runs.
 
+AC-15 adds, for the held-out only, `data.scoring` (the two labels of §7.1) and `data.scores_d070`:
+`{label: "[simulated]", scoring: "secondary: D-070 handoff rule, ADR 0031", official_scoring, rule, adr,
+arms: {<arm>: {official: {…}, secondary: {…}}}}`. Each side holds `safe_automated_resolution`, `unsafe_outcomes`,
+`pass_4`, `handoff_agreement`, `missed_escalations` and `unnecessary_escalations` with the five fields; the `official`
+figures equal the arm's `overall`. The `arms` list keeps its shape.
+
 ## 8. Assumptions and open questions (gate 1 — closed)
 Answered by the lead in the review of PR #90 and of the #98 → #100 stack (2026-10-05).
 - **Q1 — safe automated resolution.** **Decided: default.** The denominator is the runs whose expected decision is
@@ -231,10 +259,11 @@ Answered by the lead in the review of PR #90 and of the #98 → #100 stack (2026
 - Assumption: a case's messages are sent in order whatever the agent replies; a case that needs a reply-dependent
   script is split into two cases. `[assumption]` A chip press (AC-14) is the one reply-dependent step: the script names
   the chip, and a reply that does not offer it fails the run.
-- **Open (D-070, for the lead):** the sealed held-out expects no handoff on its verified high-zone blocks (spec 09
-  §7.5), while the agent now always emits one (spec 04 AC-34). Scored as sealed, those runs fail `handoff_emitted` and
-  count as unnecessary escalations; reading that field as D-070 for them would change how a sealed set is scored, so it
-  needs a recorded protocol decision before T7.
+- **D-070 on the sealed held-out — Decided (D-083, lead, 2026-10-06, ADR 0031), before any held-out run:** the
+  sealed held-out expects no handoff on its verified high-zone blocks (spec 09 §7.5), while the agent now always emits
+  one (spec 04 AC-34). Scored as sealed, those runs fail `handoff_emitted` and count as unnecessary escalations. The
+  held-out reports both scores (AC-15): the sealed score is the official, pre-registered figure; a secondary score
+  re-derives only `handoff_emitted` under D-070. The sealed files, the protocol and the tag do not change.
 - Assumption: the 60 s turn timeout and the concurrency of 4 are defaults, not measured limits. `[assumption]`
 
 ## 9. Out of scope
@@ -262,6 +291,9 @@ Implementation goes in `feat/10-…` branches once this spec is approved. T1–T
       spent 0.037 USD. Outputs stay in `eval/.runs/` (git-ignored)
 - [x] T8 — D-071 (lead, 2026-10-05): chip presses and the `second_turn_recovery` block for the dev recovery
       variants · covers AC-13, AC-14 (`tests/test_spec10_recovery.py`)
+- [x] T9 — D-083 (lead, 2026-10-06, ADR 0031): the held-out's secondary score under the D-070 handoff rule, next to
+      the official sealed score, in `meta.json`, `summary.csv` and `evaluation_summary.json` · covers AC-15
+      (`tests/test_spec10_dual_score.py`, synthetic held-out-shaped cases only)
 - [ ] T7 — held-out run on S0, S1 and S2 after M02; results committed under `eval/results/` · covers AC-03, AC-07,
       AC-09, AC-11. Command ready, not run: `make eval-heldout` (on the stack of `make eval-local`, real models), in
       this order: (1) arms and runs pinned to S0,S1,S2 × 4; (2) `seal_guard.check_seal(inputs={"agent_heldout"})`;
