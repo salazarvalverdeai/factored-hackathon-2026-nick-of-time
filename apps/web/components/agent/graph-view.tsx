@@ -1,14 +1,32 @@
 "use client";
 
-import { useId, useState, type KeyboardEvent } from "react";
-import { GRAPH_VIEW, KIND_TEXT, ariaLabelOf, linksOf, type BranchKind, type GraphEdge } from "@/lib/agent-graph";
+import { RotateCcw } from "lucide-react";
+import { useId, useRef, useState, type KeyboardEvent } from "react";
+import { Button } from "@/components/ui/button";
+import { GRAPH_REVEAL, GRAPH_VIEW, KIND_TEXT, ariaLabelOf, graphHighlight, linksOf, type BranchKind, type GraphEdge } from "@/lib/agent-graph";
+import { TIMING, linkKey } from "@/lib/agent-motion";
+import { AGENT_UI, fill } from "@/lib/agent-strings";
 import { cn } from "@/lib/utils";
+import { DrawPath, Reveal, useReveal } from "./motion";
 
 // The dispute_intake graph drawn from lib/agent-reference.ts (spec 04 AC-08): coordinates precomputed by
 // scripts/sync-agent.mjs, colors from the theme tokens so both themes follow BRAND.md. Hover or focus a node (Tab) to
 // read what it does and what decides each way out; Escape clears. The table below the drawing is the same data.
+// When it scrolls into view the graph draws itself in topological order (lib/agent-motion.ts); with reduced motion, or
+// on the server, it is drawn final. `activeNode` and `path` let /chat (the live node) and the console (a case's run)
+// reuse the same drawing.
 
 type Kind = BranchKind | "plain";
+
+export interface GraphViewProps {
+  /** The node a run is on now (e.g. the live node in /chat): marked as current and shown in the side panel. */
+  activeNode?: string;
+  /** The nodes a run went through, in order (e.g. a case's run in the console): its nodes and edges stand out. */
+  path?: string[];
+  /** Draw the graph in order when it scrolls into view, with a Replay button (default true). */
+  reveal?: boolean;
+  className?: string;
+}
 
 const STROKE: Record<Kind, string> = {
   policy: "stroke-chart-1",
@@ -24,17 +42,25 @@ const FILL: Record<Kind, string> = {
 };
 const SWATCH: Record<BranchKind, string> = { policy: "bg-chart-1", tool: "bg-chart-2", input: "bg-muted-foreground" };
 const KINDS = Object.keys(KIND_TEXT) as BranchKind[];
-const FADE = "transition-opacity duration-150 motion-reduce:transition-none";
+const FADE = "transition-[opacity,stroke-width] duration-200 ease-out motion-reduce:transition-none";
+const T = AGENT_UI.graph;
 
 const kindOf = (e: GraphEdge): Kind => e.kind ?? "plain";
 const touches = (e: GraphEdge, id: string | null) => id !== null && (e.from === id || e.to === id);
 
-export function GraphView() {
+export function GraphView({ activeNode, path, reveal = true, className }: GraphViewProps = {}) {
   const uid = useId().replace(/:/g, "");
+  const frame = useRef<HTMLDivElement>(null);
   const [hovered, setHovered] = useState<string | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
-  const active = hovered ?? selected;
-  const near = new Set(active ? [active, ...GRAPH_VIEW.edges.filter((e) => touches(e, active)).flatMap((e) => [e.from, e.to])] : []);
+  const { phase, run, replay } = useReveal(frame, { enabled: reveal, total: GRAPH_REVEAL.total });
+  const focus = hovered ?? selected;
+  const run$ = graphHighlight(activeNode, path);
+  const near = new Set(focus ? [focus, ...GRAPH_VIEW.edges.filter((e) => touches(e, focus)).flatMap((e) => [e.from, e.to])] : []);
+
+  const edgeOn = (e: GraphEdge) => (focus ? touches(e, focus) : run$.edges.has(linkKey(e)));
+  const edgeDim = (e: GraphEdge) => (focus ? !touches(e, focus) : run$.dims && !run$.edges.has(linkKey(e)));
+  const nodeDim = (id: string) => (focus ? !near.has(id) : run$.dims && !run$.nodes.has(id));
 
   const onKeyDown = (event: KeyboardEvent) => {
     if (event.key === "Escape") {
@@ -44,11 +70,19 @@ export function GraphView() {
   };
 
   return (
-    <div onKeyDown={onKeyDown} className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_18rem]">
+    <div onKeyDown={onKeyDown} className={cn("grid gap-4 xl:grid-cols-[minmax(0,1fr)_18rem]", className)}>
       <div className="min-w-0">
-        <Legend />
-        <p className="mt-2 text-xs text-muted-foreground sm:hidden">Scroll sideways to see the whole graph; the table below lists the same nodes.</p>
-        <div className="mt-2 overflow-x-auto rounded-md border bg-background/40 p-2">
+        <div className="flex flex-wrap items-start justify-between gap-2">
+          <Legend />
+          {reveal ? (
+            <Button type="button" variant="outline" size="sm" onClick={replay} aria-label={T.replayLabel} className="motion-reduce:hidden">
+              <RotateCcw aria-hidden="true" />
+              {T.replay}
+            </Button>
+          ) : null}
+        </div>
+        <p className="mt-2 text-xs text-muted-foreground sm:hidden">{T.scrollHint}</p>
+        <div ref={frame} className="mt-2 overflow-x-auto rounded-md border bg-background/40 p-2">
           <svg
             role="group"
             aria-labelledby={`${uid}-title`}
@@ -57,9 +91,10 @@ export function GraphView() {
             height={GRAPH_VIEW.height}
             className="mx-auto block h-auto w-full min-w-[560px]"
             style={{ maxWidth: GRAPH_VIEW.width }}
+            data-phase={phase}
           >
             <title id={`${uid}-title`}>
-              {`Graph ${GRAPH_VIEW.name}: ${GRAPH_VIEW.nodes.length} nodes and ${GRAPH_VIEW.edges.length} edges from START to END. Each node can be focused to read what it does.`}
+              {fill(T.title, { name: GRAPH_VIEW.name, nodes: GRAPH_VIEW.nodes.length, edges: GRAPH_VIEW.edges.length })}
             </title>
             <defs>
               {(["policy", "tool", "input", "plain"] as const).map((kind) => (
@@ -69,113 +104,134 @@ export function GraphView() {
               ))}
             </defs>
 
-            <g aria-hidden="true">
-              {GRAPH_VIEW.edges.map((e) => {
-                const on = touches(e, active);
+            <g key={run}>
+              <g aria-hidden="true">
+                {GRAPH_VIEW.edges.map((e, i) => {
+                  const on = edgeOn(e);
+                  return (
+                    <DrawPath
+                      key={linkKey(e)}
+                      phase={phase}
+                      delay={GRAPH_REVEAL.edge[linkKey(e)]}
+                      maskId={`${uid}-draw-${i}`}
+                      bounds={GRAPH_VIEW}
+                      d={e.path}
+                      fill="none"
+                      markerEnd={`url(#${uid}-${kindOf(e)})`}
+                      strokeWidth={on ? 2 : 1.25}
+                      strokeDasharray={e.kind === "tool" ? "5 3" : e.kind === "input" ? "2 3" : undefined}
+                      data-edge={linkKey(e)}
+                      data-on={on || undefined}
+                      className={cn(STROKE[kindOf(e)], FADE, edgeDim(e) && "opacity-20")}
+                    />
+                  );
+                })}
+                {GRAPH_VIEW.edges.map((e) =>
+                  e.labelBox && e.label ? (
+                    <Reveal key={`${linkKey(e)}-label`} phase={phase} delay={GRAPH_REVEAL.label[linkKey(e)]} duration={TIMING.label}>
+                      <g className={cn(FADE, edgeDim(e) && "opacity-25")}>
+                        <rect x={e.labelBox.x} y={e.labelBox.y} width={e.labelBox.w} height={e.labelBox.h} rx={4} className={cn("fill-card", STROKE[kindOf(e)])} strokeWidth={1} />
+                        <text
+                          x={e.labelBox.x + e.labelBox.w / 2}
+                          y={e.labelBox.y + e.labelBox.h / 2}
+                          textAnchor="middle"
+                          dominantBaseline="central"
+                          fontSize={10}
+                          className="fill-foreground font-mono"
+                        >
+                          {e.label}
+                        </text>
+                      </g>
+                    </Reveal>
+                  ) : null,
+                )}
+              </g>
+
+              {GRAPH_VIEW.nodes.map((n) => {
+                const on = n.id === focus;
+                const current = n.id === run$.current;
+                const visited = run$.nodes.has(n.id);
                 return (
-                  <path
-                    key={`${e.from}-${e.to}`}
-                    d={e.path}
-                    fill="none"
-                    markerEnd={`url(#${uid}-${kindOf(e)})`}
-                    strokeWidth={on ? 2 : 1.25}
-                    strokeDasharray={e.kind === "tool" ? "5 3" : e.kind === "input" ? "2 3" : undefined}
-                    className={cn(STROKE[kindOf(e)], FADE, active && !on && "opacity-20")}
-                  />
+                  <Reveal key={n.id} phase={phase} delay={GRAPH_REVEAL.node[n.id]} rise={4}>
+                    <g
+                      role="button"
+                      tabIndex={0}
+                      aria-label={`${ariaLabelOf(n.id)}${current ? ` ${T.current}.` : visited ? ` ${T.onPath}.` : ""}`}
+                      aria-pressed={n.id === selected}
+                      aria-current={current ? "step" : undefined}
+                      data-node={n.id}
+                      data-current={current || undefined}
+                      data-visited={visited || undefined}
+                      className={cn("group cursor-pointer outline-none", FADE, nodeDim(n.id) && "opacity-40")}
+                      onMouseEnter={() => setHovered(n.id)}
+                      onMouseLeave={() => setHovered(null)}
+                      onFocus={() => setSelected(n.id)}
+                      onClick={() => setSelected(n.id)}
+                    >
+                      <rect
+                        x={n.x - n.w / 2}
+                        y={n.y - n.h / 2}
+                        width={n.w}
+                        height={n.h}
+                        rx={n.terminal ? n.h / 2 : 6}
+                        strokeWidth={current ? 2.5 : on ? 2 : visited ? 1.5 : 1}
+                        className={cn(
+                          "transition-[fill,stroke] duration-200 ease-out motion-reduce:transition-none",
+                          current ? "fill-primary/15" : n.terminal ? "fill-muted" : "fill-card",
+                          on || current ? "stroke-primary" : visited ? "stroke-primary/70" : "stroke-border",
+                          "group-hover:stroke-primary group-focus-visible:stroke-ring group-focus-visible:[stroke-width:2.5]",
+                        )}
+                      />
+                      <text
+                        x={n.x}
+                        y={n.y}
+                        textAnchor="middle"
+                        dominantBaseline="central"
+                        fontSize={12}
+                        className={cn(
+                          "pointer-events-none select-none font-mono",
+                          current && "font-semibold",
+                          n.terminal ? "fill-muted-foreground" : "fill-foreground",
+                        )}
+                      >
+                        {n.id}
+                      </text>
+                    </g>
+                  </Reveal>
                 );
               })}
-              {GRAPH_VIEW.edges.map((e) =>
-                e.labelBox && e.label ? (
-                  <g key={`${e.from}-${e.to}-label`} className={cn(FADE, active && !touches(e, active) && "opacity-25")}>
-                    <rect x={e.labelBox.x} y={e.labelBox.y} width={e.labelBox.w} height={e.labelBox.h} rx={4} className={cn("fill-card", STROKE[kindOf(e)])} strokeWidth={1} />
-                    <text
-                      x={e.labelBox.x + e.labelBox.w / 2}
-                      y={e.labelBox.y + e.labelBox.h / 2}
-                      textAnchor="middle"
-                      dominantBaseline="central"
-                      fontSize={10}
-                      className="fill-foreground font-mono"
-                    >
-                      {e.label}
-                    </text>
-                  </g>
-                ) : null,
-              )}
             </g>
-
-            {GRAPH_VIEW.nodes.map((n) => {
-              const on = n.id === active;
-              return (
-                <g
-                  key={n.id}
-                  role="button"
-                  tabIndex={0}
-                  aria-label={ariaLabelOf(n.id)}
-                  aria-pressed={n.id === selected}
-                  data-node={n.id}
-                  className={cn("group cursor-pointer outline-none", FADE, active && !near.has(n.id) && "opacity-40")}
-                  onMouseEnter={() => setHovered(n.id)}
-                  onMouseLeave={() => setHovered(null)}
-                  onFocus={() => setSelected(n.id)}
-                  onClick={() => setSelected(n.id)}
-                >
-                  <rect
-                    x={n.x - n.w / 2}
-                    y={n.y - n.h / 2}
-                    width={n.w}
-                    height={n.h}
-                    rx={n.terminal ? n.h / 2 : 6}
-                    strokeWidth={on ? 2 : 1}
-                    className={cn(
-                      n.terminal ? "fill-muted" : "fill-card",
-                      on ? "stroke-primary" : "stroke-border",
-                      "group-hover:stroke-primary group-focus-visible:stroke-ring group-focus-visible:[stroke-width:2.5]",
-                    )}
-                  />
-                  <text
-                    x={n.x}
-                    y={n.y}
-                    textAnchor="middle"
-                    dominantBaseline="central"
-                    fontSize={12}
-                    className={cn("pointer-events-none select-none font-mono", n.terminal ? "fill-muted-foreground" : "fill-foreground")}
-                  >
-                    {n.id}
-                  </text>
-                </g>
-              );
-            })}
           </svg>
         </div>
       </div>
-      <Panel active={active} />
+      <Panel active={focus ?? run$.current} current={run$.current} />
     </div>
   );
 }
 
 function Legend() {
   return (
-    <ul aria-label="Edge colors" className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+    <ul aria-label={T.legendLabel} className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
       {KINDS.map((kind) => (
         <li key={kind} className="flex items-center gap-1.5">
           <span aria-hidden="true" className={cn("inline-block h-0.5 w-4 rounded-full", SWATCH[kind])} />
-          Branch on a {KIND_TEXT[kind]}
+          {fill(T.branchOn, { kind: KIND_TEXT[kind] })}
         </li>
       ))}
       <li className="flex items-center gap-1.5">
         <span aria-hidden="true" className="inline-block h-0.5 w-4 rounded-full bg-muted-foreground/60" />
-        Always next
+        {T.alwaysNext}
       </li>
     </ul>
   );
 }
 
-function Panel({ active }: { active: string | null }) {
+function Panel({ active, current }: { active: string | null; current: string | null }) {
   const links = active ? linksOf(active) : null;
   return (
     <aside
       aria-live="polite"
-      aria-label="Selected node"
+      aria-label={T.panelLabel}
       className={cn(
         "z-10 self-start overflow-y-auto rounded-md border bg-card/95 p-3 text-sm backdrop-blur xl:sticky xl:top-20 xl:bottom-auto xl:max-h-none",
         active && "sticky bottom-3 max-h-[38vh]",
@@ -183,11 +239,14 @@ function Panel({ active }: { active: string | null }) {
     >
       {active && links ? (
         <>
-          <p className="font-mono font-semibold">{active}</p>
+          <p className="font-mono font-semibold">
+            {active}
+            {active === current ? <span className="ml-2 font-sans text-xs font-normal text-primary-text">{T.current}</span> : null}
+          </p>
           <p className="mt-1 text-muted-foreground">{GRAPH_VIEW.nodes.find((n) => n.id === active)?.info}</p>
           {links.out.length ? (
             <div className="mt-3">
-              <p className="text-xs font-medium text-muted-foreground">Goes to</p>
+              <p className="text-xs font-medium text-muted-foreground">{T.goesTo}</p>
               <ul className="mt-1 grid gap-1.5">
                 {links.out.map((e) => (
                   <li key={e.to} className="text-xs">
@@ -195,11 +254,11 @@ function Panel({ active }: { active: string | null }) {
                     {e.when ? (
                       <>
                         {" "}
-                        <span className="text-muted-foreground">when</span> <span className="font-mono">{e.when}</span>{" "}
+                        <span className="text-muted-foreground">{T.when}</span> <span className="font-mono">{e.when}</span>{" "}
                         <span className="text-muted-foreground">({e.kind ? KIND_TEXT[e.kind] : ""})</span>
                       </>
                     ) : (
-                      <span className="text-muted-foreground"> always</span>
+                      <span className="text-muted-foreground"> {T.always}</span>
                     )}
                   </li>
                 ))}
@@ -208,12 +267,12 @@ function Panel({ active }: { active: string | null }) {
           ) : null}
           {links.in.length ? (
             <p className="mt-3 text-xs text-muted-foreground">
-              Comes from <span className="font-mono text-foreground">{links.in.map((e) => e.from).join(" · ")}</span>
+              {T.comesFrom} <span className="font-mono text-foreground">{links.in.map((e) => e.from).join(" · ")}</span>
             </p>
           ) : null}
         </>
       ) : (
-        <p className="text-xs text-muted-foreground">Hover a node, or Tab to one, to see what it does and what decides each way out. Esc clears.</p>
+        <p className="text-xs text-muted-foreground">{T.panelHint}</p>
       )}
     </aside>
   );
