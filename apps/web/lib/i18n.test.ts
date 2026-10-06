@@ -45,13 +45,13 @@ test("spec 16 AC-06: no translation is empty and each keeps the source's placeho
   }
 });
 
-test("spec 16 AC-06: the cookie value picks the locale; anything else is Spanish", () => {
-  assert.equal(DEFAULT_LOCALE, "es");
+test("spec 16 AC-06: the cookie value picks the locale; anything else is English", () => {
+  assert.equal(DEFAULT_LOCALE, "en");
   assert.equal(parseLocale("pt"), "pt");
   assert.equal(parseLocale("en"), "en");
-  assert.equal(parseLocale(undefined), "es");
-  assert.equal(parseLocale("fr"), "es");
-  assert.equal(parseLocale("EN"), "es");
+  assert.equal(parseLocale(undefined), "en");
+  assert.equal(parseLocale("fr"), "en");
+  assert.equal(parseLocale("EN"), "en");
 });
 
 test("spec 16 AC-06: translate fills placeholders and follows the locale", () => {

@@ -37,7 +37,7 @@ AC-01 to AC-05 are copied from issue #18 with the same numbers. None is dropped 
   components to use, how to fetch data, style rules (including the brand kit) and an example page. · [D]
 - AC-05 — A new page built from the template (`app/_template`) shall pass lint and build in CI. · [C] `npm run lint &&
   npm test && npm run build` in the `web` job of `.github/workflows/ci.yml`
-- AC-06 — The site header shall offer a language selector with Spanish, Portuguese and English (default Spanish). When the
+- AC-06 — The site header shall offer a language selector with Spanish, Portuguese and English (default English, lead decision 2026-10-06). When the
   user picks a language, the system shall show the interface of the landing, chat chrome, console, case, agent, login,
   header and footer pages, and the labels and headings of `/analytics`, `/evaluation` and `/data`, in that language, keep
   the choice in a cookie, set `<html lang>` from the server's first response, and format dates and numbers for es-MX,
