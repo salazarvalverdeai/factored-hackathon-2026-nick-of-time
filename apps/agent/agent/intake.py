@@ -93,7 +93,7 @@ _THIRD = (r"(?:otr[oa]|outr[oa]) (?:cliente|persona|pessoa|usuari[oa]|titular)|c
           r"|(?:mi|minha|meu) (?:esposa|esposo|marido|mujer|hij[oa]|filh[oa]|madre|padre|mama|papa|mae|pai|herman[oa]"
           r"|irma|irmao|novi[oa]|namorad[oa]|pareja|amig[oa]|jefe|chefe|vecin[oa]|vizinh[oa])")
 CROSS_CUSTOMER = re.compile(rf"\b{_DATA}\b(?: \w+){{0,4}}? (?:de|del|da|do) (?:la |el |o |a )?(?:{_THIRD})\b")
-# D-083 (spec 04 AC-42): the fixed labels of these text chips, typed or pressed, in ES or PT and offered or not, ask
+# D-085 (spec 04 AC-42): the fixed labels of these text chips, typed or pressed, in ES or PT and offered or not, ask
 # to see the latest charges: the graph searches with no slot and lists them as cards, with no classifier.
 RECENT_CHIPS = ("show_recent", "dont_remember_amount")
 
@@ -273,7 +273,7 @@ async def understood(state: State, config: RunnableConfig) -> dict[str, Any]:
         answer = {"confirm": said}
         return {**base, "intent": "human_request" if call_confirmed(state, answer) else pending,
                 "intent_confidence": 1.0, "dispute_detected": True, "answer": answer}
-    if label := recent_label(text):         # D-083 (AC-42): list the latest charges, by rule, no classifier
+    if label := recent_label(text):         # D-085 (AC-42): list the latest charges, by rule, no classifier
         return {**base, "language": hint or label, "intent": pending, "intent_confidence": 1.0,
                 "dispute_detected": True, "answer": {"recent": True}}
     reading = NLU.parse(text, hint, today=day)
@@ -300,7 +300,7 @@ async def understood(state: State, config: RunnableConfig) -> dict[str, Any]:
 
 
 def recent_label(text: str) -> Optional[str]:
-    """D-083 (AC-42): the language of the RECENT_CHIPS label that `text` equals (case, accents, spacing and end
+    """D-085 (AC-42): the language of the RECENT_CHIPS label that `text` equals (case, accents, spacing and end
     punctuation ignored, as AC-33), or None."""
     def same(said: str) -> str:
         return " ".join(fold(said).strip(" ¿?¡!.").split())
@@ -465,7 +465,7 @@ async def retrieve(state: State, config: RunnableConfig) -> dict[str, Any]:
         candidates = [c for c in state.get("candidates") or [] if c["transaction_id"] == answer["option"]]
     elif not state["dispute_detected"] and not any((state.get("slots") or {}).values()):
         candidates = []                     # [assumption] nothing reported ("hola" below τ): ask, search nothing
-    else:                                   # D-083 (AC-42): a request for the latest charges searches with no slot
+    else:                                   # D-085 (AC-42): a request for the latest charges searches with no slot
         slots = {} if answer.get("recent") else state.get("slots") or {}
         query = {"amount": float(slots["amount"]) if slots.get("amount") else None, "currency": slots.get("currency"),
                  "approx_date": slots.get("date"), "merchant": slots.get("merchant")}
@@ -728,7 +728,7 @@ def clarify(state: State) -> dict[str, Any]:
     it asks for the details. A charge the customer did not name is one card with the confirm chips (D-067). A declined
     confirm answers plan.declined and clears the selection (D-039). D-071: one charge the customer named, asked about
     because the intent is below τ, is one card with the ask_intent chips (AC-35); an unclear reply to the confirm
-    question keeps the charge and asks it again with the confirm chips (AC-36). D-083: a search with no amount, date or
+    question keeps the charge and asks it again with the confirm chips (AC-36). D-085: a search with no amount, date or
     merchant that found several charges lists the latest max_candidate_transactions of them as cards (the tool ranks
     them most recent first), with the ask_recent row; a list the customer can pick from counts no clarification turn
     (AC-42)."""

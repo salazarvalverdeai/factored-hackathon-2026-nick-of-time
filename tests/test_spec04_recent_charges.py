@@ -1,4 +1,4 @@
-"""Spec 04 D-083 (AC-42, P0 fix): a dispute with no amount, date or merchant, and the `show_recent` and
+"""Spec 04 D-085 (AC-42, P0 fix): a dispute with no amount, date or merchant, and the `show_recent` and
 `dont_remember_amount` chip labels, list the latest charges as option cards instead of asking for details again; a list
 counts no clarification turn. On the fake MCP (FastMCP in-memory client) and on the real MCP server over a fixture gold
 shaped as the production customer (five charges on three cards in the last 30 days). No LLM, no network; replay today
@@ -163,7 +163,7 @@ def test_ac_42_the_ask_recent_row_is_in_the_rule_table_with_a_person():
 
 # ---------- the real MCP server, a fixture gold shaped as the production customer ----------
 PRODUCTION = {
-    "id": "D-083", "language": "es", "country": "MX",
+    "id": "D-085", "language": "es", "country": "MX",
     "initial_state": {"customer_id": "CLI-RECENT0CHRG1", "session": "verified", "fixtures": [
         {"transaction_id": f"TRX-RECENT{n:014d}", "product_id": product, "product_type": kind, "amount": amount,
          "currency": "USD", "transaction_date": day, "merchant": merchant, "fraud_score": 12.0}
@@ -184,7 +184,7 @@ def test_ac_42_the_production_conversation_on_the_real_mcp_server(tmp_path):
         store, kind = stack.enter_context(L.memory_store())
         mcp = L.LocalMCP(L.fixture_gold(tmp_path / "gold", PRODUCTION), store, kind, {}).start()
         stack.callback(mcp.close)
-        sid = L.seed_session(store, PRODUCTION["initial_state"]["customer_id"], "es", "D-083:S0:1")
+        sid = L.seed_session(store, PRODUCTION["initial_state"]["customer_id"], "es", "D-085:S0:1")
         chat = L.Chat(mcp, sid, thread="d-083")
         latest = [f"TRX-RECENT{n:014d}" for n in (5, 4, 3)]
         for text in (NO_DETAILS["es"], label("show_recent"), label("dont_remember_amount")):
