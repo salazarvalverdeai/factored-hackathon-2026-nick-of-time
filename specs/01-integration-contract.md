@@ -187,8 +187,8 @@ and transcript never reach the browser (`notifications.never_send`): `CustomerTu
 | GET | `/api/console/cases` | `?status=&zone=&country=` | `[CaseSummary]` (§6.6), sorted by SLA then zone | 200 / 401 |
 | GET | `/api/console/cases/{case_id}` | — | `{case: CaseView, handoff: handoff.schema.json, events: [CaseEvent]}` | 200 / 401 / 404 |
 | POST | `/api/cases/{case_id}/action` | `AnalystActionIn` (`contracts/tools.py`) | `AnalystActionOut` | 200 / 401 / 403 / 409 |
-| GET | `/api/console/settings` | — | `{supervised_mode, score_provider, policies_version}` | 200 / 401 |
-| PUT | `/api/console/settings` | `{supervised_mode}` | same as GET; event `settings_changed` with actor | 200 / 401 |
+| GET | `/api/console/settings` | — | `{supervised_mode, writer, score_provider, policies_version}` | 200 / 401 |
+| PUT | `/api/console/settings` | `{supervised_mode?, writer?}` (`writer`: `template\|llm`, default `template`, ADR 0030) | same as GET; event `settings_changed` with actor | 200 / 401 |
 | POST | `/api/console/demo/reset` | — | `{demo_transactions, sample_cases}` — regenerates the live-mode synthetic transactions and re-seeds the processed sample cases (spec 05) | 200 / 401 |
 
 **Evaluation hooks** (only when `EVAL_MODE=true`; never in production) — see §6.8.
@@ -370,7 +370,7 @@ actor CHECKs so no server locale changes it; their `(?p)` keeps a newline out of
 | `idempotency` **AO** | `key` PK · `action` · `result` jsonb · `run_id` text null · `created_at` · `args_hash` | the key is prefixed with `run_id` when present, then the scope `c=<customer_id>` (`-` for the api); `args_hash` is the sha256 of the call's canonical arguments and a key replayed with other arguments is refused `[assumption]` |
 | `policy_denials` **AO** | `denial_id` PK · `trace_id` · `session_id` text null · `actor` (`agent\|customer\|analyst:<sub>`) · `policy_id` · `guardrail_id` · `detail` jsonb · `run_id` text null · `created_at` | `actor` is a closed list (no `system`; sub not blank); `session_id` null for an api or analyst denial; a rule-only denial cites `G-POL-01` (writers map a missing guardrail id to it) `[assumption]` (D-023) |
 | `llm_calls` **AO** | `call_id` PK · `trace_id` · `provider` · `model` · `tokens_in` · `tokens_out` · `latency_ms` · `cost_usd` numeric · `run_id` text null · `created_at` | `run_id` from the session, so a run's tokens and cost sum alone `[assumption]` (D-023) |
-| `settings_events` **AO** | `event_id` PK · `key` · `value` jsonb · `actor` · `created_at` · `row_no` bigint identity | `supervised_mode` = latest row |
+| `settings_events` **AO** | `event_id` PK · `key` · `value` jsonb · `actor` · `created_at` · `row_no` bigint identity | `supervised_mode` and `writer` = latest row of each key |
 
 **Case event types** (`case_events.type`, visible to the customer when marked ✓): `case_opened` ✓ · `card_blocked` ✓ ·
 `block_verified` ✓ · `action_verified` (D-025) · `status_changed` ✓ · `handoff_emitted` · `assigned` ✓ (a person took
