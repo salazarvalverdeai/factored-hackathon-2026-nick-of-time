@@ -103,8 +103,8 @@ export type BenchmarkArm = {
   status: string;
   unavailable_reason: string | null;
   price: { label: string; input_per_1m_usd: number | null; output_per_1m_usd: number | null; source: string; date: string };
-  macro_f1: Record<string, number | null>;
-  macro_f1_ci: Record<string, Interval>;
+  macro_f1: Record<string, number | null> | null;
+  macro_f1_ci: Record<string, Interval> | null;
   dispute_recall: Rate;
   human_request_recall: Rate;
   slot_accuracy: Rate;
@@ -157,6 +157,13 @@ export function classifierRunNote(d: Pick<ClassifierData, "run" | "test_review" 
   const parts = [d.protocol?.status === "SEALED" ? "Sealed test result" : "Test result"];
   if (d.test_review === "rules-v1") parts.push("test split decided by fixed rules (rules-v1), not by a person");
   if (d.chosen_arm && d.arms.length > 0 && d.arms.every((a) => a.meets_floors === false)) parts.push(`no arm meets the floors; ${d.chosen_arm} kept`);
+  return parts.join(" · ") + ".";
+}
+/** A sealed result of the benchmark (B1, test split) or the fraud model (test window): same note as the classifier's. */
+export function sealedRunNote(d: { protocol?: { status?: string; test_review?: string }; split?: string; scored_window?: string }): string | null {
+  if (d.split !== "test" && d.scored_window !== "test") return null;
+  const parts = [d.protocol?.status === "SEALED" ? "Sealed test result" : "Test result"];
+  if (d.protocol?.test_review === "rules-v1") parts.push("test split decided by fixed rules (rules-v1), not by a person");
   return parts.join(" · ") + ".";
 }
 export type ClassifierData = {
@@ -212,9 +219,9 @@ export type CostQualityPoint = { arm: string; cost: number; quality: number; ci:
 export function costQualityPoints(data: BenchmarkData, language: string): CostQualityPoint[] {
   const chosen = data.model_map.understand?.chosen;
   return data.b1.arms.flatMap((a) => {
-    const quality = a.macro_f1[language];
+    const quality = a.macro_f1?.[language];
     if (a.status !== "ok" || a.cost_per_1000_usd === null || quality === null || quality === undefined) return [];
-    return [{ arm: a.arm, cost: a.cost_per_1000_usd, quality, ci: a.macro_f1_ci[language], pareto: a.pareto === true, chosen: a.arm === chosen, row: a }];
+    return [{ arm: a.arm, cost: a.cost_per_1000_usd, quality, ci: a.macro_f1_ci?.[language] ?? [null, null], pareto: a.pareto === true, chosen: a.arm === chosen, row: a }];
   });
 }
 
