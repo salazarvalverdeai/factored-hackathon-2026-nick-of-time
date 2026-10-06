@@ -31,6 +31,10 @@ export interface ApiOptions {
   delayMs?: number;
 }
 
+function noVoice(): never {
+  throw new ApiError("UNAVAILABLE", 501, "Voice needs the live api.");
+}
+
 function noDemo(): never {
   throw new ApiError("UNAVAILABLE", 501, "Demo sessions by scenario need the live api.");
 }
@@ -56,6 +60,7 @@ export function createApi(store: MockStore, options: ApiOptions = {}) {
     listScenarios: (): Promise<never[]> => noDemo(),
     listRecentTransactions: (): Promise<never[]> => noDemo(),
     registerTestCharge: (): Promise<never> => noDemo(),
+    transcribe: (): Promise<never> => noVoice(),
     suggestPersona: (): Promise<never> => noDemo(),
     requestOtp: (customerId: string): Promise<string> => call(() => store.requestOtp(customerId)),
     verifyOtp: (otp: string): Promise<CustomerSession> => call(() => store.verifyOtp(otp)),

@@ -330,9 +330,10 @@ export function createLiveApi(options: LiveOptions = {}): ApiClient {
     commit({ customerSession: stored.customer ? sessionOf(stored.customer) : null });
   }
 
-  async function send(path: string, opts: { method?: string; body?: unknown; analyst?: boolean } = {}): Promise<Response> {
+  async function send(path: string, opts: { method?: string; body?: unknown; analyst?: boolean; raw?: { blob: Blob; contentType: string } } = {}): Promise<Response> {
     const headers: Record<string, string> = { Accept: "application/json" };
-    if (opts.body !== undefined) headers["Content-Type"] = "application/json";
+    if (opts.raw) headers["Content-Type"] = opts.raw.contentType;
+    else if (opts.body !== undefined) headers["Content-Type"] = "application/json";
     if (opts.analyst) {
       if (!stored.analyst) throw new ApiError("UNAUTHORIZED", 401, "Sign in first.");
       headers.Authorization = `Bearer ${stored.analyst.token}`;
@@ -343,7 +344,7 @@ export function createLiveApi(options: LiveOptions = {}): ApiClient {
         method: opts.method ?? "GET",
         headers,
         credentials: "same-origin",
-        ...(opts.body !== undefined ? { body: JSON.stringify(opts.body) } : {}),
+        ...(opts.raw ? { body: opts.raw.blob } : opts.body !== undefined ? { body: JSON.stringify(opts.body) } : {}),
       });
     } catch {
       throw new ApiError("UNAVAILABLE", 0, "Cannot reach the server. Check your connection and try again.");
@@ -444,6 +445,11 @@ export function createLiveApi(options: LiveOptions = {}): ApiClient {
       });
       commit({}); // the chip list reads again and shows the new charge first
       return out;
+    },
+
+    async transcribe(clip: Blob, contentType: string): Promise<{ text: string; language: string }> {
+      verifiedSessionId(); // the route needs the session cookie; an expired session says so
+      return (await send("/api/voice/transcribe", { method: "POST", raw: { blob: clip, contentType } })).json();
     },
 
     async suggestPersona(character: PersonaCharacter, transactionId?: string): Promise<PersonaDraft> {
