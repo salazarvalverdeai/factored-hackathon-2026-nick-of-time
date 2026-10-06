@@ -10,10 +10,8 @@ import { Operations } from "./operations";
 export default function Page() {
   return (
     <PageShell title="Analytics" description="The problem in numbers, score zones, business case and operation.">
-      <p className="mb-4 rounded-lg border border-dashed px-4 py-3 text-sm text-muted-foreground">
-        Synthetic dataset. The first charts describe the problem and the reason for each design decision; they do not measure
-        the system (see Evaluation). Hover over a chart, or move to it with the Tab key, to see the detail behind each
-        value.
+      <p className="mb-6 text-sm text-muted-foreground">
+        The problem in the synthetic dataset and why each design decision; hover a mark or reach it with Tab for its detail.
       </p>
       <PitchCharts data={pitch.data as PitchNumbers} />
       <p className="mt-4 font-mono text-xs text-muted-foreground">
@@ -25,10 +23,12 @@ export default function Page() {
         {ops.source} · generated {ops.generated_at.slice(0, 10)} at {ops.git_sha}
       </p>
       {/* spec 12: where the problem numbers come from. A block of its own at the end of the page. */}
-      <section aria-label="How it's built" className="mt-4 rounded-lg border bg-card p-5 text-card-foreground">
+      <section aria-label="How it's built" className="mt-12 rounded-lg border bg-card p-6 text-card-foreground">
         <h2 className="text-base font-semibold">How it&apos;s built</h2>
-        <p className="mt-0.5 mb-4 text-sm text-muted-foreground">Where the problem numbers above come from: every figure is a committed query output, never typed.</p>
-        <PipelineDiagram label="How the problem numbers are built" steps={ANALYTICS_STEPS} />
+        <div className="mt-4">
+          <PipelineDiagram label="How the problem numbers are built" steps={ANALYTICS_STEPS} />
+        </div>
+        <p className="mt-5 text-sm text-muted-foreground">Every figure above is a committed query output, never typed.</p>
       </section>
     </PageShell>
   );

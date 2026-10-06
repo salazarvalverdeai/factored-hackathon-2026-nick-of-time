@@ -2,6 +2,8 @@
 
 // The "Operation" section of /analytics (spec 12 T6, AC-02; spec 14 §11): a three-position switch over ops_kpis.json.
 // Every bar shows its detail on hover and on keyboard focus, and every chart has a table view with the same values.
+// Motion kit: the cards rise in sequence, the monthly columns grow once, and the switch crossfades the charts while the
+// columns move to the other series' heights (nothing remounts, so an open table or the keyboard focus stays).
 import Link from "next/link";
 import { useRef, useState } from "react";
 import type { KeyboardEvent } from "react";
@@ -12,9 +14,13 @@ import {
   type Chart, type Detail, type OpsSeries, type Position,
 } from "@/lib/ops";
 import { FOCUS, PALETTE, TableView, TipBody, useTip } from "./charts";
+import { CountText, Crossfade, GrowBar, Stagger } from "@/components/motion";
+import { fitStep } from "@/lib/motion";
 
 const COLOR: Record<string, string> = { bank_today: "var(--series-1)", replay: "var(--series-2)" };
 const fmt = (chart: Chart, v: number | null) => (chart.metric.kind === "rate" ? pct(v) : daysText(chart.metric.id, v));
+/** The one line under a chart: the first sentence of its note; the whole note is in the detail panel's method. */
+const firstSentence = (text: string) => text.split(/(?<=\.)\s+/)[0];
 const monthName = (m: string) =>
   new Date(`${m}-15T00:00:00Z`).toLocaleDateString("en-US", { month: "short", year: "numeric", timeZone: "UTC" });
 
@@ -65,11 +71,11 @@ function MetricChart({ chart, color, other, tag, onDetail }: {
   const months = `${chart.points.length} months`;
   const context = chart.metric.role === "context";
   return (
-    <figure className={`min-w-0 rounded-lg border p-5 text-card-foreground ${context ? "border-dashed bg-card/60" : "bg-card"}`}>
+    <figure className={`min-w-0 rounded-lg border p-6 text-card-foreground ${context ? "border-dashed bg-card/60" : "bg-card"}`}>
       <p className="text-[11px] font-medium tracking-wide text-muted-foreground uppercase">{tag}</p>
       <h3 className="mt-1 text-base font-semibold">{chart.title}</h3>
       <p className="mt-2 flex flex-wrap items-baseline gap-x-2">
-        <span className="text-3xl font-semibold tracking-tight tabular-nums">{fmt(chart, chart.total.value)}</span>
+        <CountText className="text-3xl font-semibold tracking-tight tabular-nums" text={fmt(chart, chart.total.value)} />
         <span className="font-mono text-xs text-muted-foreground">{chart.label}</span>
       </p>
       {chart.metric.id === "days_to_receipt" && fmt(chart, chart.total.value) === SAME_CONTACT ? (
@@ -81,13 +87,15 @@ function MetricChart({ chart, color, other, tag, onDetail }: {
         {other ? <span className="font-mono">{other.label}</span> : null}
       </p>
       <div className="mt-4 flex h-24 items-end gap-1 border-b" aria-label={`${chart.title} per month`} role="group">
-        {chart.points.map((p) => (
-          <div
+        {chart.points.map((p, i) => (
+          <GrowBar
             key={p.month}
+            axis="y"
+            delay={i * fitStep(chart.points.length, 50, 500)}
             tabIndex={0}
             role="img"
             aria-label={`${monthName(p.month)}: ${fmt(chart, p.value)}`}
-            className={`min-w-0 flex-1 rounded-t-[2px] transition hover:brightness-110 ${FOCUS}`}
+            className={`min-w-0 flex-1 rounded-t-[2px] transition-[height,background-color,filter] duration-500 ease-out hover:brightness-110 motion-reduce:transition-none ${FOCUS}`}
             style={{
               height: p.value === null ? "100%" : `${Math.max(1.5, (p.value / chart.scaleMax) * 100)}%`,
               background: p.value === null ? "transparent" : color,
@@ -101,8 +109,8 @@ function MetricChart({ chart, color, other, tag, onDetail }: {
         <span>{monthName(chart.points[0]?.month ?? "")}</span>
         <span>{monthName(chart.points.at(-1)?.month ?? "")}</span>
       </div>
-      <p className="mt-3 text-sm">
-        {chart.note}{" "}
+      <p className="mt-4 text-sm">
+        {firstSentence(chart.note)}{" "}
         <button type="button" onClick={onDetail} className={`${LINK} rounded-sm`}>
           Detail →
         </button>
@@ -159,14 +167,9 @@ export function Operations({ file }: { file: { data?: { series?: OpsSeries } } |
         </>
       ) : (
         <>
-          <p className="mt-3 font-mono text-xs break-words text-muted-foreground">
-            {state.series.source} · {state.series.window.join(" to ")}
-          </p>
-          <h3 className="mt-5 text-sm font-semibold">Compared with the other series</h3>
-          <p className="mt-0.5 max-w-3xl text-sm text-muted-foreground">
-            Only these two figures are set side by side, each with its own definition.
-          </p>
-          <div className="mt-3 grid gap-4 md:grid-cols-2">
+          <Crossfade id={position}>
+          <h3 className="mt-6 text-sm font-semibold">Compared with the other series</h3>
+          <Stagger className="mt-3 grid gap-4 md:grid-cols-2" step={90}>
             {state.charts.filter((c) => c.metric.role === "comparison").map((chart) => {
               const match = twin.kind === "ready" ? twin.charts.find((c) => c.metric.id === chart.metric.id) : undefined;
               const other = match && twin.kind === "ready"
@@ -178,19 +181,20 @@ export function Operations({ file }: { file: { data?: { series?: OpsSeries } } |
                              onDetail={() => setDetail(chartDetail(chart, state.series))} />
               );
             })}
-          </div>
+          </Stagger>
           <h3 className="mt-8 text-sm font-semibold">Context for {state.series.name} only</h3>
-          <p className="mt-0.5 max-w-3xl text-sm text-muted-foreground">
-            These figures are defined differently in each series, so they are never compared: read each one with its own
-            definition.
-          </p>
-          <div className="mt-3 grid gap-4 md:grid-cols-2">
+          <p className="mt-0.5 max-w-3xl text-sm text-muted-foreground">Defined differently in each series, so never compared.</p>
+          <Stagger className="mt-3 grid gap-4 md:grid-cols-2" step={90}>
             {state.charts.filter((c) => c.metric.role === "context").map((chart) => (
               <MetricChart key={chart.metric.id} chart={chart} color={COLOR[position]} other={null}
                            tag={`Context · ${state.series.name} only`}
                            onDetail={() => setDetail(chartDetail(chart, state.series))} />
             ))}
-          </div>
+          </Stagger>
+          <p className="mt-6 font-mono text-xs break-words text-muted-foreground">
+            {state.series.source} · {state.series.window.join(" to ")}
+          </p>
+          </Crossfade>
         </>
       )}
       <DetailPanel

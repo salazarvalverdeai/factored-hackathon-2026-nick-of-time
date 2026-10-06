@@ -3,8 +3,9 @@ import { test } from "node:test";
 import { contentTypeOf, encodeWav16k, isSilent, onlineVoiceOnly, pickMime, pickVoice, rms, speakable, voiceErrorMessage, VOICE_COPY } from "./voice.ts";
 
 test("spec 07 AC-10: recording format order is webm/opus, ogg/opus, then in-page WAV", () => {
-  assert.equal(pickMime(() => true, true), "audio/webm;codecs=opus");
-  assert.equal(pickMime((t) => t.startsWith("audio/ogg"), true), "audio/ogg;codecs=opus");
+  assert.equal(pickMime(() => true, true), "wav"); // Voxtral accepts WAV only: the in-page encoder comes first
+  assert.equal(pickMime(() => true, false), "audio/webm;codecs=opus");
+  assert.equal(pickMime((t) => t.startsWith("audio/ogg"), false), "audio/ogg;codecs=opus");
   assert.equal(pickMime(() => false, true), "wav");
   assert.equal(pickMime(null, true), "wav");
   assert.equal(pickMime(null, false), null);
@@ -70,4 +71,16 @@ test("spec 07 §8.4: the toggle notes an online voice only when no local voice e
   assert.equal(onlineVoiceOnly([online], "es"), true);
   assert.equal(onlineVoiceOnly([online], "pt"), false, "no voice at all is not an online voice");
   assert.equal(onlineVoiceOnly([], "pt"), false);
+});
+
+test("spec 07 AC-10: a novelty macOS voice is never picked; a natural one wins over a plain one", () => {
+  const voices = [
+    { name: "Eddy (Spanish (Mexico))", lang: "es-MX", localService: true },
+    { name: "Grandma (Spanish (Mexico))", lang: "es-MX", localService: true },
+    { name: "Paulina", lang: "es-MX", localService: true },
+  ];
+  assert.equal(pickVoice(voices, "es")?.name, "Paulina");
+  assert.equal(pickVoice([voices[0], voices[1]], "es"), null);
+  const pt = [{ name: "Rocko (Portuguese (Brazil))", lang: "pt-BR", localService: true }, { name: "Luciana", lang: "pt-BR", localService: true }];
+  assert.equal(pickVoice(pt, "pt")?.name, "Luciana");
 });
