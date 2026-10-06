@@ -78,6 +78,19 @@ def price(cfg: ArmConfig) -> dict | None:
     return {"input_per_1m": row["input_per_1m"], "output_per_1m": row["output_per_1m"]}
 
 
+VOXTRAL_MINI, VOXTRAL_SMALL = "mistral.voxtral-mini-3b-2507", "mistral.voxtral-small-24b-2507"   # D-072, in-region
+STT_PRICE_ROWS = {VOXTRAL_MINI: "voxtral-mini-3b", VOXTRAL_SMALL: "voxtral-small-24b"}
+
+
+def stt(env: Mapping[str, str] | None = None) -> tuple[ArmConfig, dict | None]:
+    """Voice speech-to-text (D-072, spec 05 AC-24): `BEDROCK_MODEL_STT` (default Voxtral Mini) on `LLM_PROVIDER`, and
+    its prices.yaml row (None when unpriced: the caller fails closed, D-058). Only `bedrock` transcribes."""
+    env = os.environ if env is None else env
+    cfg = ArmConfig("STT", env.get("LLM_PROVIDER") or "fake", env.get("BEDROCK_MODEL_STT") or VOXTRAL_MINI)
+    row = yaml.safe_load((bench_dir() / "prices.yaml").read_text())["prices"].get(STT_PRICE_ROWS.get(cfg.model, ""))
+    return cfg, ({"input_per_1m": row["input_per_1m"], "output_per_1m": row["output_per_1m"]} if row else None)
+
+
 def check_prices(env: Mapping[str, str] | None = None) -> None:
     """D-058: with `LLM_PROVIDER=bedrock` (production), arms S1 and S2 must have a price, else ValueError. CI calls it
     so a missing default price fails the build; the graph only logs it at load and runs those turns as S0, so S0 and
