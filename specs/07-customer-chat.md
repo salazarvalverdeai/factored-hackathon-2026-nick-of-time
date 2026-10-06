@@ -55,7 +55,7 @@ AC-01 to AC-05 are copied from issue #9 with the same numbers. None is dropped o
   the customer sends like typed text (never sent on its own); with the read-aloud toggle on, each agent reply shall be
   spoken with the browser's `speechSynthesis` in the session language. A 413, 415 or 503 shall show the api's calm
   message and keep typing available; with no microphone, no permission or no `speechSynthesis`, the chat works as
-  today. · [U] · [T] (to add with the web work)
+  today. · [U] · [T] `lib/voice.test.ts`, `lib/live.test.ts` ("spec 07 AC-10: …")
 - AC-11 — While a turn runs, the chat shall show each `tool` event of spec 01 §6.4.1 as a checklist row in its state
   (running, done, failed) with the cards built from tool results (charge, verdict, deadline, case) and each action's
   state; a call with no result when the turn ends shall show as failed, and an action shall show as verified only with
@@ -91,7 +91,8 @@ AC-01 to AC-05 are copied from issue #9 with the same numbers. None is dropped o
      ending {last4}".
   7. demo type C (DEMOCD, only when the session's `mode` is `live`): a "register a test charge" form (amount in the
      country's currency, merchant) that posts `POST /api/sessions/{id}/synthetic-charge` (spec 05 AC-19); the answer
-     and its chip carry the `[simulated]` label, and the chip list is re-read so the charge shows first. A 429 shows
+     and its chip say "test charge" in plain words (AC-14: no bracket label on a customer screen; the api's answer
+     keeps its `label` field), and the chip list is re-read so the charge shows first. A 429 shows
      "one test charge per minute"; a 403 hides the form (a replay session).
   8. demo type D (DEMOCD): six character chips (aggressive, passive, terse, verbose, confused, code-switching ES/PT)
      that post `POST /api/demo/persona {character, transaction_id?}` (spec 05 AC-20; the chosen transaction chip, else
@@ -99,7 +100,22 @@ AC-01 to AC-05 are copied from issue #9 with the same numbers. None is dropped o
      draft is labeled "suggested" (`source: "llm"`, or "template" when the model was not used).
   The agent greets with the typed name, else the gold name, from `get_customer_profile`. Each session starts clean.
   Telegram and e-mail are off in a demo session (the link routes answer 403): the case page and the in-app log show
-  every update.
+  every update. Every live-api session is a demo run (ADR 0026), so in live mode the case page does not offer the
+  channel links and says that the page and its notifications show every update.
+- Decided (lead, 2026-10-05, integration of #192/#193):
+  1. **Test charge path:** the start screen asks what to dispute: "a charge from the scenario" (no `mode` sent: the
+     api's default, `replay` since #188) or "a test charge I register", which sends `mode: "live"` so demo type C
+     (item 7) is reachable. · [T] `lib/live.test.ts` ("spec 07 AC-01 §8.7: only the test-charge path …")
+  2. **Example-customer picker (D-084 (a)):** in live mode the start screen offers "Start by scenario" (default) and
+     "Pick an example customer", the `GET /api/demo/customers` picker of AC-01, so AC-01 holds as written.
+  3. **Web greeting name:** the typed name, else the picked scenario's `customer_name` (display only, never sent),
+     else no name for "assign me one": "Hola. Soy…", never a placeholder. · [T] `lib/chat-view.test.ts`,
+     `lib/live.test.ts` ("spec 07 AC-07: …")
+  4. **No bracket tags on the identity step (lead decision 5):** one plain line above it, "Demo con datos sintéticos
+     del hackathon: elige un cliente de ejemplo." (PT "Demo com dados sintéticos do hackathon: escolha um cliente de
+     exemplo."); the step title "1 · ¿Quién eres?" (PT "1 · Quem é você?"); the code line "Tu código es {otp}. En un
+     banco real llegaría por SMS." (PT "Seu código é {otp}. Em um banco real, chegaria por SMS."). The language is
+     the one chosen on the start screen, else the picked customer's, else ES (plan §5). · [T] `lib/demo.test.ts`
 - Decided (lead, D-072, 2026-10-05; ADR 0029): voice for live mode, built by the web owner on spec 05 AC-24.
   1. **Mic button and push-to-talk:** hold (pointer or Space while focused) to record, release to send; a tap toggles
      for touch users. Recording stops at 30 s. `MediaRecorder` with `audio/webm;codecs=opus` (Chrome, Firefox,
@@ -125,6 +141,12 @@ AC-01 to AC-05 are copied from issue #9 with the same numbers. None is dropped o
      color (icon and text); keyboard push-to-talk works; read-aloud respects the mute toggle and is never the only
      channel (every reply stays on screen). Without mic permission the button explains how to enable it and typing
      stays the default.
+  6. **Web notes (`app/chat/voice.tsx`, `lib/voice.ts`):** a 413, 415 or 503 shows the api's own ES/PT message;
+     the page's copy is only the fallback when that message is empty. Voice shows only in live mode (the mock answers
+     501). A press longer than 0.4 s sends on release; a shorter tap records until the next tap. The `AudioContext`
+     is created inside the press and resumed after the permission prompt (Safari starts it suspended, which would make
+     every clip look silent); a second press while the prompt is open starts nothing, and a release before the
+     microphone is ready cancels quietly. The read-aloud toggle has one fixed label with `aria-pressed`.
 - Open question: the receipt deadline line uses `status.credit_deadline` until the stub returns `source_url` and
   `verified_on` (ADR 0019); then it uses `receipt.credit_deadline`.
 
@@ -136,18 +158,24 @@ AC-01 to AC-05 are copied from issue #9 with the same numbers. None is dropped o
 - [x] Task 1 — OTP picker, chat, receipt widget, trace panel · covers AC-01 to AC-04 · done when: browser walk-through passes
 - [x] Task 2 — mobile layout at 390 px · covers AC-05 · done when: no horizontal scroll
 - [x] Task 3 — confirm-first flow and session-only identity · covers AC-06 · done when: the two tests pass
-- [ ] Task 4 — call the live agent proxy (`/api/agent/...`, spec 05 M05) · covers AC-01 to AC-04 · done when: same flow on the public URL
-- [ ] Task 5 — demo-mode start screen (D-068, the contract in §8) · covers AC-01 · done when: a visitor opens a demo
-  session by scenario and picks a recent transaction on the public URL
-
+- [x] Task 4 — call the live agent proxy (`/api/agent/...`, spec 05 M05) · covers AC-01 to AC-04 · done when: same flow on the public URL (shipped with the live mode, PR #168; checked here against a local backend)
+- [ ] Task 5 — demo-mode start screen (D-068, the contract in §8; `app/chat/demo-start.tsx`, `demo-tools.tsx`, tests in `lib/demo.test.ts` and `lib/live.test.ts`) · covers AC-01 · done when: a visitor opens a demo
+  session by scenario and picks a recent transaction on the public URL (code and tests in place; the public-URL check
+  follows the deploy)
 - [x] Task 6 — production walkthrough fixes (2026-10-05): one greeting with the gold name, line breaks kept, trace
   filled on live turns with named guardrails · covers AC-07 to AC-09 · done when: the tests citing them pass
 - [ ] Task 7 — voice (D-072, the contract in §8): mic, push-to-talk, draft, read-aloud and mute · covers AC-10 · done
-  when: a visitor speaks a claim in ES and in PT on the public URL and hears the reply
+  when: a visitor speaks a claim in ES and in PT on the public URL and hears the reply (code and tests in place; the
+  public-URL check follows the deploy)
 - [x] Task 8 — agentic chat, stage 1 (ADR 0030, plan of 2026-10-05): AI Elements (`conversation`, `suggestion`,
   `sources`, `task`, restyled to BRAND.md) with live tool steps, cards, streaming markdown, the receipt with its
   verified seal and named sources, chips as pills and the shared right panel; a mock stream in the exact §6.4.1 shapes
   (`lib/mock/stream.ts`) so it works with no backend · covers AC-11 to AC-15 · done when: the tests citing them pass
+
+**Task 5 notes.** The web never sends a `customer_id`; the session id (equal to the httpOnly cookie value) is kept in
+`sessionStorage` to address `/api/sessions/{id}/...`. Charge-chip text is local ES/PT copy built from tool-returned
+fields only (`lib/demo.ts`). Amounts use a dot decimal. The mock client has no demo flow (501): demo sessions need the
+live API. The persona draft goes into the composer, labeled "suggested", and is never sent on its own.
 
 **Closing checklist** (last PR): every AC has a passing test or check that cites it · status → Implemented · ADR for
 any decision taken · lessons added to `CLAUDE.md`.
