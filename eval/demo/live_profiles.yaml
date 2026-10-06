@@ -30,7 +30,7 @@ transaction: {status: Approved, channels: [POS, Web, App]}
 
 customers:                         # the six demo customers of customers.json and what the generator gives each
   CLI-Y0L7FZFOF0AZ: {zones: [high], product_type: debit}                 # normal: MX debit, credit by business day 2
-  CLI-D5US5Q686CIL: {zones: [medium], product_type: credit}              # normal: confirms first
+  CLI-CH2VHQO8WJHX: {zones: [medium], product_type: credit}              # normal: confirms first
   CLI-S3L7P0DXIYV7: {zones: [human, medium, human]}                      # ambiguous: three charges in the same days
   CLI-YSL35Q5OYTAJ: {zones: [human, human], product_type: debit}         # ambiguous, Portuguese
   CLI-52TJRRO5YA9F: {zones: [human], null_score: always, product_type: credit}   # requires a human: no score
