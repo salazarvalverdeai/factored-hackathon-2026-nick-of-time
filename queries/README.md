@@ -33,3 +33,10 @@ The EDA queries are in `docs/eda/queries/`, where the documents reference them.
 | Query | Output CSV | What it holds |
 |---|---|---|
 | `demo_index.sql` | `eval/demo_index.csv` | approved card transactions per country × zone × split, 2026-03-03 to 2026-05-31 `[data]` (spec 09 §7.2); `python -m eval.demo_index` runs it on this repo's gold |
+
+## `data/`: dataset limits
+| Query | Output CSV | What it holds |
+|---|---|---|
+| `d01_complaint_transaction_link.sql` | `d01_complaint_transaction_link.csv` | whether a disputed-charge (W3) complaint can be linked to a card transaction of the same customer in the 30 days before it, and whether its claimed amount matches one within ±2% `[data]`; shown as the "Dataset limitations" card of `/data` |
+
+`python queries/data/run.py --gold PATH` runs every `queries/data/*.sql` on a gold folder (read-only) and rewrites the CSVs; `python -m data.pipeline report --json` copies the CSV into `data_quality.json`.

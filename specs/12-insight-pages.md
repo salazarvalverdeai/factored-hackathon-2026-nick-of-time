@@ -91,7 +91,9 @@ the empty state of AC-04 until the real files arrive.
 `data`: `label`, `layers` (bronze, silver, gold: tables, rows, bytes; silver has no size, it is not measured), `gold_rules` (G1–G5 with value and result, from
 `data/gold/manifest.json`), `checks` (name, rows affected, action taken, from `data/quality_report.md` §3),
 `manifest` (version, pipeline version, contract version, run date) and `late_arrival` (rows added, column added and
-checks re-run between `delivery_1` and `delivery_2` of the fixture). Built by a new `--json` output of `python -m data.pipeline report`.
+checks re-run between `delivery_1` and `delivery_2` of the fixture) and `complaint_link` (`query` and `rows` of metric, numerator,
+denominator: the committed output of `queries/data/d01_complaint_transaction_link.sql`, or null). Built by a new
+`--json` output of `python -m data.pipeline report` (`--data-dir` reads another checkout's run results, read-only).
 
 ### 7.3 What each page shows
 - **`/evaluation`** — (1) a run header: set, cases, runs per case, arms, case-file hash, protocol status; (2) one row
@@ -101,8 +103,11 @@ checks re-run between `delivery_1` and `delivery_2` of the fixture). Built by a 
   arm and language; (7) the fraud model against the bank's score.
 - **`/analytics`** — the four charts of PR #72 (share of complaints, complaint contacts against the bank, precision
   and recall by score threshold, labeled frauds by zone) and, when spec 14 delivers, the operational KPIs per day.
-- **`/data`** — the three layers with their counts, the gold rules, the checks with counts, the manifest versions and
-  the late-arrival result.
+- **`/data`** — the medallion drawn as a flow (source CSV files → bronze → silver → gold → what reads gold), each
+  layer focusable with its tables and rows in a tooltip and a table view; the gold rules, the checks with counts, the
+  manifest versions and the late-arrival result; the operational lakehouse of spec 14 ("Pending" until
+  `ops_kpis.json` is exported to the site); the dataset limitations in plain sentences, each figure `[data]`. The
+  system architecture is not drawn here; the page links to `/agent`.
 
 ## 8. Assumptions and open questions (gate 1 — to close in this PR)
 - **Q1 (@salazarvalverdeai) — shapes.** **Answered:** specs 11, 15 and 17 each fix the `data` shape of their file in
@@ -139,6 +144,9 @@ Implementation goes in `feat/12-…` branches once this spec is approved.
       (sealed sample under `app/evaluation/__fixtures__/`)
 - [x] T9 — readability of `/evaluation`: charts for every headline and per-arm comparison, plain explanations with
       "Detail" links, the Limitations block · covers AC-11 · [T] `apps/web/lib/evaluation.test.ts`
+- [x] T10 — `/data` finished: medallion diagram on the shared `components/pipeline-diagram.tsx`, the cards with
+      "Detail" links, the operational lakehouse card and the dataset limitations · covers AC-03, AC-07, AC-09, AC-11 ·
+      [T] `apps/web/lib/pipelines.test.ts`, `tests/test_spec12_data_quality.py`
 - [ ] T6 — operational KPIs on `/analytics` · covers AC-02 · needs spec 14
 - [ ] T7 — screenshots on the public URL, both themes and 390 px · covers AC-01, AC-03, AC-09 (2026-10-05:
       `docs/assets/screenshots/spec12/` by `scripts/web/insight_screenshots.py` — the three pages at 1280 and 390 px in

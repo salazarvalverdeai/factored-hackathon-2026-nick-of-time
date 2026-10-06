@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+from pathlib import Path
 
 from data.pipeline.config import DATA_DIR, TABLES, Layout, setup_logging
 
@@ -18,6 +19,8 @@ def main() -> None:
     p_report = sub.add_parser("report", help="generates data/quality_report.md from the results")
     p_report.add_argument("--json", action="store_true",
                           help="write apps/web/public/data/data_quality.json for the /data page instead")
+    p_report.add_argument("--data-dir", type=Path, default=DATA_DIR,
+                          help="--json only: folder with gold/run_results.json and _fixture_run/ (read only)")
     args = parser.parse_args()
     setup_logging()
 
@@ -29,7 +32,7 @@ def main() -> None:
         run_fixture()
     elif args.cmd == "report":
         from data.pipeline.report import write_json, write_report
-        write_json() if args.json else write_report()
+        write_json(data_dir=args.data_dir) if args.json else write_report()
 
 
 if __name__ == "__main__":

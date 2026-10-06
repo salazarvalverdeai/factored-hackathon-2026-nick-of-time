@@ -1,0 +1,6 @@
+metric,numerator,denominator,pct
+w3_complaints_with_card_txn_30d,1633,7482,21.8
+w3_complainants_with_card_txn_30d,1612,7291,22.1
+other_complaints_with_card_txn_30d,2835,13163,21.5
+w3_claimed_amount_matches_card_txn_2pct,2,579,0.3
+w3_affected_product_of_other_customer,4962,4962,100.0
