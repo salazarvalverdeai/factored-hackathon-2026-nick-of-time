@@ -171,6 +171,14 @@ AC-01 to AC-08 come from issue #6 with the same numbers; the rest are added by t
   `understand` may call the read-only tools `list_recent_transactions`, `search_transaction` and `get_case_status` (at
   most 4 rounds) before `clarify`, and shall show the candidates as options instead of asking again; actions keep the
   `decide → plan → act → verify` path. · [T]
+- **AC-43** — *(D-087 (lead, 2026-10-06))* When the customer's last message has at least 2 words of ES or PT and more
+  than of the other (`detect_language`), the turn shall be in that language: reply, chips, progress labels, `tool`
+  step titles and summaries, and the receipt, with `TurnResult.language` set to it. A message that does not tell them
+  apart, or a chip press with no text, shall keep the last turn's language `[assumption]` (a session language changed
+  since then by the web's toggle wins), else the session's. A G-IN-03 message (English or another language) shall keep
+  today's answer: the session language plus English once. The session's `language` is never rewritten, and
+  notifications (Telegram, e-mail) keep it, so spec 13 is unchanged (spec 01 AC-06). · [T]
+  `tests/test_spec04_turn_language.py`
 
 ## 4. Functional requirements
 
@@ -311,16 +319,46 @@ The writer is the only LLM that words customer text. It runs inside `respond` wh
 It receives the turn's facts as delimited data (never `policies.yaml`, never the score, never policy ids) and returns
 the reply text and the chip choice. Notifications (Telegram, e-mail) stay templates.
 
-Style (ES and PT, the session language; `docs/brand/BRAND.md` voice: calm and precise):
-- warm, second person (`tú` / `você`), the customer's first name from `get_customer_profile`;
+Style (ES and PT, the turn's language, AC-43 / D-087 (lead, 2026-10-06); `docs/brand/BRAND.md` voice: calm and
+precise):
+- warm, second person (`tú` / `você`), the customer's first name from `get_customer_profile`; Spanish uses `tú` in
+  every country (MX, CO, AR: no voseo, no `usted`) and Portuguese uses `você` (D-086, lead, 2026-10-06);
 - 2–3 short sentences; a list only for a plan or options; one question at a time;
 - say what happened, what happens next and when (the deadline and its source come as a card, the text names it);
 - an action is told only in its state: in progress, requested, verified or not confirmed (constitution #4);
 - no score, zone number, policy id, internal id other than the case and verification ids a tool returned;
 - a refusal or an error in one sentence, then the next step; a person is always offered.
 
-Streaming: text without digits is released as it is written; a line with a digit is released when complete and
+Streaming: text without digits is released as it is written; a block with a digit is released when complete and
 grounded (spec 01 AC-10). Budget: the writer shares the per-day cap (G-OPS-01); past it the reply is the template.
+
+Implementation (task 04-writer, `nick_of_time.llm.writer`):
+- The writer gets the turn's gated template lines, numbered, and a `cards` field naming what the turn's cards show,
+  and writes each reply block as `[n,…] text`, naming the template lines it rewords; each block is one sentence or one
+  list item, with no markdown except plan lists (`**` and `__` are stripped); a last `[chips] id: label | …` line is
+  never shown. ES and PT few-shot examples with example-only ids set the tone; it states the case id and the main
+  deadline once and never lists verification ids, UTC times or links, which the cards show.
+- The gate works on **blocks**, not physical lines (fix of 2026-10-05, found with real Sonnet 4.6 on demo turns, where
+  a sentence split over lines lost its amount, case id and date): a tagged line opens a block, and the untagged lines
+  after it, up to the next tag, a blank line or the chips line, belong to it. A block's digit-free text streams as it
+  arrives; from its first digit (or link) on, the rest of the block is held until it is complete and passes the gate.
+- A block fails when it is ungrounded (`build.bad`), leaks (`build.never_send`) or loses a fact (retention): every
+  digit-bearing token (amount, date, id, last digits) of the template lines it names must appear in it verbatim,
+  except a plan step's own number and what the cards show (verification ids and their times, deadline sources, links,
+  verified-on dates). A failing block gives the template lines it named (G-OUT-01); a list item of a block that only
+  repeats a card's verification id, time or link is left out; untagged text outside a block is never released; a
+  template line no released block named is appended as it is, so no fact is lost. A block that streamed its
+  digit-free start and then fails is replaced by `turn.reply` on screen (spec 01 §6.4.1).
+- Its spend counts toward the daily cap only, not the conversation's S1 budget `[assumption]`; its usage row reaches
+  `llm_calls` with the other calls of the turn (AC-14). `llm_calls` has no `task` column: the writer's rows are the
+  ones with the S2 model id `[assumption]`.
+- The person chip AC-39 keeps is the row's (`talk_to_person` or `request_call`); rows where a call is already
+  registered (`connect_person`, `connect_person_case`, `block_held`, `confirm_call`) add none, as AC-20 and AC-30
+  say `[assumption]`. A chip label with a digit is dropped too.
+- `tool` events: `search_transaction` (charge cards; `done` after the card read gives `last4`), `evaluate_policy`
+  (the verdict of `decide`), `open_case` and `block_card` (`running` in `act`, `done` after `verify` reads them back,
+  with the action, case and deadline cards; `failed` when the tool refused), `request_call` and `get_case` (a status
+  question). Deadlines travel as `open_case` cards; no separate `compute_deadline` event `[assumption]`.
 
 ## 5. Non-functional requirements
 - **Latency:** p95 per turn ≤ 6 s with S1 `[assumption]`; first progress label within 1 s.

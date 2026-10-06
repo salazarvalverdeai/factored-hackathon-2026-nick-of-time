@@ -13,6 +13,7 @@ from tests.test_spec04_decide import NO_CASES, TRX, record, score, server
 from tests.test_spec04_graph import Chat, fake, intake, labels
 
 EV_0001 = "No reconozco un cargo de 1250 USD en TIENDA X"        # MX, debit, score 72 (high), replay
+EV_0001_PT = "Não reconheço uma cobrança de 1250 USD na TIENDA X"   # D-087: a PT reply needs a PT message
 DOWN = ToolError(code="UNAVAILABLE", message="down")
 
 
@@ -184,7 +185,7 @@ def test_ac_18_the_four_action_states_and_only_verified_carries_the_read_time():
                      "not_confirmed": "Bloqueo de la tarjeta: SIN CONFIRMAR. Una persona lo revisará."}
     pt = intake.msg.action_line("open_case", "not_confirmed", "pt")
     assert pt == "Abertura do caso: SEM CONFIRMAÇÃO. Uma pessoa vai revisar."
-    turn = Chat(mcp_transport=server(get_fraud_score=score(12.0))).say(EV_0001, language="pt")   # human zone, PT
+    turn = Chat(mcp_transport=server(get_fraud_score=score(12.0))).say(EV_0001_PT, language="pt")   # human zone, PT
     assert (turn.decision, turn.case_id) == ("handoff", "K-104233")
     assert [(a.tool, a.state) for a in turn.actions] == [("open_case", "verified")]      # never a block
     assert "Caso K-104233 aberto e verificado (verificação V-0C6A93F1B57D, 2026-06-01 15:04 UTC)." in turn.reply
@@ -269,7 +270,7 @@ def test_ac_04_ac_18_the_reply_answers_every_planned_action_in_exactly_one_state
 
 
 def test_ac_18_the_planned_steps_not_confirmed_are_said_in_portuguese():
-    turn = Chat(mcp_transport=server(open_case=DENY)).say(EV_0001, language="pt")
+    turn = Chat(mcp_transport=server(open_case=DENY)).say(EV_0001_PT, language="pt")
     lines = turn.reply.splitlines()
     assert lines[-2].startswith("Abertura do caso: SEM CONFIRMAÇÃO.") and lines[-1] == "Bloqueio do cartão: SEM CONFIRMAÇÃO."
     assert [(a.tool, a.state) for a in turn.actions] == [("open_case", "not_confirmed"), ("block_card", "not_confirmed")]

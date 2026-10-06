@@ -76,7 +76,9 @@ Copied from issue #3 (same numbers). Evidence: [T] test · [C] command · [U] sc
   `contracts/customer_receipt.schema.json`. · [T] `tests/test_spec01_graph_stub.py`
 - **AC-05** — The spec PR shall carry the approvals of all three team members. · [U] PR review list
 - **AC-06** — If a client sends a `session_id` or `customer_id` in a chat payload, then the api shall ignore it and use
-  only the server-side session. · [T]
+  only the server-side session. The session's `language` shall stay the default language of a turn and the language
+  of notifications, and no turn shall rewrite it; a turn may reply in the language of the customer's last ES or PT
+  message, given in `TurnResult.language` (D-087 (lead, 2026-10-06), spec 04 AC-43). · [T]
 - **AC-07** — When a session is created, its mode (`replay` or `live`) shall be stored and never change; every business
   date served for that session shall come from `clock.today(mode)`. · [T]
 - **AC-08** — While a session is in `live` mode, `search_transaction` shall also return the customer's rows of
@@ -85,9 +87,10 @@ Copied from issue #3 (same numbers). Evidence: [T] test · [C] command · [U] sc
 - **AC-09** — While a run streams, the api shall forward the graph's custom events only as `progress`, `tool` or
   `text` in the shapes of §6.4.1, and shall drop any other chunk; no event shall carry a score, a zone threshold, a
   `POL-…` id, a raw tool payload or a prompt. · [T]
-- **AC-10** — If the writer is `llm`, then a `text` chunk that completes a line holding a digit shall leave the api only
-  after that line passes the grounding check (spec 04 §4.3); the final `turn.reply` shall hold only released lines or
-  template lines. · [T]
+- **AC-10** — If the writer is `llm`, then text of a reply block (a tagged line and the lines that continue it, spec
+  04 §4.6) that holds a digit shall leave the api only after the whole block passes the grounding check (spec 04
+  §4.3); digit-free text may stream as written; the final `turn.reply` shall hold only released blocks or template
+  lines. · [T]
 - **AC-11** — The writer (`template | llm`) shall be read only from the server-side setting and injected as
   `configurable.writer`; a value sent by the client shall be ignored, and every change shall be audited with the
   analyst's user. · [T]
@@ -269,7 +272,7 @@ shape of `data` is fixed in the producing spec.
 ```json
 {
   "reply": "string — customer-facing, ES or PT",
-  "language": "es | pt",
+  "language": "es | pt — the turn's language (D-087): the customer's last ES or PT message, else the session's",
   "decision": "block_and_open_case | confirm | ask | handoff | answer_status | connect_person | deny | reauthenticate | escalate_unconfirmed_action | null",
   "zone": "high | medium | human | null",
   "intent": "unrecognized_charge | wrongful_charge | status_inquiry | human_request | out_of_scope | null",
@@ -327,7 +330,7 @@ render them. A chunk without `kind` is a `ProgressItem` (unchanged).
 
 - `step` is the tool or node: `search_transaction`, `list_recent_transactions`, `evaluate_policy`, `block_card`,
   `open_case`, `get_case`, `compute_deadline`, `request_call`, `get_case_status`. `title` and `summary` are customer
-  text in the session language from `messages.yaml tool.*`, never engine output.
+  text in the turn's language (D-087) from `messages.yaml tool.*`, never engine output.
 - `cards[]` (on `done` only), a union by `type`, built from tool results and nothing else:
   - `charge {transaction_id, date, amount, currency, merchant|null, last4, synthetic}`
   - `verdict {headline, actions[]}`: the policy outcome in customer words from `messages.yaml verdict.*`; no score,
@@ -336,9 +339,10 @@ render them. A chunk without `kind` is a `ProgressItem` (unchanged).
     `V-` id (constitution #4)
   - `deadline {kind, date|null, source_label, source_url|null}`
   - `case {case_id, status}`
-- `TextChunk.delta` is customer-visible text of the reply being written. When the writer is `llm`, a line that holds a
-  digit is held until it is complete and passes the grounding check; a line that fails is never released, the final
-  `turn.reply` carries the template line instead, and G-OUT-01 is logged. The web renders the streamed text and then
+- `TextChunk.delta` is customer-visible text of the reply being written. When the writer is `llm`, a reply block (spec 04
+  §4.6) streams its digit-free text as written, and from its first digit on is held until it is complete and passes
+  the grounding check; a block that fails is never released past that point, the final `turn.reply` carries the
+  template lines instead, and G-OUT-01 is logged. The web renders the streamed text and then
   replaces it with `turn.reply` when the two differ.
 - `configurable.writer` (`template | llm`) comes from the console setting `writer`, like `supervised_mode`
   (`/api/console/settings`); the client never sets it (AC-11).

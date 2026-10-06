@@ -24,7 +24,7 @@ import logging
 import os
 import re
 import uuid
-from datetime import timezone
+from datetime import date, timezone
 from typing import Annotated, Any, Optional, TypedDict
 
 from fastmcp import Client
@@ -39,9 +39,12 @@ from nick_of_time import receipt as msg
 from nick_of_time.config import check_prices, now, resolve, today
 from nick_of_time.llm import steps as arms
 from nick_of_time.contracts import ProgressItem, TurnResult
+from nick_of_time.events import TextChunk, ToolEvent
 from nick_of_time.ids import new_id
+from nick_of_time.llm import writer as wording
 from nick_of_time.receipt import build
 from nick_of_time.nlu import load_nlu
+from nick_of_time.nlu.rules import detect_language
 from nick_of_time.nlu.text import fold
 from nick_of_time.policy import DecisionInput, PolicyDecision, PolicyEngine
 
@@ -131,7 +134,8 @@ class Internal(TypedDict, total=False):     # spec 04 §4.1 fields outside TurnR
     branch: str
     body: list[str]
     row: Optional[str]                      # §4.5 row of this turn's chips
-    language_last: Optional[str]            # the thread's language, kept when a request sends language null
+    language_last: Optional[str]            # the last turn's language (D-087), kept when a request sends language null
+    session_language: Optional[str]         # the session language the last turn saw (D-087: a toggle wins over language_last)
     answer: Optional[dict[str, Any]]        # this turn's answer to a confirm question or an option card (task 04b)
     candidates: list[dict[str, Any]]        # search_transaction's last candidates
     selected_transaction: Optional[dict[str, Any]]   # the one candidate, with product_type and last4 of its card
@@ -180,6 +184,38 @@ def progress(state: State, key: str) -> None:
                        at=now()).model_dump(mode="json"))
 
 
+def tool_event(state: State, step: str, status: str, summary: Optional[str] = None,
+               cards: Optional[list[dict[str, Any]]] = None) -> None:
+    """Spec 04 AC-38 (spec 01 §6.4.1, ADR 0030): one `tool` event of the turn's `step` on the custom stream, `running`
+    when the call starts, then one `done` or `failed` with the same id. Title and summary are `messages.yaml tool.*`
+    text; `cards` are built by the caller from tool results only. In every writer mode; nothing outside a run."""
+    try:
+        write = get_stream_writer()
+    except RuntimeError:
+        return
+    language = (state.get("language") or state.get("language_last") or (state.get("profile") or {}).get("language")
+                or "es")
+    event = ToolEvent(id=f"{state.get('trace_id') or 'run'}:{step}", step=step, status=status,
+                      title=msg.text(f"tool.{step}.title", language), at=now(), cards=cards or [],
+                      summary=msg.text(f"tool.{step}.{summary}", language) if summary else None)
+    write(event.model_dump(mode="json"))
+
+
+def charge_card(trx: dict[str, Any]) -> dict[str, Any]:
+    """A `charge` card from search_transaction's row (and get_product_status's last4 when read)."""
+    return {"type": "charge", "transaction_id": trx["transaction_id"], "date": str(trx["transaction_date"]),
+            "amount": trx["amount"], "currency": trx["currency"], "merchant": trx.get("merchant"),
+            "last4": trx.get("last4"), "synthetic": bool(trx.get("synthetic"))}
+
+
+def case_cards(case: dict[str, Any], keys: tuple[str, ...] = ("ruling_deadline", "credit_deadline")) -> list[dict]:
+    """The `case` card and one `deadline` card per stored deadline, from a get_case reading only."""
+    label = case.get("deadline_source_label") or case.get("deadline_source")
+    return [{"type": "case", "case_id": case["case_id"], "status": case.get("queue_status")},
+            *({"type": "deadline", "kind": key.split("_")[0], "date": str(case[key]), "source_label": label,
+               "source_url": case.get("deadline_source_url")} for key in keys if case.get(key) and label)]
+
+
 async def call(config: RunnableConfig, tool: str, **args: Any) -> BaseModel:
     """One MCP tool call with the session of the run config, never one from the text (constitution #3). Returns the
     tool's output model, or a ToolError for any failure (UNAVAILABLE for transport errors)."""
@@ -221,7 +257,9 @@ async def greet(state: State, config: RunnableConfig) -> dict[str, Any]:
     """First turn of a verified session: the first name comes from get_customer_profile (AC-15)."""
     if state.get("profile") or state["session_state"] != "verified":
         return {}
-    progress(state, "reading_account")
+    texts = [m.get("content", "") for m in state.get("messages") or [] if m.get("role", "user") == "user"]
+    said = texts[-1].strip() if texts and not state.get("action") else ""
+    progress({**state, "language": turn_language(state, said)}, "reading_account")     # D-087: the turn's language
     profile = await call(config, "get_customer_profile")
     if isinstance(profile, ToolError):
         return {}                           # no greeting without a name read from the tool; retried next turn
@@ -240,16 +278,16 @@ async def understand(state: State, config: RunnableConfig) -> dict[str, Any]:
 
 async def understood(state: State, config: RunnableConfig) -> dict[str, Any]:
     """The turn's understanding (see `understand`)."""
-    progress(state, "reading_message")      # before any LLM call: the first label comes within 1 s (§5)
     profile = state.get("profile") or {}
     day = today(state["mode"], profile.get("country"))
     texts = [m.get("content", "") for m in state.get("messages") or [] if m.get("role", "user") == "user"]
     text, action = (texts[-1].strip() if texts else ""), state.get("action") or {}
-    # [assumption] the thread's language: the request's, else the last turn's, else the first message's, else the
-    # profile's. A customer who switches language mid-thread uses the web's language toggle.
-    hint = state.get("language") or state.get("language_last")
-    language = hint or profile.get("language") or "es"
-    base = {"today": day.isoformat(), "language": language, "slots": {}, "injection_flagged": False,
+    language = turn_language(state, text if not action else "")
+    # before any LLM call: the first label comes within 1 s (§5), in the turn's language (D-087)
+    progress({**state, "language": language}, "reading_message")
+    hint = language
+    base = {"today": day.isoformat(), "language": language, "session_language": session_language(state), "slots": {},
+            "injection_flagged": False,
             "cross_customer": False, "other_language": False, "intent": None, "intent_confidence": None, "dispute_detected": False}
     # the dispute being clarified: the last turn's, else the last dispute read (D-071), else an unrecognized charge
     pending = (state.get("intent") if state.get("intent") in DISPUTES
@@ -280,7 +318,9 @@ async def understood(state: State, config: RunnableConfig) -> dict[str, Any]:
     found = {"language": reading.language, "slots": reading.slots.model_dump(),
              "injection_flagged": reading.injection_flagged, "other_language": reading.other_language,
              "cross_customer": bool(CROSS_CUSTOMER.search(fold(text))) and not OWN_OR_DISPUTE.search(fold(text))}
-    chip = msg.offered_text_chip(text, state.get("suggestions") or [])
+    if found["other_language"]:             # G-IN-03 stays as it was: the session language, plus English once
+        found["language"] = base["language"] = session_language(state)
+    chip =msg.offered_text_chip(text, state.get("suggestions") or [])
     if chip:                                # typed label = pressed text chip: routed by the pending question (AC-33)
         intent = msg.TEXT_CHIP_INTENT[chip] or pending
         return {**base, **found, "intent": intent, "intent_confidence": 1.0, "dispute_detected": intent in DISPUTES,
@@ -297,6 +337,24 @@ async def understood(state: State, config: RunnableConfig) -> dict[str, Any]:
     out = {**base, **found, "intent": reading.intent, "intent_confidence": reading.confidence,
            "dispute_detected": reading.dispute_detected, **(heard or {}), **extra}
     return {**out, **kept(keep, out["slots"])}
+
+
+def session_language(state: State) -> str:
+    """The session's language: the request's (the api sends the session's, spec 01 §6.4), else the last turn's, else
+    the profile's. It stays the default and the language of notifications; the graph never rewrites it (D-087)."""
+    return (state.get("language") or state.get("language_last") or (state.get("profile") or {}).get("language")
+            or "es")
+
+
+def turn_language(state: State, text: str) -> str:
+    """D-087 (lead, 2026-10-06; spec 04 AC-43): the turn follows the language of the customer's last message when its
+    words tell ES from PT (`detect_language` with no hint, at least 2 words of one language and more than of the
+    other [assumption], so "ok" or a lone shared word never switches); a message they do not tell apart, or a chip
+    press with no text, keeps the last turn's language [assumption], else the session's. Another language is G-IN-03's (the session
+    language, set by the caller). A session language changed since the last turn (the web's toggle) wins over it."""
+    session = session_language(state)
+    last = state.get("language_last") if state.get("session_language") in (None, session) else None
+    return detect_language(text, None, default=last or session, min_words=2) if text else last or session
 
 
 def recent_label(text: str) -> Optional[str]:
@@ -405,20 +463,27 @@ async def connect(state: State, config: RunnableConfig) -> dict[str, Any]:
     progress(state, "requesting_call")
     case = await call_case(state, config)
     key = f"{state['session_id']}:{case or 'none'}:request_call:{state['trace_id']}"
+    tool_event(state, "request_call", "running")
     out = await call(config, "request_call", idempotency_key=key, **({"case_id": case} if case else {}))
     if isinstance(out, ToolError):          # never refuse (AC-28), never claim it (AC-18): say it failed, offer a retry
+        tool_event(state, "request_call", "failed", "failed")
         # [assumption] the graph's own id for an attempt the tool never accepted; no tool returned one
         return {"body": [*before, msg.text("connect.request_failed", language)], "row": "connect_failed",
                 "actions": [*done, {"tool": "request_call", "action_id": new_id("action"), "state": "not_confirmed"}],
                 "path": path + ["connect"]}
     record = {"tool": "request_call", "action_id": out.action_id, "state": "requested"}
     seen = [out.model_dump(mode="json")]
+    cards: list[dict[str, Any]] = []
     if out.case_id:                         # [assumption] one read, no retries: unread, it stays "requested"
         read = await call(config, "get_case", case_id=out.case_id, action_id=out.action_id)
         if not isinstance(read, ToolError) and read.verification_id and read.action_id == out.action_id:
             record |= {"state": "verified", "verification_id": read.verification_id,
                        "read_at": read.read_at.isoformat()}
             seen.append(read.model_dump(mode="json"))
+            cards = case_cards(read.model_dump(mode="json"), ())
+    tool_event(state, "request_call", "done", record["state"],
+               [{"type": "action", "tool": "request_call", "state": record["state"],
+                 "verification_id": record.get("verification_id")}, *cards])
     when, suffix = out.expected_contact_by, "_case" if out.case_id else ""
     body = (msg.text(f"connect.requested{suffix}", language, case_id=out.case_id, expected_contact_by=when.isoformat())
             if when else msg.text(f"connect.requested{suffix}_no_window", language, case_id=out.case_id))
@@ -470,10 +535,15 @@ async def retrieve(state: State, config: RunnableConfig) -> dict[str, Any]:
         query = {"amount": float(slots["amount"]) if slots.get("amount") else None, "currency": slots.get("currency"),
                  "approx_date": slots.get("date"), "merchant": slots.get("merchant")}
         progress(state, "searching")
+        tool_event(state, "search_transaction", "running")
         found = await call(config, "search_transaction", **{k: v for k, v in query.items() if v is not None})
         if isinstance(found, ToolError):
+            tool_event(state, "search_transaction", "failed", "failed")
             return unread(path, "search_transaction", state["language"])
         candidates = [c.model_dump(mode="json") for c in found.candidates]
+        if len(candidates) != 1:            # one candidate: done once its card is read, with its last4 (AC-38)
+            tool_event(state, "search_transaction", "done", "found_many" if candidates else "found_none",
+                       [charge_card(c) for c in candidates])
     fresh = {"path": path, "candidates": candidates, "selected_transaction": None, "customer_confirmed": None,
              "score": None, "display": None, "existing_case": None,
              "unnamed": slots is not None and len(candidates) == 1 and not names(slots, candidates[0]),
@@ -485,8 +555,13 @@ async def retrieve(state: State, config: RunnableConfig) -> dict[str, Any]:
         call(config, "get_product_status", product_id=trx["product_id"]),
         call(config, "get_fraud_score", transaction_id=trx["transaction_id"]),
         call(config, "convert_amount", amount=trx["amount"], currency=trx["currency"]), call(config, "list_my_cases"))
+    searched = slots is not None
     if isinstance(card, ToolError):         # [assumption] no card type, no decision: product_type is never guessed
+        if searched:
+            tool_event(state, "search_transaction", "done", "found_one", [charge_card(trx)])
         return unread(path, "get_product_status", state["language"])
+    if searched:
+        tool_event(state, "search_transaction", "done", "found_one", [charge_card({**trx, "last4": card.last4})])
     return {**fresh, "selected_transaction": {**trx, "product_type": card.type, "last4": card.last4},
             # a failed score read is a null score: zone human (POL-SCORE-NULL)
             "score": None if isinstance(score, ToolError) else score.model_dump(mode="json"),
@@ -520,9 +595,11 @@ def decide(state: State) -> dict[str, Any]:
     [assumption] D-067: a charge the customer did not name (one candidate of a search no slot narrowed) is not yet
     identified, so the engine sees no transaction until the customer confirms it: it asks (clarify shows the card)."""
     progress(state, "deciding")
+    tool_event(state, "evaluate_policy", "running")
     unnamed = unconfirmed(state)
     facts = {**state, "selected_transaction": None, "candidates": [], "score": None} if unnamed else state
     decision = ENGINE.decide(inputs := decision_input(facts))
+    tool_event(state, "evaluate_policy", "done", "done", [verdict_card(decision, state["language"])])
     record = outcome("decide", inputs, decision)
     if unnamed:                             # the trace says why the record shows no candidate (D-046)
         record["decision_record"]["note"] = "D-067: one candidate the customer did not name, held until confirmed"
@@ -533,6 +610,14 @@ def decide(state: State) -> dict[str, Any]:
     return {**record, "next_node": nxt, "path": state["path"] + ["decide"],
             "clarification_turns": (state.get("clarification_turns") or 0) if decision.decision == "ask" else 0,
             "body": [msg.text("clarify.exhausted", state["language"])] if exhausted else []}
+
+
+def verdict_card(decision: PolicyDecision, language: str) -> dict[str, Any]:
+    """The `verdict` card: the decision in customer words (messages.yaml verdict.*) and the labels of the actions it
+    allows; no score, zone or rule id (spec 01 §6.4.1)."""
+    labels = msg.messages()["status"]["action_label"]
+    return {"type": "verdict", "headline": msg.text(f"verdict.{decision.decision}", language),
+            "actions": [labels[a][language] for a in decision.allowed_actions if a in labels]}
 
 
 def plan(state: State) -> dict[str, Any]:
@@ -590,14 +675,16 @@ async def act(state: State, config: RunnableConfig) -> dict[str, Any]:
         # run = the LangGraph run id (trace_id); policies.yaml's template has no run part (follow-up for the lead)
         key = f"{state['session_id']}:{trx['transaction_id']}:{tool}:{state['trace_id']}"
         progress(state, WRITING[tool])
+        tool_event(state, tool, "running")  # done after verify reads it back (AC-38), failed here
         out, unanswered = await attempt(config, tool, idempotency_key=key, **planned[tool])
         writes["unanswered"] += [tool] if unanswered else []
         if isinstance(out, ToolError):
             actions.append({"tool": tool, "action_id": new_id("action"), "state": "not_confirmed"})
             writes["errors"][tool] = out.code
             # D-043: an open call request holds the block (POL-HUMAN-REQUEST): a person decides it after the call
-            writes["held"] = writes.get("held") or (tool == "block_card" and out.code == "DENY"
-                                                    and out.policy_id == "POL-HUMAN-REQUEST")
+            held = tool == "block_card" and out.code == "DENY" and out.policy_id == "POL-HUMAN-REQUEST"
+            writes["held"] = writes.get("held") or held
+            tool_event(state, tool, "failed", "held" if held else "failed")
             continue
         writes[tool] = out.model_dump(mode="json")
         actions.append({"tool": tool, "action_id": out.action_id, "state": "requested"})
@@ -634,6 +721,14 @@ async def verify(state: State, config: RunnableConfig) -> dict[str, Any]:
                          "read_at": readings[tool]["read_at"]})
         else:
             done.append({**action, "state": "not_confirmed"})
+        if action["state"] == "requested":  # the write act started: its one done, from the reading only (AC-38)
+            last = done[-1]
+            cards = [{"type": "action", "tool": tool, "state": last["state"],
+                      "verification_id": last.get("verification_id")}]
+            if tool == "open_case" and tool in readings:
+                cards += case_cards(sourced(readings[tool]), ("ruling_deadline", "credit_deadline")
+                                    if dispute_type(state) == "unrecognized_charge" else ("ruling_deadline",))
+            tool_event(state, tool, "done", last["state"], cards)
     case, calls, held = readings.get("open_case"), state["route"]["request_call"], writes.get("held")
     # D-043: a block the open call request holds is not done, but it is no tool failure and does not escalate
     unconfirmed = [a["tool"] for a in done if a["state"] == "not_confirmed" and not (held and a["tool"] == "block_card")]
@@ -815,10 +910,13 @@ async def case_status(state: State, config: RunnableConfig) -> dict[str, Any]:
     ids = [c.case_id for c in cases.cases]
     target = state["case_id_in"] if state.get("case_id_in") in ids else next(
         (c.case_id for c in cases.cases if c.queue_status not in CLOSED), ids[0])
+    tool_event(state, "get_case", "running")
     case = await call(config, "get_case", case_id=target)
     if isinstance(case, ToolError):
+        tool_event(state, "get_case", "failed", "failed")
         return status_unread("get_case", language)
     facts, active = sourced(case.model_dump(mode="json")), case.queue_status not in CLOSED
+    tool_event(state, "get_case", "done", "done", case_cards(facts))
     lines = [msg.text("status.case_read", language, case_id=case.case_id, read_at=stamp(case.read_at),
                       status_label=status_label(case.queue_status, language) or case.status_label)]
     lines += [msg.text(f"status.{key}", language, **facts) for key in ("ruling_deadline", "credit_deadline")
@@ -845,9 +943,11 @@ def status_unread(tool: str, language: str) -> dict[str, Any]:
     return {"body": [msg.text("status.read_failed", language)], "row": "status_failed", "read_failed": tool}
 
 
-def respond(state: State) -> dict[str, Any]:
-    """The TurnResult from templates and §4.5 chips, in every arm (no LLM wording until spec 15's `word` gate), with the
-    run's usage and denials (AC-14); clears the turn's input so the next turn starts clean."""
+async def respond(state: State, config: RunnableConfig) -> dict[str, Any]:
+    """The TurnResult from templates and §4.5 chips, with the run's usage and denials (AC-14); clears the turn's input
+    so the next turn starts clean. With `configurable.writer = llm` (ADR 0030, spec 04 AC-37, AC-39) the §4.6 writer
+    words the gated template lines and picks the chips, streamed as `text` chunks; with `template` (the default) the
+    reply, chips and stream are what they were before it (AC-40)."""
     progress(state, "writing")
     language, profile, lines = state["language"], state.get("profile") or {}, []
     if state.get("greet_pending"):          # AC-15: name from the tool, three capabilities, a person reviews
@@ -862,21 +962,83 @@ def respond(state: State) -> dict[str, Any]:
     kept = [line for line in lines + body if not build.bad(line, facts)]
     receipt, handoff, dropped = papers(state, facts)
     dropped += len(lines) + len(body) - len(kept)
-    alerts = [build.ALERT] * bool(dropped) + [a for a in state.get("llm_alerts") or []
+    # [assumption] nothing left to say: the line that states nothing it could not verify
+    kept = kept or [msg.text("status.read_failed", language)]
+    usage, notes, extra_alerts, chosen = list(state.get("usage") or []), dict(state.get("llm_notes") or {}), [], None
+    if ((config.get("configurable") or {}).get("writer") or "template") == "llm":
+        worded = await write_reply(state, config, kept, facts, row)
+        kept, chosen, dropped = worded.lines, worded.chips, dropped + worded.dropped
+        usage += [worded.usage] if worded.usage else []
+        notes["respond"], extra_alerts = worded.note, worded.alerts
+    alerts = [build.ALERT] * bool(dropped) + [a for a in [*(state.get("llm_alerts") or []), *extra_alerts]
                                               if a not in (state.get("guardrails_triggered") or [])]
     turn = TurnResult(
-        # [assumption] nothing left to say: the line that states nothing it could not verify
-        reply="\n".join(kept) or msg.text("status.read_failed", language), language=language,
+        reply="\n".join(kept), language=language,
         decision=state.get("decision"), intent=state.get("intent"), receipt=receipt, handoff=handoff,
         intent_confidence=state.get("intent_confidence"), case_id=state.get("case_id"), zone=state.get("zone"),
         plan=state.get("plan") or [], options=state.get("options") or [],
-        actions=state.get("actions") or [], suggestions=msg.suggestions(row, language, state.get("case_id")),
+        actions=state.get("actions") or [],
+        suggestions=msg.suggestions(row, language, state.get("case_id"), chosen),
         guardrails_triggered=[*(state.get("guardrails_triggered") or []), *alerts], denials=state.get("denials") or [],
-        mode=state["mode"], trace_id=state["trace_id"], usage=state.get("usage") or [],
-        trace=[step(n, record, state.get("read_failed"), state.get("unconfirmed"), dropped, state.get("llm_notes"))
-               for n in nodes])
+        mode=state["mode"], trace_id=state["trace_id"], usage=usage,
+        trace=[step(n, record, state.get("read_failed"), state.get("unconfirmed"), dropped, notes) for n in nodes])
     return {**turn.model_dump(mode="json"), "messages": [], "action": None, "greet_pending": False,
             "language_last": language, "llm_spent_usd": state.get("llm_spent_usd") or 0.0}
+
+
+async def write_reply(state: State, config: RunnableConfig, lines: list[str], facts: list[Any],
+                      row: str) -> wording.Worded:
+    """The §4.6 writer on the turn's gated template lines (AC-37): each released text delta leaves as a spec 01 §6.4.1
+    `text` chunk; the chips it may pick are the row's allowed set (AC-39). Its spend counts toward the daily cap only,
+    not the conversation's S1 budget [assumption]; its usage row goes to `llm_calls` as every billed call (AC-14)."""
+    language, case_id = state["language"], state.get("case_id")
+    try:
+        write = get_stream_writer()
+    except RuntimeError:
+        write = None
+    message_id = f"{state['trace_id']}:reply"
+
+    def emit(delta: str) -> None:
+        if write:
+            write(TextChunk(message_id=message_id, delta=delta).model_dump(mode="json"))
+
+    allowed = msg.allowed(row, case_id)
+    chips = [{"id": c, "label": msg.chip(c, language, case_id).label} for c in allowed]
+    texts = [m.get("content", "") for m in state.get("messages") or [] if m.get("role", "user") == "user"]
+    cards, shown = on_cards(state)
+    return await wording.word(
+        config, lines, facts, language=language, first_name=(state.get("profile") or {}).get("first_name"),
+        chips=chips, person=next((c for c in allowed if c in msg.PERSON), None), emit=emit,
+        score=(state.get("score") or {}).get("score"), transcript=texts, cards=cards, shown=shown,
+        over_cap=lambda estimate: arms.over_day_cap(config, estimate))
+
+
+SHOWN_KEYS = frozenset({"verification_id", "read_at", "verified_at", "deadline_source", "deadline_source_label",
+                        "deadline_source_url", "source_url", "verified_on", "deadline_verified_on"})
+
+
+def on_cards(state: State) -> tuple[list[str], list[str]]:
+    """What the turn's cards (spec 01 §6.4.1 `tool` events, the receipt) show beside the writer's text: their names for
+    the writer, and the strings it need not repeat (verification ids and times, deadline sources, links, verified-on
+    dates). The case id and the deadline dates are not among them: the text states them once (spec 04 §4.6)."""
+    found: list[str] = []
+
+    def walk(node: Any) -> None:
+        if isinstance(node, dict):
+            for key, value in node.items():
+                if key in SHOWN_KEYS and isinstance(value, (str, date)):
+                    found.append(str(value))
+                else:
+                    walk(value)
+        elif isinstance(node, list):
+            for value in node:
+                walk(value)
+
+    walk([state.get("actions"), state.get("readings"), state.get("seen"), state.get("writes")])
+    names = (["charge"] * bool(state.get("selected_transaction")) + ["case id and status"] * bool(state.get("case_id"))
+             + ["action verification ids and times"] * any(wording.VERIFICATION.fullmatch(s) for s in found)
+             + ["deadlines with their legal source and link"] * any("://" in s for s in found))
+    return names, found
 
 
 def tool_facts(state: State) -> list[Any]:
@@ -908,8 +1070,8 @@ def step(node: str, record: dict[str, Any], read_failed: Optional[str], unconfir
     the grounding gate dropped (G-OUT-01), and on understand its LLM arm, or its fall back to S0 as an error (§5)."""
     if node == "respond" and dropped:
         return {"node": node, "status": "error", "ms": 0, "detail": f"G-OUT-01: {dropped} ungrounded fact(s) dropped"}
-    if llm := (notes or {}).get(node):      # understand only
-        return {"node": node, "status": "error" if "-> S0" in llm else "ok", "ms": 0, "detail": llm}
+    if llm := (notes or {}).get(node):      # understand's LLM arm, respond's writer
+        return {"node": node, "status": "error" if " -> " in llm else "ok", "ms": 0, "detail": llm}
     if node in ("retrieve", "status") and read_failed:
         return {"node": node, "status": "error", "ms": 0, "detail": f"{read_failed}: not_confirmed"}
     if node == "verify" and unconfirmed:
