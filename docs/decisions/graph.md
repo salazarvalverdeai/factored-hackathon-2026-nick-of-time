@@ -4,7 +4,7 @@
 
 One picture of the project's reasoning: the problem the data showed, the decisions that answered it, the specs and components that implement them, and the evidence behind each. Every ADR and spec is a node; every edge comes from a header (`Status`, `Amended by`, `Related`, `ADRs`, `Depends on`) or from the small mapping in [`graph_extra.yaml`](graph_extra.yaml). The same graph, with every edge, is in [`graph.json`](graph.json).
 
-**Size:** 4 problem nodes, 30 decision nodes (31 ADRs, ADRs 0001 and 0002 drawn as one), 18 specs, 15 evidence nodes: 67 nodes and 96 edges drawn.
+**Size:** 4 problem nodes, 30 decision nodes (31 ADRs, ADRs 0001 and 0002 drawn as one), 18 specs, 15 evidence nodes: 67 nodes and 97 edges drawn.
 
 ```mermaid
 flowchart LR
@@ -29,6 +29,7 @@ flowchart LR
       adr_0022["0022 Fraud labels may train our fraud model, by..."]
       adr_0025["0025 The classifier set is written by three..."]
       adr_0028["0028 The classifier test split is decided by..."]
+      adr_0031["0031 Held-out scored under the sealed rules and,..."]
     end
     subgraph TAgent__rules_and_safety["Agent, rules and safety"]
       adr_0005["0005 Policy engine outside the model"]
@@ -39,6 +40,7 @@ flowchart LR
       adr_0016["0016 Guardrails: injection detector with rules +..."]
       adr_0024["0024 A call request in the high zone defers the..."]
       adr_0027["0027 Model selection per LLM task (understand,..."]
+      adr_0030["0030 An LLM writer words chat replies, and the..."]
     end
     subgraph TPlatform_and_identity["Platform and identity"]
       adr_0010["0010 Postgres for case state and audit"]
@@ -52,10 +54,6 @@ flowchart LR
       adr_0019["0019 Every regulatory or external figure cites..."]
       adr_0020["0020 Two time modes: historical (replay) for..."]
       adr_0023["0023 MX provisional credit covers..."]
-    end
-    subgraph TOther["Other"]
-      adr_0030["0030 An LLM writer words chat replies, and the..."]
-      adr_0031["0031 Held-out scored under the sealed rules and,..."]
     end
   end
   subgraph LS["3. Specs and components"]
@@ -125,6 +123,7 @@ flowchart LR
   adr_0026 --> E_demo
   adr_0027 --> E_bench
   adr_0028 --> E_protocol
+  adr_0031 --> E_protocol
   adr_0006 --> spec_02
   adr_0008 --> spec_01
   adr_0008 --> spec_03
@@ -260,7 +259,7 @@ The dataset is synthetic; these figures describe the problem, not our system (se
 | [0028 The classifier test split is decided by fixed rules when no independent person can review it](../adr/0028-test-split-decided-by-fixed-rules-without-independent-reviewer.md) · Accepted | When no person other than the classifier's developer can review the test split before the seal, the test split is decided by fixed rules, eval.classifier.review.rule_decision, signed rules-v1: 1. | ADR 0025 asks a person who is not the classifier's developer to review every line of the test split. | [09](../../specs/09-demo-eval-data.md), [11](../../specs/11-intent-classifier.md), [15](../../specs/15-model-benchmark.md) | [`PROTOCOL.md`](../../eval/PROTOCOL.md) |
 | [0029 Voice: Bedrock Voxtral speech-to-text on the api and the browser's text-to-speech](../adr/0029-voice-input-voxtral-stt-browser-tts.md) · Accepted | Voice is two halves around the unchanged text chat. | Customers report disputes by phone as much as by chat; speaking a claim lowers the effort of first contact. - Everything runs in us-east-2 (ADR 0009). | [05](../../specs/05-backend-api.md), [07](../../specs/07-customer-chat.md) | - |
 | [0030 An LLM writer words chat replies, and the stream shows each tool call live](../adr/0030-llm-writer-and-live-stream-events.md) · Accepted | A writer words the chat reply. | A walkthrough of the public URL on 2026-10-05 showed a working flow that reads like a menu bot: - every reply is a fixed template (spec 04 deferred LLM wording to the spec 15 word gate); - the stream carries only short progress ... | [01](../../specs/01-integration-contract.md), [04](../../specs/04-agent-graph.md), [05](../../specs/05-backend-api.md), [07](../../specs/07-customer-chat.md), [15](../../specs/15-model-benchmark.md) | - |
-| [0031 Held-out scored under the sealed rules and, secondarily, under D-070](../adr/0031-heldout-scored-under-sealed-rules-and-d070.md) · Accepted | The held-out reports two scores, computed in code from the same runs: 1. | The agent held-out (80 cases, eval/cases/heldout.jsonl) was derived and sealed under tag protocol-v1 on 2026-10-05 (ADR 0007, ADR 0021). | [04](../../specs/04-agent-graph.md), [09](../../specs/09-demo-eval-data.md), [10](../../specs/10-eval-harness.md), [17](../../specs/17-fraud-model.md) | - |
+| [0031 Held-out scored under the sealed rules and, secondarily, under D-070](../adr/0031-heldout-scored-under-sealed-rules-and-d070.md) · Accepted | The held-out reports two scores, computed in code from the same runs: 1. | The agent held-out (80 cases, eval/cases/heldout.jsonl) was derived and sealed under tag protocol-v1 on 2026-10-05 (ADR 0007, ADR 0021). | [04](../../specs/04-agent-graph.md), [09](../../specs/09-demo-eval-data.md), [10](../../specs/10-eval-harness.md), [17](../../specs/17-fraud-model.md) | [`PROTOCOL.md`](../../eval/PROTOCOL.md) |
 
 ## Specs and components
 
