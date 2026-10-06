@@ -34,6 +34,15 @@ class Platform(Protocol):
     def state(self, thread_id: str) -> Optional[dict[str, Any]]:
         """The thread's latest graph output (a TurnResult as a dict), None before the first turn."""
 
+    def tag_case(self, thread_id: str, case_id: str) -> None:
+        """Mark the thread as one that touched `case_id` (metadata key `case:<id>`), so the console finds it."""
+
+    def case_threads(self, case_id: str) -> list[tuple[str, Optional[str]]]:
+        """(thread_id, session_id) of the threads marked with `case_id`."""
+
+    def history(self, thread_id: str) -> list[dict[str, Any]]:
+        """The thread's checkpoints (`values`, `next`, `created_at`), any order; [] for an unknown thread."""
+
 
 class HttpPlatform:
     def __init__(self, url: str, api_key: str, assistant_id: str = "dispute_intake",
@@ -96,3 +105,15 @@ class HttpPlatform:
     def state(self, thread_id: str) -> Optional[dict[str, Any]]:
         response = self._call("GET", f"/threads/{thread_id}/state")
         return None if response.status_code == 404 else (response.json().get("values") or None)
+
+    def tag_case(self, thread_id: str, case_id: str) -> None:
+        self._call("PATCH", f"/threads/{thread_id}", json={"metadata": {f"case:{case_id}": True}})   # merged
+
+    def case_threads(self, case_id: str, limit: int = 20) -> list[tuple[str, Optional[str]]]:
+        found = self._call("POST", "/threads/search", json={"metadata": {f"case:{case_id}": True}, "limit": limit})
+        return [(t["thread_id"], (t.get("metadata") or {}).get("session_id"))
+                for t in (found.json() if found.status_code != 404 else [])]
+
+    def history(self, thread_id: str, limit: int = 200) -> list[dict[str, Any]]:
+        response = self._call("POST", f"/threads/{thread_id}/history", json={"limit": limit})
+        return [] if response.status_code == 404 else list(response.json())
