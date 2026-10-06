@@ -7,6 +7,7 @@
 import { XIcon } from "lucide-react";
 import { type ReactNode, useEffect, useId, useRef } from "react";
 import { createPortal } from "react-dom";
+import { useT } from "@/components/i18n-provider";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -19,14 +20,15 @@ export interface DetailPanelProps {
   children?: ReactNode;
   /** Pinned under the content: links ("Read the method →") or actions. */
   footer?: ReactNode;
-  /** Accessible name of the close button (English UI by default). */
+  /** Accessible name of the close button (the UI locale's "Close" by default). */
   closeLabel?: string;
   className?: string;
 }
 
 const FOCUSABLE = 'a[href],button:not([disabled]),input:not([disabled]),select,textarea,[tabindex]:not([tabindex="-1"])';
 
-export function DetailPanel({ open, onClose, title, description, children, footer, closeLabel = "Close", className }: DetailPanelProps) {
+export function DetailPanel({ open, onClose, title, description, children, footer, closeLabel, className }: DetailPanelProps) {
+  const t = useT();
   const titleId = useId();
   const descriptionId = useId();
   const panel = useRef<HTMLDivElement>(null);
@@ -96,7 +98,7 @@ export function DetailPanel({ open, onClose, title, description, children, foote
               </p>
             ) : null}
           </div>
-          <Button data-detail-close variant="ghost" size="icon-sm" aria-label={closeLabel} onClick={() => close.current()}>
+          <Button data-detail-close variant="ghost" size="icon-sm" aria-label={closeLabel ?? t("shell.common.close")} onClick={() => close.current()}>
             <XIcon aria-hidden />
           </Button>
         </header>

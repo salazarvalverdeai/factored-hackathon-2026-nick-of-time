@@ -2,9 +2,10 @@
 
 // The chips under the last reply, as pills (AI Elements `suggestion`): at most three from the turn, and "talk to a
 // person" always among them (spec 04 AC-20, AC-39; plan §4.2). An action chip sends its action, never its text;
-// a link chip opens a path on our own host.
+// a link chip opens a path on our own host. The chips speak the session's language; the group's name follows the UI locale.
 import Link from "next/link";
 import { Suggestion, Suggestions } from "@/components/ai-elements/suggestion";
+import { useT } from "@/components/i18n-provider";
 import { chipsFor, isPersonChip } from "@/lib/chat-stream";
 import type { Language, Suggestion as Chip, TurnAction } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -14,7 +15,7 @@ export function ChatChips({
   lang,
   disabled,
   onSend,
-  label = "Suggested replies",
+  label,
 }: {
   suggestions: readonly Chip[] | undefined;
   lang: Language;
@@ -22,9 +23,10 @@ export function ChatChips({
   onSend: (text: string, action?: TurnAction) => void;
   label?: string;
 }) {
+  const t = useT();
   const chips = chipsFor(suggestions, lang);
   return (
-    <Suggestions role="group" aria-label={label} data-slot="chat-chips">
+    <Suggestions role="group" aria-label={label ?? t("chat.conversation.suggestedReplies")} data-slot="chat-chips">
       {chips.map((chip) =>
         chip.href ? (
           <Link

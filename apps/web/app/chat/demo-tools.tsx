@@ -4,8 +4,10 @@
 // the test-charge form (demo type C) and the six character chips (demo type D). None of it decides anything: a chip
 // sends text the visitor could type, a test charge is a synthetic row on the session's own run (named "test charge" in
 // plain words, spec 07 AC-14), and a persona
-// answer is a draft in the composer, never sent on its own.
+// answer is a draft in the composer, never sent on its own. The cards' chrome follows the UI locale (spec 16 AC-06);
+// the message a chip sends is the customer's own words, in the conversation language.
 import { useState } from "react";
+import { useLocale, useT } from "@/components/i18n-provider";
 import { ErrorState, LoadingState } from "@/components/states";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -35,18 +37,19 @@ export function DemoTools({
   /** Puts a suggested message in the composer for the visitor to edit. */
   onDraft: (draft: PersonaDraft) => void;
 }) {
+  const t = useT();
   const txs = useQuery((a) => a.listRecentTransactions(), []);
   return (
     <div className="space-y-3">
       <Card>
         <CardHeader>
-          <CardTitle className="text-sm">Pick a charge to dispute</CardTitle>
-          <CardDescription>Your recent card charges. A chip sends a message that names the charge; you can also just type.</CardDescription>
+          <CardTitle className="text-sm">{t("chat.tools.pickTitle")}</CardTitle>
+          <CardDescription>{t("chat.tools.pickDescription")}</CardDescription>
         </CardHeader>
         <CardContent>
-          {txs.status === "loading" ? <LoadingState label="Loading your charges…" /> : null}
-          {txs.status === "error" ? <ErrorState title="Cannot load your charges" message={txs.error.message} /> : null}
-          {txs.status === "ok" && txs.data.length === 0 ? <p className="text-sm text-muted-foreground">No recent charges.</p> : null}
+          {txs.status === "loading" ? <LoadingState label={t("chat.tools.loadingCharges")} /> : null}
+          {txs.status === "error" ? <ErrorState title={t("chat.tools.cannotLoadCharges")} message={txs.error.message} /> : null}
+          {txs.status === "ok" && txs.data.length === 0 ? <p className="text-sm text-muted-foreground">{t("chat.tools.noCharges")}</p> : null}
           {txs.status === "ok" && txs.data.length > 0 ? <ChargeChips txs={txs.data} lang={lang} disabled={disabled} chosen={chosen} onChoose={onChoose} onSend={onSend} /> : null}
         </CardContent>
       </Card>
@@ -71,6 +74,7 @@ function ChargeChips({
   onChoose: (id: string) => void;
   onSend: (text: string) => void;
 }) {
+  const { locale } = useLocale();
   const several = hasSeveralCards(txs);
   return (
     <ul className="flex flex-wrap gap-2">
@@ -87,7 +91,7 @@ function ChargeChips({
             }}
             className="h-auto whitespace-normal py-1 text-left aria-pressed:border-foreground"
           >
-            {chipLabel(tx)}
+            {chipLabel(tx, locale)}
             {several && tx.last4 ? ` · ····${tx.last4}` : ""}
           </Button>
         </li>
@@ -98,6 +102,7 @@ function ChargeChips({
 
 /** Demo type C: a charge the visitor makes up, so the agent has something recent to dispute. Always called a test charge. */
 function TestCharge() {
+  const t = useT();
   const [amount, setAmount] = useState("");
   const [merchant, setMerchant] = useState("");
   const [busy, setBusy] = useState(false);
@@ -115,13 +120,13 @@ function TestCharge() {
     setDone(null);
     try {
       const charge = await api.registerTestCharge(parsed, merchant.trim());
-      setDone(`Test charge registered: ${charge.amount.toFixed(2)} ${charge.currency} at ${charge.merchant}.`);
+      setDone(t("chat.tools.registered", { amount: charge.amount.toFixed(2), currency: charge.currency, merchant: charge.merchant ?? "" }));
       setAmount("");
       setMerchant("");
     } catch (err) {
       if (err instanceof ApiError && err.status === 403) setHidden(true);
-      else if (err instanceof ApiError && err.status === 429) setError("One test charge per minute (three per session).");
-      else setError(err instanceof ApiError ? err.message : "unexpected error"); // a 422 shows the api's message
+      else if (err instanceof ApiError && err.status === 429) setError(t("chat.tools.rateLimited"));
+      else setError(err instanceof ApiError ? err.message : t("chat.verify.unexpected")); // a 422 shows the api's message
     } finally {
       setBusy(false);
     }
@@ -130,20 +135,36 @@ function TestCharge() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-sm">Register a test charge</CardTitle>
-        <CardDescription>Amount in your customer&apos;s currency and a store name. It shows first in the list above.</CardDescription>
+        <CardTitle className="text-sm">{t("chat.tools.testTitle")}</CardTitle>
+        <CardDescription>{t("chat.tools.testDescription")}</CardDescription>
       </CardHeader>
       <CardContent>
         <form onSubmit={submit} className="space-y-2">
           <div className="flex flex-wrap gap-2">
-            <Input value={amount} onChange={(e) => setAmount(e.target.value)} inputMode="decimal" placeholder="Amount, e.g. 1250.50" aria-label="Test charge amount" className="w-40" required />
-            <Input value={merchant} onChange={(e) => setMerchant(e.target.value)} maxLength={60} placeholder="Store name" aria-label="Test charge merchant" className="min-w-40 flex-1" required />
+            <Input
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+              inputMode="decimal"
+              placeholder={t("chat.tools.amountPlaceholder")}
+              aria-label={t("chat.tools.amountLabel")}
+              className="w-40"
+              required
+            />
+            <Input
+              value={merchant}
+              onChange={(e) => setMerchant(e.target.value)}
+              maxLength={60}
+              placeholder={t("chat.tools.merchantPlaceholder")}
+              aria-label={t("chat.tools.merchantLabel")}
+              className="min-w-40 flex-1"
+              required
+            />
           </div>
           <Button type="submit" size="sm" disabled={busy || parsed === null || !merchant.trim()}>
-            Register
+            {t("chat.tools.register")}
           </Button>
           {done ? <p role="status" className="text-xs text-muted-foreground">{done}</p> : null}
-          {error ? <ErrorState title="Not registered" message={error} /> : null}
+          {error ? <ErrorState title={t("chat.tools.notRegistered")} message={error} /> : null}
         </form>
       </CardContent>
     </Card>
@@ -152,6 +173,7 @@ function TestCharge() {
 
 /** Demo type D: the answer goes into the composer as an editable draft, labeled by where it came from. */
 function Personas({ chosen, disabled, onDraft }: { chosen: string | null; disabled: boolean; onDraft: (draft: PersonaDraft) => void }) {
+  const t = useT();
   const [busy, setBusy] = useState<PersonaCharacter | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -161,7 +183,7 @@ function Personas({ chosen, disabled, onDraft }: { chosen: string | null; disabl
     try {
       onDraft(await api.suggestPersona(character, chosen ?? undefined));
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : "unexpected error");
+      setError(e instanceof ApiError ? e.message : t("chat.verify.unexpected"));
     } finally {
       setBusy(null);
     }
@@ -170,20 +192,20 @@ function Personas({ chosen, disabled, onDraft }: { chosen: string | null; disabl
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-sm">Try a type of customer</CardTitle>
-        <CardDescription>Suggests a first message in that character&apos;s voice. You edit it and send it yourself.</CardDescription>
+        <CardTitle className="text-sm">{t("chat.tools.personasTitle")}</CardTitle>
+        <CardDescription>{t("chat.tools.personasDescription")}</CardDescription>
       </CardHeader>
       <CardContent className="space-y-2">
         <ul className="flex flex-wrap gap-2">
           {PERSONAS.map((p) => (
             <li key={p.id}>
               <Button size="xs" variant="outline" disabled={disabled || busy !== null} onClick={() => pick(p.id)}>
-                {busy === p.id ? "…" : p.label}
+                {busy === p.id ? "…" : t(`chat.tools.personas.${p.id}`)}
               </Button>
             </li>
           ))}
         </ul>
-        {error ? <ErrorState title="No suggestion" message={error} /> : null}
+        {error ? <ErrorState title={t("chat.tools.noSuggestion")} message={error} /> : null}
       </CardContent>
     </Card>
   );

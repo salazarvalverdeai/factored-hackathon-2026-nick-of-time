@@ -1,8 +1,10 @@
 "use client";
 
 // AI Elements `conversation` (registry.ai-sdk.dev/conversation.json). Local changes: no smooth scroll under
-// prefers-reduced-motion, and the log announces whole new messages only (a streaming reply is not read token by token).
+// prefers-reduced-motion, the log announces whole new messages only (a streaming reply is not read token by token),
+// and its own labels follow the UI locale (spec 16 AC-06).
 
+import { useT } from "@/components/i18n-provider";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { ArrowDownIcon } from "lucide-react";
@@ -49,32 +51,37 @@ export type ConversationEmptyStateProps = ComponentProps<"div"> & {
 
 export const ConversationEmptyState = ({
   className,
-  title = "No messages yet",
-  description = "Start a conversation to see messages here",
+  title,
+  description,
   icon,
   children,
   ...props
-}: ConversationEmptyStateProps) => (
-  <div
-    className={cn(
-      "flex size-full flex-col items-center justify-center gap-3 p-8 text-center",
-      className
-    )}
-    {...props}
-  >
-    {children ?? (
-      <>
-        {icon && <div className="text-muted-foreground">{icon}</div>}
-        <div className="space-y-1">
-          <h3 className="font-medium text-sm">{title}</h3>
-          {description && (
-            <p className="text-muted-foreground text-sm">{description}</p>
-          )}
-        </div>
-      </>
-    )}
-  </div>
-);
+}: ConversationEmptyStateProps) => {
+  const t = useT();
+  const heading = title ?? t("chat.elements.emptyTitle");
+  const note = description ?? t("chat.elements.emptyDescription");
+  return (
+    <div
+      className={cn(
+        "flex size-full flex-col items-center justify-center gap-3 p-8 text-center",
+        className
+      )}
+      {...props}
+    >
+      {children ?? (
+        <>
+          {icon && <div className="text-muted-foreground">{icon}</div>}
+          <div className="space-y-1">
+            <h3 className="font-medium text-sm">{heading}</h3>
+            {note && (
+              <p className="text-muted-foreground text-sm">{note}</p>
+            )}
+          </div>
+        </>
+      )}
+    </div>
+  );
+};
 
 export type ConversationScrollButtonProps = ComponentProps<typeof Button>;
 
@@ -83,6 +90,7 @@ export const ConversationScrollButton = ({
   ...props
 }: ConversationScrollButtonProps) => {
   const { isAtBottom, scrollToBottom } = useStickToBottomContext();
+  const t = useT();
 
   const handleScrollToBottom = useCallback(() => {
     scrollToBottom();
@@ -95,7 +103,7 @@ export const ConversationScrollButton = ({
           "absolute bottom-4 left-[50%] translate-x-[-50%] rounded-full",
           className
         )}
-        aria-label="Scroll to the latest message"
+        aria-label={t("chat.elements.scrollToLatest")}
         onClick={handleScrollToBottom}
         size="icon"
         type="button"

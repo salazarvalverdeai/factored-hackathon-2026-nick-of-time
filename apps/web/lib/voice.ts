@@ -8,33 +8,25 @@ export const MAX_CLIP_SECONDS = 30;
  *  silence, so we never send one. [assumption] */
 export const NOISE_FLOOR = 0.02;
 
-/** Calm copy of the page: the fallback when an api error carries no message of its own (the api's 413/415/503 are calm ES/PT). */
+/**
+ * Calm notes of the recorder in the conversation language: the fallback when an api error carries no message of its
+ * own (the api's 413/415/503 are calm ES/PT), so a note never mixes languages with the api's. The buttons' labels and
+ * the draft hint are chrome and follow the UI locale (`chat.voice` in messages/chat.ts, spec 16 AC-06).
+ */
 export const VOICE_COPY = {
   es: {
-    hold: "Mantén para hablar",
-    recording: "Grabando… suelta para enviar",
-    transcribing: "Transcribiendo…",
     nothing: "No te escuchamos. Inténtalo de nuevo o escribe tu mensaje.",
     tooLong: "El audio es muy largo. Graba un mensaje más corto o escríbelo.",
     badFormat: "No pudimos usar ese audio. Escribe tu mensaje.",
     denied: "No tenemos permiso para usar el micrófono. Actívalo en la configuración del navegador o escribe tu mensaje.",
     offline: "No pudimos conectar. Escribe tu mensaje.",
-    draft: "Revisa lo que escuchamos, corrígelo si hace falta y envíalo.",
-    readAloud: "Leer respuestas en voz alta",
-    online: "usa una voz en línea",
   },
   pt: {
-    hold: "Segure para falar",
-    recording: "Gravando… solte para enviar",
-    transcribing: "Transcrevendo…",
     nothing: "Não ouvimos você. Tente de novo ou escreva sua mensagem.",
     tooLong: "O áudio está muito longo. Grave uma mensagem mais curta ou escreva.",
     badFormat: "Não conseguimos usar esse áudio. Escreva sua mensagem.",
     denied: "Não temos permissão para usar o microfone. Ative nas configurações do navegador ou escreva sua mensagem.",
     offline: "Não conseguimos conectar. Escreva sua mensagem.",
-    draft: "Confira o que ouvimos, corrija se precisar e envie.",
-    readAloud: "Ler respostas em voz alta",
-    online: "usa uma voz on-line",
   },
 } as const;
 

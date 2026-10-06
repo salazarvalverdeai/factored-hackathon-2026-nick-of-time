@@ -5,7 +5,7 @@ import { I18nProvider } from "@/components/i18n-provider";
 import { ThemeProvider } from "@/components/theme-provider";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
-import { getLocale } from "@/lib/i18n-server";
+import { getLocale, getT } from "@/lib/i18n-server";
 
 const sora = Sora({
   variable: "--font-sora",
@@ -17,11 +17,14 @@ const jetbrainsMono = JetBrains_Mono({
   subsets: ["latin"],
 });
 
-export const metadata: Metadata = {
-  // "/" shows the default; every other route sets its own title in its segment: "<Page> · Nick of Time".
-  title: { default: "Nick of Time", template: "%s · Nick of Time" },
-  description: "Verified action. Before the deadline.",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const { t } = await getT();
+  return {
+    // "/" shows the default; every other route sets its own title in its segment: "<Page> · Nick of Time".
+    title: { default: "Nick of Time", template: "%s · Nick of Time" },
+    description: t("landing.meta.tagline"),
+  };
+}
 
 export default async function RootLayout({ children }: LayoutProps<"/">) {
   // The UI language (spec 16 AC-06) comes from the selector's cookie, read per request: `<html lang>` is right on the

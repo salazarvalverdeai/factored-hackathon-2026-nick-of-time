@@ -3,12 +3,14 @@
 // The conversation (spec 07): a full-height log that sticks to the newest message (AI Elements `conversation`), the
 // brand chat-agent avatar on agent messages, each turn's plan checklist and cards as the tools report them, the reply
 // as safe markdown while it streams, and the verified receipt. The streaming reply is aria-busy until the turn ends,
-// so a screen reader reads it once, whole; a polite status line says which step is running.
+// so a screen reader reads it once, whole; a polite status line says which step is running. Everything inside the log
+// is the conversation, in the session's ES/PT; only the log's own name follows the UI locale (spec 16 AC-06).
 import type { ReactNode } from "react";
 import { Conversation, ConversationContent, ConversationScrollButton } from "@/components/ai-elements/conversation";
 import { Markdown } from "@/components/chat/markdown";
 import { ReceiptCard } from "@/components/chat/receipt-card";
 import { CaseCardView, ChargeCardView, DeadlineCardView, PlanChecklist, VerdictCardView } from "@/components/chat/tool-cards";
+import { useT } from "@/components/i18n-provider";
 import { DenyState } from "@/components/states";
 import { Button } from "@/components/ui/button";
 import {
@@ -184,10 +186,11 @@ export function ChatThread({
   onOpen: (detail: ChatDetail) => void;
   className?: string;
 }) {
+  const t = useT();
   const lastAgent = [...messages].reverse().find((m) => m.role === "agent")?.id;
-  const running = live?.tools.find((t) => t.status === "running");
+  const running = live?.tools.find((tool) => tool.status === "running");
   return (
-    <Conversation className={cn("min-h-0 rounded-xl border bg-background", className)} aria-label="Conversation">
+    <Conversation className={cn("min-h-0 rounded-xl border bg-background", className)} aria-label={t("chat.conversation.label")}>
       <ConversationContent className="gap-5 p-3 sm:p-4">
         {greeting ? (
           <div className="flex items-start gap-2.5">

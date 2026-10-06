@@ -1,10 +1,14 @@
 "use client";
 
+// /chat (spec 07). The chrome (headings, buttons, labels, the session bar, the start screen) follows the UI locale
+// chosen in the header (spec 16 AC-06); the conversation itself, its greeting, chips, examples, receipts and the trace
+// panel, stays in the session's ES or PT (spec 04): the web never translates what the agent says.
 import { useEffect, useRef, useState } from "react";
 import { ChatDetailPanel } from "@/components/chat/chat-detail";
 import { ChatChips } from "@/components/chat/chips";
 import { type ChatDetail, type ChatMessage, ChatThread } from "@/components/chat/thread";
 import { TracePanel } from "@/components/chat/trace-panel";
+import { useLocale, useT } from "@/components/i18n-provider";
 import { PageShell } from "@/components/page-shell";
 import { ErrorState, LoadingState } from "@/components/states";
 import { Button } from "@/components/ui/button";
@@ -13,11 +17,10 @@ import { Input } from "@/components/ui/input";
 import { ApiError, api } from "@/lib/api";
 import { EMPTY_STREAM, type TurnStream, applyText, applyTool } from "@/lib/chat-stream";
 import { greetingName, helloLine, showWebGreeting } from "@/lib/chat-view";
-import { VERIFY_COPY } from "@/lib/demo";
+import { formatDateTime } from "@/lib/i18n";
 import { MESSAGES } from "@/lib/mock/messages";
 import type { DemoCustomer, Language, PersonaDraft, Suggestion, TurnAction } from "@/lib/types";
 import { useMounted, useSession } from "@/lib/use-query";
-import { VOICE_COPY } from "@/lib/voice";
 import { DemoStart, Toggle } from "./demo-start";
 import { DemoTools } from "./demo-tools";
 import { MicButton, ReadAloudToggle, useReadAloud } from "./voice";
@@ -41,6 +44,7 @@ function useDemoCustomers(): DemoCustomer[] | null {
 }
 
 export default function ChatPage() {
+  const t = useT();
   const mounted = useMounted();
   const { customerSession } = useSession();
   const [now, setNow] = useState(() => Date.now());
@@ -54,7 +58,7 @@ export default function ChatPage() {
 
   if (!mounted) {
     return (
-      <PageShell title="Chat" description="Report an unrecognized charge in Spanish or Portuguese.">
+      <PageShell title={t("chat.page.title")} description={t("chat.page.loading")}>
         <LoadingState />
       </PageShell>
     );
@@ -64,7 +68,7 @@ export default function ChatPage() {
   const active = customerSession && !expired;
 
   return (
-    <PageShell title="Chat" description="Report an unrecognized charge in Spanish or Portuguese. The customer receives proof, not promises.">
+    <PageShell title={t("chat.page.title")} description={t("chat.page.description")}>
       {active ? (
         <Conversation onExpired={() => setForcedExpired(true)} />
       ) : (
@@ -83,6 +87,7 @@ export default function ChatPage() {
 // --- identity: pick a demo customer, show the one-time code on screen, session lasts 15 minutes -------------------
 
 function Verify({ expired, onVerified }: { expired: boolean; onVerified: () => void }) {
+  const t = useT();
   const [customerId, setCustomerId] = useState<string | null>(null);
   const [otp, setOtp] = useState<string | null>(null);
   const [code, setCode] = useState("");
@@ -91,10 +96,6 @@ function Verify({ expired, onVerified }: { expired: boolean; onVerified: () => v
   const customers = useDemoCustomers();
   // Live mode starts by scenario (D-068) and keeps the example-customer picker one press away (D-084 (a), spec 07 AC-01).
   const [path, setPath] = useState<"scenario" | "picker">(api.mode === "live" ? "scenario" : "picker");
-  const [scenarioLang, setScenarioLang] = useState<Language>("es");
-  const picked = customers?.find((c) => c.customer_id === customerId);
-  const lang: Language = path === "scenario" ? scenarioLang : (picked?.language ?? "es");
-  const copy = VERIFY_COPY[lang];
   const restart = () => {
     setOtp(null);
     setCode("");
@@ -107,7 +108,7 @@ function Verify({ expired, onVerified }: { expired: boolean; onVerified: () => v
     try {
       await action();
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : "unexpected error");
+      setError(e instanceof ApiError ? e.message : t("chat.verify.unexpected"));
     } finally {
       setBusy(false);
     }
@@ -116,12 +117,12 @@ function Verify({ expired, onVerified }: { expired: boolean; onVerified: () => v
   return (
     <div className="mx-auto max-w-xl space-y-4">
       {expired ? (
-        <ErrorState title="Your session expired" message="Sessions last 15 minutes. Verify again to continue; your cases are kept." />
+        <ErrorState title={t("chat.verify.expiredTitle")} message={t("chat.verify.expiredMessage")} />
       ) : null}
       {/* Plan §5, lead decision 5: one plain line says the data is synthetic; no bracket tags on customer screens. */}
-      <p className="text-sm text-muted-foreground">{copy.intro}</p>
+      <p className="text-sm text-muted-foreground">{t("chat.verify.intro")}</p>
       {api.mode === "live" ? (
-        <div className="flex flex-wrap gap-2" role="group" aria-label="How to start">
+        <div className="flex flex-wrap gap-2" role="group" aria-label={t("chat.verify.howToStart")}>
           <Toggle
             pressed={path === "scenario"}
             onClick={() => {
@@ -129,7 +130,7 @@ function Verify({ expired, onVerified }: { expired: boolean; onVerified: () => v
               restart();
             }}
           >
-            Start by scenario
+            {t("chat.verify.byScenario")}
           </Toggle>
           <Toggle
             pressed={path === "picker"}
@@ -138,14 +139,13 @@ function Verify({ expired, onVerified }: { expired: boolean; onVerified: () => v
               restart();
             }}
           >
-            Pick an example customer
+            {t("chat.verify.byPicker")}
           </Toggle>
         </div>
       ) : null}
       {path === "scenario" ? (
         <DemoStart
-          title={copy.who}
-          onLanguage={setScenarioLang}
+          title={t("chat.verify.who")}
           onStarted={(code) => {
             setOtp(code);
             setCode("");
@@ -155,11 +155,11 @@ function Verify({ expired, onVerified }: { expired: boolean; onVerified: () => v
       ) : (
       <Card>
         <CardHeader>
-          <CardTitle>{copy.who}</CardTitle>
-          <CardDescription>Pick an example customer. An id alone does not prove identity, so a one-time code follows.</CardDescription>
+          <CardTitle>{t("chat.verify.who")}</CardTitle>
+          <CardDescription>{t("chat.verify.pickerDescription")}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-2">
-          {customers === null ? <LoadingState label="Loading demo customers…" /> : null}
+          {customers === null ? <LoadingState label={t("chat.verify.loadingCustomers")} /> : null}
           {(customers ?? []).map((c) => (
             <button
               key={c.customer_id}
@@ -185,7 +185,7 @@ function Verify({ expired, onVerified }: { expired: boolean; onVerified: () => v
             onClick={() => wrap(async () => setOtp(await api.requestOtp(customerId!)))}
             className="mt-2"
           >
-            Send me a code
+            {t("chat.verify.sendCode")}
           </Button>
         </CardContent>
       </Card>
@@ -194,8 +194,8 @@ function Verify({ expired, onVerified }: { expired: boolean; onVerified: () => v
       {otp ? (
         <Card>
           <CardHeader>
-            <CardTitle>2 · Enter the code</CardTitle>
-            <CardDescription className="font-medium text-foreground">{copy.code(otp)}</CardDescription>
+            <CardTitle>{t("chat.verify.enterCode")}</CardTitle>
+            <CardDescription className="font-medium text-foreground">{t("chat.verify.code", { otp })}</CardDescription>
           </CardHeader>
           <CardContent>
             <form
@@ -208,16 +208,16 @@ function Verify({ expired, onVerified }: { expired: boolean; onVerified: () => v
                 });
               }}
             >
-              <Input value={code} onChange={(e) => setCode(e.target.value)} inputMode="numeric" placeholder="6-digit code" aria-label="One-time code" required />
+              <Input value={code} onChange={(e) => setCode(e.target.value)} inputMode="numeric" placeholder={t("chat.verify.codePlaceholder")} aria-label={t("chat.verify.codeLabel")} required />
               <Button type="submit" disabled={busy}>
-                Verify
+                {t("chat.verify.submit")}
               </Button>
             </form>
           </CardContent>
         </Card>
       ) : null}
-      {busy ? <LoadingState label="Working…" /> : null}
-      {error ? <ErrorState title="Cannot continue" message={error} /> : null}
+      {busy ? <LoadingState label={t("chat.verify.working")} /> : null}
+      {error ? <ErrorState title={t("chat.verify.cannotContinue")} message={error} /> : null}
     </div>
   );
 }
@@ -225,11 +225,14 @@ function Verify({ expired, onVerified }: { expired: boolean; onVerified: () => v
 // --- the conversation: messages, receipt widget and the trace panel ------------------------------------------------
 
 function Conversation({ onExpired }: { onExpired: () => void }) {
+  const t = useT();
+  const { locale } = useLocale();
   const { customerSession } = useSession();
   const customer = useDemoCustomers()?.find((c) => c.customer_id === customerSession?.customerId);
   // A scenario session has no picked customer: the name is the typed one, else the scenario's gold name, else none
   // ("assign me one"); the agent then greets with gold's name (spec 07 AC-07). Never a placeholder such as "you".
-  const lang = customer?.language ?? customerSession?.language ?? "es";
+  // The conversation language is the session's; with none on record, the UI locale when it is ES or PT, else Spanish.
+  const lang: Language = customer?.language ?? customerSession?.language ?? (locale === "pt" ? "pt" : "es");
   const speaker = greetingName(customer?.display_name ?? customerSession?.displayName);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
@@ -274,7 +277,7 @@ function Conversation({ onExpired }: { onExpired: () => void }) {
       readAloud.speak(reply.text); // the reply text only, never chips, ids or the trace (§8 D-072.4)
     } catch (e) {
       if (e instanceof ApiError && e.code === "SESSION_EXPIRED") onExpired();
-      else setError(e instanceof ApiError ? e.message : "unexpected error");
+      else setError(e instanceof ApiError ? e.message : t("chat.verify.unexpected"));
     } finally {
       setBusy(false);
       setStep(null);
@@ -284,26 +287,27 @@ function Conversation({ onExpired }: { onExpired: () => void }) {
 
   return (
     <div className="grid gap-4 lg:grid-cols-[1fr_20rem]">
-      <section aria-label="Conversation" className="min-w-0 space-y-3">
+      <section aria-label={t("chat.conversation.label")} className="min-w-0 space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
           <span>
             {speaker ? (
               <>
-                Talking as <b>{speaker}</b> ·{" "}
+                {t("chat.session.talkingAs")} <b>{speaker}</b> ·{" "}
               </>
             ) : null}
-            Session until{" "}
-            {customerSession ? new Date(customerSession.expiresAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "—"}
+            {t("chat.session.until", {
+              time: customerSession ? formatDateTime(locale, new Date(customerSession.expiresAt), { hour: "2-digit", minute: "2-digit" }) : "—",
+            })}
           </span>
           <span className="flex gap-2">
-            {voiceOn && readAloud.supported ? <ReadAloudToggle lang={lang} on={readAloud.on} online={readAloud.online} onToggle={readAloud.toggle} /> : null}
+            {voiceOn && readAloud.supported ? <ReadAloudToggle on={readAloud.on} online={readAloud.online} onToggle={readAloud.toggle} /> : null}
             {api.mode === "mock" ? (
               <Button size="xs" variant="outline" onClick={() => api.expireCustomerSession()}>
-                Expire session (demo)
+                {t("chat.session.expire")}
               </Button>
             ) : null}
             <Button size="xs" variant="outline" onClick={() => api.logoutCustomer()}>
-              Sign out
+              {t("chat.session.signOut")}
             </Button>
           </span>
         </div>
@@ -332,7 +336,7 @@ function Conversation({ onExpired }: { onExpired: () => void }) {
           footer={
             <>
               {busy && step && !live?.tools.length && !live?.text ? <LoadingState label={step} className="p-3" /> : null}
-              {error ? <ErrorState title="The agent did not answer" message={error} onRetry={() => setError(null)} /> : null}
+              {error ? <ErrorState title={t("chat.conversation.noAnswer")} message={error} onRetry={() => setError(null)} /> : null}
             </>
           }
         />
@@ -347,10 +351,10 @@ function Conversation({ onExpired }: { onExpired: () => void }) {
 
         {draftSource ? (
           <p className="text-xs text-muted-foreground">
-            Suggested message ({draftSource === "llm" ? "written by a model" : "from a template"}): edit it, then send it yourself.
+            {draftSource === "llm" ? t("chat.conversation.draftLlm") : t("chat.conversation.draftTemplate")}
           </p>
         ) : null}
-        {heard ? <p className="text-xs text-muted-foreground">{VOICE_COPY[lang].draft}</p> : null}
+        {heard ? <p className="text-xs text-muted-foreground">{t("chat.voice.draft")}</p> : null}
         <form
           className="flex flex-wrap gap-2"
           onSubmit={(e) => {
@@ -367,8 +371,8 @@ function Conversation({ onExpired }: { onExpired: () => void }) {
               setDraftSource(null);
               setHeard(false);
             }}
-            placeholder={lang === "es" ? "Escribe tu mensaje…" : "Escreva sua mensagem…"}
-            aria-label="Message"
+            placeholder={t("chat.conversation.placeholder")}
+            aria-label={t("chat.conversation.message")}
           />
           {voiceOn ? (
             <MicButton
@@ -384,7 +388,7 @@ function Conversation({ onExpired }: { onExpired: () => void }) {
             />
           ) : null}
           <Button type="submit" disabled={busy || !input.trim()}>
-            {lang === "es" ? "Enviar" : "Enviar"}
+            {t("chat.conversation.send")}
           </Button>
         </form>
       </section>
@@ -404,7 +408,7 @@ function Conversation({ onExpired }: { onExpired: () => void }) {
             }}
           />
         ) : null}
-        <TracePanel trace={lastReply?.trace ?? []} guardrails={lastReply?.guardrails ?? []} />
+        <TracePanel trace={lastReply?.trace ?? []} guardrails={lastReply?.guardrails ?? []} lang={lang} />
       </div>
       <ChatDetailPanel detail={detail} lang={lang} country={customer?.country} onClose={() => setDetail(null)} />
     </div>
