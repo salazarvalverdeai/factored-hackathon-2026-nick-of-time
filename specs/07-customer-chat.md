@@ -56,6 +56,22 @@ AC-01 to AC-05 are copied from issue #9 with the same numbers. None is dropped o
   spoken with the browser's `speechSynthesis` in the session language. A 413, 415 or 503 shall show the api's calm
   message and keep typing available; with no microphone, no permission or no `speechSynthesis`, the chat works as
   today. · [U] · [T] `lib/voice.test.ts`, `lib/live.test.ts` ("spec 07 AC-10: …")
+- AC-11 — While a turn runs, the chat shall show each `tool` event of spec 01 §6.4.1 as a checklist row in its state
+  (running, done, failed) with the cards built from tool results (charge, verdict, deadline, case) and each action's
+  state; a call with no result when the turn ends shall show as failed, and an action shall show as verified only with
+  a `V-` id (constitution #4). · [T] `lib/chat-stream.test.ts` ("spec 07 AC-11: …")
+- AC-12 — When `text` chunks arrive (writer `llm`), the chat shall render the reply as it is written, as safe markdown
+  (no raw HTML, no half-written mark), and shall replace it with `turn.reply` when the turn ends. · [T] ("spec 07
+  AC-12: …")
+- AC-13 — The chips under the last reply shall be pills, at most three, and shall always include "talk to a person"
+  (spec 04 AC-20, AC-39). · [T] ("spec 07 AC-13: …")
+- AC-14 — A customer screen of the chat shall show no bracket label (`[simulated]`, `[data]`…) and no raw URL: a
+  source is a named link; times and dates are in the session language (es-MX, pt-BR, 24 h) in the zone of the case's
+  country, never from the system clock; beside a receipt, the reply shall not repeat its deadlines or sources, and the
+  trace rows lead with a plain name, not a node key. · [T] ("spec 07 AC-14: …")
+- AC-15 — A step, a card or "how I decided" shall open the shared right panel (`components/detail-panel.tsx`): a modal
+  sheet that Escape closes, that keeps and then returns focus, that fits 390 px; motion stays off under
+  `prefers-reduced-motion`. · [U]
 
 ## 8. Assumptions and open questions
 - Assumption `[assumption]`: the scripted agent in `lib/mock/agent.ts` stands in for the LangGraph graph; refusal,
@@ -75,7 +91,8 @@ AC-01 to AC-05 are copied from issue #9 with the same numbers. None is dropped o
      ending {last4}".
   7. demo type C (DEMOCD, only when the session's `mode` is `live`): a "register a test charge" form (amount in the
      country's currency, merchant) that posts `POST /api/sessions/{id}/synthetic-charge` (spec 05 AC-19); the answer
-     and its chip carry the `[simulated]` label, and the chip list is re-read so the charge shows first. A 429 shows
+     and its chip say "test charge" in plain words (AC-14: no bracket label on a customer screen; the api's answer
+     keeps its `label` field), and the chip list is re-read so the charge shows first. A 429 shows
      "one test charge per minute"; a 403 hides the form (a replay session).
   8. demo type D (DEMOCD): six character chips (aggressive, passive, terse, verbose, confused, code-switching ES/PT)
      that post `POST /api/demo/persona {character, transaction_id?}` (spec 05 AC-20; the chosen transaction chip, else
@@ -98,9 +115,7 @@ AC-01 to AC-05 are copied from issue #9 with the same numbers. None is dropped o
      del hackathon: elige un cliente de ejemplo." (PT "Demo com dados sintéticos do hackathon: escolha um cliente de
      exemplo."); the step title "1 · ¿Quién eres?" (PT "1 · Quem é você?"); the code line "Tu código es {otp}. En un
      banco real llegaría por SMS." (PT "Seu código é {otp}. Em um banco real, chegaria por SMS."). The language is
-     the one chosen on the start screen, else the picked customer's, else ES. · [T] `lib/demo.test.ts`
-  Open: item 7 still asks for the `[simulated]` label on the test charge chip; whether decision 5 replaces it with
-  plain words is the lead's call.
+     the one chosen on the start screen, else the picked customer's, else ES (plan §5). · [T] `lib/demo.test.ts`
 - Decided (lead, D-072, 2026-10-05; ADR 0029): voice for live mode, built by the web owner on spec 05 AC-24.
   1. **Mic button and push-to-talk:** hold (pointer or Space while focused) to record, release to send; a tap toggles
      for touch users. Recording stops at 30 s. `MediaRecorder` with `audio/webm;codecs=opus` (Chrome, Firefox,
@@ -152,6 +167,10 @@ AC-01 to AC-05 are copied from issue #9 with the same numbers. None is dropped o
 - [ ] Task 7 — voice (D-072, the contract in §8): mic, push-to-talk, draft, read-aloud and mute · covers AC-10 · done
   when: a visitor speaks a claim in ES and in PT on the public URL and hears the reply (code and tests in place; the
   public-URL check follows the deploy)
+- [x] Task 8 — agentic chat, stage 1 (ADR 0030, plan of 2026-10-05): AI Elements (`conversation`, `suggestion`,
+  `sources`, `task`, restyled to BRAND.md) with live tool steps, cards, streaming markdown, the receipt with its
+  verified seal and named sources, chips as pills and the shared right panel; a mock stream in the exact §6.4.1 shapes
+  (`lib/mock/stream.ts`) so it works with no backend · covers AC-11 to AC-15 · done when: the tests citing them pass
 
 **Task 5 notes.** The web never sends a `customer_id`; the session id (equal to the httpOnly cookie value) is kept in
 `sessionStorage` to address `/api/sessions/{id}/...`. Charge-chip text is local ES/PT copy built from tool-returned
