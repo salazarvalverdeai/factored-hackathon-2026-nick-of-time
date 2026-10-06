@@ -3,12 +3,14 @@
 - **Feature:** a fraud model trained on gold transactions, compared with the bank's `fraud_score` as the baseline on a
   later time window, and shown to the analyst as a second signal only if it earns it. The bank's score keeps deciding
   the zones.
-- **Status:** Draft (2026-10-04; gate 1 closed by the lead)
+- **Status:** Implemented (P1 deferred) (2026-10-06; test window scored once, no arm passes the rule, the bank's
+  score stays alone; the analyst signal AC-07–AC-08 is P1, see §10)
 - **Owner:** @salazarvalverdeai · **Priority:** P0 benchmark, P1 analyst signal · **Size:** M
 - **Challenge dimension:** Machine Learning (a learned model against a baseline), Technical Judgment
 - **Depends on:** gold v1 and `gold_eval/transaction_labels`, ADR 0022 · **Enables:** a second signal in the
   handoff card (specs 03, 04, console), the model inventory (ADR 0021), `/evaluation`
-- **ADRs:** 0006, 0007, 0015, 0021, 0022 · **Issue:** #28
+- **ADRs:** 0006, 0007, 0015, 0021, 0022, 0031 · **PRs:** #30 (spec), #46, #49, #60, #130, #175, #221, #222 ·
+  **Issue:** #28
 
 ---
 
@@ -290,12 +292,12 @@ retraining (ADR 0021, P2).
       fraud in train only, plus class weights where available `[assumption]`), cost and efficiency harness
       (`scripts/ml/fraud_screen.py`; models and outputs outside the repo, the protocol seal forbids results inside it);
       train and validation only, so the test-window part of AC-03 is task 17c · AC-03 (screen), AC-05
-- [ ] T3b [P0] — lean rule in `eval/PROTOCOL.md` · AC-06 · #47 (merged); PROTOCOL §3.1 and §3.3 synced with §4.3–4.4
-      by PR #60 (open; task PROT2; D-017a–e, D-022), and §4.4 rules 1–2 copied back from PROTOCOL §3.3
+- [x] T3b [P0] — lean rule in `eval/PROTOCOL.md` · AC-06 · #47 (merged); PROTOCOL §3.1 and §3.3 synced with §4.3–4.4
+      by PR #60 (merged; task PROT2; D-017a–e, D-022), and §4.4 rules 1–2 copied back from PROTOCOL §3.3
 - [x] T3c [P0] — signal search beyond §4.2 on train and validation (`scripts/ml/fraud_signal_search.py`, D-015): no
       candidate passes, the feature list is unchanged · AC-02, AC-05
-- [ ] T4 [P0] — test-window evaluation, report, `fraud_benchmark.json` for `/evaluation` · AC-04, AC-05. Code ready
-      (17c, `scripts/ml/fraud_report.py`), not run. `--window test`, in this order: computes the split hash (no
+- [x] T4 [P0] — test-window evaluation, report, `fraud_benchmark.json` for `/evaluation` · AC-04, AC-05. Code
+      (17c, `scripts/ml/fraud_report.py`), run once on 2026-10-06 (#222; result below). `--window test`, in this order: computes the split hash (no
       label); `seal_guard.check_seal(inputs={"fraud_split": hash})`; refuses `--out`, an existing
       `fraud_benchmark.json` or a non-empty `eval/results/fraud-test/`; refuses unless every pre-registered arm
       (PROTOCOL §3.4) has a model file whose sha256 equals both the screen record and the hash committed in
@@ -309,6 +311,30 @@ retraining (ADR 0021, P2).
       (`tests/test_spec17_report.py`)
 - [ ] T5 [P1] — `model_score` in `get_fraud_score` and the handoff card; inventory entry · AC-07, AC-08
 
+
+### Result on the sealed test window (closing review, 2026-10-06)
+One run of `scripts/ml/fraud_report.py --window test` under `protocol-v1`, started 2026-10-06T01:55:58Z
+(`eval/results/fraud-test/fraud-test.start.json`), with the frozen models of `eval/results/fraud_models_frozen.json`.
+Window 2026-04 to 2026-05: 238,990 transactions and 211 frauds `[data]`. Sources: `apps/web/public/data/fraud_benchmark.json`
+(generated 2026-10-06T01:57:46Z) and `eval/results/fraud-test/fraud_benchmark.csv`. All products:
+
+| Arm | PR-AUC [95% CI] | Recall at 1% alert budget | Passes the rule |
+|---|---|---|---|
+| S-bank (the bank's `fraud_score`, baseline) | 0.566 [0.500, 0.633] | 121/211 | baseline |
+| Stacked (best screen model + the bank's score) | 0.566 [0.500, 0.633] | 119/211 | no |
+| Best learned arm alone (MLP) | 0.0010 [0.0008, 0.0020] | 4/211 | no |
+| Other screen arms (IsolationForest, LR, SGD, GaussianNB, tree, RF, ExtraTrees, HGB) | 0.0008–0.0010 | 0–2/211 | no |
+
+- **Chosen: S-bank.** No arm passes rule 1–2 of §4.4 (rule 5): the learned arms alone sit near the fraud base rate
+  (211/238,990 ≈ 0.0009) and the stacked arm only reproduces the bank's score. The bank's score keeps deciding the zones
+  and no second signal is shown (AC-07 stays P1 and has nothing to show).
+- The 45 frauds with no bank score: S-bank catches 0/45 by construction (band `none`) `[data]`; no arm reached the 30%
+  value bar of rule 2 on them.
+
+### Open items (closing review, 2026-10-06)
+Every non-P1 [T] criterion has a citing test (`python scripts/ci/ac_coverage.py` on `main` at `a2fa15e`).
+- **T5 [P1] (AC-07, AC-08).** No model passed, so there is no `model_score` to wire; the inventory entry for the bank's
+  score and the screen result is in `docs/models.md`.
 ## 11. Sources
 - Bank score thresholds over the full history: [`queries/pitch/p08_fraud_score_thresholds.sql`](../queries/pitch/p08_fraud_score_thresholds.sql)
   → `p08_fraud_score_thresholds.csv` (≥ 50: precision 100%, recall of all frauds 38.69%; ≥ 30: 79.58% and 54.98%)

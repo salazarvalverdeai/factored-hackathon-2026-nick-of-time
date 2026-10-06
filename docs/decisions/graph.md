@@ -4,7 +4,7 @@
 
 One picture of the project's reasoning: the problem the data showed, the decisions that answered it, the specs and components that implement them, and the evidence behind each. Every ADR and spec is a node; every edge comes from a header (`Status`, `Amended by`, `Related`, `ADRs`, `Depends on`) or from the small mapping in [`graph_extra.yaml`](graph_extra.yaml). The same graph, with every edge, is in [`graph.json`](graph.json).
 
-**Size:** 4 problem nodes, 30 decision nodes (31 ADRs, ADRs 0001 and 0002 drawn as one), 18 specs, 15 evidence nodes: 67 nodes and 85 edges drawn.
+**Size:** 4 problem nodes, 30 decision nodes (31 ADRs, ADRs 0001 and 0002 drawn as one), 18 specs, 15 evidence nodes: 67 nodes and 96 edges drawn.
 
 ```mermaid
 flowchart LR
@@ -59,24 +59,24 @@ flowchart LR
     end
   end
   subgraph LS["3. Specs and components"]
-    spec_01["01 Integration contract + stubs<br/>Draft | contracts/"]
-    spec_02["02 Policy engine + regulatory clock<br/>In progress | packages/nick_of_time/policy/"]
-    spec_03["03 MCP server with the 16 customer...<br/>Draft | apps/mcp/mcp_server/"]
-    spec_04["04 Agent graph on LangGraph Platform<br/>Draft | apps/agent/agent/"]
+    spec_01["01 Integration contract + stubs<br/>In progress | contracts/"]
+    spec_02["02 Policy engine + regulatory clock<br/>Implemented | packages/nick_of_time/policy/"]
+    spec_03["03 MCP server with the 16 customer...<br/>Implemented | apps/mcp/mcp_server/"]
+    spec_04["04 Agent graph on LangGraph Platform<br/>Implemented | apps/agent/agent/"]
     spec_05["05 Backend: API + Postgres + analyst...<br/>In progress | apps/api/app/"]
-    spec_06["06 Deploy + CI<br/>Draft | infra/"]
+    spec_06["06 Deploy + CI<br/>In progress | infra/"]
     spec_07["07 Customer chat /chat with verified...<br/>In progress | apps/web/app/chat/"]
     spec_08["08 Analyst login + console /login,...<br/>In progress | apps/web/app/console/"]
     spec_09["09 Demo and evaluation data<br/>Implemented | eval/demo/"]
     spec_10["10 Evaluation harness<br/>Implemented | eval/harness/"]
-    spec_11["11 Intent classifier, injection...<br/>Draft | packages/nick_of_time/nlu/"]
+    spec_11["11 Intent classifier, injection...<br/>Implemented | packages/nick_of_time/nlu/"]
     spec_12["12 Insight pages: /evaluation,...<br/>Implemented | apps/web/app/evaluation/"]
     spec_13["13 /case/{id} + Telegram + email...<br/>In progress | apps/web/app/case/"]
     spec_14["14 Operational lakehouse<br/>In progress | data/pipeline/"]
-    spec_15["15 Model benchmark (cost vs quality,...<br/>Draft | eval/bench/"]
+    spec_15["15 Model benchmark (cost vs quality,...<br/>Implemented | eval/bench/"]
     spec_16["16 Web foundation + front-end standard<br/>Implemented | apps/web/README.md"]
-    spec_17["17 Our fraud model versus the bank's...<br/>Draft | scripts/ml/"]
-    spec_18["18 Outcome auditor and AI second...<br/>Draft | packages/nick_of_time/audit/"]
+    spec_17["17 Our fraud model versus the bank's...<br/>Implemented | scripts/ml/"]
+    spec_18["18 Outcome auditor and AI second...<br/>Implemented | packages/nick_of_time/audit/"]
   end
   subgraph LE["4. Evidence"]
     E_audit["tests/test_spec18_audit_a3_a7.py"]
@@ -163,10 +163,21 @@ flowchart LR
   adr_0022 --> spec_17
   adr_0023 --> spec_02
   adr_0024 --> spec_02
+  adr_0024 --> spec_03
+  adr_0024 --> spec_04
   adr_0025 --> spec_09
+  adr_0025 --> spec_11
+  adr_0026 --> spec_01
   adr_0026 --> spec_05
+  adr_0027 --> spec_04
+  adr_0027 --> spec_11
+  adr_0027 --> spec_15
+  adr_0028 --> spec_11
   adr_0029 --> spec_05
   adr_0029 --> spec_07
+  adr_0030 --> spec_01
+  adr_0030 --> spec_04
+  adr_0030 --> spec_15
   adr_0031 --> spec_10
   P1 --> adr_0003
   P1 --> adr_0004
@@ -241,38 +252,38 @@ The dataset is synthetic; these figures describe the problem, not our system (se
 | [0020 Two time modes: historical (replay) for evaluation and processed cases, live for the demo](../adr/0020-two-time-modes-historical-and-live.md) · Accepted (amended by 0023; supersedes 0012) | The system runs in one of two modes, fixed when a session is created and never changed during it: \| \| replay (historical) \| live \| \|---\|---\|---\| \| Purpose \| Evaluation, benchmark, and processed sample cases that show a case's ... | The gold transactions end on 2026-05-31: R1 keeps 2025-06-01 ≤ transaction_date < 2026-06-01 (contracts/gold_contract.md, R1). | [01](../../specs/01-integration-contract.md), [02](../../specs/02-policy-engine.md), [03](../../specs/03-mcp-tools.md), [04](../../specs/04-agent-graph.md), [05](../../specs/05-backend-api.md), [09](../../specs/09-demo-eval-data.md), [10](../../specs/10-eval-harness.md), [11](../../specs/11-intent-classifier.md), [14](../../specs/14-ops-lakehouse.md), [15](../../specs/15-model-benchmark.md) | [PR 188](https://github.com/salazarvalverdeai/factored-hackathon-2026-nick-of-time/pull/188) |
 | [0021 Continuous evaluation and outcome audit: a deterministic auditor, an advisory judge and sealed regression sets](../adr/0021-continuous-evaluation-and-outcome-audit.md) · Accepted | Inventory of models and decision engines. docs/models.md lists everything that decides or scores: purpose, owner, version, data window, metrics, gate and monitoring. | The agent verifies its own actions (verify node), and the analyst decides escalated cases. | [09](../../specs/09-demo-eval-data.md), [10](../../specs/10-eval-harness.md), [11](../../specs/11-intent-classifier.md), [14](../../specs/14-ops-lakehouse.md), [15](../../specs/15-model-benchmark.md), [17](../../specs/17-fraud-model.md), [18](../../specs/18-outcome-auditor.md) | [`test_spec18_audit_a3_a7.py`](../../tests/test_spec18_audit_a3_a7.py) |
 | [0022 Fraud labels may train our fraud model, by time window, and never reach the runtime](../adr/0022-fraud-labels-for-model-training.md) · Accepted | The fraud-model training pipeline may read gold_eval/transaction_labels only for the training window (2025-06 → 2026-01) and the validation window (2026-02 → 2026-03). 2. | **P4**: Constitution rule 7: "is_fraud lives only in data/gold_eval/ and is read only by the evaluation harness." It protects the evaluation from leakage and keeps labels away from the agent. - Spec 17 trains a fraud model to compare ... | [17](../../specs/17-fraud-model.md) | [`test_spec17_screen.py`](../../tests/test_spec17_screen.py) |
-| [0023 MX provisional credit covers unrecognized-charge claims within 90 calendar days; the 48 h window is for theft or loss only](../adr/0023-mx-provisional-credit-90-days.md) · Accepted | MX debit and MX credit, claim within 90 calendar days. | What the docs said. | [02](../../specs/02-policy-engine.md) | [`policies.yaml`](../../contracts/policies.yaml) |
+| [0023 MX provisional credit covers unrecognized-charge claims within 90 calendar days; the 48 h window is for theft or loss only](../adr/0023-mx-provisional-credit-90-days.md) · Accepted | MX debit and MX credit, claim within 90 calendar days. | What the docs said. | [02](../../specs/02-policy-engine.md), [03](../../specs/03-mcp-tools.md) | [`policies.yaml`](../../contracts/policies.yaml) |
 | [0024 A call request in the high zone defers the card block to the analyst](../adr/0024-high-zone-call-request-defers-block.md) · Accepted | The business rule in CLAUDE.md (merged in #83) now reads: "High zone blocks and verifies, unless the customer asked for a person in that turn: the case opens, the call is registered and the analyst decides the block after the ... | One firm business rule is "High zone blocks and verifies" (CLAUDE.md). approval.per_action.block_card.high is manual_check: the agent blocks, verifies and leaves the case in verification (contracts/policies.yaml). - A customer ... | [02](../../specs/02-policy-engine.md), [03](../../specs/03-mcp-tools.md), [04](../../specs/04-agent-graph.md), [11](../../specs/11-intent-classifier.md) | [`test_spec02_decide.py`](../../tests/test_spec02_decide.py) |
 | [0025 The classifier set is written by three model families, one per split, none of them Claude](../adr/0025-classifier-set-authored-by-distinct-model-families.md) · Accepted (amended by 0028) | Each split has a different generator model family, and none of them is Claude: \| Split \| Generator (Bedrock model id) \| Family \| \|---\|---\|---\| \| Train \| Llama 3.3 70B Instruct (us.meta.llama3-3-70b-instruct-v1:0) \| Meta Llama \| \| ... | Spec 11 AC-06 splits the classifier sentences by author (60/15/25), so that the test split measures how well a classifier generalizes to writers it never saw. | [09](../../specs/09-demo-eval-data.md), [11](../../specs/11-intent-classifier.md), [15](../../specs/15-model-benchmark.md) | [`PROTOCOL.md`](../../eval/PROTOCOL.md) |
-| [0026 Public demo sessions: a scenario picks the customer server-side and each session runs under its own run_id](../adr/0026-demo-sessions-isolated-by-run-id.md) · Accepted | A demo session is opened with a scenario, not a customer: POST /api/sessions {display_name?, language, country?, scenario?}. | The public /chat lets any visitor try the agent on the six spec 09 demo customers (eval/demo/customers.json). | [01](../../specs/01-integration-contract.md), [05](../../specs/05-backend-api.md), [07](../../specs/07-customer-chat.md), [09](../../specs/09-demo-eval-data.md) | [PR 188](https://github.com/salazarvalverdeai/factored-hackathon-2026-nick-of-time/pull/188) |
-| [0027 Model selection per LLM task (understand, word, judge)](../adr/0027-model-selection.md) · Proposed |  | The agent uses an LLM for only two tasks: understand, below τ, and word. | [04](../../specs/04-agent-graph.md), [11](../../specs/11-intent-classifier.md), [15](../../specs/15-model-benchmark.md) | [`gate_evidence.yaml`](../../eval/bench/gate_evidence.yaml) |
-| [0028 The classifier test split is decided by fixed rules when no independent person can review it](../adr/0028-test-split-decided-by-fixed-rules-without-independent-reviewer.md) · Accepted | When no person other than the classifier's developer can review the test split before the seal, the test split is decided by fixed rules, eval.classifier.review.rule_decision, signed rules-v1: 1. | ADR 0025 asks a person who is not the classifier's developer to review every line of the test split. | [09](../../specs/09-demo-eval-data.md), [11](../../specs/11-intent-classifier.md) | [`PROTOCOL.md`](../../eval/PROTOCOL.md) |
+| [0026 Public demo sessions: a scenario picks the customer server-side and each session runs under its own run_id](../adr/0026-demo-sessions-isolated-by-run-id.md) · Accepted | A demo session is opened with a scenario, not a customer: POST /api/sessions {display_name?, language, country?, scenario?}. | The public /chat lets any visitor try the agent on the six spec 09 demo customers (eval/demo/customers.json). | [01](../../specs/01-integration-contract.md), [03](../../specs/03-mcp-tools.md), [05](../../specs/05-backend-api.md), [07](../../specs/07-customer-chat.md), [09](../../specs/09-demo-eval-data.md) | [PR 188](https://github.com/salazarvalverdeai/factored-hackathon-2026-nick-of-time/pull/188) |
+| [0027 Model selection per LLM task (understand, word, judge)](../adr/0027-model-selection.md) · Accepted | The model map is the output of make bench on the sealed test split under PROTOCOL §2.3. | The agent uses an LLM for only two tasks: understand, below τ, and word. | [04](../../specs/04-agent-graph.md), [11](../../specs/11-intent-classifier.md), [15](../../specs/15-model-benchmark.md) | [`gate_evidence.yaml`](../../eval/bench/gate_evidence.yaml) |
+| [0028 The classifier test split is decided by fixed rules when no independent person can review it](../adr/0028-test-split-decided-by-fixed-rules-without-independent-reviewer.md) · Accepted | When no person other than the classifier's developer can review the test split before the seal, the test split is decided by fixed rules, eval.classifier.review.rule_decision, signed rules-v1: 1. | ADR 0025 asks a person who is not the classifier's developer to review every line of the test split. | [09](../../specs/09-demo-eval-data.md), [11](../../specs/11-intent-classifier.md), [15](../../specs/15-model-benchmark.md) | [`PROTOCOL.md`](../../eval/PROTOCOL.md) |
 | [0029 Voice: Bedrock Voxtral speech-to-text on the api and the browser's text-to-speech](../adr/0029-voice-input-voxtral-stt-browser-tts.md) · Accepted | Voice is two halves around the unchanged text chat. | Customers report disputes by phone as much as by chat; speaking a claim lowers the effort of first contact. - Everything runs in us-east-2 (ADR 0009). | [05](../../specs/05-backend-api.md), [07](../../specs/07-customer-chat.md) | - |
 | [0030 An LLM writer words chat replies, and the stream shows each tool call live](../adr/0030-llm-writer-and-live-stream-events.md) · Accepted | A writer words the chat reply. | A walkthrough of the public URL on 2026-10-05 showed a working flow that reads like a menu bot: - every reply is a fixed template (spec 04 deferred LLM wording to the spec 15 word gate); - the stream carries only short progress ... | [01](../../specs/01-integration-contract.md), [04](../../specs/04-agent-graph.md), [05](../../specs/05-backend-api.md), [07](../../specs/07-customer-chat.md), [15](../../specs/15-model-benchmark.md) | - |
-| [0031 Held-out scored under the sealed rules and, secondarily, under D-070](../adr/0031-heldout-scored-under-sealed-rules-and-d070.md) · Accepted | The held-out reports two scores, computed in code from the same runs: 1. | The agent held-out (80 cases, eval/cases/heldout.jsonl) was derived and sealed under tag protocol-v1 on 2026-10-05 (ADR 0007, ADR 0021). | [04](../../specs/04-agent-graph.md), [09](../../specs/09-demo-eval-data.md), [10](../../specs/10-eval-harness.md) | - |
+| [0031 Held-out scored under the sealed rules and, secondarily, under D-070](../adr/0031-heldout-scored-under-sealed-rules-and-d070.md) · Accepted | The held-out reports two scores, computed in code from the same runs: 1. | The agent held-out (80 cases, eval/cases/heldout.jsonl) was derived and sealed under tag protocol-v1 on 2026-10-05 (ADR 0007, ADR 0021). | [04](../../specs/04-agent-graph.md), [09](../../specs/09-demo-eval-data.md), [10](../../specs/10-eval-harness.md), [17](../../specs/17-fraud-model.md) | - |
 
 ## Specs and components
 
 | Spec | Status | Components | Depends on | Evidence |
 |---|---|---|---|---|
-| [01 Integration contract + stubs](../../specs/01-integration-contract.md) | Draft | [`contracts/`](../../contracts/), [`packages/nick_of_time/contracts.py`](../../packages/nick_of_time/contracts.py), [`packages/nick_of_time/store/`](../../packages/nick_of_time/store/) | - | [`test_spec01_store.py`](../../tests/test_spec01_store.py) |
-| [02 Policy engine + regulatory clock](../../specs/02-policy-engine.md) | In progress | [`packages/nick_of_time/policy/`](../../packages/nick_of_time/policy/), [`contracts/policies.yaml`](../../contracts/policies.yaml) | - | [`test_spec02_decide.py`](../../tests/test_spec02_decide.py) |
-| [03 MCP server with the 16 customer tools](../../specs/03-mcp-tools.md) | Draft | [`apps/mcp/mcp_server/`](../../apps/mcp/mcp_server/) | 01, 02 | [`test_spec03_server.py`](../../tests/test_spec03_server.py) |
-| [04 Agent graph on LangGraph Platform](../../specs/04-agent-graph.md) | Draft | [`apps/agent/agent/`](../../apps/agent/agent/), [`langgraph.json`](../../langgraph.json) | 01, 02, 03, 11 | [`test_spec04_respond.py`](../../tests/test_spec04_respond.py) |
+| [01 Integration contract + stubs](../../specs/01-integration-contract.md) | In progress | [`contracts/`](../../contracts/), [`packages/nick_of_time/contracts.py`](../../packages/nick_of_time/contracts.py), [`packages/nick_of_time/store/`](../../packages/nick_of_time/store/) | - | [`test_spec01_store.py`](../../tests/test_spec01_store.py) |
+| [02 Policy engine + regulatory clock](../../specs/02-policy-engine.md) | Implemented | [`packages/nick_of_time/policy/`](../../packages/nick_of_time/policy/), [`contracts/policies.yaml`](../../contracts/policies.yaml) | - | [`test_spec02_decide.py`](../../tests/test_spec02_decide.py) |
+| [03 MCP server with the 16 customer tools](../../specs/03-mcp-tools.md) | Implemented | [`apps/mcp/mcp_server/`](../../apps/mcp/mcp_server/) | 01, 02 | [`test_spec03_server.py`](../../tests/test_spec03_server.py) |
+| [04 Agent graph on LangGraph Platform](../../specs/04-agent-graph.md) | Implemented | [`apps/agent/agent/`](../../apps/agent/agent/), [`langgraph.json`](../../langgraph.json) | 01, 02, 03, 11 | [`test_spec04_respond.py`](../../tests/test_spec04_respond.py) |
 | [05 Backend: API + Postgres + analyst login (Cognito) + customer session/OTP](../../specs/05-backend-api.md) | In progress | [`apps/api/app/`](../../apps/api/app/) | 01 | [`test_spec05_guard.py`](../../tests/test_spec05_guard.py) |
-| [06 Deploy + CI](../../specs/06-deploy-ci.md) | Draft | [`infra/`](../../infra/), [`.github/workflows/deploy.yml`](../../.github/workflows/deploy.yml) | - | [`deploy.yml`](../../.github/workflows/deploy.yml) |
+| [06 Deploy + CI](../../specs/06-deploy-ci.md) | In progress | [`infra/`](../../infra/), [`.github/workflows/deploy.yml`](../../.github/workflows/deploy.yml) | - | [`deploy.yml`](../../.github/workflows/deploy.yml) |
 | [07 Customer chat `/chat` with verified receipt and trace](../../specs/07-customer-chat.md) | In progress | [`apps/web/app/chat/`](../../apps/web/app/chat/) | 04, 05, 16 | - |
 | [08 Analyst login + console `/login`, `/console`](../../specs/08-analyst-console.md) | In progress | [`apps/web/app/console/`](../../apps/web/app/console/) | 05, 16 | - |
 | [09 Demo and evaluation data](../../specs/09-demo-eval-data.md) | Implemented | [`eval/demo/`](../../eval/demo/), [`eval/classifier/`](../../eval/classifier/), [`eval/cases/`](../../eval/cases/) | - | - |
 | [10 Evaluation harness](../../specs/10-eval-harness.md) | Implemented | [`eval/harness/`](../../eval/harness/) | 01, 04, 09 | - |
-| [11 Intent classifier, injection detector and selection protocol](../../specs/11-intent-classifier.md) | Draft | [`packages/nick_of_time/nlu/`](../../packages/nick_of_time/nlu/) | 09 | - |
+| [11 Intent classifier, injection detector and selection protocol](../../specs/11-intent-classifier.md) | Implemented | [`packages/nick_of_time/nlu/`](../../packages/nick_of_time/nlu/) | 09 | - |
 | [12 Insight pages: `/evaluation`, `/analytics`, `/data`](../../specs/12-insight-pages.md) | Implemented | [`apps/web/app/evaluation/`](../../apps/web/app/evaluation/), [`apps/web/app/analytics/`](../../apps/web/app/analytics/), [`apps/web/app/data/`](../../apps/web/app/data/) | 10, 11, 14, 15, 16, 17 | [PR 171](https://github.com/salazarvalverdeai/factored-hackathon-2026-nick-of-time/pull/171) |
 | [13 `/case/{id}` + Telegram + email notifications](../../specs/13-case-page-notifications.md) | In progress | [`apps/web/app/case/`](../../apps/web/app/case/), [`apps/mcp/mcp_server/notify.py`](../../apps/mcp/mcp_server/notify.py), [`apps/api/app/notify.py`](../../apps/api/app/notify.py) | 05, 16 | [PR 174](https://github.com/salazarvalverdeai/factored-hackathon-2026-nick-of-time/pull/174) |
 | [14 Operational lakehouse](../../specs/14-ops-lakehouse.md) | In progress | [`data/pipeline/`](../../data/pipeline/), [`data/ops/`](../../data/ops/) | 05 | [`test_spec14_gold.py`](../../tests/test_spec14_gold.py) |
-| [15 Model benchmark (cost vs quality, lean choice)](../../specs/15-model-benchmark.md) | Draft | [`eval/bench/`](../../eval/bench/) | 04, 09, 10, 11 | [`gate_evidence.yaml`](../../eval/bench/gate_evidence.yaml) |
+| [15 Model benchmark (cost vs quality, lean choice)](../../specs/15-model-benchmark.md) | Implemented | [`eval/bench/`](../../eval/bench/) | 04, 09, 10, 11 | [`gate_evidence.yaml`](../../eval/bench/gate_evidence.yaml) |
 | [16 Web foundation + front-end standard](../../specs/16-web-foundation.md) | Implemented | [`apps/web/README.md`](../../apps/web/README.md), [`apps/web/components/`](../../apps/web/components/) | 01 | - |
-| [17 Our fraud model versus the bank's score (small benchmark)](../../specs/17-fraud-model.md) | Draft | [`scripts/ml/`](../../scripts/ml/) | - | [`test_spec17_screen.py`](../../tests/test_spec17_screen.py) |
-| [18 Outcome auditor and AI second opinion for the analyst](../../specs/18-outcome-auditor.md) | Draft | [`packages/nick_of_time/audit/`](../../packages/nick_of_time/audit/) | 01, 02, 03, 04, 10, 15 | [`test_spec18_audit_a3_a7.py`](../../tests/test_spec18_audit_a3_a7.py) |
+| [17 Our fraud model versus the bank's score (small benchmark)](../../specs/17-fraud-model.md) | Implemented | [`scripts/ml/`](../../scripts/ml/) | - | [`test_spec17_screen.py`](../../tests/test_spec17_screen.py) |
+| [18 Outcome auditor and AI second opinion for the analyst](../../specs/18-outcome-auditor.md) | Implemented | [`packages/nick_of_time/audit/`](../../packages/nick_of_time/audit/) | 01, 02, 03, 04, 10, 15 | [`test_spec18_audit_a3_a7.py`](../../tests/test_spec18_audit_a3_a7.py) |
 
 ## How this file stays true
 

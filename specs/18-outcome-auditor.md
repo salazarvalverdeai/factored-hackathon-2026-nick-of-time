@@ -3,13 +3,14 @@
 - **Feature:** an independent, deterministic **auditor** that re-derives every agent outcome from its records and flags
   any mismatch, plus an advisory **LLM judge** that gives the analyst a cited second opinion on escalated cases. The
   auditor's checks are the same in the evaluation harness and in production.
-- **Status:** Draft (2026-10-04; gate 1 closed by the lead: the judge is in the submission)
+- **Status:** Implemented (P1 deferred) (2026-10-06; P0 library, harness checks, judge and console route done; the
+  `second_opinions` table and the matched flag are open, see §10; online auditor P1, calibration P2)
 - **Owner:** @salazarvalverdeai (library and judge) · @gianzk (api task and console panel) · @vldiego (harness and KPIs)
   · **Priority:** P0 library and judge, P1 online auditor · **Size:** M
 - **Challenge dimension:** AI Engineering (verification and guardrails), Technical Judgment (where an LLM is and is not used)
 - **Depends on:** 01 (records, `CaseView`), 02 (engine, clock), 03 (tool results), 04 (`TurnResult`, trace), 10
   (harness), 15 (judge model) · **Enables:** the console case view, `ops_kpis` (ADR 0018), `/evaluation`
-- **ADRs:** 0007, 0016, 0018, 0021 · **Issue:** #29
+- **ADRs:** 0007, 0016, 0018, 0021 · **PRs:** #31 (spec), #73, #79, #84, #209, #210 · **Issue:** #29
 
 ---
 
@@ -223,13 +224,15 @@ The judge deciding, closing or messaging; judging customer-facing replies in rea
 tools for the third line (internal audit).
 
 ## 10. Plan, tasks and verification
-- [ ] T1 [P0] — `nick_of_time.audit` with A1–A7 as pure functions + tests on recorded fixtures · AC-01
+- [x] T1 [P0] — `nick_of_time.audit` with A1–A7 as pure functions + tests on recorded fixtures · AC-01
       (A3–A7 done, task 18a: `tests/test_spec18_audit_a3_a7.py`, A3 on D-025's `action_verified`; A1–A2 done, task
       18b: `audit/rederive.py`, `tests/test_spec18_a1_a2.py`. A2 takes the case row and its transaction (§6); the
       models reject a bad record as a finding, never an exception; follow-ups 18x: A3 on the store, six writes, A4 own
       ids, score paraphrases, v1.1 fixtures)
       Note: AC-01 names A1–A10, but P0 is A1–A7 (§4.3, T1); A8–A10 are outside P0, pending the lead.
-- [ ] T2 [P0] — harness uses the library for its final-state checks (with @vldiego) · AC-02
+- [x] T2 [P0] — harness uses the library for its final-state checks (with @vldiego) · AC-02 (`eval/harness/compare.py`
+      imports A5 `check_coherence` and A6 `check_privacy`, spec 10 AC-08; `tests/test_spec18_harness_shared.py` pins
+      that the harness and the auditor are the same functions and give the same findings)
 - [ ] T3 [P1] — api background task, `audit_findings`, critical flag and acknowledgment · AC-03, AC-04, AC-05
 - [x] T4 [P0] — judge: prompt with the fixed rubric, structured output, grounding of reasons, fallback · AC-07, AC-08,
       AC-10, AC-11 (`nick_of_time/audit/judge.py`, `tests/test_spec18_judge.py`; the fallback is `None`, the timeout and
@@ -251,6 +254,20 @@ tools for the third line (internal audit).
       the store's records. Open: a `second_opinions` table (the latest opinion is kept in api memory meanwhile) and
       `matched_second_opinion` in the `analyst_action` payload (both store changes).
 
+
+### Open items (closing review, 2026-10-06)
+Every non-P1 [T] criterion has a citing test (`python scripts/ci/ac_coverage.py` on `main` at `a2fa15e`). What `main`
+does not hold yet:
+- **`second_opinions` table (D-057).** Not built: the api keeps the latest opinion per case in process memory
+  (`app.state.second_opinions` in `apps/api/app/console.py`), so it is lost on a restart and not audited.
+- **`matched_second_opinion` in the `analyst_action` payload (AC-10, api half).** `judge.record_decision` computes it
+  (tested, `tests/test_spec18_judge.py`), but the api does not store it with the analyst's action yet. Both items are
+  store changes for T5.
+- **Harness shares A5 and A6 only (AC-02).** A `FinalState` carries no tool results, receipts or action records, so
+  the harness cannot run A1–A4 or A7; it runs the two checks its records feed.
+- **A8–A10 (AC-01).** Outside P0 (§4.3); not built.
+- **T3, T5b [P1] and T6 [P2].** Online auditor with `audit_findings`, the critical flag and acknowledgment, and the judge
+  calibration: not built.
 ## 11. Sources
 External sources checked on 2026-10-04.
 - Federal Reserve, FDIC and OCC, *SR 26-2 — Revised Guidance on Model Risk Management* (17 April 2026; supersedes SR

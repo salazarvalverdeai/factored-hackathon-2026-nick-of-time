@@ -3,12 +3,13 @@
 - **Feature:** one command that runs every candidate model on the same data and produces a table, a cost-versus-quality
   chart and an eligibility verdict per model, so each role (understanding, the agent) gets the **cheapest model that is
   good enough**, chosen from evidence.
-- **Status:** Draft (updated 2026-10-04: broad Bedrock screen, one model per task, lean rule, eligibility as an output;
-  Q1–Q4 decided by the lead)
+- **Status:** Implemented (P1 deferred) (2026-10-06; sealed B1 run done, model map in ADR 0027 (Accepted); B2 and the
+  `word` task deferred to P1, see §10)
 - **Owner:** @salazarvalverdeai (B2 runs on @vldiego's harness) · **Priority:** P0 · **Size:** M
 - **Challenge dimension:** Machine Learning, Technical Judgment (explicit trade-offs of accuracy, latency and cost)
 - **Depends on:** 09 (data), 11 (arms B0–B3), 10 (harness for B2), 04 (graph arms) · **Enables:** the model-selection
-  ADR, `/evaluation`, the results slide · **ADRs:** 0009, 0015, 0019, 0020
+  ADR, `/evaluation`, the results slide · **ADRs:** 0009, 0015, 0019, 0020, 0027, 0028, 0030 ·
+  **PRs:** #27 (spec), #43, #130, #179, #184, #221, #226
 - **Issue:** #17
 
 ---
@@ -27,7 +28,9 @@ Same numbers as issue #17; AC-10 onward are added by this spec.
 
 - **AC-01** — When `make bench` runs, every arm in `eval/bench/arms.yaml` (B0 rules, B1 TF-IDF + LR, the LLM candidates
   of §4.1 and Jev) shall be evaluated on the same frozen test split. · [C]
-- **AC-02** — B2 shall run the graph with the short list of §4.3 and with S0 on the 20 dev cases × 4 runs. · [C]
+- **AC-02 [P1]** — B2 shall run the graph with the short list of §4.3 and with S0 on the 20 dev cases × 4 runs. · [C]
+  Deferred to P1 (2026-10-06): no B2 arm ran (`benchmark.json` `b2.arms` is empty); since no LLM arm met the B1 bar,
+  there was no short list to run on the graph.
 - **AC-03** — The output shall include a table with quality (macro-F1 per language over the five intents of spec 11 in
   B1; safe automated resolution, unsafe outcomes, `receipt_rate` and `coherence_rate` in B2), p50/p95 latency and cost
   (per 1,000 messages in B1, per case in B2). · [D]
@@ -50,8 +53,10 @@ Same numbers as issue #17; AC-10 onward are added by this spec.
 - **AC-11** — Before B1, each LLM candidate shall pass a structured-output smoke test (one valid JSON object matching
   the intent schema through the Bedrock Converse API); a model that fails is recorded "no structured output" and
   skipped. · [T]
-- **AC-12** — The `word` task shall report, per arm, the grounding pass rate (rewordings that keep every number, date,
+- **AC-12 [P1]** — The `word` task shall report, per arm, the grounding pass rate (rewordings that keep every number, date,
   id and status exactly), the language check, the length check and the blind preference against the template. · [D]
+  Deferred to P1 (2026-10-06): not run (`benchmark.json` `word.arms` is empty). Wording is covered instead by the
+  ADR 0030 writer, whose every line passes the grounding gate at run time.
 
 ## 4. Functional requirements
 
@@ -280,12 +285,41 @@ Public third-party leaderboards; fine-tuning; batch or provisioned throughput pr
       differs, so **`make classifier-test` runs before `make bench`**; `benchmark.json` records the file as `b1_model`.
       The run date and the development folder name are the fixed replay `DEMO_TODAY` the arms read (ADR 0020), never
       a `DEMO_TODAY` set in the environment.
-- [ ] T6 — lean rule per task in `eval/PROTOCOL.md` before the run; "model selection" ADR with the three rows per task
+- [x] T6 — lean rule per task in `eval/PROTOCOL.md` before the run; "model selection" ADR with the three rows per task
       (rule computed by `report.select`, with the reading of §2.3 where it is silent in `SELECTION_READING`,
       `[assumption]` pending lead decision D-077; ADR 0027 drafted as Proposed with development numbers only)
       and the model map · AC-07. Run order on test: `make classifier-test`, then `make bench` (T5), so the B1 row is
       the model spec 11 exported.
 
+
+### Result on the sealed test split (closing review, 2026-10-06)
+One run of `make bench` under `protocol-v1`, started 2026-10-06T01:43:43Z (`eval/results/bench/bench.start.json`), on the
+236 test sentences of spec 11, 24 arms (18 measured). All figures are `[simulated]` (model-written sentences, ADR 0025;
+test split decided by `rules-v1`, ADR 0028). Sources: `apps/web/public/data/benchmark.json` (generated
+2026-10-06T02:07:29Z), `eval/results/bench_b1.md`, `bench_b1.csv`, `bench_gate.csv`, `bench_b1_items.jsonl`, and the
+chart `docs/assets/benchmark_cost_quality.svg`.
+
+| Arm | Accuracy [95% CI] | Macro-F1 ES / PT | `human_request` recall | p95 ms | USD per 1k msgs |
+|---|---|---|---|---|---|
+| Sonnet 4.6 (best measured) | 0.979 [0.951, 0.991] | 0.966 / 0.991 | 45/47 | 1,369 | 5.15 |
+| Mistral Large 3 | 0.975 [0.946, 0.988] | 0.966 / 0.983 | 45/47 | 1,368 | 0.31 |
+| DeepSeek V3.2 | 0.966 [0.935, 0.983] | 0.950 / 0.983 | 45/47 | 9,684 | 0.69 |
+| Haiku 4.5 | 0.924 [0.883, 0.951] | 0.932 / 0.915 | 43/47 | 1,631 | 1.84 |
+| B1 TF-IDF + LR | 0.915 [0.873, 0.945] | 0.916 / 0.914 | 42/47 | 1.4 | 0 |
+| B0 rules | 0.614 [0.551, 0.674] | 0.583 / 0.668 | 30/47 | 0.31 | 0 |
+
+- **Model map (AC-07):** `understand` → **B0 rules** (no LLM): every measured arm fails rule 1, because the best
+  Spanish `human_request` recall is 21/23 = 0.913 against a floor of 0.95 per language; `word` → templates (the ADR 0030
+  writer is a separate, switchable setting); `judge` → Haiku 4.5 (not benchmarked, P2). Recorded in ADR 0027 with the
+  D-077 reading.
+- **Unavailable or no structured output (AC-06, AC-11):** Gemma 3 12B and 27B, Llama 3.3 70B and Nemotron Nano 3 returned
+  no tool call; Sonnet 5.5 is not enabled on the account; Jev had no key.
+- **Spend:** 2.52 USD `[data]` (PR #226).
+
+### Open items (closing review, 2026-10-06)
+Every [T] criterion has a citing test (`python scripts/ci/ac_coverage.py` on `main` at `a2fa15e`).
+- **B2 on the graph (AC-02, T3b, P1)** and the **`word` task (AC-12, T3, P1)**: not run.
+- **Live smoke run (T3).** The structured-output smoke ran inside `make bench` (AC-11); T3 stays open for the `word` set.
 ## 11. Sources
 External sources checked on 2026-10-04.
 - **Bedrock availability:** `aws bedrock list-foundation-models --region us-east-2` and `list-inference-profiles`

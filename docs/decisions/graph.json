@@ -244,7 +244,7 @@
       "id": "adr-0027",
       "layer": "decision",
       "label": "0027 Model selection per LLM task (understand, word, judge)",
-      "status": "Proposed",
+      "status": "Accepted",
       "file": "docs/adr/0027-model-selection.md",
       "theme": "Agent, rules and safety"
     },
@@ -284,7 +284,7 @@
       "id": "spec-01",
       "layer": "spec",
       "label": "Spec 01 Integration contract + stubs",
-      "status": "Draft",
+      "status": "In progress",
       "file": "specs/01-integration-contract.md",
       "components": [
         "contracts/",
@@ -296,7 +296,7 @@
       "id": "spec-02",
       "layer": "spec",
       "label": "Spec 02 Policy engine + regulatory clock",
-      "status": "In progress",
+      "status": "Implemented",
       "file": "specs/02-policy-engine.md",
       "components": [
         "packages/nick_of_time/policy/",
@@ -307,7 +307,7 @@
       "id": "spec-03",
       "layer": "spec",
       "label": "Spec 03 MCP server with the 16 customer tools",
-      "status": "Draft",
+      "status": "Implemented",
       "file": "specs/03-mcp-tools.md",
       "components": [
         "apps/mcp/mcp_server/"
@@ -317,7 +317,7 @@
       "id": "spec-04",
       "layer": "spec",
       "label": "Spec 04 Agent graph on LangGraph Platform",
-      "status": "Draft",
+      "status": "Implemented",
       "file": "specs/04-agent-graph.md",
       "components": [
         "apps/agent/agent/",
@@ -338,7 +338,7 @@
       "id": "spec-06",
       "layer": "spec",
       "label": "Spec 06 Deploy + CI",
-      "status": "Draft",
+      "status": "In progress",
       "file": "specs/06-deploy-ci.md",
       "components": [
         "infra/",
@@ -391,7 +391,7 @@
       "id": "spec-11",
       "layer": "spec",
       "label": "Spec 11 Intent classifier, injection detector and selection protocol",
-      "status": "Draft",
+      "status": "Implemented",
       "file": "specs/11-intent-classifier.md",
       "components": [
         "packages/nick_of_time/nlu/"
@@ -436,7 +436,7 @@
       "id": "spec-15",
       "layer": "spec",
       "label": "Spec 15 Model benchmark (cost vs quality, lean choice)",
-      "status": "Draft",
+      "status": "Implemented",
       "file": "specs/15-model-benchmark.md",
       "components": [
         "eval/bench/"
@@ -457,7 +457,7 @@
       "id": "spec-17",
       "layer": "spec",
       "label": "Spec 17 Our fraud model versus the bank's score (small benchmark)",
-      "status": "Draft",
+      "status": "Implemented",
       "file": "specs/17-fraud-model.md",
       "components": [
         "scripts/ml/"
@@ -467,7 +467,7 @@
       "id": "spec-18",
       "layer": "spec",
       "label": "Spec 18 Outcome auditor and AI second opinion for the analyst",
-      "status": "Draft",
+      "status": "Implemented",
       "file": "specs/18-outcome-auditor.md",
       "components": [
         "packages/nick_of_time/audit/"
@@ -1547,6 +1547,12 @@
       "to": "spec-02"
     },
     {
+      "from": "adr-0023",
+      "kind": "implemented_by",
+      "source": "spec-header",
+      "to": "spec-03"
+    },
+    {
       "from": "adr-0024",
       "kind": "implemented_by",
       "source": "both-headers",
@@ -1555,13 +1561,13 @@
     {
       "from": "adr-0024",
       "kind": "implemented_by",
-      "source": "adr-header",
+      "source": "both-headers",
       "to": "spec-03"
     },
     {
       "from": "adr-0024",
       "kind": "implemented_by",
-      "source": "adr-header",
+      "source": "both-headers",
       "to": "spec-04"
     },
     {
@@ -1579,7 +1585,7 @@
     {
       "from": "adr-0025",
       "kind": "implemented_by",
-      "source": "adr-header",
+      "source": "both-headers",
       "to": "spec-11"
     },
     {
@@ -1591,8 +1597,14 @@
     {
       "from": "adr-0026",
       "kind": "implemented_by",
-      "source": "adr-header",
+      "source": "both-headers",
       "to": "spec-01"
+    },
+    {
+      "from": "adr-0026",
+      "kind": "implemented_by",
+      "source": "spec-header",
+      "to": "spec-03"
     },
     {
       "from": "adr-0026",
@@ -1615,19 +1627,19 @@
     {
       "from": "adr-0027",
       "kind": "implemented_by",
-      "source": "adr-header",
+      "source": "both-headers",
       "to": "spec-04"
     },
     {
       "from": "adr-0027",
       "kind": "implemented_by",
-      "source": "adr-header",
+      "source": "both-headers",
       "to": "spec-11"
     },
     {
       "from": "adr-0027",
       "kind": "implemented_by",
-      "source": "adr-header",
+      "source": "both-headers",
       "to": "spec-15"
     },
     {
@@ -1639,8 +1651,14 @@
     {
       "from": "adr-0028",
       "kind": "implemented_by",
-      "source": "adr-header",
+      "source": "both-headers",
       "to": "spec-11"
+    },
+    {
+      "from": "adr-0028",
+      "kind": "implemented_by",
+      "source": "spec-header",
+      "to": "spec-15"
     },
     {
       "from": "adr-0029",
@@ -1657,13 +1675,13 @@
     {
       "from": "adr-0030",
       "kind": "implemented_by",
-      "source": "adr-header",
+      "source": "both-headers",
       "to": "spec-01"
     },
     {
       "from": "adr-0030",
       "kind": "implemented_by",
-      "source": "adr-header",
+      "source": "both-headers",
       "to": "spec-04"
     },
     {
@@ -1681,7 +1699,7 @@
     {
       "from": "adr-0030",
       "kind": "implemented_by",
-      "source": "adr-header",
+      "source": "both-headers",
       "to": "spec-15"
     },
     {
@@ -1701,6 +1719,12 @@
       "kind": "implemented_by",
       "source": "both-headers",
       "to": "spec-10"
+    },
+    {
+      "from": "adr-0031",
+      "kind": "implemented_by",
+      "source": "spec-header",
+      "to": "spec-17"
     },
     {
       "from": "P1",

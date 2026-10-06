@@ -2,12 +2,12 @@
 
 - **Feature:** the learned components the challenge asks to compare against a baseline — the ES/PT intent and slot
   classifier and the injection detector — plus the pre-registered protocol that decides which arm ships.
-- **Status:** Draft (updated 2026-10-04: status and human intents, mode-aware dates, thresholds checked against the test
-  size; Q1–Q4 decided by the lead)
+- **Status:** Implemented (P1 deferred) (2026-10-06; sealed test run done, B0 kept; the rules + LR injection arm of
+  AC-04 deferred to P1, see §10)
 - **Owner:** @salazarvalverdeai (protocol reviewed by @vldiego) · **Priority:** P0 · **Size:** M
 - **Challenge dimension:** Machine Learning
 - **Depends on:** 09 (labeled sentence set) · **Enables:** 04 (understand node), 15 (benchmark B1) · **ADRs:** 0015,
-  0016, 0020
+  0016, 0020, 0025, 0027, 0028 · **PRs:** #26 (spec), #55, #74, #118, #139, #144, #154, #159, #165, #166, #176, #221
 - **Issue:** #13
 
 > Full profile: the comparison against a baseline is a challenge requirement (organizers, 2026-09-29).
@@ -50,6 +50,8 @@ AC-01 to AC-05 come from issue #13 with the same numbers; AC-06 onward are added
   p50/p95 latency and cost per 1,000 messages. · [D]
 - **AC-04** — The injection detector (rules vs rules + LR) shall report injection recall and the false-positive rate on
   legitimate messages. · [D]
+  Partly deferred to P1 (2026-10-06): the rules arm is reported on the sealed test split (§10 results); the rules + LR
+  arm was not built, so there is no comparison.
 - **AC-05** — The chosen model shall be exported with its version, and the understand node shall load it. · [T]
 - **AC-06** — The train/validation/test split shall be by author (60/15/25), with at least 100 test sentences per
   language and 20 per intent per language, fixed and hashed before training. · [C]
@@ -293,8 +295,8 @@ Fine-tuning; embeddings + LR (P2); Jev (benchmarked in spec 15); the agent's use
   intent order (a person or a call is asked for, in ES or PT, and it wins over every other intent, AC-10), with no
   sentence from any split, and is shorter for rule 3; D-078 makes only the slot keys optional. Prompt hash and the
   before/after size are in ADR 0027 "Validation iteration (D-082)"
-- [ ] T5 — injection detector, both arms · AC-04 (rules arm done in 11a, `nlu.injection`; LR arm and AC-04 numbers pending spec 09)
-- [ ] T6 — evaluation script, report, export, ADR "model selection" (with spec 15) · AC-03, AC-05 (task 11b:
+- [x] T5 — injection detector, both arms (rules arm reported on test; the LR arm is P1, see AC-04) · AC-04 (rules arm done in 11a, `nlu.injection`; LR arm and AC-04 numbers pending spec 09)
+- [x] T6 — evaluation script, report, export, ADR "model selection" (with spec 15) · AC-03, AC-05 (task 11b:
   `eval/classifier/evaluate.py`; `make classifier` is the validation development run, written to `eval/.runs/` only;
   `make classifier-test` is the one test run and refuses while `eval/PROTOCOL.md` is UNSEALED, when the `protocol-v1`
   tag is not in HEAD's history with the same `PROTOCOL.md`, when the split files differ from the sealed manifest, or
@@ -302,6 +304,34 @@ Fine-tuning; embeddings + LR (P2); Jev (benchmarked in spec 15); the agent's use
   (`eval/harness/seal_guard.py`: `check_seal`, then `claim_run("classifier-test")`) before B1 is saved and
   `test.jsonl` is read, and exports `test_review` with its ADR 0028 label; ADR after the test run)
 
+
+### Result on the sealed test split (closing review, 2026-10-06)
+One run of `make classifier-test` under `protocol-v1`, started 2026-10-06T01:38:48Z
+(`eval/results/classifier-test/classifier-test.start.json`), on 118 ES and 118 PT sentences plus 22 injection rows. All
+figures are `[simulated]`: the sentences are model-written (ADR 0025) and the test split was decided by the fixed rules
+`rules-v1`, without independent human review (ADR 0028). Sources: `apps/web/public/data/classifier.json`
+(generated 2026-10-06T01:43:25Z) and `eval/results/classifier.csv`.
+
+| Arm | Macro-F1 ES / PT | `human_request` recall ES / PT | Dispute recall ES / PT | p95 ms | USD per 1k msgs | Meets floors |
+|---|---|---|---|---|---|---|
+| B0 rules (`b0-v1`) | 0.583 / 0.668 | 14/23 / 16/24 | 0.479 / 0.522 | 0.32 | 0 | no |
+| B1 TF-IDF + LR (`b1-v1`) | 0.916 / 0.914 | 20/23 / 22/24 | 0.958 / 0.957 | 1.68 | 0 | no |
+| B2 Haiku 4.5 | 0.932 / 0.915 | 20/23 / 23/24 | 0.979 / 1.000 | 1,592 | 1.84 | no |
+
+- **Chosen arm: B0.** No arm meets the floors (the binding one is `human_request` recall ≥ 0.95 per language), so by
+  PROTOCOL §0.3 and the reading recorded in ADR 0027 the no-LLM option stays. B0 is what `understand` loads
+  (`load_nlu("B0")` in `apps/agent/agent/intake.py`, AC-05); B1 is exported as `models/intent-b1-v1.joblib`
+  (sha256 `8017f023…`) and used by spec 15 without refitting.
+- **τ = 0.7364**, chosen on validation (AC-07).
+- **Injection detector, rules arm:** recall 8/22 = 0.364 [0.197, 0.571], false-positive rate 0/236 = 0 [0, 0.016]
+  `[simulated]`. The rules + LR arm is P1 (AC-04).
+- **Spend:** the B2 run cost 0.43 USD `[data]` (`classifier.json` `llm.cost_usd`).
+
+### Open items (closing review, 2026-10-06)
+Every [T] criterion has a citing test (`python scripts/ci/ac_coverage.py` on `main` at `a2fa15e`).
+- **Rules + LR injection arm (AC-04, P1).** Not built; only the rules arm is reported.
+- **AC-01 deviation.** The protocol was reviewed by the lead, not Diego, as the seal records (T1).
+- **B3 cascade.** P1 in §4, not built.
 ## 11. Sources
 External sources checked on 2026-10-04.
 - Intent names: `contracts/tools.py` (`dispute_type`), `docs/eda/workflows/W3_disputes.md` (complaint categories).
