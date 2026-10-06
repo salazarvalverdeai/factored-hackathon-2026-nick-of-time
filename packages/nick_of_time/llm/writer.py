@@ -46,6 +46,8 @@ SYSTEM = (
     "(in progress, requested, verified, not confirmed). Never mention scores, zones, rules, policies, tools or "
     "internal names. Every line of facts must be covered, and every amount, date and id of a line you cover must be "
     "in your text, except what `cards` shows.\n"
+    "`tone` is the customer's tone: when it is `urgent` or `frustrated`, open your first block with one short "
+    "sentence acknowledging it, with no digits, before the facts; when `calm`, no acknowledgement.\n"
     "`cards` names what the customer already sees on cards next to your text. Mention the case id and the main "
     "deadline once, in one short sentence; never list verification ids, UTC times or links.\n"
     "Output format, plain text, no markdown (no bold, no headings) except a `- ` or `1. ` list for plan steps or "
@@ -108,7 +110,7 @@ def usage_row(result: llm.LLMResult) -> dict[str, Any]:
 async def word(config: dict, template: list[str], facts: list[Any], *, language: str, first_name: Optional[str],
                chips: list[dict[str, str]], person: Optional[str], emit: Callable[[str], None],
                score: Any = None, transcript: list[str] = (), cards: list[str] = (), shown: Iterable[str] = (),
-               over_cap: Callable[[float], bool] = lambda _: False) -> Worded:
+               over_cap: Callable[[float], bool] = lambda _: False, tone: str = "calm") -> Worded:
     """Words `template` (the gated template lines) through the writer; `emit` receives each released text delta.
     `cards` names what the turn's cards show and `shown` holds the strings they show (the text need not repeat them).
     Every failure returns the template (AC-37), with the reason in the note."""
@@ -116,7 +118,7 @@ async def word(config: dict, template: list[str], facts: list[Any], *, language:
         client = client_for(config)
     except ValueError:
         return Worded(template, note="writer -> template: no price (D-058)")
-    payload = {"language": language, "first_name": first_name, "person": person, "chips": chips,
+    payload = {"language": language, "first_name": first_name, "person": person, "chips": chips, "tone": tone,
                "cards": list(cards), "lines": [{"n": n, "text": line} for n, line in enumerate(template, 1)]}
     user = json.dumps(payload, ensure_ascii=False)
     estimate = llm.cost_usd(client.prices, (len(SYSTEM) + len(user)) // 4, MAX_TOKENS)

@@ -179,6 +179,12 @@ AC-01 to AC-08 come from issue #6 with the same numbers; the rest are added by t
   today's answer: the session language plus English once. The session's `language` is never rewritten, and
   notifications (Telegram, e-mail) keep it, so spec 13 is unchanged (spec 01 AC-06). · [T]
   `tests/test_spec04_turn_language.py`
+- **AC-44** — *(lead request 2026-10-06, tone)* When the customer's last typed message reads `urgent` or
+  `frustrated` by the rules of `nlu.tone` (ES/PT keywords, shouting; frustration wins over urgency; no LLM), the
+  graph shall set `state.tone`, stream one progress label `tone` with `messages.yaml tone.<tone>` and open the
+  template reply with that same digit-free line; the §4.6 writer shall get `tone` in its payload and open with one
+  short digit-free acknowledgement. The tone shall never change the intent, slots, decision, zone, actions, chips,
+  receipt or any policy outcome; a calm message (or a chip press) adds nothing. · [T] `tests/test_spec04_tone.py`
 
 ## 4. Functional requirements
 
