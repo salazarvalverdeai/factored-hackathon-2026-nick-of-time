@@ -6,6 +6,7 @@
 import { ArrowRight } from "lucide-react";
 import { type ReactNode, useState } from "react";
 import { DetailField, DetailFields, DetailPanel } from "@/components/detail-panel";
+import { useLocale, useT } from "@/components/i18n-provider";
 import { ErrorState, LoadingState } from "@/components/states";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -28,58 +29,53 @@ import { cn } from "@/lib/utils";
 
 type Section = "cases" | "transactions" | "cards" | "calls" | "notifications";
 
-const TITLES: Record<Section, string> = {
-  cases: "Previous cases",
-  transactions: "Transactions ±30 days",
-  cards: "Cards",
-  calls: "Calls",
-  notifications: "Notifications",
-};
-
 const PREVIEW = 3;
 
 export function CustomerHistory({ query }: { query: Query<CaseContext> }) {
+  const t = useT();
+  const { locale } = useLocale();
   const [open, setOpen] = useState<Section | null>(null);
+  const title = (s: Section) => t(`console.history.sections.${s}`);
   return (
-    <section aria-label="Customer history" className="space-y-2" data-slot="customer-history">
+    <section aria-label={t("console.history.title")} className="space-y-2" data-slot="customer-history">
       <h3 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-        Customer history
+        {t("console.history.title")}
       </h3>
       {query.status === "loading" ? (
-        <LoadingState label="Reading the customer's history…" className="p-3" />
+        <LoadingState label={t("console.history.reading")} className="p-3" />
       ) : query.status === "error" ? (
-        <ErrorState title="No history" message={query.error.message} className="p-3" />
+        <ErrorState title={t("console.history.none")} message={query.error.message} className="p-3" />
       ) : (
         <>
           <div className="grid gap-2 sm:grid-cols-2">
-            <HistoryCard title={TITLES.transactions} count={query.data.transactions.length} onDetail={() => setOpen("transactions")} wide>
-              {sortTx(query.data.transactions).slice(0, PREVIEW + 1).map((t) => (
-                <TxRow key={t.transaction_id} t={t} />
+            <HistoryCard title={title("transactions")} count={query.data.transactions.length} onDetail={() => setOpen("transactions")} wide>
+              {sortTx(query.data.transactions).slice(0, PREVIEW + 1).map((tx) => (
+                <TxRow key={tx.transaction_id} t={tx} />
               ))}
             </HistoryCard>
-            <HistoryCard title={TITLES.cases} count={query.data.previous_cases.length} onDetail={() => setOpen("cases")} empty="No previous cases">
+            <HistoryCard title={title("cases")} count={query.data.previous_cases.length} onDetail={() => setOpen("cases")} empty={t("console.history.empty.cases")}>
               {query.data.previous_cases.slice(0, PREVIEW).map((p) => (
-                <Row key={p.case_id} left={<span className="font-mono text-xs">{p.case_id}</span>} right={formatDay(p.opened_at)}>
-                  {caseStatusLabel(p.status)} · {outcomeLabel(p.outcome)}
+                <Row key={p.case_id} left={<span className="font-mono text-xs">{p.case_id}</span>} right={formatDay(locale, p.opened_at)}>
+                  {caseStatusLabel(p.status, locale)} · {outcomeLabel(p.outcome, locale)}
                 </Row>
               ))}
             </HistoryCard>
-            <HistoryCard title={TITLES.cards} count={query.data.cards.length} onDetail={() => setOpen("cards")} empty="No cards on record">
+            <HistoryCard title={title("cards")} count={query.data.cards.length} onDetail={() => setOpen("cards")} empty={t("console.history.empty.cards")}>
               {query.data.cards.slice(0, PREVIEW).map((c) => (
-                <Row key={c.last4 + c.product} left={`•••• ${c.last4}`} right={cardStatusLabel(c.status)}>
-                  {productLabel(c.product)}
+                <Row key={c.last4 + c.product} left={`•••• ${c.last4}`} right={cardStatusLabel(c.status, locale)}>
+                  {productLabel(c.product, locale)}
                 </Row>
               ))}
             </HistoryCard>
-            <HistoryCard title={TITLES.calls} count={query.data.calls.length} onDetail={() => setOpen("calls")} empty="No calls requested">
+            <HistoryCard title={title("calls")} count={query.data.calls.length} onDetail={() => setOpen("calls")} empty={t("console.history.empty.calls")}>
               {query.data.calls.slice(0, PREVIEW).map((c) => (
-                <Row key={c.requested_at} left={formatDateTime(c.requested_at)} right={callStatusLabel(c.status)} />
+                <Row key={c.requested_at} left={formatDateTime(locale, c.requested_at)} right={callStatusLabel(c.status, locale)} />
               ))}
             </HistoryCard>
-            <HistoryCard title={TITLES.notifications} count={query.data.notifications.length} onDetail={() => setOpen("notifications")} empty="No notifications yet">
+            <HistoryCard title={title("notifications")} count={query.data.notifications.length} onDetail={() => setOpen("notifications")} empty={t("console.history.empty.notifications")}>
               {query.data.notifications.slice(0, PREVIEW).map((n, i) => (
-                <Row key={`${n.at}-${n.channel}-${i}`} left={notificationEventLabel(n.event)} right={channelLabel(n.channel)}>
-                  {formatDateTime(n.at)} · {deliveryLabel(n.status)}
+                <Row key={`${n.at}-${n.channel}-${i}`} left={notificationEventLabel(n.event, locale)} right={channelLabel(n.channel, locale)}>
+                  {formatDateTime(locale, n.at)} · {deliveryLabel(n.status, locale)}
                 </Row>
               ))}
             </HistoryCard>
@@ -87,8 +83,8 @@ export function CustomerHistory({ query }: { query: Query<CaseContext> }) {
           <DetailPanel
             open={open !== null}
             onClose={() => setOpen(null)}
-            title={open ? TITLES[open] : ""}
-            description="From the bank's records for this customer, read by the console."
+            title={open ? title(open) : ""}
+            description={t("console.history.panelDescription")}
           >
             {open ? <SectionDetail section={open} data={query.data} /> : null}
           </DetailPanel>
@@ -105,7 +101,7 @@ function HistoryCard({
   title,
   count,
   onDetail,
-  empty = "Nothing on record",
+  empty,
   wide,
   children,
 }: {
@@ -116,6 +112,7 @@ function HistoryCard({
   wide?: boolean;
   children: ReactNode;
 }) {
+  const t = useT();
   return (
     <div className={cn("flex min-w-0 flex-col gap-2 rounded-xl border bg-card p-3", wide && "sm:col-span-2")}>
       <div className="flex items-center justify-between gap-2">
@@ -123,12 +120,16 @@ function HistoryCard({
           {title} <span className="text-muted-foreground tabular-nums">({count})</span>
         </h4>
         {count > 0 ? (
-          <Button size="xs" variant="ghost" onClick={onDetail} aria-label={`${title}: detail`}>
-            Detail <ArrowRight aria-hidden />
+          <Button size="xs" variant="ghost" onClick={onDetail} aria-label={t("console.history.detailAria", { title })}>
+            {t("console.history.detail")} <ArrowRight aria-hidden />
           </Button>
         ) : null}
       </div>
-      {count === 0 ? <p className="text-xs text-muted-foreground">{empty}</p> : <ul className="space-y-1">{children}</ul>}
+      {count === 0 ? (
+        <p className="text-xs text-muted-foreground">{empty ?? t("console.history.empty.any")}</p>
+      ) : (
+        <ul className="space-y-1">{children}</ul>
+      )}
     </div>
   );
 }
@@ -146,6 +147,8 @@ function Row({ left, right, children }: { left: ReactNode; right?: ReactNode; ch
 }
 
 function TxRow({ t }: { t: ContextTransaction }) {
+  const tr = useT();
+  const { locale } = useLocale();
   return (
     <li
       data-disputed={t.disputed || undefined}
@@ -153,25 +156,27 @@ function TxRow({ t }: { t: ContextTransaction }) {
     >
       <span className="flex items-baseline justify-between gap-2">
         <span className="min-w-0 truncate">
-          {t.disputed ? <Badge className="mr-1 bg-brand-amber/20 text-foreground">Disputed</Badge> : null}
+          {t.disputed ? <Badge className="mr-1 bg-brand-amber/20 text-foreground">{tr("console.history.disputed")}</Badge> : null}
           {t.merchant}
         </span>
-        <span className="shrink-0 font-mono text-xs tabular-nums">{formatAmount(t.amount, t.currency)}</span>
+        <span className="shrink-0 font-mono text-xs tabular-nums">{formatAmount(locale, t.amount, t.currency)}</span>
       </span>
       <span className="block text-xs text-muted-foreground">
-        {formatDay(t.date)} · •••• {t.last4}
+        {formatDay(locale, t.date)} · •••• {t.last4}
       </span>
     </li>
   );
 }
 
 function SectionDetail({ section, data }: { section: Section; data: CaseContext }) {
+  const t = useT();
+  const { locale } = useLocale();
   switch (section) {
     case "transactions":
       return (
         <ul className="space-y-1">
-          {sortTx(data.transactions).map((t) => (
-            <TxRow key={t.transaction_id} t={t} />
+          {sortTx(data.transactions).map((tx) => (
+            <TxRow key={tx.transaction_id} t={tx} />
           ))}
         </ul>
       );
@@ -180,10 +185,10 @@ function SectionDetail({ section, data }: { section: Section; data: CaseContext 
         <div className="space-y-4">
           {data.previous_cases.map((p) => (
             <DetailFields key={p.case_id}>
-              <DetailField label="Case" mono>{p.case_id}</DetailField>
-              <DetailField label="Opened">{formatDateTime(p.opened_at)}</DetailField>
-              <DetailField label="Status">{caseStatusLabel(p.status)}</DetailField>
-              <DetailField label="Outcome">{outcomeLabel(p.outcome)}</DetailField>
+              <DetailField label={t("console.history.fields.case")} mono>{p.case_id}</DetailField>
+              <DetailField label={t("console.history.fields.opened")}>{formatDateTime(locale, p.opened_at)}</DetailField>
+              <DetailField label={t("console.history.fields.status")}>{caseStatusLabel(p.status, locale)}</DetailField>
+              <DetailField label={t("console.history.fields.outcome")}>{outcomeLabel(p.outcome, locale)}</DetailField>
             </DetailFields>
           ))}
         </div>
@@ -193,9 +198,9 @@ function SectionDetail({ section, data }: { section: Section; data: CaseContext 
         <div className="space-y-4">
           {data.cards.map((c) => (
             <DetailFields key={c.last4 + c.product}>
-              <DetailField label="Card">•••• {c.last4}</DetailField>
-              <DetailField label="Product">{productLabel(c.product)}</DetailField>
-              <DetailField label="Status">{cardStatusLabel(c.status)}</DetailField>
+              <DetailField label={t("console.history.fields.card")}>•••• {c.last4}</DetailField>
+              <DetailField label={t("console.history.fields.product")}>{productLabel(c.product, locale)}</DetailField>
+              <DetailField label={t("console.history.fields.status")}>{cardStatusLabel(c.status, locale)}</DetailField>
             </DetailFields>
           ))}
         </div>
@@ -204,8 +209,8 @@ function SectionDetail({ section, data }: { section: Section; data: CaseContext 
       return (
         <DetailFields>
           {data.calls.map((c) => (
-            <DetailField key={c.requested_at} label={formatDateTime(c.requested_at)}>
-              {callStatusLabel(c.status)}
+            <DetailField key={c.requested_at} label={formatDateTime(locale, c.requested_at)}>
+              {callStatusLabel(c.status, locale)}
             </DetailField>
           ))}
         </DetailFields>
@@ -214,8 +219,8 @@ function SectionDetail({ section, data }: { section: Section; data: CaseContext 
       return (
         <DetailFields>
           {data.notifications.map((n, i) => (
-            <DetailField key={`${n.at}-${n.channel}-${i}`} label={formatDateTime(n.at)}>
-              {notificationEventLabel(n.event)} · {channelLabel(n.channel)} · {deliveryLabel(n.status)}
+            <DetailField key={`${n.at}-${n.channel}-${i}`} label={formatDateTime(locale, n.at)}>
+              {notificationEventLabel(n.event, locale)} · {channelLabel(n.channel, locale)} · {deliveryLabel(n.status, locale)}
             </DetailField>
           ))}
         </DetailFields>

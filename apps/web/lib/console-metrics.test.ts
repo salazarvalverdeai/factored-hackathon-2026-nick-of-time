@@ -49,15 +49,26 @@ const bc = (over: Partial<BoardCase> = {}): BoardCase => ({
 // --- AC-08: SLA light ------------------------------------------------------------------------------------------------
 
 test("spec 08 AC-08: the light is green from 3 days left, amber at 1-2 days, red on the day and after", () => {
-  assert.deepEqual(slaOf(bc({ deadline: dl({ daysLeft: 3 }) })), { level: "green", daysLeft: 3, label: "On track · 3 days left" });
-  assert.equal(slaOf(bc({ deadline: dl({ daysLeft: 2 }) })).level, "amber");
-  assert.equal(slaOf(bc({ deadline: dl({ daysLeft: 1 }) })).label, "Due soon · 1 day left");
-  assert.deepEqual(slaOf(bc({ deadline: dl({ daysLeft: 0 }) })), { level: "red", daysLeft: 0, label: "Due today" });
-  assert.equal(slaOf(bc({ deadline: dl({ daysLeft: -2 }) })).label, "Past due by 2 days");
+  assert.deepEqual(slaOf(bc({ deadline: dl({ daysLeft: 3 }) }), "en"), { level: "green", daysLeft: 3, label: "On track · 3 days left" });
+  assert.equal(slaOf(bc({ deadline: dl({ daysLeft: 2 }) }), "en").level, "amber");
+  assert.equal(slaOf(bc({ deadline: dl({ daysLeft: 1 }) }), "en").label, "Due soon · 1 day left");
+  assert.deepEqual(slaOf(bc({ deadline: dl({ daysLeft: 0 }) }), "en"), { level: "red", daysLeft: 0, label: "Due today" });
+  assert.equal(slaOf(bc({ deadline: dl({ daysLeft: -2 }) }), "en").label, "Past due by 2 days");
+});
+
+test("spec 08 AC-08, spec 16 AC-06: the light's text follows the UI language; the level does not", () => {
+  const three = bc({ deadline: dl({ daysLeft: 3 }) });
+  assert.deepEqual(slaOf(three, "es"), { level: "green", daysLeft: 3, label: "En plazo · quedan 3 días" });
+  assert.deepEqual(slaOf(three, "pt"), { level: "green", daysLeft: 3, label: "No prazo · faltam 3 dias" });
+  assert.equal(slaOf(bc({ deadline: dl({ daysLeft: 1 }) }), "es").label, "Vence pronto · queda 1 día");
+  assert.equal(slaOf(bc({ deadline: dl({ daysLeft: 0 }) }), "pt").label, "Vence hoje");
+  const none = bc({ deadline: dl({ creditDeadline: null, rulingDeadline: null, daysLeft: null }) });
+  assert.match(slaOf(none, "es").label, /una persona decide/);
+  assert.match(slaOf(none, "pt").label, /uma pessoa decide/);
 });
 
 test("spec 08 AC-08: no legal deadline (POL-CLOCK-UNKNOWN) is a neutral 'a person decides' state, never a date", () => {
-  const sla = slaOf(bc({ deadline: dl({ creditDeadline: null, rulingDeadline: null, daysLeft: null }) }));
+  const sla = slaOf(bc({ deadline: dl({ creditDeadline: null, rulingDeadline: null, daysLeft: null }) }), "en");
   assert.equal(sla.level, "none");
   assert.equal(sla.daysLeft, null);
   assert.match(sla.label, /a person decides/);
@@ -66,12 +77,12 @@ test("spec 08 AC-08: no legal deadline (POL-CLOCK-UNKNOWN) is a neutral 'a perso
 
 test("spec 08 AC-08: the count is the api's (nearest of credit and ruling); the mock counts from the frozen demo date", () => {
   assert.equal(legalDeadline({ creditDeadline: "2026-07-20", rulingDeadline: "2026-06-10" }), "2026-06-10");
-  assert.equal(slaOf(bc({ deadline: dl({ creditDeadline: null, rulingDeadline: "2026-10-20", daysLeft: 11 }) })).level, "green");
+  assert.equal(slaOf(bc({ deadline: dl({ creditDeadline: null, rulingDeadline: "2026-10-20", daysLeft: 11 }) }), "en").level, "green");
   // mock: no daysLeft at all → counted from DEMO_TODAY, never from the system clock
   assert.equal(daysLeftOf({ creditDeadline: "2026-06-05", rulingDeadline: undefined, daysLeft: undefined }), 2);
   assert.equal(DEMO_TODAY, "2026-06-03");
   // live row whose detail could not be read: a deadline exists but no count → not a guess
-  assert.equal(slaOf(bc({ deadline: dl({ daysLeft: null }) })).level, "unknown");
+  assert.equal(slaOf(bc({ deadline: dl({ daysLeft: null }) }), "en").level, "unknown");
 });
 
 // --- AC-07: KPI strip ------------------------------------------------------------------------------------------------
@@ -107,11 +118,13 @@ test("spec 08 AC-07: time to verification is opening → first verified action; 
 });
 
 test("spec 08 AC-07: durations read calmly", () => {
-  assert.equal(formatDuration(null), "—");
-  assert.equal(formatDuration(20_000), "under 1 min");
-  assert.equal(formatDuration(12 * MIN), "12 min");
-  assert.equal(formatDuration(185 * MIN), "3 h 5 min");
-  assert.equal(formatDuration(52 * 60 * MIN), "2 d 4 h");
+  assert.equal(formatDuration(null, "en"), "—");
+  assert.equal(formatDuration(20_000, "en"), "under 1 min");
+  assert.equal(formatDuration(12 * MIN, "en"), "12 min");
+  assert.equal(formatDuration(185 * MIN, "en"), "3 h 5 min");
+  assert.equal(formatDuration(52 * 60 * MIN, "en"), "2 d 4 h");
+  assert.equal(formatDuration(20_000, "es"), "menos de 1 min");
+  assert.equal(formatDuration(185 * MIN, "pt"), "3 h 5 min");
 });
 
 // --- AC-09: Closed tab -----------------------------------------------------------------------------------------------
@@ -131,7 +144,7 @@ test("spec 08 AC-09: a closed live case reads its resolve and close from the las
   assert.equal(row.decidedBy, "gianmarco");
   assert.equal(row.timeToCloseMs, (25 * 60 + 30) * MIN);
   assert.equal(row.deadline, "met", "resolved on 2026-10-06, before the 2026-10-07 deadline");
-  assert.equal(row.outcome, "Resolved by a person");
+  assert.equal(row.outcome, "resolved");
 });
 
 test("spec 08 AC-09: met or missed compares the resolution's business date with the nearest legal date", () => {
@@ -167,7 +180,7 @@ test("spec 08 AC-09: on the mock, approving and closing lists the case with its 
   const row = rows.find((r) => r.id === "NOT-0001")!;
   assert.equal(rows[0].id, "NOT-0001", "the most recently finished first");
   assert.equal(row.status, "closed", "the status is the last event");
-  assert.equal(row.outcome, "Credit approved");
+  assert.equal(row.outcome, "credit_approved");
   assert.equal(row.decidedBy, "diego");
   // the seed opened at 09:00Z; the close is at 12:00Z
   assert.equal(row.timeToCloseMs, 180 * MIN);
@@ -190,7 +203,7 @@ test("spec 08 AC-07: live rows are read once more for events and the api's count
   };
   const board = await loadBoard(client);
   assert.deepEqual(reads.sort(), ["NOT-0001", "NOT-0002"]);
-  assert.equal(slaOf(board[0]).level, "amber");
+  assert.equal(slaOf(board[0], "en").level, "amber");
   assert.equal(board[0].mode, "live");
-  assert.equal(slaOf(board[1]).level, "unknown", "no countdown read: the light does not guess");
+  assert.equal(slaOf(board[1], "en").level, "unknown", "no countdown read: the light does not guess");
 });

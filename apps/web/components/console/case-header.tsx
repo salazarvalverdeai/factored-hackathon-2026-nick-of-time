@@ -1,19 +1,23 @@
+"use client";
+
 // The case header of the assisted console: id, customer, zone, priority, the status stepper and the SLA countdown.
-// The stepper says each step's state in words as well as by its mark (never color alone, spec 08 AC-08).
+// The stepper says each step's state in words as well as by its mark (never color alone, spec 08 AC-08), in the UI
+// language (spec 16 AC-06).
 import { Check } from "lucide-react";
 import type { ReactNode } from "react";
 import { StatusBadge, ZoneBadge } from "@/components/badges";
+import { useLocale, useT } from "@/components/i18n-provider";
 import { Badge } from "@/components/ui/badge";
-import { type Step, stepperSteps } from "@/lib/console-view";
+import { stepperSteps } from "@/lib/console-view";
 import type { CaseStatus, Priority, Zone } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
-const STATE_WORDS: Record<Step["state"], string> = { done: "done", current: "current step", upcoming: "not yet" };
-
 export function StatusStepper({ status, path }: { status: CaseStatus; path?: { verification?: boolean; review?: boolean } }) {
-  const steps = stepperSteps(status, path);
+  const t = useT();
+  const { locale } = useLocale();
+  const steps = stepperSteps(status, locale, path);
   return (
-    <ol aria-label="Case status" className="grid grid-cols-4 gap-1" data-slot="status-stepper">
+    <ol aria-label={t("console.header.stepperAria")} className="grid grid-cols-4 gap-1" data-slot="status-stepper">
       {steps.map((s, i) => (
         <li
           key={s.key}
@@ -39,7 +43,7 @@ export function StatusStepper({ status, path }: { status: CaseStatus; path?: { v
           >
             {s.state === "done" ? <Check aria-hidden className="size-3 shrink-0 text-brand-teal" /> : <span aria-hidden className="hidden tabular-nums text-muted-foreground sm:inline">{i + 1}</span>}
             <span className="min-w-0 break-words leading-tight">{s.label}</span>
-            <span className="sr-only">, {STATE_WORDS[s.state]}</span>
+            <span className="sr-only">, {t(`console.header.state.${s.state}`)}</span>
           </span>
         </li>
       ))}
@@ -65,6 +69,7 @@ export function CaseHeader({
   /** The SLA light of the inbox for this case (time left to the nearest legal deadline). */
   sla: ReactNode;
 }) {
+  const t = useT();
   return (
     <header className="space-y-3" data-slot="case-header">
       <div className="flex flex-wrap items-center gap-2">
@@ -72,7 +77,7 @@ export function CaseHeader({
         <ZoneBadge zone={zone} />
         <StatusBadge status={status} />
         {priority === "high" ? (
-          <Badge variant="outline" className="border-brand-amber/50">High priority</Badge>
+          <Badge variant="outline" className="border-brand-amber/50">{t("console.header.highPriority")}</Badge>
         ) : null}
       </div>
       <div className="flex flex-wrap items-center justify-between gap-2">
