@@ -310,15 +310,26 @@ Style (ES and PT, the session language; `docs/brand/BRAND.md` voice: calm and pr
 - no score, zone number, policy id, internal id other than the case and verification ids a tool returned;
 - a refusal or an error in one sentence, then the next step; a person is always offered.
 
-Streaming: text without digits is released as it is written; a line with a digit is released when complete and
+Streaming: text without digits is released as it is written; a block with a digit is released when complete and
 grounded (spec 01 AC-10). Budget: the writer shares the per-day cap (G-OPS-01); past it the reply is the template.
 
 Implementation (task 04-writer, `nick_of_time.llm.writer`):
-- The writer gets the turn's gated template lines, numbered, and writes each reply line as `[n,…] text`, naming the
-  template lines it rewords; a last `[chips] id: label | …` line is never shown. A line is released when complete
-  `[assumption]`: one `text` chunk per line, so a failing line is never on screen. A failing line (grounding or
-  `build.never_send`) gives the template lines it named; an untagged line is never released; a template line no
-  released line named is appended as it is, so no fact is lost.
+- The writer gets the turn's gated template lines, numbered, and a `cards` field naming what the turn's cards show,
+  and writes each reply block as `[n,…] text`, naming the template lines it rewords; each block is one sentence or one
+  list item, with no markdown except plan lists (`**` and `__` are stripped); a last `[chips] id: label | …` line is
+  never shown. ES and PT few-shot examples with example-only ids set the tone; it states the case id and the main
+  deadline once and never lists verification ids, UTC times or links, which the cards show.
+- The gate works on **blocks**, not physical lines (fix of 2026-10-05, found with real Sonnet 4.6 on demo turns, where
+  a sentence split over lines lost its amount, case id and date): a tagged line opens a block, and the untagged lines
+  after it, up to the next tag, a blank line or the chips line, belong to it. A block's digit-free text streams as it
+  arrives; from its first digit (or link) on, the rest of the block is held until it is complete and passes the gate.
+- A block fails when it is ungrounded (`build.bad`), leaks (`build.never_send`) or loses a fact (retention): every
+  digit-bearing token (amount, date, id, last digits) of the template lines it names must appear in it verbatim,
+  except a plan step's own number and what the cards show (verification ids and their times, deadline sources, links,
+  verified-on dates). A failing block gives the template lines it named (G-OUT-01); a list item of a block that only
+  repeats a card's verification id, time or link is left out; untagged text outside a block is never released; a
+  template line no released block named is appended as it is, so no fact is lost. A block that streamed its
+  digit-free start and then fails is replaced by `turn.reply` on screen (spec 01 §6.4.1).
 - Its spend counts toward the daily cap only, not the conversation's S1 budget `[assumption]`; its usage row reaches
   `llm_calls` with the other calls of the turn (AC-14). `llm_calls` has no `task` column: the writer's rows are the
   ones with the S2 model id `[assumption]`.

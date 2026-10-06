@@ -85,9 +85,10 @@ Copied from issue #3 (same numbers). Evidence: [T] test · [C] command · [U] sc
 - **AC-09** — While a run streams, the api shall forward the graph's custom events only as `progress`, `tool` or
   `text` in the shapes of §6.4.1, and shall drop any other chunk; no event shall carry a score, a zone threshold, a
   `POL-…` id, a raw tool payload or a prompt. · [T]
-- **AC-10** — If the writer is `llm`, then a `text` chunk that completes a line holding a digit shall leave the api only
-  after that line passes the grounding check (spec 04 §4.3); the final `turn.reply` shall hold only released lines or
-  template lines. · [T]
+- **AC-10** — If the writer is `llm`, then text of a reply block (a tagged line and the lines that continue it, spec
+  04 §4.6) that holds a digit shall leave the api only after the whole block passes the grounding check (spec 04
+  §4.3); digit-free text may stream as written; the final `turn.reply` shall hold only released blocks or template
+  lines. · [T]
 - **AC-11** — The writer (`template | llm`) shall be read only from the server-side setting and injected as
   `configurable.writer`; a value sent by the client shall be ignored, and every change shall be audited with the
   analyst's user. · [T]
@@ -336,9 +337,10 @@ render them. A chunk without `kind` is a `ProgressItem` (unchanged).
     `V-` id (constitution #4)
   - `deadline {kind, date|null, source_label, source_url|null}`
   - `case {case_id, status}`
-- `TextChunk.delta` is customer-visible text of the reply being written. When the writer is `llm`, a line that holds a
-  digit is held until it is complete and passes the grounding check; a line that fails is never released, the final
-  `turn.reply` carries the template line instead, and G-OUT-01 is logged. The web renders the streamed text and then
+- `TextChunk.delta` is customer-visible text of the reply being written. When the writer is `llm`, a reply block (spec 04
+  §4.6) streams its digit-free text as written, and from its first digit on is held until it is complete and passes
+  the grounding check; a block that fails is never released past that point, the final `turn.reply` carries the
+  template lines instead, and G-OUT-01 is logged. The web renders the streamed text and then
   replaces it with `turn.reply` when the two differ.
 - `configurable.writer` (`template | llm`) comes from the console setting `writer`, like `supervised_mode`
   (`/api/console/settings`); the client never sets it (AC-11).

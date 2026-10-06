@@ -24,7 +24,7 @@ import logging
 import os
 import re
 import uuid
-from datetime import timezone
+from datetime import date, timezone
 from typing import Annotated, Any, Optional, TypedDict
 
 from fastmcp import Client
@@ -937,29 +937,57 @@ async def respond(state: State, config: RunnableConfig) -> dict[str, Any]:
 
 async def write_reply(state: State, config: RunnableConfig, lines: list[str], facts: list[Any],
                       row: str) -> wording.Worded:
-    """The §4.6 writer on the turn's gated template lines (AC-37): each released line leaves as a spec 01 §6.4.1 `text`
-    chunk; the chips it may pick are the row's allowed set (AC-39). Its spend counts toward the daily cap only, not the
-    conversation's S1 budget [assumption]; its usage row goes to `llm_calls` as every billed call (AC-14)."""
+    """The §4.6 writer on the turn's gated template lines (AC-37): each released text delta leaves as a spec 01 §6.4.1
+    `text` chunk; the chips it may pick are the row's allowed set (AC-39). Its spend counts toward the daily cap only,
+    not the conversation's S1 budget [assumption]; its usage row goes to `llm_calls` as every billed call (AC-14)."""
     language, case_id = state["language"], state.get("case_id")
     try:
         write = get_stream_writer()
     except RuntimeError:
         write = None
-    message_id, sent = f"{state['trace_id']}:reply", []
+    message_id = f"{state['trace_id']}:reply"
 
-    def emit(line: str) -> None:
+    def emit(delta: str) -> None:
         if write:
-            write(TextChunk(message_id=message_id, delta=("\n" if sent else "") + line).model_dump(mode="json"))
-        sent.append(line)
+            write(TextChunk(message_id=message_id, delta=delta).model_dump(mode="json"))
 
     allowed = msg.allowed(row, case_id)
     chips = [{"id": c, "label": msg.chip(c, language, case_id).label} for c in allowed]
     texts = [m.get("content", "") for m in state.get("messages") or [] if m.get("role", "user") == "user"]
+    cards, shown = on_cards(state)
     return await wording.word(
         config, lines, facts, language=language, first_name=(state.get("profile") or {}).get("first_name"),
         chips=chips, person=next((c for c in allowed if c in msg.PERSON), None), emit=emit,
-        score=(state.get("score") or {}).get("score"), transcript=texts,
+        score=(state.get("score") or {}).get("score"), transcript=texts, cards=cards, shown=shown,
         over_cap=lambda estimate: arms.over_day_cap(config, estimate))
+
+
+SHOWN_KEYS = frozenset({"verification_id", "read_at", "verified_at", "deadline_source", "deadline_source_label",
+                        "deadline_source_url", "source_url", "verified_on", "deadline_verified_on"})
+
+
+def on_cards(state: State) -> tuple[list[str], list[str]]:
+    """What the turn's cards (spec 01 §6.4.1 `tool` events, the receipt) show beside the writer's text: their names for
+    the writer, and the strings it need not repeat (verification ids and times, deadline sources, links, verified-on
+    dates). The case id and the deadline dates are not among them: the text states them once (spec 04 §4.6)."""
+    found: list[str] = []
+
+    def walk(node: Any) -> None:
+        if isinstance(node, dict):
+            for key, value in node.items():
+                if key in SHOWN_KEYS and isinstance(value, (str, date)):
+                    found.append(str(value))
+                else:
+                    walk(value)
+        elif isinstance(node, list):
+            for value in node:
+                walk(value)
+
+    walk([state.get("actions"), state.get("readings"), state.get("seen"), state.get("writes")])
+    names = (["charge"] * bool(state.get("selected_transaction")) + ["case id and status"] * bool(state.get("case_id"))
+             + ["action verification ids and times"] * any(wording.VERIFICATION.fullmatch(s) for s in found)
+             + ["deadlines with their legal source and link"] * any("://" in s for s in found))
+    return names, found
 
 
 def tool_facts(state: State) -> list[Any]:
