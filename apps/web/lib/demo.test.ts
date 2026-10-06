@@ -71,7 +71,7 @@ test("spec 07 §8 (lead decision 5): the identity step is plain ES/PT copy with 
   }
 });
 
-test("spec 07 §8, spec 05 AC-16: Telegram and e-mail links are not offered in a live (demo) session", () => {
-  assert.equal(channelLinksOffered("live"), false);
+test("spec 07 §8, spec 05 AC-16: Telegram and e-mail links are offered in a live (demo) session too (ADR 0026 amended)", () => {
+  assert.equal(channelLinksOffered("live"), true);
   assert.equal(channelLinksOffered("mock"), true);
 });

@@ -68,6 +68,7 @@ TELEGRAM_TTL, EMAIL_TTL = dt.timedelta(minutes=15), dt.timedelta(hours=24)
 # AC-22 (D-066): handoff reasons of an escalated turn, besides `escalate_unconfirmed_action`; the zone reasons are not
 # here because `open_case` already writes their `review` (spec 03 §6, D-063)
 ESCALATED_REASONS = frozenset({"tool_failure", "person_requested"})
+DEMO_EMAIL_LINKS = 3           # [assumption] confirmation e-mails one demo session may send (ADR 0026, amended)
 DAILY_LLM_CAP_USD = 5.0    # [assumption] G-OPS-01 per day across every session; env DAILY_LLM_CAP_USD overrides it
 
 log = logging.getLogger("nick_of_time.api")
@@ -254,7 +255,7 @@ def create_live_app(store: Store, *, catalog: Optional[Catalog] = None, verifier
                 receipt = CustomerReceipt.model_validate(raw)
             except ValueError:
                 receipt = None                                    # a receipt that fails its contract is never shown
-        channels = [] if is_demo_run(record.run_id) else store.channels(record.customer_id)   # ADR 0026
+        channels = store.channels(record.customer_id, run_id=record.run_id)   # a demo run: only its visitor's (ADR 0026)
         notes = [n for n in store.list_notifications(record.customer_id, run_id=record.run_id)
                  if n.case_id == record.case_id]
         deadline = min((d for d in (record.credit_deadline, record.ruling_deadline) if d), default=None)
@@ -299,9 +300,8 @@ def create_live_app(store: Store, *, catalog: Optional[Catalog] = None, verifier
         failing channel leaves its row `failed` and changes nothing else (AC-07)."""
         spec = policies.notifications["events"][event]
         trace = _trace()
-        if is_demo_run(record.run_id):        # a demo customer's channels belong to no visitor: in-app only (ADR 0026)
-            return
-        for ch in store.channels(record.customer_id):
+        # a demo customer is shared, so a demo case reaches only the channels its own visitor linked (ADR 0026)
+        for ch in store.channels(record.customer_id, run_id=record.run_id):
             if ch.channel not in spec["channels"] or not ch.confirmed:
                 continue
             masked = mask_chat(ch.address) if ch.channel == "telegram" else mask_email(ch.address)
@@ -807,13 +807,20 @@ def create_live_app(store: Store, *, catalog: Optional[Catalog] = None, verifier
             raise ApiError(409, "DENY", str(error)) from None
         return {"event_id": store.events(fresh.case_id)[0].event_id, "case_id": fresh.case_id}
 
-    def no_demo_channel(record: CaseRecord, s: dict) -> None:
-        """ADR 0026: a demo customer is shared by every visitor, so a demo run links no Telegram chat or inbox."""
-        if is_demo_run(record.run_id):
+    email_links: dict[str, int] = {}
+
+    def no_demo_channel(record: CaseRecord, s: dict, channel: str = "telegram") -> None:
+        """ADR 0026 (amended 2026-10-05): a demo visitor may link their own Telegram chat or inbox to their own case;
+        the channel is stored under the case's run, so it never reaches another visitor of the same demo customer.
+        A demo session sends at most DEMO_EMAIL_LINKS confirmation e-mails, so the form is no mail cannon."""
+        if channel != "email" or not is_demo_run(record.run_id):
+            return
+        if email_links.get(s["session_id"], 0) >= DEMO_EMAIL_LINKS:
             store.add_denial(trace_id=_trace(), session_id=s["session_id"], actor="customer",
                              policy_id="POL-DEFAULT-DENY", run_id=s["run_id"], detail={"case_id": record.case_id})
-            raise ApiError(403, "DENY", "Telegram and e-mail are off in the demo; this page shows every update",
+            raise ApiError(429, "DENY", "Ya enviamos varios correos de confirmación en esta sesión.",
                            "POL-DEFAULT-DENY")
+        email_links[s["session_id"]] = email_links.get(s["session_id"], 0) + 1
 
     @app.post("/api/cases/{case_id}/channels/telegram", status_code=201, response_model=TelegramOut)
     def telegram(record: CaseRecord = Depends(own_case), s: dict = Depends(session)):
@@ -825,7 +832,7 @@ def create_live_app(store: Store, *, catalog: Optional[Catalog] = None, verifier
 
     @app.post("/api/cases/{case_id}/channels/email", status_code=202, response_model=EmailOut)
     def email(body: EmailIn, record: CaseRecord = Depends(own_case), s: dict = Depends(session)):
-        no_demo_channel(record, s)
+        no_demo_channel(record, s, "email")
         address = body.email.strip()
         if not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", address):
             raise ApiError(400, "INVALID", "Not an e-mail address")
