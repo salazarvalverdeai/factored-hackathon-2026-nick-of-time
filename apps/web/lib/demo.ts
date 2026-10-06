@@ -31,11 +31,11 @@ export const VERIFY_COPY = {
 } as const;
 
 /**
- * Telegram and e-mail are off in a demo session (spec 07 §8, spec 05 AC-16: the link routes answer 403). Every session
- * of the live api is a demo run (ADR 0026), so the case page offers the channel links only on the mock.
+ * The case page offers the Telegram and e-mail links in every mode: since ADR 0026's amendment (2026-10-05, spec 05
+ * AC-16) a demo visitor links their own chat or inbox to their own case, and only that case's updates reach it.
  */
 export function channelLinksOffered(apiMode: "mock" | "live"): boolean {
-  return apiMode === "mock";
+  return apiMode === "mock" || apiMode === "live";
 }
 
 /**

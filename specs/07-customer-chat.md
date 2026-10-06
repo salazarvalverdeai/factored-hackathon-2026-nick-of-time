@@ -119,6 +119,28 @@ AC-01 to AC-05 are copied from issue #9 with the same numbers. None is dropped o
   ("spec 07 AC-27: every chat animation goes through …")
 - AC-27 — Under `prefers-reduced-motion` nothing shall move: no element gets animated props, the reply shows whole and
   the steps still show in order. · [T] ("spec 07 AC-27: …")
+- AC-28 — (fix, production) When a turn carries `options` (spec 01 §6.4), the chat shall show each option as a charge
+  card, in the reply's order steps → text → cards → chips, the one charge to confirm of spec 04 D-067
+  (`clarify.confirm_one`) included: the tool's `charge` card of the same transaction, else the option's label. A single
+  charge to confirm has no pick button (its `confirm_charge` chips answer); several options keep the pick, which sends
+  `choose_option` with the transaction id. A `charge` card with a null `last4` (a candidate whose card was not read) is
+  kept and shown without the card digits. · [T] `lib/chat-reply.test.ts` ("spec 07 AC-28: …")
+- AC-29 — (fix, production) Where a reply line follows a list item and is neither an item nor indented, the chat shall
+  render it as its own paragraph, never as the continuation of the last bullet; streamed and revealed text get the same
+  treatment. · [T] `lib/chat-reply.test.ts` ("spec 07 AC-29: …", checked on the markdown tree)
+- AC-30 — (fix, production) The chat shall show each bare ISO date (`YYYY-MM-DD`) of a reply in the long form of the
+  turn language ("2 de junio de 2026", "2 de junho de 2026") from a fixed month table, never the system clock; ids,
+  instants and amounts are left as they are, and a date a tool returned still links to its source (AC-22). Display
+  only. · [T] `lib/chat-reply.test.ts` ("spec 07 AC-30: …")
+- AC-31 — While a turn runs, the chat shall offer a compact view of the `dispute_intake` graph (the `/agent` drawing,
+  `components/agent/graph-view.tsx`, drawn final with no reveal) that marks the node the agent is on and the nodes it
+  passed this turn, following the frames as the customer sees them; progress keys and tool events map to node ids of
+  `lib/agent-reference.ts` as `intake.py` emits them (`lib/chat-graph.ts`), and the steps that stream nothing (route,
+  plan) are filled in along the graph's own edges. It carries one caption, "La IA entiende · las reglas deciden · las
+  herramientas actúan · la verificación confirma · una persona cierra" (ES/PT). It is closed by default and takes no
+  width from the conversation: on wide screens a slim right rail "Ver cómo trabaja" opens a non-modal panel; on narrow
+  screens a header button opens it as a sheet, with no horizontal scroll at 390 px; both are keyboard operable, follow
+  both themes, and do not move under reduced motion. · [T] `lib/chat-graph.test.ts` ("spec 07 AC-31: …")
 
 ## 8. Assumptions and open questions
 - Assumption `[assumption]`: the scripted agent in `lib/mock/agent.ts` stands in for the LangGraph graph; refusal,
@@ -224,6 +246,15 @@ AC-01 to AC-05 are copied from issue #9 with the same numbers. None is dropped o
   Copy, chips inside the thread, header bar with "Nuevo caso", timestamps, motion through one adapter · covers AC-16 to
   AC-27 · done when: the tests citing them pass (the live-node graph beside the chat follows once `graph-view` takes
   `activeNode`)
+- [x] Task 10 — production fixes of the recomposed chat: the charge to confirm shows as a card, text after a list is
+  its own paragraph, ISO dates in long form · covers AC-28 to AC-30 · done when: the tests citing them pass
+- [x] Task 11 — the live graph beside the chat (`components/chat/live-graph.tsx`, `lib/chat-graph.ts`, `graph-view`'s
+  `fit` mode) · covers AC-31 · done when: the tests citing it pass
+
+**Task 5 notes.** The web never sends a `customer_id`; the session id (equal to the httpOnly cookie value) is kept in
+`sessionStorage` to address `/api/sessions/{id}/...`. Charge-chip text is local ES/PT copy built from tool-returned
+fields only (`lib/demo.ts`). Amounts use a dot decimal. The mock client has no demo flow (501): demo sessions need the
+live API. The persona draft goes into the composer, labeled "suggested", and is never sent on its own.
 
 **Task 5 notes.** The web never sends a `customer_id`; the session id (equal to the httpOnly cookie value) is kept in
 `sessionStorage` to address `/api/sessions/{id}/...`. Charge-chip text is local ES/PT copy built from tool-returned

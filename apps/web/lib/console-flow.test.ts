@@ -1,8 +1,10 @@
 // Offline checks for "How the console works" (spec 08 AC-24): the analyst's flow in order, the case card's evidence,
-// what it runs on, edges that join drawn boxes and point the right way on the grid, and a detail for every box.
+// what it runs on, edges that join drawn boxes and point the right way on the grid, and the words of every box and
+// edge in EN, ES and PT (messages/console.ts).
 import assert from "node:assert/strict";
 import test from "node:test";
-import { FLOW_BOXES, FLOW_LINE, FLOW_LINKS, NEEDS_TITLE } from "./console-flow.ts";
+import { consoleUi } from "../messages/console.ts";
+import { FLOW_BOXES, FLOW_IDS, FLOW_LINKS, LINK_LABELS, NEEDS_TITLE } from "./console-flow.ts";
 import { MOTION, fitStep } from "./motion.ts";
 
 const ids = (group: string) => FLOW_BOXES.filter((b) => b.group === group).map((b) => b.id);
@@ -18,12 +20,20 @@ test("spec 08 AC-24: the steps are queue → case card → analyst action → ve
 test("spec 08 AC-24: the case card's evidence and what the flow runs on are drawn", () => {
   assert.deepEqual(ids("evidence"), ["receipt", "deadline", "handoff", "opinion"]);
   assert.deepEqual(ids("need"), ["cognito", "api", "postgres"]);
+  assert.deepEqual(FLOW_BOXES.map((b) => b.id), [...FLOW_IDS]);
   for (const b of FLOW_BOXES) assert.equal(b.row === null, b.group === "evidence", `${b.id}: only evidence sits inside the case card`);
 });
 
-test("spec 08 AC-24: one plain line, and every box has a detail and a source for the detail panel", () => {
-  assert.ok(FLOW_LINE.length > 0 && !FLOW_LINE.includes("\n"));
-  for (const b of FLOW_BOXES) assert.ok(b.detail.length > 0 && b.source.length > 0, b.id);
+test("spec 08 AC-24: one plain line, and every box and edge has its words and a source in EN, ES and PT", () => {
+  for (const [locale, m] of Object.entries(consoleUi)) {
+    assert.ok(m.flow.line.length > 0 && !m.flow.line.includes("\n"), locale);
+    for (const b of FLOW_BOXES) {
+      const words: { name: string; detail: string; sub?: string } = m.flow.box[b.id];
+      assert.ok(words.name && words.detail && b.source, `${locale} ${b.id}`);
+      assert.equal(Boolean(words.sub), b.group !== "evidence", `${locale} ${b.id}: a box has a second line, a pill none`);
+    }
+    for (const l of LINK_LABELS) assert.ok(m.flow.link[l], `${locale} ${l}`);
+  }
 });
 
 test("spec 08 AC-24: every edge joins two drawn boxes and points the right way on the grid", () => {

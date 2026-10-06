@@ -1,6 +1,7 @@
 {
  "base": "https://nickoftime.salazarvalverdeai.com",
- "taken_at": "2026-10-05T19:14:29Z",
+ "reduced_motion": true,
+ "taken_at": "2026-10-06T03:05:20Z",
  "shots": [
   {
    "page": "/evaluation",
@@ -11,6 +12,7 @@
    "scroll_width": 1280,
    "client_width": 1280,
    "overflow_x": false,
+   "reduced_motion": true,
    "file": "evaluation-desktop-light.jpg"
   },
   {
@@ -22,6 +24,7 @@
    "scroll_width": 1280,
    "client_width": 1280,
    "overflow_x": false,
+   "reduced_motion": true,
    "file": "evaluation-desktop-dark.jpg"
   },
   {
@@ -33,6 +36,7 @@
    "scroll_width": 390,
    "client_width": 390,
    "overflow_x": false,
+   "reduced_motion": true,
    "file": "evaluation-mobile-light.jpg"
   },
   {
@@ -44,6 +48,7 @@
    "scroll_width": 390,
    "client_width": 390,
    "overflow_x": false,
+   "reduced_motion": true,
    "file": "evaluation-mobile-dark.jpg"
   },
   {
@@ -55,6 +60,7 @@
    "scroll_width": 1280,
    "client_width": 1280,
    "overflow_x": false,
+   "reduced_motion": true,
    "file": "analytics-desktop-light.jpg"
   },
   {
@@ -66,6 +72,7 @@
    "scroll_width": 1280,
    "client_width": 1280,
    "overflow_x": false,
+   "reduced_motion": true,
    "file": "analytics-desktop-dark.jpg"
   },
   {
@@ -77,6 +84,7 @@
    "scroll_width": 390,
    "client_width": 390,
    "overflow_x": false,
+   "reduced_motion": true,
    "file": "analytics-mobile-light.jpg"
   },
   {
@@ -88,6 +96,7 @@
    "scroll_width": 390,
    "client_width": 390,
    "overflow_x": false,
+   "reduced_motion": true,
    "file": "analytics-mobile-dark.jpg"
   },
   {
@@ -99,6 +108,7 @@
    "scroll_width": 1280,
    "client_width": 1280,
    "overflow_x": false,
+   "reduced_motion": true,
    "file": "data-desktop-light.jpg"
   },
   {
@@ -110,6 +120,7 @@
    "scroll_width": 1280,
    "client_width": 1280,
    "overflow_x": false,
+   "reduced_motion": true,
    "file": "data-desktop-dark.jpg"
   },
   {
@@ -121,6 +132,7 @@
    "scroll_width": 390,
    "client_width": 390,
    "overflow_x": false,
+   "reduced_motion": true,
    "file": "data-mobile-light.jpg"
   },
   {
@@ -132,6 +144,7 @@
    "scroll_width": 390,
    "client_width": 390,
    "overflow_x": false,
+   "reduced_motion": true,
    "file": "data-mobile-dark.jpg"
   },
   {

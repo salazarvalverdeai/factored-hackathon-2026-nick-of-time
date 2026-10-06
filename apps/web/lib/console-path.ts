@@ -1,7 +1,8 @@
 // The agent's path for one case, drawn on the console's GraphView (spec 08 AC-23). The console holds no agent trace,
 // so the path is reconstructed from the case's own events and its handoff card, and the graph's shape
 // (lib/agent-reference.ts, read from apps/agent/agent/intake.py) fills in what the topology forces: `open_case` runs only
-// in `act`, and `act` has a single way in from START. A node the data cannot pin is left out, never guessed.
+// in `act`, and `act` has a single way in from START. A node the data cannot pin is left out, never guessed. The words
+// for each reason live in messages/console.ts (`console.path.why.*`, `console.path.stop.*`).
 import { AGENT_REFERENCE } from "./agent-reference.ts";
 
 const { graph } = AGENT_REFERENCE;
@@ -36,40 +37,39 @@ export function forcedAfter(id: string): string[] {
   return path;
 }
 
-/** The node each case event or handoff action pins, and why. Every id here is a node of agent-reference (tested). */
+/** The node each case event or handoff action pins (why: the tool runs only there). Every id is a graph node (tested). */
 export const PINS = {
-  case_opened: { node: "act", why: "open_case runs only in act" },
-  card_blocked: { node: "act", why: "block_card runs only in act" },
-  block_verified: { node: "verify", why: "verify reads the block back" },
-  action_verified: { node: "verify", why: "verify reads each write back" },
-  request_call: { node: "connect", why: "request_call runs only in connect" },
-  handoff_emitted: { node: "respond", why: "respond builds the handoff card" },
-  receipt_issued: { node: "respond", why: "respond builds the receipt" },
-} as const satisfies Record<string, { node: string; why: string }>;
+  case_opened: "act",
+  card_blocked: "act",
+  block_verified: "verify",
+  action_verified: "verify",
+  request_call: "connect",
+  handoff_emitted: "respond",
+  receipt_issued: "respond",
+} as const satisfies Record<string, string>;
 
 export type PinSource = keyof typeof PINS;
 
 export interface PathEvidence {
   node: string;
-  /** What in the case pins it: an event type, a handoff action, or the graph's own shape. */
+  /** What pins it: an event type or handoff action, the graph's own shape, or the turn's handoff card. */
   source: PinSource | "graph" | "handoff_card";
-  why: string;
 }
+
+export type PathStop = "no_case_opened" | "call_unplaced" | "no_reply";
 
 export interface CasePath {
   /** The nodes in order, for GraphView's `path`; empty when the case events pin nothing. */
   path: string[];
   evidence: PathEvidence[];
   /** Why the path stops where it does, when it stops before END. */
-  stop: string | null;
+  stop: PathStop | null;
 }
 
 interface PathInput {
   events: readonly { type: string; actor: string }[];
-  handoff: { actions: readonly { tool: string }[] } | null;
+  handoff: { actions?: readonly { tool: string }[] } | null;
 }
-
-const TOPOLOGY = "the graph has one way here";
 
 /**
  * The opening turn's path: the case was opened by `open_case`, so the run went START → … → act → verify (forced by the
@@ -79,11 +79,11 @@ const TOPOLOGY = "the graph has one way here";
  */
 export function casePath({ events, handoff }: PathInput): CasePath {
   const has = (type: string) => events.some((e) => e.type === type);
-  if (!has("case_opened")) return { path: [], evidence: [], stop: "No case_opened event: nothing pins the agent's run." };
+  if (!has("case_opened")) return { path: [], evidence: [], stop: "no_case_opened" };
 
   const evidence: PathEvidence[] = [];
-  const pin = (source: PinSource) => evidence.push({ node: PINS[source].node, source, why: PINS[source].why });
-  const forced = (nodes: string[]) => nodes.forEach((node) => evidence.push({ node, source: "graph", why: TOPOLOGY }));
+  const pin = (source: PinSource) => evidence.push({ node: PINS[source], source });
+  const forced = (nodes: string[]) => nodes.forEach((node) => evidence.push({ node, source: "graph" }));
 
   const toAct = forcedBefore("act");
   forced(toAct.slice(0, -1));
@@ -103,17 +103,10 @@ export function casePath({ events, handoff }: PathInput): CasePath {
   let next: string | null = null;
   if (actTurnCard) next = tools.has("request_call") ? "connect" : "respond";
   else if (!agentCall && reply) next = "respond";
-  if (!next) {
-    return {
-      path,
-      evidence,
-      stop: agentCall
-        ? "A call was requested, but the case events do not say in which turn, so the path stops at verify."
-        : "No receipt or handoff card from that turn, so the path stops at verify.",
-    };
-  }
+  if (!next) return { path, evidence, stop: agentCall ? "call_unplaced" : "no_reply" };
+
   if (next === "connect") pin("request_call");
-  else if (actTurnCard) evidence.push({ node: "respond", source: "handoff_card", why: "the turn's handoff card shows no call" });
+  else if (actTurnCard) evidence.push({ node: "respond", source: "handoff_card" });
   if (reply) pin(reply);
   const tail = [next, ...forcedAfter(next)];
   forced(tail.filter((node) => !evidence.some((e) => e.node === node)));

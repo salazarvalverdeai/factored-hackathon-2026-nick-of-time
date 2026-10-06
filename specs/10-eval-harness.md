@@ -2,7 +2,7 @@
 
 - **Feature:** one command that runs a case set against one or more system arms, compares the **final state** with the
   expected one, and reports the challenge metrics with their denominators.
-- **Status:** In progress
+- **Status:** Implemented (2026-10-06)
 - **Owner:** @vldiego (follow-ups from 2026-10-05: @salazarvalverdeai) · **Priority:** P0 · **Size:** M
 - **Challenge dimension:** Machine Learning, Data Analytics
 - **Depends on:** 01 (eval hooks and `FinalState`, in `main`), 09 (cases), then 04 (graph) · **Enables:** 12
@@ -294,21 +294,9 @@ Implementation goes in `feat/10-…` branches once this spec is approved. T1–T
 - [x] T9 — D-083 (lead, 2026-10-06, ADR 0031): the held-out's secondary score under the D-070 handoff rule, next to
       the official sealed score, in `meta.json`, `summary.csv` and `evaluation_summary.json` · covers AC-15
       (`tests/test_spec10_dual_score.py`, synthetic held-out-shaped cases only)
-- [ ] T7 — held-out run on S0, S1 and S2 after M02; results committed under `eval/results/` · covers AC-03, AC-07,
-      AC-09, AC-11. Command ready, not run: `make eval-heldout` (on the stack of `make eval-local`, real models), in
-      this order: (1) arms and runs pinned to S0,S1,S2 × 4; (2) `seal_guard.check_seal(inputs={"agent_heldout"})`;
-      (3) the S1 model map from `eval/results/model_map.json` (written by spec 15 B2/T6,
-      `{label, source, arms: {S1: {provider, model_fast}, S2: {provider, model_graph}}}`), else the default Haiku 4.5
-      map labeled `[assumption]` (lead decision D-080 pending); (4) the out folder is empty; (5) it prints the projected
-      cost, S1 ≈ 0.15 USD and S2 ≈ 0.45 USD `[projected]` (the dev run's 0.037 USD for S1 on 20 cases × 4 runs
-      `[simulated]`, scaled to 80 cases; Sonnet 4.6 at 3× the Haiku 4.5 token price, `eval/bench/prices.yaml`
-      `[external]`); (6) a preflight on one **dev** case per arm that consumes nothing: api health ok, `today.replay`
-      = DEMO_TODAY 2026-06-01, a `replay` session, and each arm's `run_meta` with the expected provider and model (the
-      `fake` provider is refused); (7) `seal_guard.claim_run("heldout")`; only then is the held-out file read. Each run
-      is appended to `runs.jsonl` as it finishes. A set that stops after the claim keeps its runs, `meta.json` says
-      `run_status: "aborted"`, no web summary is written and the exit is 3 (lead decision D-079 pending; this is the
-      default). If every run failed, the exit is 1 and the web summary is not written
-      (`tests/test_spec10_heldout_once.py`)
+- [x] T7 — held-out run on S0, S1 and S2 after M02; results committed under `eval/results/` · covers AC-03, AC-07
+      (2026-10-06, #224: one sealed run, 960 runs, `eval/results/2026-10-06-heldout/`; scored under the sealed rules and,
+      secondarily, under D-070, ADR 0031; 24 runs failed on a seed-hook gap fixed for later runs in #234)
 
 Tests live in `tests/test_spec10_*.py` and cite their criterion.
 

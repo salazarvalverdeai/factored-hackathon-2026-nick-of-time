@@ -19,7 +19,7 @@ from nick_of_time.store import (CUSTOMER_VISIBLE, RESERVED_EVENTS, UNDELIVERED, 
                                 CallRequest, CaseEvent, CaseRecord, DemoTransaction, Channel, DeliveryStatus, EventType, NewCase, Notification,
                                 NotVerified, ProductOverride, StoreError, VerifyingRead, _check_writer, _json,
                                 _utc_now, check_action_id, check_actor, check_business_date, check_text, check_transition,
-                                in_runs, insert_with_fresh_case_id)
+                                in_runs, insert_with_fresh_case_id, is_demo_run)
 from nick_of_time.store.accounts import (CHANNEL_CASE_EVENT, CHANNEL_ID, DENIAL_ID, LLM_CALL_ID, ChannelEvent, CustomerChannel,
                                          LinkedChannel, LLMCall, NewDenial, NewLLMCall, NewSession, Once, PolicyDenial,
                                          SessionRecord, check_channel_event, check_denial_session, check_key,
@@ -377,19 +377,22 @@ class MemoryStore:
     def add_channel_event(self, case_id: str, channel: LinkedChannel, address: str, event: ChannelEvent, *,
                           actor: str, trace_id: str) -> CustomerChannel:
         _check_writer(actor, trace_id)
-        customer_id = self._case(check_key(case_id)).customer_id
-        check_channel_event(self.channels(customer_id), channel, address, event)
+        case = self._case(check_key(case_id))
+        customer_id, run_id = case.customer_id, (case.run_id if is_demo_run(case.run_id) else None)   # ADR 0026
+        check_channel_event(self.channels(customer_id, run_id), channel, address, event)
         row = CustomerChannel(channel_id=new_row_id(CHANNEL_ID), customer_id=customer_id, channel=channel,
-                              address=address, event=event, created_at=self._now())
+                              address=address, event=event, created_at=self._now(), run_id=run_id)
         self._channels.append(row)
         if (channel, event) in CHANNEL_CASE_EVENT:
             self._append(case_id, CHANNEL_CASE_EVENT[channel, event], actor, trace_id,
                          {"channel_id": row.channel_id, "channel": channel})
         return row
 
-    def channels(self, customer_id: str) -> list[CustomerChannel]:
+    def channels(self, customer_id: str, run_id: Optional[str] = None) -> list[CustomerChannel]:
         check_key(customer_id)
-        latest = {c.channel: c for c in self._channels if c.customer_id == customer_id}     # the row inserted last
+        run_id = run_id if is_demo_run(run_id) else None    # only a demo run's channels are its own (ADR 0026)
+        latest = {c.channel: c for c in self._channels                                      # the row inserted last
+                  if c.customer_id == customer_id and c.run_id == run_id}
         return [latest[name] for name in sorted(latest)]
 
     @contextmanager

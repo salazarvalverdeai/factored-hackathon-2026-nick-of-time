@@ -64,3 +64,15 @@ a chosen character's voice: S1 writes it from the session's own charge with the 
 
 ## Confidence
 High for isolation (the same mechanism the eval harness relies on). Revisit if demo traffic needs the store pruned.
+
+## Amendment (2026-10-05): a demo visitor's own Telegram and e-mail
+- **Why.** The lead wants visitors (and the jury) to see the status notifications arrive, not only in the case page's
+  log. Turning the channels off for every demo run hid a working part of spec 13.
+- **What changes.** `customer_channels` keeps the run of a demo-run case (`run_id`, contract 1.9.0). A visitor links
+  their own Telegram chat (deep link to the bot) or inbox (double opt-in confirmation link) on their own case page, and
+  a status change on a case of that run reaches only those channels. Another visitor of the same demo customer, an eval
+  run and production read their own rows only, so the original isolation holds. A session sends at most 3 confirmation
+  e-mails `[assumption]`.
+- **What stays.** `get_customer_profile` lists no channel and `send_case_summary` still answers `DENY` in a demo run;
+  production behavior is unchanged. WhatsApp is not offered: it stays on the roadmap (business API, template messages
+  and opt-in).

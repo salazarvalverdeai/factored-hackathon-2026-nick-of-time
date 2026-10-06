@@ -40,7 +40,7 @@ function TechnicalTrace({ reply, lang }: { reply?: AgentReply; lang: Language })
       </Button>
       {open ? (
         <div className="mt-2" data-slot="technical-trace">
-          <TraceSteps trace={reply.trace} guardrails={reply.guardrails} />
+          <TraceSteps trace={reply.trace} guardrails={reply.guardrails} lang={lang} />
         </div>
       ) : null}
     </div>
@@ -90,7 +90,7 @@ export function ChatDetailPanel({ detail, lang, country, onClose }: { detail: Ch
           <DetailField label={COPY.merchant[lang]}>{c.merchant ? customerText(c.merchant) : COPY.none[lang]}</DetailField>
           <DetailField label={COPY.amount[lang]}>{formatAmount(c.amount, c.currency, lang)}</DetailField>
           <DetailField label={COPY.date[lang]}>{formatDate(c.date, lang)}</DetailField>
-          <DetailField label={COPY.card[lang]}>{c.last4}</DetailField>
+          {c.last4 ? <DetailField label={COPY.card[lang]}>{c.last4}</DetailField> : null}
           <DetailField label={COPY.id[lang]} mono>
             {c.transaction_id}
           </DetailField>
@@ -127,7 +127,7 @@ export function ChatDetailPanel({ detail, lang, country, onClose }: { detail: Ch
 
   return (
     <DetailPanel {...common} title={S.howDecided[lang]} description={S.ruleNote[lang]}>
-      <TraceSteps trace={detail.reply.trace} guardrails={detail.reply.guardrails} />
+      <TraceSteps trace={detail.reply.trace} guardrails={detail.reply.guardrails} lang={lang} />
     </DetailPanel>
   );
 }

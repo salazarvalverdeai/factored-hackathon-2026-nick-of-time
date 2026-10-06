@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import { useLocale, useT } from "@/components/i18n-provider";
 import { PageShell } from "@/components/page-shell";
 import { EmptyState, ErrorState, LoadingState } from "@/components/states";
 import { Timeline } from "@/components/timeline";
@@ -12,13 +13,17 @@ import { ApiError, api } from "@/lib/api";
 import { channelLinksOffered } from "@/lib/demo";
 import { MESSAGES, fill } from "@/lib/mock/messages";
 import { formatDateTime } from "@/lib/handoff-labels";
-import { demoDateLabel } from "@/lib/demo-date";
+import { formatDay } from "@/lib/i18n";
 import { DEMO_TODAY, statusLabel } from "@/lib/mock/store";
 import type { Language, NotificationEntry } from "@/lib/types";
 import { useQuery } from "@/lib/use-query";
 
-/** The customer's case page: proof, not promises (ADR 0013). Never shows the score, policy ids or the transcript. */
+/** The customer's case page: proof, not promises (ADR 0013). Never shows the score, policy ids or the transcript.
+ *  The page's own words follow the UI language (spec 16 AC-06); status labels, notification titles and the call
+ *  message come from the api or the agent in the case's language and are shown as they are. */
 export function CaseView({ id }: { id: string }) {
+  const t = useT();
+  const { locale } = useLocale();
   const found = useQuery((a) => a.getCase(id), [id]);
   const notifications = useQuery((a) => a.getNotifications(id), [id]);
   const [busy, setBusy] = useState(false);
@@ -28,21 +33,27 @@ export function CaseView({ id }: { id: string }) {
   const [email, setEmail] = useState("");
   const [link, setLink] = useState<{ token: string; deepLink: string } | null>(null);
 
-  const title = `Case ${id}`;
-  if (found.status === "loading") return <PageShell title={title} description="Your case, step by step."><LoadingState /></PageShell>;
+  const title = t("caseView.title", { id });
+  if (found.status === "loading") {
+    return (
+      <PageShell title={title} description={t("caseView.description")}>
+        <LoadingState />
+      </PageShell>
+    );
+  }
   if (found.status === "error") {
     const { code, message } = found.error;
     return (
-      <PageShell title={title} description="Your case, step by step.">
+      <PageShell title={title} description={t("caseView.description")}>
         {code === "NOT_FOUND" ? (
-          <EmptyState title="We cannot find this case" hint="Check the link, or verify with the customer that owns it." />
+          <EmptyState title={t("caseView.notFound")} hint={t("caseView.notFoundHint")} />
         ) : (
           <ErrorState
-            title={code === "SESSION_EXPIRED" ? "Your session expired" : "Verify your identity first"}
+            title={code === "SESSION_EXPIRED" ? t("caseView.sessionExpired") : t("caseView.verifyFirst")}
             message={message}
             action={
               <Link href="/chat" className="inline-flex h-7 items-center rounded-lg border px-2.5 text-sm hover:bg-muted">
-                Go to the chat
+                {t("caseView.goToChat")}
               </Link>
             }
           />
@@ -68,31 +79,38 @@ export function CaseView({ id }: { id: string }) {
       const result = await action();
       setFeedback(typeof result === "string" ? result : done);
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : "unexpected error");
+      setError(e instanceof ApiError ? e.message : t("caseView.unexpectedError"));
     } finally {
       setBusy(false);
     }
   }
 
+  const countdownText =
+    left === null
+      ? t("caseView.pending")
+      : left <= 0
+        ? t("ui.time.dueToday")
+        : t(left === 1 ? "ui.time.daysLeft.one" : "ui.time.daysLeft.other", { n: left });
+
   return (
-    <PageShell title={title} description="Your case, step by step. You do not need to call us to know where it stands.">
+    <PageShell title={title} description={t("caseView.descriptionLong")}>
       <div className="grid gap-4 lg:grid-cols-[1fr_22rem]">
         <div className="min-w-0 space-y-4">
           <Card>
             <CardHeader>
               <CardTitle className="flex flex-wrap items-center gap-2">
-                Status <span data-slot="status-label" className="inline-flex h-5 items-center rounded-4xl bg-primary/15 px-2 text-xs font-medium text-violet-700 dark:text-violet-300">{c.status_label}</span>
+                {t("caseView.status")} <span data-slot="status-label" className="inline-flex h-5 items-center rounded-4xl bg-primary/15 px-2 text-xs font-medium text-violet-700 dark:text-violet-300">{c.status_label}</span>
               </CardTitle>
-              <CardDescription>A person always closes the case.</CardDescription>
+              <CardDescription>{t("caseView.personCloses")}</CardDescription>
             </CardHeader>
             <CardContent className="space-y-3 text-sm">
               <div data-slot="countdown" className="rounded-lg border border-brand-amber/50 bg-brand-amber/5 p-3">
-                <p className="text-xs uppercase tracking-wide text-muted-foreground">Legal deadline</p>
-                <p className="text-2xl font-semibold text-amber-700 dark:text-amber-400">{left === null ? "Pending" : left <= 0 ? "Due today" : `${left} day${left === 1 ? "" : "s"} left`}</p>
-                <p>{c.credit_deadline ?? "Pending: a person will confirm it"}</p>
+                <p className="text-xs uppercase tracking-wide text-muted-foreground">{t("caseView.legalDeadline")}</p>
+                <p className="text-2xl font-semibold text-amber-700 dark:text-amber-400">{countdownText}</p>
+                <p>{c.credit_deadline ?? t("caseView.creditPending")}</p>
                 <p className="text-xs text-muted-foreground">
-                  Source: {c.deadline_source ?? "pending"}
-                  {demoDate ? ` · ${demoDateLabel(demoDate, c.language)}` : ""}
+                  {t("caseView.source", { source: c.deadline_source ?? t("caseView.sourcePending") })}
+                  {demoDate ? ` · ${t("caseView.demoDate", { date: formatDay(locale, demoDate, { month: "long" }) })}` : ""}
                 </p>
               </div>
               <Button disabled={busy} variant="outline" onClick={() =>
@@ -104,14 +122,14 @@ export function CaseView({ id }: { id: string }) {
                       : MESSAGES.connect.requested_no_window[c.language];
                   })
                 }>
-                Request a call
+                {t("caseView.requestCall")}
               </Button>
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader>
-              <CardTitle>Timeline</CardTitle>
+              <CardTitle>{t("caseView.timeline")}</CardTitle>
             </CardHeader>
             <CardContent>
               <Timeline
@@ -127,8 +145,8 @@ export function CaseView({ id }: { id: string }) {
 
           <Card>
             <CardHeader>
-              <CardTitle>Add information</CardTitle>
-              <CardDescription>The analyst sees it in your case right away.</CardDescription>
+              <CardTitle>{t("caseView.addInfo.title")}</CardTitle>
+              <CardDescription>{t("caseView.addInfo.description")}</CardDescription>
             </CardHeader>
             <CardContent>
               <form
@@ -138,26 +156,26 @@ export function CaseView({ id }: { id: string }) {
                   act(async () => {
                     await api.addCustomerInfo(id, info);
                     setInfo("");
-                  }, "Thanks, we added it to your case.");
+                  }, t("caseView.addInfo.added"));
                 }}
               >
-                <Textarea value={info} onChange={(e) => setInfo(e.target.value)} aria-label="Additional information" placeholder="Anything that helps us review the charge…" />
+                <Textarea value={info} onChange={(e) => setInfo(e.target.value)} aria-label={t("caseView.addInfo.aria")} placeholder={t("caseView.addInfo.placeholder")} />
                 <Button type="submit" disabled={busy || !info.trim()}>
-                  Send to the analyst
+                  {t("caseView.addInfo.send")}
                 </Button>
               </form>
             </CardContent>
           </Card>
 
           {feedback ? <p role="status" className="rounded-lg border border-brand-teal/40 bg-brand-teal/5 p-2 text-sm">{feedback}</p> : null}
-          {error ? <ErrorState title="That did not work" message={error} /> : null}
+          {error ? <ErrorState title={t("caseView.didNotWork")} message={error} /> : null}
         </div>
 
         <aside className="min-w-0 space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle>My notifications</CardTitle>
-              <CardDescription>Every status change is logged here, even if a channel fails.</CardDescription>
+              <CardTitle>{t("caseView.notifications.title")}</CardTitle>
+              <CardDescription>{t("caseView.notifications.description")}</CardDescription>
             </CardHeader>
             <CardContent>
               {notifications.status === "ok" && notifications.data.length > 0 ? (
@@ -167,40 +185,41 @@ export function CaseView({ id }: { id: string }) {
                   ))}
                 </ul>
               ) : (
-                <EmptyState title="No notifications yet" />
+                <EmptyState title={t("caseView.notifications.empty")} />
               )}
             </CardContent>
           </Card>
 
           {/* spec 07 §8, spec 05 AC-16: no Telegram or e-mail in a demo session (the link routes answer 403). */}
           {!channelLinksOffered(api.mode) ? (
-            <p className="rounded-lg border p-3 text-sm text-muted-foreground">
-              Telegram and e-mail are off in the demo. This page and the notifications above show every update.
-            </p>
+            <p className="rounded-lg border p-3 text-sm text-muted-foreground">{t("caseView.channelsOff")}</p>
           ) : (
           <Card>
             <CardHeader>
-              <CardTitle>Get updates</CardTitle>
-              <CardDescription>Optional channels. They carry the status only, never your data.</CardDescription>
+              <CardTitle>{t("caseView.updates.title")}</CardTitle>
+              <CardDescription>{t("caseView.updates.description")}</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4 text-sm">
               <div className="space-y-2">
-                <p className="font-medium">Telegram {linked ? <span className="text-teal-700 dark:text-teal-300">· linked ✓</span> : null}</p>
+                <p className="font-medium">
+                  {t("caseView.telegram.name")}{" "}
+                  {linked ? <span className="text-teal-700 dark:text-teal-300">{t("caseView.telegram.linked")}</span> : null}
+                </p>
                 {!linked ? (
                   <>
-                    <Button size="sm" disabled={busy} onClick={() => act(async () => setLink(await api.createTelegramLink(id)), "Link created: it works for 15 minutes.")}>
-                      Get updates on Telegram
+                    <Button size="sm" disabled={busy} onClick={() => act(async () => setLink(await api.createTelegramLink(id)), t("caseView.telegram.linkCreated"))}>
+                      {t("caseView.telegram.get")}
                     </Button>
                     {link ? (
                       <div className="space-y-2 rounded-lg border p-2 text-xs">
                         {live ? (
                           <a href={link.deepLink} target="_blank" rel="noreferrer" className="break-all underline">
-                            Open Telegram and press Start
+                            {t("caseView.telegram.open")}
                           </a>
                         ) : (
                           <>
-                            <Button size="xs" variant="outline" disabled={busy} onClick={() => act(() => api.simulateTelegramStart(id, link.token), "Telegram linked.")}>
-                              Simulate “/start” in Telegram
+                            <Button size="xs" variant="outline" disabled={busy} onClick={() => act(() => api.simulateTelegramStart(id, link.token), t("caseView.telegram.done"))}>
+                              {t("caseView.telegram.simulate")}
                             </Button>
                           </>
                         )}
@@ -211,25 +230,25 @@ export function CaseView({ id }: { id: string }) {
               </div>
 
               <div className="space-y-2">
-                <p className="font-medium">E-mail {confirmedEmail ? <span className="text-teal-700 dark:text-teal-300">· confirmed ✓</span> : null}</p>
+                <p className="font-medium">
+                  {t("caseView.email.name")}{" "}
+                  {confirmedEmail ? <span className="text-teal-700 dark:text-teal-300">{t("caseView.email.confirmed")}</span> : null}
+                </p>
                 {!confirmedEmail ? (
                   <form
                     className="flex gap-2"
                     onSubmit={(e) => {
                       e.preventDefault();
-                      act(
-                        () => api.confirmEmail(id, email.trim()),
-                        live ? "We sent you a link. Open it to confirm your e-mail." : "E-mail confirmed.",
-                      );
+                      act(() => api.confirmEmail(id, email.trim()), live ? t("caseView.email.sentLink") : t("caseView.email.done"));
                     }}
                   >
-                    <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" aria-label="E-mail address" required />
+                    <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder={t("caseView.email.placeholder")} aria-label={t("caseView.email.aria")} required />
                     <Button type="submit" size="sm" disabled={busy}>
-                      {live ? "Send link" : "Confirm"}
+                      {live ? t("caseView.email.sendLink") : t("caseView.email.confirm")}
                     </Button>
                   </form>
                 ) : null}
-                <p className="text-xs text-muted-foreground">We write only to an address you type and confirm here.</p>
+                <p className="text-xs text-muted-foreground">{t("caseView.email.note")}</p>
               </div>
             </CardContent>
           </Card>
@@ -240,7 +259,11 @@ export function CaseView({ id }: { id: string }) {
   );
 }
 
+/** One entry of the notification log. Its title and status come from the api in the case's language (not translated);
+ *  only the channel chips and the date follow the UI language. */
 function NotificationItem({ n, lang }: { n: NotificationEntry; lang: Language }) {
+  const t = useT();
+  const { locale } = useLocale();
   return (
     <li className="rounded-lg border p-2">
       <span className="flex items-center justify-between gap-2">
@@ -253,11 +276,11 @@ function NotificationItem({ n, lang }: { n: NotificationEntry; lang: Language })
             key={ch.channel}
             className={`rounded-4xl px-2 py-0.5 ${ch.delivered ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400" : "bg-red-500/15 text-red-700 dark:text-red-400"}`}
           >
-            {ch.channel === "in_app" ? "in-app" : ch.channel} {ch.delivered ? "✓" : "failed"}
+            {ch.channel === "in_app" ? t("caseView.notifications.inApp") : ch.channel} {ch.delivered ? "✓" : t("caseView.notifications.failed")}
           </span>
         ))}
       </span>
-      <span className="mt-1 block text-xs text-muted-foreground">{formatDateTime(n.at)}</span>
+      <span className="mt-1 block text-xs text-muted-foreground">{formatDateTime(locale, n.at)}</span>
     </li>
   );
 }

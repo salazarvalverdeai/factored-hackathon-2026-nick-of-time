@@ -151,8 +151,10 @@ create table if not exists customer_channels (                                  
   address text not null,
   event text not null check (event in ('linked', 'confirmed', 'revoked')),
   created_at timestamptz not null default now(),
-  row_no bigint not null generated always as identity                -- insertion order: "latest" (T9)
+  row_no bigint not null generated always as identity,               -- insertion order: "latest" (T9)
+  run_id text null                                                   -- the demo session's run: its channels are the visitor's (ADR 0026)
 );
+alter table customer_channels add column if not exists run_id text null;
 
 create table if not exists call_requests (                           -- AO; a call asked for with no case (D-026)
   event_id text primary key,                                         -- the E- id request_call returns

@@ -33,7 +33,7 @@ DROP = object()
 
 
 def test_ac_01_layout_package_and_removed_scaffold_folders():
-    assert CONTRACT_VERSION == "1.8.0"
+    assert CONTRACT_VERSION == "1.9.0"
     assert (ROOT / "packages/nick_of_time/contracts.py").is_file() and (ROOT / "packages/nick_of_time/ids.py").is_file()
     assert not [d for d in ("audit", "classifier", "graph", "policy", "tools") if (ROOT / "apps/api" / d).exists()]
 

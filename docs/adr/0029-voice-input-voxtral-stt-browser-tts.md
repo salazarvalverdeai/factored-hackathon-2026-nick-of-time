@@ -27,6 +27,22 @@ composer as an editable draft, and the customer sends it like typed text. Replie
 | Nova Sonic speech-to-speech | natural real-time dialogue | `us-east-1` only; bypasses the text path and its guardrails |
 | Amazon Transcribe streaming | managed, many languages | another service, IAM and SDK surface for the api |
 | Browser `SpeechRecognition` | free, no backend | Chrome sends audio to its own servers; missing in Firefox |
+| ElevenLabs (agent platform or speech APIs) | the most natural voices; a ready real-time voice agent | customer audio and reply text leave AWS for a third-party processor; its agents run the dialogue and tool calls on the vendor's runtime, outside the graph where the rules decide; a voice flow invites spoken card numbers into that pipeline (PCI DSS scope); one more vendor contract and API key |
+
+### Why not ElevenLabs
+The first scope listed "voice in `/chat` with ElevenLabs" as optional (docs/README.md). It was dropped for this design
+for four reasons; the synthetic data would have allowed an external service, so the reason is what a bank could deploy:
+1. **Data boundary.** A customer's voice and the replies about their dispute would go to a processor outside the AWS
+   account and region (ADR 0009). Voxtral runs in `us-east-2` under the same IAM role, and no audio is stored.
+2. **The rules must keep deciding.** A hosted voice agent runs its own dialogue and calls tools from the vendor's
+   runtime. Here the voice only becomes text, and that text goes through the same graph, guardrails and policy engine
+   as typed text (constitution #1, #3).
+3. **No card data by voice.** Voice agents commonly ask for the card number or a code out loud. Identity here comes
+   from the session and the one-time code on screen, never from what the customer says, and a card number in the text
+   is denied (POL-PII, G-IN-04). Keeping spoken card numbers out of a third-party pipeline also keeps it out of PCI
+   DSS scope.
+4. **Fewer secrets and vendors.** No extra API key to protect or contract to sign. Text-to-speech uses the browser's
+   `speechSynthesis`, so reply text never leaves the device for speech.
 
 ## Consequences
 - The constitution holds: the LLM only transcribes, the transcript goes through the same graph, a person closes.

@@ -2,7 +2,7 @@
 
 - **Feature:** three pages where a judge sees the results, the business numbers and the data quality without reading
   code. `/evaluation` is P0; `/analytics` and `/data` are P1.
-- **Status:** In progress
+- **Status:** Implemented (2026-10-06)
 - **Owner:** @vldiego (follow-ups from 2026-10-05: @salazarvalverdeai) · **Priority:** P0 / P1 · **Size:** M
 - **Challenge dimension:** Data Analytics
 - **Depends on:** 16 (web foundation), 10, 11, 15, 17 (result files), 14 (operational KPIs, P1) · **Enables:** E1
@@ -109,7 +109,11 @@ denominator: the committed output of `queries/data/d01_complaint_transaction_lin
   and recall by score threshold, labeled frauds by zone) and, when spec 14 delivers, the operational KPIs per day; at the end, "How it's built":
   full dataset → `queries/pitch/*.sql` → `pitch_numbers.json` → charts, with the same diagram.
 - **`/data`** — the medallion drawn as a flow (source CSV files → bronze → silver → gold → what reads gold), each
-  layer focusable with its tables and rows in a tooltip and a table view; the gold rules, the checks with counts, the
+  layer focusable with its tables and rows in a tooltip and a table view; under it, "The data at a glance": one chart
+  per `profile` block (d02 transactions per month by product type with the status shares, d03 customers and
+  transactions per country, d04 the `fraud_score` bands per country with a zoom on the bands under 0.1%, d05 complaints
+  per month by category with the W3 share in its own panel under the columns, d06 null rates and `qc_*` flags per gold
+  table), each with one plain line, a table view and "Detail →" naming its query; the gold rules, the checks with counts, the
   manifest versions and the late-arrival result; the operational lakehouse of spec 14 ("Pending" until
   `ops_kpis.json` is exported to the site); the dataset limitations in plain sentences, each figure `[data]`. The
   system architecture is not drawn here; the page links to `/agent`.
@@ -168,10 +172,13 @@ Implementation goes in `feat/12-…` branches once this spec is approved.
       no live traffic yet" until spec 14 T5; a missing series shows "Results pending" (AC-04). The final resolution time
       is shown for the bank only. [T] `apps/web/lib/ops.test.ts`; 390 px checked with `scripts/web/insight_screenshots.py`
       (no horizontal overflow, both themes)
-- [ ] T7 — screenshots on the public URL, both themes and 390 px · covers AC-01, AC-03, AC-09 (2026-10-05:
-      `docs/assets/screenshots/spec12/` by `scripts/web/insight_screenshots.py` — the three pages at 1280 and 390 px in
-      both themes with no horizontal overflow (AC-09), `/data` (AC-03) and a chart tooltip opened with the Tab key
-      (AC-07); `/evaluation` still shows "Results pending", so AC-01 needs one more run after the held-out results)
+- [x] T12 — "The data at a glance" on `/data`: the five charts of `profile` (§7.3), drawn with the motion kit and the
+      shared detail panel ("Read the query →"); a missing profile or block shows "Results pending" · covers AC-03,
+      AC-04, AC-07, AC-09 · [T] `apps/web/lib/data-profile.test.ts`, `tests/test_spec12_data_quality.py`; 390 px and
+      both themes checked with `scripts/web/insight_screenshots.py` (no horizontal overflow, with and without `--motion`)
+- [x] T7 — screenshots on the public URL, both themes and 390 px · covers AC-01, AC-03, AC-09 (2026-10-06:
+      `docs/assets/screenshots/spec12/` by `scripts/web/insight_screenshots.py` on production with the sealed results;
+      13 shots, 0 with horizontal overflow, `report.json`)
 
 **Closing checklist:** every AC has its evidence · status → Implemented · every figure on the three pages carries its
 label · lessons added to `CLAUDE.md`.

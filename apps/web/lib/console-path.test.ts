@@ -10,7 +10,7 @@ const ev = (type: string, actor = "agent") => ({ type, actor });
 const walks = (path: string[]) => path.slice(1).every((n, i) => EDGES.has(`${path[i]}->${n}`));
 
 test("spec 08 AC-23: every node the mapping pins exists in agent-reference", () => {
-  for (const [source, pin] of Object.entries(PINS)) assert.ok(GRAPH_IDS.has(pin.node), `${source} pins ${pin.node}, not a graph node`);
+  for (const [source, node] of Object.entries(PINS)) assert.ok(GRAPH_IDS.has(node), `${source} pins ${node}, not a graph node`);
   for (const n of [...forcedBefore("act"), ...forcedAfter("act"), ...forcedAfter("connect"), ...forcedAfter("respond")]) {
     assert.ok(GRAPH_IDS.has(n), `${n} is not a graph node`);
   }

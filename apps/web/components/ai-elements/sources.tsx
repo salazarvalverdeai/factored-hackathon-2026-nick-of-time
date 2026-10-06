@@ -1,7 +1,11 @@
 "use client";
 
+"use client";
+
 // AI Elements `sources` (registry.ai-sdk.dev/sources.json), adapted to the Base UI collapsible and restyled to
-// docs/brand/BRAND.md. A source is always a named link: the URL is its target, never its text (design pass 1).
+// docs/brand/BRAND.md. A source is always a named link: the URL is its target, never its text (design pass 1). The
+// default trigger label follows the UI locale (spec 16 AC-06).
+import { useT } from "@/components/i18n-provider";
 import {
   Collapsible,
   CollapsibleContent,
@@ -22,22 +26,25 @@ export type SourcesTriggerProps = ComponentProps<typeof CollapsibleTrigger> & {
   label?: string;
 };
 
-export const SourcesTrigger = ({ className, count, label, children, ...props }: SourcesTriggerProps) => (
-  <CollapsibleTrigger
-    className={cn(
-      "group flex items-center gap-1.5 rounded-md font-medium text-muted-foreground hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring",
-      className,
-    )}
-    {...props}
-  >
-    {children ?? (
-      <>
-        <span>{label ?? `Sources (${count})`}</span>
-        <ChevronDownIcon aria-hidden className="size-3.5 motion-safe:transition-transform group-data-[panel-open]:rotate-180" />
-      </>
-    )}
-  </CollapsibleTrigger>
-);
+export const SourcesTrigger = ({ className, count, label, children, ...props }: SourcesTriggerProps) => {
+  const t = useT();
+  return (
+    <CollapsibleTrigger
+      className={cn(
+        "group flex items-center gap-1.5 rounded-md font-medium text-muted-foreground hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring",
+        className,
+      )}
+      {...props}
+    >
+      {children ?? (
+        <>
+          <span>{label ?? t("chat.elements.sources", { count })}</span>
+          <ChevronDownIcon aria-hidden className="size-3.5 motion-safe:transition-transform group-data-[panel-open]:rotate-180" />
+        </>
+      )}
+    </CollapsibleTrigger>
+  );
+};
 
 export type SourcesContentProps = ComponentProps<typeof CollapsibleContent>;
 

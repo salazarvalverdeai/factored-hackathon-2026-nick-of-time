@@ -5,7 +5,7 @@ import { useId, useRef, useState, type KeyboardEvent } from "react";
 import { Button } from "@/components/ui/button";
 import { GRAPH_REVEAL, GRAPH_VIEW, KIND_TEXT, ariaLabelOf, graphHighlight, linksOf, type BranchKind, type GraphEdge } from "@/lib/agent-graph";
 import { TIMING, linkKey } from "@/lib/agent-motion";
-import { AGENT_UI, fill } from "@/lib/agent-strings";
+import { useT } from "@/components/i18n-provider";
 import { cn } from "@/lib/utils";
 import { DrawPath, Reveal, useReveal } from "./motion";
 
@@ -25,6 +25,8 @@ export interface GraphViewProps {
   path?: string[];
   /** Draw the graph in order when it scrolls into view, with a Replay button (default true). */
   reveal?: boolean;
+  /** Fit the drawing to a narrow container (the /chat rail or sheet): one column, scaled down, no sideways scroll. */
+  fit?: boolean;
   className?: string;
 }
 
@@ -43,12 +45,12 @@ const FILL: Record<Kind, string> = {
 const SWATCH: Record<BranchKind, string> = { policy: "bg-chart-1", tool: "bg-chart-2", input: "bg-muted-foreground" };
 const KINDS = Object.keys(KIND_TEXT) as BranchKind[];
 const FADE = "transition-[opacity,stroke-width] duration-200 ease-out motion-reduce:transition-none";
-const T = AGENT_UI.graph;
 
 const kindOf = (e: GraphEdge): Kind => e.kind ?? "plain";
 const touches = (e: GraphEdge, id: string | null) => id !== null && (e.from === id || e.to === id);
 
-export function GraphView({ activeNode, path, reveal = true, className }: GraphViewProps = {}) {
+export function GraphView({ activeNode, path, reveal = true, fit = false, className }: GraphViewProps = {}) {
+  const t = useT();
   const uid = useId().replace(/:/g, "");
   const frame = useRef<HTMLDivElement>(null);
   const [hovered, setHovered] = useState<string | null>(null);
@@ -70,31 +72,31 @@ export function GraphView({ activeNode, path, reveal = true, className }: GraphV
   };
 
   return (
-    <div onKeyDown={onKeyDown} className={cn("grid gap-4 xl:grid-cols-[minmax(0,1fr)_18rem]", className)}>
+    <div onKeyDown={onKeyDown} className={cn("grid gap-4", !fit && "xl:grid-cols-[minmax(0,1fr)_18rem]", className)}>
       <div className="min-w-0">
         <div className="flex flex-wrap items-start justify-between gap-2">
           <Legend />
           {reveal ? (
-            <Button type="button" variant="outline" size="sm" onClick={replay} aria-label={T.replayLabel} className="motion-reduce:hidden">
+            <Button type="button" variant="outline" size="sm" onClick={replay} aria-label={t("agent.ui.graph.replayLabel")} className="motion-reduce:hidden">
               <RotateCcw aria-hidden="true" />
-              {T.replay}
+              {t("agent.ui.graph.replay")}
             </Button>
           ) : null}
         </div>
-        <p className="mt-2 text-xs text-muted-foreground sm:hidden">{T.scrollHint}</p>
-        <div ref={frame} className="mt-2 overflow-x-auto rounded-md border bg-background/40 p-2">
+        {fit ? null : <p className="mt-2 text-xs text-muted-foreground sm:hidden">{t("agent.ui.graph.scrollHint")}</p>}
+        <div ref={frame} className={cn("mt-2 rounded-md border bg-background/40 p-2", fit ? "overflow-hidden" : "overflow-x-auto")}>
           <svg
             role="group"
             aria-labelledby={`${uid}-title`}
             viewBox={`0 0 ${GRAPH_VIEW.width} ${GRAPH_VIEW.height}`}
             width={GRAPH_VIEW.width}
             height={GRAPH_VIEW.height}
-            className="mx-auto block h-auto w-full min-w-[560px]"
+            className={cn("mx-auto block h-auto w-full", !fit && "min-w-[560px]")}
             style={{ maxWidth: GRAPH_VIEW.width }}
             data-phase={phase}
           >
             <title id={`${uid}-title`}>
-              {fill(T.title, { name: GRAPH_VIEW.name, nodes: GRAPH_VIEW.nodes.length, edges: GRAPH_VIEW.edges.length })}
+              {t("agent.ui.graph.title", { name: GRAPH_VIEW.name, nodes: GRAPH_VIEW.nodes.length, edges: GRAPH_VIEW.edges.length })}
             </title>
             <defs>
               {(["policy", "tool", "input", "plain"] as const).map((kind) => (
@@ -156,7 +158,7 @@ export function GraphView({ activeNode, path, reveal = true, className }: GraphV
                     <g
                       role="button"
                       tabIndex={0}
-                      aria-label={`${ariaLabelOf(n.id)}${current ? ` ${T.current}.` : visited ? ` ${T.onPath}.` : ""}`}
+                      aria-label={`${ariaLabelOf(n.id)}${current ? ` ${t("agent.ui.graph.current")}.` : visited ? ` ${t("agent.ui.graph.onPath")}.` : ""}`}
                       aria-pressed={n.id === selected}
                       aria-current={current ? "step" : undefined}
                       data-node={n.id}
@@ -204,49 +206,52 @@ export function GraphView({ activeNode, path, reveal = true, className }: GraphV
           </svg>
         </div>
       </div>
-      <Panel active={focus ?? run$.current} current={run$.current} />
+      <Panel active={focus ?? run$.current} current={run$.current} fit={fit} />
     </div>
   );
 }
 
 function Legend() {
+  const t = useT();
   return (
-    <ul aria-label={T.legendLabel} className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+    <ul aria-label={t("agent.ui.graph.legendLabel")} className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
       {KINDS.map((kind) => (
         <li key={kind} className="flex items-center gap-1.5">
           <span aria-hidden="true" className={cn("inline-block h-0.5 w-4 rounded-full", SWATCH[kind])} />
-          {fill(T.branchOn, { kind: KIND_TEXT[kind] })}
+          {t("agent.ui.graph.branchOn", { kind: KIND_TEXT[kind] })}
         </li>
       ))}
       <li className="flex items-center gap-1.5">
         <span aria-hidden="true" className="inline-block h-0.5 w-4 rounded-full bg-muted-foreground/60" />
-        {T.alwaysNext}
+        {t("agent.ui.graph.alwaysNext")}
       </li>
     </ul>
   );
 }
 
-function Panel({ active, current }: { active: string | null; current: string | null }) {
+function Panel({ active, current, fit }: { active: string | null; current: string | null; fit?: boolean }) {
+  const t = useT();
   const links = active ? linksOf(active) : null;
   return (
     <aside
       aria-live="polite"
-      aria-label={T.panelLabel}
+      aria-label={t("agent.ui.graph.panelLabel")}
       className={cn(
-        "z-10 self-start overflow-y-auto rounded-md border bg-card/95 p-3 text-sm backdrop-blur xl:sticky xl:top-20 xl:bottom-auto xl:max-h-none",
-        active && "sticky bottom-3 max-h-[38vh]",
+        "z-10 self-start overflow-y-auto rounded-md border bg-card/95 p-3 text-sm backdrop-blur",
+        !fit && "xl:sticky xl:top-20 xl:bottom-auto xl:max-h-none",
+        !fit && active && "sticky bottom-3 max-h-[38vh]",
       )}
     >
       {active && links ? (
         <>
           <p className="font-mono font-semibold">
             {active}
-            {active === current ? <span className="ml-2 font-sans text-xs font-normal text-primary-text">{T.current}</span> : null}
+            {active === current ? <span className="ml-2 font-sans text-xs font-normal text-primary-text">{t("agent.ui.graph.current")}</span> : null}
           </p>
           <p className="mt-1 text-muted-foreground">{GRAPH_VIEW.nodes.find((n) => n.id === active)?.info}</p>
           {links.out.length ? (
             <div className="mt-3">
-              <p className="text-xs font-medium text-muted-foreground">{T.goesTo}</p>
+              <p className="text-xs font-medium text-muted-foreground">{t("agent.ui.graph.goesTo")}</p>
               <ul className="mt-1 grid gap-1.5">
                 {links.out.map((e) => (
                   <li key={e.to} className="text-xs">
@@ -254,11 +259,11 @@ function Panel({ active, current }: { active: string | null; current: string | n
                     {e.when ? (
                       <>
                         {" "}
-                        <span className="text-muted-foreground">{T.when}</span> <span className="font-mono">{e.when}</span>{" "}
+                        <span className="text-muted-foreground">{t("agent.ui.graph.when")}</span> <span className="font-mono">{e.when}</span>{" "}
                         <span className="text-muted-foreground">({e.kind ? KIND_TEXT[e.kind] : ""})</span>
                       </>
                     ) : (
-                      <span className="text-muted-foreground"> {T.always}</span>
+                      <span className="text-muted-foreground"> {t("agent.ui.graph.always")}</span>
                     )}
                   </li>
                 ))}
@@ -267,12 +272,12 @@ function Panel({ active, current }: { active: string | null; current: string | n
           ) : null}
           {links.in.length ? (
             <p className="mt-3 text-xs text-muted-foreground">
-              {T.comesFrom} <span className="font-mono text-foreground">{links.in.map((e) => e.from).join(" · ")}</span>
+              {t("agent.ui.graph.comesFrom")} <span className="font-mono text-foreground">{links.in.map((e) => e.from).join(" · ")}</span>
             </p>
           ) : null}
         </>
       ) : (
-        <p className="text-xs text-muted-foreground">{T.panelHint}</p>
+        <p className="text-xs text-muted-foreground">{t("agent.ui.graph.panelHint")}</p>
       )}
     </aside>
   );

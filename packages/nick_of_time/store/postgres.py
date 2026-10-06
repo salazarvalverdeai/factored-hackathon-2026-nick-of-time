@@ -29,7 +29,7 @@ from nick_of_time.store import (DEMO_RUN_PREFIX, CUSTOMER_VISIBLE, RESERVED_EVEN
                                 CallRequest, CaseEvent, CaseRecord, Channel, DemoTransaction, DeliveryStatus, EventType, NewCase, Notification,
                                 NotVerified, ProductOverride, StoreError, VerifyingRead, _check_writer, _json,
                                 _utc_now, check_action_id, check_actor, check_business_date, check_text, check_transition,
-                                insert_with_fresh_case_id)
+                                insert_with_fresh_case_id, is_demo_run)
 from nick_of_time.store.accounts import (CHANNEL_CASE_EVENT, CHANNEL_ID, DENIAL_ID, LLM_CALL_ID, ChannelEvent, CustomerChannel,
                                          LinkedChannel, LLMCall, NewDenial, NewLLMCall, NewSession, Once, PolicyDenial,
                                          SessionRecord, check_channel_event, check_denial_session, check_key,
@@ -477,22 +477,26 @@ class PostgresStore:
                           actor: str, trace_id: str) -> CustomerChannel:
         _check_writer(actor, trace_id)
         with self._tx(check_key(case_id)):                  # the case's lock, then the customer's channels' lock
-            customer_id = self._case(case_id)["customer_id"]
+            case = self._case(case_id)
+            customer_id = case["customer_id"]
+            run_id = case.get("run_id") if is_demo_run(case.get("run_id")) else None      # ADR 0026
             self._conn.execute("select pg_advisory_xact_lock(hashtext(%s))", ("channels:" + customer_id,))
-            check_channel_event(self.channels(customer_id), channel, address, event)
+            check_channel_event(self.channels(customer_id, run_id), channel, address, event)
             row = CustomerChannel(channel_id=new_row_id(CHANNEL_ID), customer_id=customer_id, channel=channel,
-                                  address=address, event=event, created_at=self._now())
+                                  address=address, event=event, created_at=self._now(), run_id=run_id)
             self._insert("customer_channels", row.model_dump())
             if (channel, event) in CHANNEL_CASE_EVENT:
                 self._append(case_id, CHANNEL_CASE_EVENT[channel, event], actor, trace_id,
                              {"channel_id": row.channel_id, "channel": channel})
             return row
 
-    def channels(self, customer_id: str) -> list[CustomerChannel]:
+    def channels(self, customer_id: str, run_id: Optional[str] = None) -> list[CustomerChannel]:
+        run_id = run_id if is_demo_run(run_id) else None    # only a demo run's channels are its own (ADR 0026)
         rows = self._rows(
-            "select distinct on (channel collate \"C\") channel_id, customer_id, channel, address, event, created_at "
-            "from customer_channels where customer_id = %s order by channel collate \"C\", row_no desc",
-            (check_key(customer_id),))
+            "select distinct on (channel collate \"C\") channel_id, customer_id, channel, address, event, created_at, "
+            "run_id from customer_channels where customer_id = %s and run_id is not distinct from %s "
+            "order by channel collate \"C\", row_no desc",
+            (check_key(customer_id), run_id))
         return [CustomerChannel(**r) for r in rows]
 
     @contextmanager

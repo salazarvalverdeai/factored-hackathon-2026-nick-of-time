@@ -16,7 +16,7 @@
 | `fraud_score` | Tool `get_fraud_score(transaction_id)` with a swappable provider: `dataset` (the bank's), `rules`, `model`, `llm` (illustration only, forces the human zone); source and version in the audit | We consume the score from the bank's fraud engine; we don't build one |
 | Backend | FastAPI in a container on EC2, GHCR, `docker compose` (Caddy + api + web), GitHub Actions with auto-deploy | App Runner doesn't read GHCR; Caddy handles HTTPS |
 | Frontend | Next.js + Tailwind + shadcn/ui + next-themes; `/chat` starts from `agent-chat-ui` | Dark mode and ready-made components |
-| Voice | Optional if time allows: ElevenLabs in `/chat` | Outside the minimum |
+| Voice | Built: Voxtral STT on the api and the browser's TTS, not ElevenLabs (ADR 0029) | In-region; the rules still decide on text |
 | Data | Bronze → silver → gold with pandera; gold Parquet with manifest; DuckDB in the container; pinned versions | 15 numbers reproduced; stable sha |
 | State and audit | DynamoDB (SQLite in dev): `case_events` append-only, `llm_calls`, `policy_denials`; case status = last event | Each row is a node of the evidence graph |
 | Observability | LangSmith in development + our own audit log as the source of truth | The challenge asks for records, not chain-of-thought |

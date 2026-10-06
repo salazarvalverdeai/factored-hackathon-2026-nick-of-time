@@ -2,7 +2,7 @@
 
 - **Feature:** the contract the three of us build against — folders, REST API, MCP tools, graph I/O, Postgres schema,
   customer receipt, evaluation hooks — plus stubs so nobody waits for anybody.
-- **Status:** Draft (contract 1.8.0, updated 2026-10-05: live stream events §6.4.1, ADR 0030; 16 customer tools, two time modes, action states, delivery
+- **Status:** Draft (contract 1.9.0, updated 2026-10-05: a demo visitor's own channels, ADR 0026 amended; 1.8.0 live stream events §6.4.1, ADR 0030; 16 customer tools, two time modes, action states, delivery
   status, the store's §6.5 rules, the lead's 2026-10-05 follow-ups)
 - **Owner:** @salazarvalverdeai · **Priority:** P0 · **Size:** M
 - **Challenge dimension:** AI Engineering, Technical Judgment
@@ -10,7 +10,7 @@
   0020
 - **Issue:** #3 · **Approval:** all three (@salazarvalverdeai, @gianzk, @vldiego)
 
-> Full profile: this spec *is* the contract. Contract version **1.8.0** (1.0.0 was the first review draft; 1.1.0 adds
+> Full profile: this spec *is* the contract. Contract version **1.9.0** (1.0.0 was the first review draft; 1.1.0 adds
 > the approved improvements #12–#16 before approval; 1.2.0 is additive: the handoff rules of §6.4, `GOLD_PATTERN`, the
 > `zone_medium` and `supervised_mode` handoff reasons; 1.3.0 is additive, from task 01c, §6.5: the `action_verified`
 > event type, `cases.opened_on` and the `on` business date of `status_changed` (D-023), an `action_id` on each customer
@@ -38,7 +38,8 @@
 > /api/sessions/{id}/synthetic-charge` and `synthetic` on the recent transactions (§6.2), and `demo_transactions.run_id`
 > and `product_type` (§6.5): a live demo run's synthetic charges belong to that run only; and demo type D, `POST
 > /api/demo/persona` (§6.2); 1.8.0 is additive: the live stream events `tool` and `text` and the server-side
-> `writer` setting (§6.4.1, ADR 0030).
+> `writer` setting (§6.4.1, ADR 0030); 1.9.0 is additive: `customer_channels.run_id`, so a demo visitor's own Telegram or
+> e-mail channel reaches only their run (§6.5, ADR 0026).
 > Any change after approval is a PR that all three approve and that bumps the version (minor = additive, major =
 > breaking).
 
@@ -368,7 +369,7 @@ actor CHECKs so no server locale changes it; their `(?p)` keeps a newline out of
 | `product_overrides` **AO** | `override_id` PK · `product_id` · `status` · `case_id` · `actor` · `run_id` text null · `created_at` · `row_no` bigint identity | `status` is `Active\|Blocked\|Closed\|Suspended` and `actor` as in `case_events`; current status = latest row **for the same `run_id`**, else gold; `override_id` is the `action_id` of the write `[assumption]` (D-025) |
 | `notifications` **AO** | `notification_id` PK · `case_id` · `customer_id` · `event` · `channel` (`log\|telegram\|email`) · `masked_address` null · `text` · `trigger` (`auto\|on_request`) · `provider_message_id` null · `created_at` | |
 | `notification_deliveries` **AO** | `delivery_id` PK · `notification_id` FK · `status` (`queued\|sent\|delivered\|bounced\|failed`) · `provider_event` jsonb null · `created_at` · `row_no` bigint identity | delivery status = latest row |
-| `customer_channels` **AO** | `channel_id` PK · `customer_id` · `channel` · `address` (chat id or e-mail) · `event` (`linked\|confirmed\|revoked`) · `created_at` · `row_no` bigint identity | latest row per channel wins |
+| `customer_channels` **AO** | `channel_id` PK · `customer_id` · `channel` · `address` (chat id or e-mail) · `event` (`linked\|confirmed\|revoked`) · `created_at` · `row_no` bigint identity · `run_id` text null (a demo run's own channel, 1.9.0) | latest row per channel and run wins |
 | `call_requests` **AO** | `event_id` text PK · `action_id` · `customer_id` · `session_id` · `preferred_time` text null · `expected_contact_by` date null · `run_id` text null · `trace_id` · `created_at` | a `request_call` with no case (D-026, task 03d): no case event and no verifying read, so it stays `requested`; `event_id` is the `E-` id the tool returns; `action_id` is an `A-` id used once; `expected_contact_by` is stored, never recomputed (D-008) |
 | `link_tokens` | `token` PK · `case_id` · `channel` · `expires_at` · `used_at` null | one-time |
 | `idempotency` **AO** | `key` PK · `action` · `result` jsonb · `run_id` text null · `created_at` · `args_hash` | the key is prefixed with `run_id` when present, then the scope `c=<customer_id>` (`-` for the api); `args_hash` is the sha256 of the call's canonical arguments and a key replayed with other arguments is refused `[assumption]` |
@@ -489,10 +490,12 @@ deleted, so the append-only rule holds and each of the four runs starts from the
 
 **Public demo sessions (1.6.0, D-068, ADR 0026).** Every session the public `POST /api/sessions` opens gets its own
 `run_id = demo-<UTC yyyymmddThhmmssZ>-<6 base32>` and follows the same isolation, so two visitors of one demo
-customer never see each other's cases, blocks, notifications or idempotency keys. `customer_channels` is per customer,
-not per run, so a demo run has no external channel: the Telegram and e-mail link routes refuse a demo-run case,
-`get_customer_profile` lists no channel, `send_case_summary` answers `DENY`, and an analyst action on a demo-run case
-writes only the in-app notification. The analyst console lists and acts on demo-run cases (`demo_runs=True`), never
+customer never see each other's cases, blocks, notifications or idempotency keys. Since 1.9.0 (ADR 0026, amended 2026-10-05)
+a `customer_channels` row keeps the run of a demo-run case, so a visitor may link their own Telegram chat or inbox to
+their own case, and a status change on that case reaches only those channels; another visitor of the same demo customer,
+an eval run and production never see them (`channels(customer_id, run_id)`; any non-demo run reads the production rows,
+as before). A demo session sends at most 3 confirmation e-mails. `get_customer_profile` still lists no channel and
+`send_case_summary` still answers `DENY` in a demo run. The analyst console lists and acts on demo-run cases (`demo_runs=True`), never
 on eval runs.
 
 **Arms (system configurations).** One deployment serves every arm: `seed` stores `arm` in the session and the api

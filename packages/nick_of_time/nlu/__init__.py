@@ -13,8 +13,9 @@ from ..contracts import DECIMAL, Intent, Language
 from .dates import parse_date
 from .injection import injection_flagged
 from .rules import parse_rules
+from .tone import tone
 
-__all__ = ["NLU", "NLUResult", "Slots", "load_nlu", "parse_date", "injection_flagged"]
+__all__ = ["NLU", "NLUResult", "Slots", "load_nlu", "parse_date", "injection_flagged", "tone"]
 
 
 class Slots(BaseModel):

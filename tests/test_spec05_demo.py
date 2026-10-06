@@ -162,38 +162,52 @@ def test_ac_16_two_demo_sessions_of_one_customer_never_see_each_others_cases_or_
         assert store.list_all_cases(run_id=None) == []
 
 
-# ---------- AC-16: a demo run has no Telegram or e-mail channel (ADR 0026) ----------
+# ---------- AC-16: a demo visitor's channels reach only their own run (ADR 0026, amended 2026-10-05) ----------
 @pytest.mark.parametrize("backend", BACKENDS)
-def test_ac_16_a_demo_visitor_links_no_channel_and_sees_or_reaches_none_while_production_keeps_them(gold, backend):
+def test_ac_16_a_demo_visitor_links_their_own_channels_and_no_other_visitor_or_production_case_reaches_them(gold,
+                                                                                                            backend):
     from app.auth import CognitoVerifier
-    from app.live import create_live_app
+    from app.live import DEMO_EMAIL_LINKS, create_live_app
     from tests.test_spec05_api import CLIENT, ISS, JWK, FakeNotifier, bearer
     with (scratch_schema() if backend == "postgres" else nullcontext(None)) as build:
         store = build(now=lambda: START) if build else MemoryStore(now=lambda: START)
         notifier = FakeNotifier()
         app = create_live_app(store, catalog=GoldCatalog(gold), now=lambda: START, notifier=notifier, link_key="k",
                               verifier=CognitoVerifier(issuer=ISS, client_id=CLIENT, jwks={"keys": [JWK]}))
-        production = open_case(store, None)                   # Telegram confirmed on a production case of the customer
+        production = open_case(store, None)                   # Telegram linked on a production case of the customer
         store.add_channel_event(production, "telegram", "987654321", "linked", actor="system", trace_id="t")
         a, b = TestClient(app, base_url="https://t"), TestClient(app, base_url="https://t")
         sa, sb = open_demo(a, scenario="SCN-MX-1"), open_demo(b, scenario="SCN-MX-1")
-        mine = open_case(store, store.get_session(sa).run_id)
-        assert a.post(f"/api/cases/{mine}/channels/telegram").status_code == 403
-        assert a.post(f"/api/cases/{mine}/channels/email", json={"email": "a@example.com"}).status_code == 403
-        assert [(c.channel, c.address) for c in store.channels(ANA)] == [("telegram", "987654321")]   # nothing added
-        assert notifier.sent == []
-        theirs = open_case(store, store.get_session(sb).run_id)
+        run_a, run_b = store.get_session(sa).run_id, store.get_session(sb).run_id
+        mine, theirs = open_case(store, run_a), open_case(store, run_b)
+        # the visitor gets a Telegram deep link and an e-mail confirmation for their own case
+        assert a.post(f"/api/cases/{mine}/channels/telegram").status_code == 201
+        assert a.post(f"/api/cases/{mine}/channels/email", json={"email": "a@example.com"}).status_code == 202
+        assert [s[:2] for s in notifier.sent] == [("email", "a@example.com")]   # the confirmation only
+        store.add_channel_event(mine, "telegram", "111222333", "linked", actor="customer", trace_id="t")   # /start
+        assert [(c.channel, c.address) for c in store.channels(ANA, run_id=run_a)] == [
+            ("email", "a@example.com"), ("telegram", "111222333")]
+        assert [(c.channel, c.address) for c in store.channels(ANA)] == [("telegram", "987654321")]   # production apart
+        assert store.channels(ANA, run_id=run_b) == []
         assert b.get(f"/api/cases/{theirs}").json()["channels"] == {"telegram": False, "email": False}
+        assert a.get(f"/api/cases/{mine}").json()["channels"]["telegram"] is True
+        notifier.sent.clear()
 
         def take_and_resolve(case_id):                        # `resolved` is a template that goes to Telegram
             for action in ("take", "resolve"):
                 body = {"case_id": case_id, "actor_id": "x", "action": action, "reason": "r",
                         "idempotency_key": f"{case_id}-{action}"}
                 assert a.post(f"/api/cases/{case_id}/action", json=body, headers=bearer()).status_code == 200
-        take_and_resolve(theirs)
-        assert notifier.sent == [] and store.list_notifications(ANA, run_id=store.get_session(sb).run_id)   # in-app only
+        take_and_resolve(theirs)                              # another visitor's case: in-app only
+        assert notifier.sent == [] and store.list_notifications(ANA, run_id=run_b)
+        take_and_resolve(mine)                                # the visitor's own case reaches only their own chat
+        assert [s[:2] for s in notifier.sent] == [("telegram", "111222333")]
+        notifier.sent.clear()
         take_and_resolve(production)
         assert [s[:2] for s in notifier.sent] == [("telegram", "987654321")]      # production keeps its channel
+        for _ in range(DEMO_EMAIL_LINKS - 1):                 # a session sends a bounded number of confirmations
+            assert a.post(f"/api/cases/{mine}/channels/email", json={"email": "a@example.com"}).status_code == 202
+        assert a.post(f"/api/cases/{mine}/channels/email", json={"email": "a@example.com"}).status_code == 429
 
 
 # ---------- AC-14: the typed name never reaches an LLM ----------

@@ -86,7 +86,7 @@ export class Pacer<T> {
 
 /** What a turn streams, in arrival order: a step label, a tool call, a text chunk, and finally the whole reply. */
 export type TurnFrame<R> =
-  | { kind: "progress"; label: string }
+  | { kind: "progress"; label: string; step?: string }
   | { kind: "tool"; event: ToolEvent }
   | { kind: "text"; delta: string; messageId: string }
   | { kind: "reply"; reply: R };

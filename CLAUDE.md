@@ -112,4 +112,13 @@ for any decision · lessons added here.
 - **Model-written evaluation text:** one generator family per split, none from the family we expect to choose; a
   person or fixed pre-registered rules decide each line, and deterministic hints (no model) speed that up (ADRs
   0025, 0028).
+- **Held-out after a rule change (spec 10, 2026-10-06):** a rule approved after the seal (D-070) cannot change the sealed
+  expectations; report the sealed score as official and the new rule as a secondary score decided before the run
+  (ADR 0031), and show both side by side so a 0 never appears without its reason.
+- **Simulations that compare with the bank (spec 14):** compare only metrics with the same definition, label the rest as
+  context, and state an upper bound in plain words; replay on real state the system can match (card charges), not on
+  records the dataset cannot link (complaints).
+- **Insight pages (spec 12):** one line under each chart, the rest in the shared side panel, tables collapsed, labels
+  beside figures only, and the shared motion kit with reduced motion respected; check 390 px with
+  `scripts/web/insight_screenshots.py`.
 
