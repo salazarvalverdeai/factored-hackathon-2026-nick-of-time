@@ -18,7 +18,7 @@ DONE = {**TOOL, "status": "done", "summary": "Encontré el cargo", "cards": [
     {"type": "verdict", "headline": "Bloqueamos tu tarjeta", "actions": ["block"]},
     {"type": "action", "tool": "block_card", "state": "verified", "verification_id": "V-0123456789AB"},
     {"type": "deadline", "kind": "credit", "date": "2026-06-03", "source_label": "Banxico", "source_url": None},
-    {"type": "case", "case_id": "CASE-1", "status": "new"}]}
+    {"type": "case", "case_id": "K-000001", "status": "new"}]}
 
 
 def chunked(env: Env, chunks: list) -> Env:
@@ -63,18 +63,22 @@ def test_ac_09_tool_and_text_are_forwarded_in_order_in_the_6_4_1_shapes():
 
 
 def test_ac_09_every_other_kind_chunk_or_field_is_dropped():
-    leaky = {**DONE, "score": 72, "zone": "high", "policy_id": "POL-ZONE-HIGH", "args": {"customer_id": "C-1"},
-             "cards": [{**DONE["cards"][0], "fraud_score": 72, "raw": {"x": 1}}]}
+    """The api validates with the graph's own models (`nick_of_time.events`, extra fields forbidden): a chunk with a
+    field outside §6.4.1 is dropped whole, and a leak inside an allowed field is dropped by the filter."""
+    leaky = [{**DONE, "score": 72}, {**DONE, "zone": "high"}, {**DONE, "policy_id": "POL-ZONE-HIGH"},
+             {**DONE, "args": {"customer_id": "C-1"}}, {**DONE, "cards": [{**DONE["cards"][0], "fraud_score": 72}]},
+             {**DONE, "cards": [{**DONE["cards"][0], "raw": {"x": 1}}]}]
     bad = [{"kind": "debug", "prompt": "SYSTEM ..."}, {"kind": "state", "zone": "high"}, {"kind": "tool"},
            {**TOOL, "step": "evaluate_secret"}, {**TOOL, "status": "verified"},
            {**TOOL, "cards": [DONE["cards"][0]]},                                     # cards only on done
            {**DONE, "cards": [{"type": "action", "tool": "block_card", "state": "verified", "verification_id": None}]},
            {**DONE, "summary": "Regla POL-ZONE-HIGH aplicada"}, {**TOOL, "title": "fraud_score 72"},
+           {**TOOL, "title": "G-OUT-01 dropped a line"}, {**TOOL, "title": "x" * 4001},
            {"kind": "text", "message_id": "m", "delta": 5}, {"kind": "text", "delta": "x"}, "text", ["kind", "tool"]]
-    got = events(run(chunked(Env(), [leaky, *bad])))
+    got = events(run(chunked(Env(), [*leaky, *bad, DONE])))
     assert [n for n, _ in got] == ["tool", "progress", "turn"]
     shown = got[0][1]
-    assert set(shown) == {"id", "step", "title", "status", "summary", "cards", "at"}
+    assert shown == {k: v for k, v in DONE.items() if k != "kind"} | {"at": shown["at"]}
     assert set(shown["cards"][0]) == {"type", "transaction_id", "date", "amount", "currency", "merchant", "last4",
                                       "synthetic"}
     for secret in ("POL-", "score", "zone", "customer_id", "SYSTEM", "debug", "raw"):
