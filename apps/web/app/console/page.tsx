@@ -339,7 +339,8 @@ function CaseDetail({
             </p>
           ) : null}
           <p className="text-xs text-muted-foreground">
-            Bank fraud score [simulated]: {h.score ?? "none"} · trace {h.trace_id || "—"}
+            {h.score === null || h.score === undefined ? "Score del banco: sin dato" : `Score del banco: ${h.score}`}
+            {h.trace_id ? ` · trace ${h.trace_id}` : ""}
           </p>
         </section>
 
