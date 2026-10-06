@@ -73,6 +73,79 @@ analyst-only `GET /api/console/cases/{id}/context`, `/summary`, `/audit`, `/conv
   tab: a read-only transcript of the customer–agent conversation by chat session (`GET /api/console/cases/{id}/conversation`,
   analyst only), drawn like the chat (the chat's safe markdown, the AI Elements conversation log), with nothing to send.
   When the route answers 503, the tab shall say "Conversation not available right now", not an error. · [T] · [U]
+AC-16 to AC-22 are the api side of the assisted case view (PR `feat/08-assisted-console-api`; AC-10 to AC-15 are its
+web side, PR `feat/08-assisted-console-web`); the shapes are in §6.
+- AC-16 — When the analyst asks for a case's context (`GET /api/console/cases/{id}/context`), the api shall return, from
+  the store and gold only (never the customer-scoped MCP server), the customer's other cases with their status and
+  outcome, the customer's card transactions from 30 days before the disputed charge to 30 days after it (never past the
+  case's business today) with the disputed one flagged, the cards with their status in the case's run, the call requests
+  and the notifications; every list shall keep to the case's own `run_id` (ADR 0026). · [T]
+  `tests/test_spec08_assisted_console.py`
+- AC-17 — When the analyst asks for a case's summary (`GET /api/console/cases/{id}/summary`), the api shall return
+  template lines (what the customer reported, what the agent did with **verified** actions only, what is left to decide,
+  the legal deadline) built from the handoff card and the store, and the nearest legal deadline with its days left and
+  source, or `null` with no invented date (POL-CLOCK-UNKNOWN). While the console `writer` setting is `llm`, the lines
+  shall be worded through the spec 04 §4.6 line gate (a line with a number, date or id that is not a fact falls back to
+  its template lines); no client, no price, the daily cap (`DAILY_LLM_CAP_USD`), a timeout or any error shall give the
+  template. The result shall be cached per case, handoff version and setting, and each billed call written to
+  `llm_calls`. · [T] `tests/test_spec08_assisted_console.py`
+- AC-18 — When the analyst asks for a second opinion (`POST /api/console/cases/{id}/second-opinion`), the api shall run
+  the spec 18 judge on the case's latest handoff card, the verified reads, the charge and the auditor's checks, and
+  return it labeled "model opinion (advisory)"; `GET` shall return the latest one, or 404 while there is none. It shall
+  make at most one judge call per case and handoff version, skip the call when the day's spend plus the judge's
+  per-case cap passes `DAILY_LLM_CAP_USD`, write each billed call to `llm_calls`, and write no case event, status or
+  notification (spec 18 AC-09). A failure, a timeout, the budget or a case with no card shall answer 204 with the reason
+  in `X-No-Opinion-Reason` ("No second opinion", spec 18 AC-11). · [T] `tests/test_spec08_assisted_console.py`,
+  `tests/test_spec18_console_second_opinion.py`
+- AC-19 — When the analyst asks for a case's audit (`GET /api/console/cases/{id}/audit`), the api shall return the
+  deterministic auditor's checklist A1–A7 (spec 18 §4.1), each passed, a finding or not applicable with its reason, the
+  re-derived outcome (zone from the card's score, deadlines from the clock) and whether everything matches; it shall
+  change nothing. · [T] `tests/test_spec08_assisted_console.py`
+- AC-20 — When a case's handoff card carries a `copilot_proposal`, `GET /api/console/cases/{id}` shall return it with an
+  `explanation`, one Spanish sentence "Sugerencia: …, porque …" chosen by fixed rules from the proposal and the card (no
+  LLM); nothing else of the card shall change, and the stored card (the `handoff_emitted` payload) never changes. · [T]
+  `tests/test_spec08_assisted_console.py`
+- AC-21 — Every route of AC-16 to AC-19 and AC-22 shall require the analyst's Cognito token (401 without it or with a
+  bad one); a case of an evaluation run, or one that does not exist, shall answer 404. · [T]
+  `tests/test_spec08_assisted_console.py`
+- AC-22 — When the analyst asks for a case's conversation (`GET /api/console/cases/{id}/conversation`), the api shall
+  return, read-only, the chat threads that named the case, each with its session's start and only the
+  customer-visible messages in order (the customer's own texts and the agent's replies as the customer saw them),
+  never internal state, scores, zones, rule or policy ids, tool results or the handoff card. A thread is marked with a
+  case only when a turn of the session's own customer, in the session's run, names that case; a thread whose session
+  is another customer's or another run's shall be left out (ADR 0026). The transcript shall never be written to a
+  notification. Without a Platform that can search threads, the route shall answer 503 `UNAVAILABLE`. · [T]
+  `tests/test_spec08_console_conversation.py`
+
+## 6. API contract (assisted console, AC-16 to AC-22)
+All routes take `Authorization: Bearer <Cognito id token>` and the case id in the path; they read and never write a
+case. Dates are ISO `YYYY-MM-DD`, times ISO 8601 with offset.
+```text
+GET  /api/console/cases/{id}/context
+  {case_id, previous_cases: [{case_id, opened_at, status, outcome: approve_credit|approve_block|close_without_action|null}],
+   transactions: [{transaction_id, date, amount, currency, merchant|null, last4|null, disputed: bool, synthetic: bool}],
+   cards: [{product_id, last4, product: debit|credit, status}],
+   calls: [{requested_at, status: "requested", case_id|null, expected_contact_by|null}],
+   notifications: [{at, channel: log|telegram|email, event, status: queued|sent|delivered|bounced|failed, case_id}]}
+GET  /api/console/cases/{id}/summary
+  {case_id, lines: [str], writer: "llm"|"template",
+   deadline: {kind: credit|ruling, date, days_left, source_label, source_url} | null}
+POST /api/console/cases/{id}/second-opinion      200 the opinion | 204 "No second opinion", X-No-Opinion-Reason:
+                                                  no_handoff|budget|timeout|error|unavailable
+GET  /api/console/cases/{id}/second-opinion      200 the latest opinion | 404 none yet
+  opinion: {case_id, verdict: agree|disagree|uncertain, reasons: [{text, evidence_ids: [str]}],
+            questions: [{text, evidence_ids}], model, label: "model opinion (advisory)", created_at}
+GET  /api/console/cases/{id}/audit
+  {case_id, checks: [{id: A1..A7, name, status: passed|finding|not_applicable, passed: bool|null,
+                      severity|null, detail, expected, observed}],
+   rederived_outcome: str (one line, e.g. "zone high · credit by 2026-06-03 · ruling by … · source …"),
+   rederived: {zone|null, credit_deadline|null, ruling_deadline|null, deadline_source|null}, matches: bool}
+GET  /api/console/cases/{id}/conversation
+  {case_id, threads: [{thread_id, session_started_at,
+                       messages: [{role: "customer"|"agent", text, at}]}]}      (threads by session start, oldest first)
+GET  /api/console/cases/{id}         (existing, same ConsoleCaseOut) handoff.copilot_proposal adds
+  explanation: "Sugerencia: …, porque …"
+```
 
 ## 8. Assumptions and open questions
 - Assumption `[assumption]`: mock accounts `freddy`, `gianmarco`, `diego`, `judge` with any non-empty password stand in for
@@ -90,6 +163,32 @@ analyst-only `GET /api/console/cases/{id}/context`, `/summary`, `/audit`, `/conv
 - Assumption `[assumption]` (AC-10 to AC-13, AC-15): until the api lane's routes are on `main`, mock mode answers them from
   `apps/web/lib/mock/console.ts`, derived from the mock case (simulated); live mode calls the routes with the analyst's
   id token and never invents data. A `GET …/second-opinion` 404 and a `POST` 204 or `null` read as no opinion.
+- Assumption `[assumption]` (AC-16): the context window is ±30 days around the disputed charge, capped at the case's
+  business today and at 200 rows, with the transaction statuses `search_transaction` can find (Approved, Pending);
+  `outcome` is the case's first decisive analyst action read as the judge reads it (spec 18 §4.2), null while open.
+  A call request with no case (D-026) has no case id; none is verified, so its status is always `requested`.
+- Assumption `[assumption]` (AC-17): the summary lines are analyst-facing Spanish; the LLM wording reuses the spec 04
+  writer's `Gate` (same line grounding) with an analyst prompt and the `S2` client; a failed wording is not cached, so
+  the next read retries. `days_left` is computed on every read, never cached, and is not in the lines (it is not a
+  tool fact, so the gate would drop it).
+- Assumption `[assumption]` (AC-20): the `explanation` is a fixed-rule sentence like the card's own `rationale`, added
+  only to the response (handoff.schema.json leaves `copilot_proposal` open); the stored card stays as the graph wrote
+  it (spec 05 AC-21, constitution #5).
+- Known limit (AC-18, AC-19): no `second_opinions` table exists in `schema.sql` (spec 18 §7), so the latest opinion
+  per case lives in api process memory and is lost on a restart; `llm_calls` has no task column, so the judge's rows
+  carry a `judge-` trace id and the summary's `console-summary-` (as `persona-` and `voice-`). The judge gets no
+  transcript (the api does not hold one). The analyst decision's `matched_second_opinion` (spec 18 AC-10) is not
+  written yet: it needs the `analyst_action` payload to change in the store. A4 and A5 need the agent trace's tool
+  results and replies, so the console shows them as not applicable; A1 compares the zone only, since the decision's
+  recorded inputs live in the trace.
+- Assumption `[assumption]` (AC-22): the store holds no case → session → thread link and the store schema is not
+  changed here, so the link lives in Platform's thread metadata: the api adds `case:<case_id>: true` (`PATCH
+  /threads/{id}`) when a turn from Platform names a case of the session's customer in its run (stream and reconcile
+  paths), and the console finds the threads with `POST /threads/search` and reads `POST /threads/{id}/history`. The
+  store then checks each thread's session (customer and run). The graph resets `messages` every turn, so the
+  transcript is rebuilt from the checkpoints: a customer text when a run's input first holds it, the agent's `reply`
+  at the checkpoint that ends a turn (no next node, a new `trace_id`). A chip press shows only the agent's reply.
+  Threads from before this change carry no mark and are not found.
 - Open question: the approval payload becomes `POST /api/cases/{id}/action` with `AnalystActionIn` when the live API is wired.
 
 ## 9. Out of scope
@@ -106,6 +205,9 @@ analyst-only `GET /api/console/cases/{id}/context`, `/summary`, `/audit`, `/conv
 - [ ] Task 7 — assisted case view: summary, customer history, auditor, second opinion, proposal, stepper, conversation tab · covers
   AC-10 to AC-15 · done when: `lib/console-assist.test.ts` passes on the mock and the view works against the live routes
 - [ ] Task 5 — Cognito login and `POST /api/cases/{id}/action` · covers AC-01, AC-04, AC-05 · done when: same flow on the public URL
+- [x] Task 8 — assisted console api: context, summary, second opinion, audit, the proposal's explanation and the
+  case's conversation (`apps/api/app/console.py`, thread marks in `app/live.py` and `app/platform.py`) · covers AC-16
+  to AC-22 · done when: `tests/test_spec08_assisted_console.py` and `tests/test_spec08_console_conversation.py` pass
 
 **Closing checklist** (last PR): every AC has a passing test or check that cites it · status → Implemented · ADR for
 any decision taken · lessons added to `CLAUDE.md`.
