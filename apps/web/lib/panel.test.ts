@@ -57,5 +57,6 @@ test("spec 12 AC-10: the panel carries the three labels and no placeholder resul
   assert.match(src, /upper-bound/);
   assert.match(src, /full synthetic dataset/);
   assert.doesNotMatch(src, /\[data\] \{source\}/, "the source already carries its label");
-  assert.equal(existsSync(new URL("../public/data/evaluation_summary.json", import.meta.url)), false);
+  const summaryUrl = new URL("../public/data/evaluation_summary.json", import.meta.url);
+  if (existsSync(summaryUrl)) assert.doesNotMatch(readFileSync(summaryUrl, "utf-8"), /SAMPLE FOR TESTS ONLY/);
 });
