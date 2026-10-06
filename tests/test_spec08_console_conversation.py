@@ -1,4 +1,4 @@
-"""Spec 08 AC-16: `GET /api/console/cases/{id}/conversation`, the case's chat history for the analyst.
+"""Spec 08 AC-22: `GET /api/console/cases/{id}/conversation`, the case's chat history for the analyst.
 
 The api marks a thread with the case its turn names (Platform thread metadata), only for the session's own case in
 its run; the console reads the marked threads' checkpoints back and returns only the customer-visible messages (the
@@ -81,7 +81,7 @@ def conversation(env, case_id, **kw):
     return env.client.get(f"/api/console/cases/{case_id}/conversation", headers=bearer(**kw))
 
 
-def test_ac_16_the_conversation_is_analyst_only():
+def test_ac_22_the_conversation_is_analyst_only():
     e = Env()
     c = e.case()
     assert e.client.get(f"/api/console/cases/{c.case_id}/conversation").status_code == 401
@@ -89,7 +89,7 @@ def test_ac_16_the_conversation_is_analyst_only():
                         headers={"Authorization": "Bearer forged"}).status_code == 401
 
 
-def test_ac_16_returns_only_the_customer_visible_messages_of_the_case_threads(env):
+def test_ac_22_returns_only_the_customer_visible_messages_of_the_case_threads(env):
     c = env.case()
     sid, thread = chat(env, texts=(SAID, "¿Cuándo me devuelven el dinero?"), case_id=c.case_id)
     got = conversation(env, c.case_id)
@@ -106,7 +106,7 @@ def test_ac_16_returns_only_the_customer_visible_messages_of_the_case_threads(en
         assert internal not in raw, internal                                  # never internal state
 
 
-def test_ac_16_a_thread_of_another_customer_or_run_is_refused(env):
+def test_ac_22_a_thread_of_another_customer_or_run_is_refused(env):
     mine = env.case()
     demo_case = env.case(run_id=DEMO_RUN, transaction_id="TRX-FIXTURE0000000000002")
     chat(env, case_id=demo_case.case_id, trace="tr-x")                      # a production session naming a demo case
@@ -125,7 +125,7 @@ def test_ac_16_a_thread_of_another_customer_or_run_is_refused(env):
     assert conversation(env, hidden.case_id).status_code == 404               # eval runs never reach the console
 
 
-def test_ac_16_the_transcript_never_reaches_a_notification(env):
+def test_ac_22_the_transcript_never_reaches_a_notification(env):
     c = env.case()
     chat(env, case_id=c.case_id)
     assert conversation(env, c.case_id).status_code == 200
@@ -137,7 +137,7 @@ def test_ac_16_the_transcript_never_reaches_a_notification(env):
     assert all(SAID not in str(p) for p in events)
 
 
-def test_ac_16_a_platform_without_thread_search_is_unavailable_and_a_chip_turn_shows_only_the_reply():
+def test_ac_22_a_platform_without_thread_search_is_unavailable_and_a_chip_turn_shows_only_the_reply():
     e = Env()                                                                # the spec 05 fake: no thread marks
     assert conversation(e, e.case().case_id).status_code == 503
     states = [{"values": {"messages": [], "trace_id": "a", "reply": "Hola"}, "next": [],
@@ -151,7 +151,7 @@ def test_ac_16_a_platform_without_thread_search_is_unavailable_and_a_chip_turn_s
     assert [(m["role"], m["text"]) for m in transcript(states)] == [("agent", "Hola"), ("agent", "Listo")]
 
 
-def test_ac_16_the_http_platform_marks_searches_and_reads_history():
+def test_ac_22_the_http_platform_marks_searches_and_reads_history():
     seen = []
 
     def handler(request: httpx.Request) -> httpx.Response:

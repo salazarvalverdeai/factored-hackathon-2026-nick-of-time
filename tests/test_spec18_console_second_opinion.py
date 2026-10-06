@@ -13,8 +13,8 @@ from tests.test_spec08_assisted_console import Env, judged, state
 
 def post(env: Env, case_id: str) -> dict:
     got = env.client.post(f"/api/console/cases/{case_id}/second-opinion", headers=bearer())
-    assert got.status_code == 200
-    return got.json()
+    assert got.status_code in (200, 204)
+    return got.json() if got.status_code == 200 else {"reason": got.headers["X-No-Opinion-Reason"]}
 
 
 def test_ac_09_the_console_opinion_is_labeled_advisory_and_changes_no_state():
@@ -40,7 +40,7 @@ def test_ac_11_budget_failure_and_timeout_give_no_second_opinion(monkeypatch):
     c, _ = failing.verified_case()
     before = state(failing, c.case_id)
     body = post(failing, c.case_id)
-    assert (body["available"], body["verdict"], body["reasons"]) == (False, None, [])
+    assert body == {"reason": "error"}
     assert state(failing, c.case_id) == before
 
     release = threading.Event()
@@ -58,4 +58,4 @@ def test_ac_11_budget_failure_and_timeout_give_no_second_opinion(monkeypatch):
     c, _ = slow.verified_case()
     body = post(slow, c.case_id)
     release.set()
-    assert (body["available"], body["reason"]) == (False, "timeout")
+    assert body == {"reason": "timeout"}

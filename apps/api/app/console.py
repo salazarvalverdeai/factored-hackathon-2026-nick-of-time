@@ -1,4 +1,4 @@
-"""Assisted analyst console (spec 08 AC-10 to AC-16, spec 18 T5): context, summary, second opinion, audit, proposal
+"""Assisted analyst console (spec 08 AC-16 to AC-22, spec 18 T5): context, summary, second opinion, audit, proposal
 and the case's conversation.
 
 Analyst-only reads of the store and of gold (read-only, ADR 0004), never the customer-scoped MCP server. Nothing here
@@ -17,9 +17,9 @@ from decimal import Decimal
 from typing import Any, Callable, Optional
 
 from contracts.tools import Transaction
-from fastapi import Depends, FastAPI
+from fastapi import Depends, FastAPI, Response
 
-from app.main import ApiError, ConsoleCaseOut
+from app.main import ApiError
 from app.platform import PlatformError
 from nick_of_time import llm
 from nick_of_time.audit import judge
@@ -35,7 +35,7 @@ from nick_of_time.store import CaseRecord, Store, StoreError
 log = logging.getLogger("nick_of_time.api.console")
 
 ADVISORY = "model opinion (advisory)"          # spec 18 AC-09: the console labels the judge's output as advice
-WINDOW = dt.timedelta(days=30)                 # [assumption] spec 08 AC-10: ±30 days around the disputed charge
+WINDOW = dt.timedelta(days=30)                 # [assumption] spec 08 AC-16: ±30 days around the disputed charge
 MAX_TRANSACTIONS = 200                         # [assumption] a context list, not an export
 SUMMARY_TIMEOUT_S = llm_writer.TIMEOUT_S
 SUMMARY_MAX_TOKENS = 500                       # [assumption] about ten short lines
@@ -56,9 +56,14 @@ SUMMARY_SYSTEM = (
     "brackets, like `[1] text` or `[2,3] text`. Nothing else.")
 
 
-class ConsoleCaseAssistedOut(ConsoleCaseOut):
-    """The live console's case (spec 08 AC-14): spec 01's ConsoleCaseOut plus the proposal in plain words."""
-    proposal: Optional[dict[str, Any]] = None
+def with_explanation(card: dict[str, Any], record: CaseRecord) -> dict[str, Any]:
+    """AC-20: the card as the console shows it: its `copilot_proposal` gains `explanation` (handoff.schema.json leaves
+    the proposal open). The stored card, the event payload, is never changed."""
+    found = card.get("copilot_proposal")
+    if not isinstance(found, dict):
+        return card
+    said = explanation(found, card, record)
+    return {**card, "copilot_proposal": {**found, **({"explanation": said} if said else {})}}
 
 
 def _label(tool: str) -> str:
@@ -83,7 +88,7 @@ def outcome_of(events, status: str) -> Optional[str]:
                  if e.type == "analyst_action" and e.payload.get("action") in DECISIVE), None)
 
 
-# ---------- AC-14 proposal in plain words ----------
+# ---------- AC-20 proposal in plain words ----------
 def explanation(proposal: dict[str, Any], handoff: dict[str, Any], record: CaseRecord) -> Optional[str]:
     """One ES sentence "Sugerencia: …, porque …" from the proposal's action and the card's facts, by fixed rules (no
     LLM). None for an action the contract does not know."""
@@ -107,7 +112,7 @@ def explanation(proposal: dict[str, Any], handoff: dict[str, Any], record: CaseR
     return None
 
 
-# ---------- AC-11 summary ----------
+# ---------- AC-17 summary ----------
 def deadline_of(record: CaseRecord, today: dt.date) -> Optional[dict[str, Any]]:
     """The nearest stored legal deadline with its source, or None (POL-CLOCK-UNKNOWN: no date is invented)."""
     dates = [(d, k) for d, k in ((record.credit_deadline, "credit"), (record.ruling_deadline, "ruling")) if d]
@@ -182,7 +187,7 @@ def word_summary(client: Optional[llm.LLMClient], lines: list[str], facts: list[
     return out, ("llm" if out != lines else "template")
 
 
-# ---------- AC-13 audit ----------
+# ---------- AC-19 audit ----------
 def _item(check_id: str, finding: Optional[Finding], detail: Optional[str] = None) -> dict[str, Any]:
     if finding is None:
         return {"id": check_id, "name": CHECK_NAMES[check_id], "status": "not_applicable", "passed": None,
@@ -203,6 +208,18 @@ def rederive_zone(engine: PolicyEngine, handoff: dict[str, Any]) -> Optional[str
                         dispute_detected=True, injection_flagged=False, cross_customer=False, supervised_mode=False,
                         score=None if score is None else float(score), score_source=handoff.get("score_source"))
     return engine._zone(inp)[0]
+
+
+def outcome_text(r: dict[str, Any]) -> str:
+    """The re-derived outcome in one line for the console, from the structured `rederived` values."""
+    parts = [f"zone {r['zone']}" if r["zone"] else "zone not re-derived (no handoff card)"]
+    if r["credit_deadline"] or r["ruling_deadline"]:
+        parts += [f"credit by {r['credit_deadline']}"] if r["credit_deadline"] else []
+        parts += [f"ruling by {r['ruling_deadline']}"] if r["ruling_deadline"] else []
+        parts.append(f"source {r['deadline_source']}")
+    else:
+        parts.append("no legal deadline (POL-CLOCK-UNKNOWN)")
+    return " · ".join(parts)
 
 
 def audit(store: Store, record: CaseRecord, txn: Optional[dict[str, Any]], handoff: dict[str, Any], *,
@@ -254,11 +271,11 @@ def audit(store: Store, record: CaseRecord, txn: Optional[dict[str, Any]], hando
                              deadline_source=got.deadline_source)
         except ValueError:
             pass                                               # A2 already reports the missing clock input
-    return {"checks": checks, "rederived_outcome": rederived,
+    return {"checks": checks, "rederived_outcome": outcome_text(rederived), "rederived": rederived,
             "matches": all(c["status"] != "finding" for c in checks)}
 
 
-# ---------- AC-16 conversation ----------
+# ---------- AC-22 conversation ----------
 def _when(value: Any) -> Optional[dt.datetime]:
     try:
         t = dt.datetime.fromisoformat(str(value).replace("Z", "+00:00"))
@@ -322,7 +339,7 @@ def install(app: FastAPI, *, store: Store, catalog: Any, analyst: Callable, char
 
     @app.get("/api/console/cases/{case_id}/context")
     def console_context(case_id: str, _: str = Depends(analyst)):
-        """AC-10: the customer's context in the case's own run (ADR 0026): other cases, transactions around the
+        """AC-16: the customer's context in the case's own run (ADR 0026): other cases, transactions around the
         disputed charge, cards, calls and notifications."""
         record = case(case_id)
         cases = [c for c in store.list_cases(record.customer_id, run_id=record.run_id) if c.case_id != case_id]
@@ -372,7 +389,7 @@ def install(app: FastAPI, *, store: Store, catalog: Any, analyst: Callable, char
 
     @app.get("/api/console/cases/{case_id}/conversation")
     def console_conversation(case_id: str, _: str = Depends(analyst)):
-        """AC-16: the chat threads that touched the case (Platform thread metadata `case:<id>`, written by the api when
+        """AC-22: the chat threads that touched the case (Platform thread metadata `case:<id>`, written by the api when
         a turn names the case), each kept only when its session is the case's customer's in the case's run (ADR 0026);
         read-only, analyst-only, never written to a notification."""
         record = case(case_id)
@@ -412,7 +429,7 @@ def install(app: FastAPI, *, store: Store, catalog: Any, analyst: Callable, char
 
     @app.get("/api/console/cases/{case_id}/summary")
     def console_summary(case_id: str, _: str = Depends(analyst)):
-        """AC-11: the template summary, worded by the writer when the console setting is `llm`; cached per case,
+        """AC-17: the template summary, worded by the writer when the console setting is `llm`; cached per case,
         handoff version and setting. The deadline is re-counted on every read from the api's business clock."""
         record = case(case_id)
         handoff, version = handoff_of(store.events(case_id))
@@ -436,7 +453,7 @@ def install(app: FastAPI, *, store: Store, catalog: Any, analyst: Callable, char
 
     @app.get("/api/console/cases/{case_id}/audit")
     def console_audit(case_id: str, _: str = Depends(analyst)):
-        """AC-13: the deterministic auditor's checklist (spec 18 §4.1) on the store's records; it never changes state."""
+        """AC-19: the deterministic auditor's checklist (spec 18 §4.1) on the store's records; it never changes state."""
         record = case(case_id)
         handoff, _version = handoff_of(store.events(case_id))
         return {"case_id": case_id, **audit(store, record, charge_of(record), handoff, engine=engine,
@@ -454,39 +471,41 @@ def install(app: FastAPI, *, store: Store, catalog: Any, analyst: Callable, char
                 app.state.judge_llm = None
         return app.state.judge_llm
 
-    def none_yet(case_id: str, reason: str) -> dict[str, Any]:
-        return {"case_id": case_id, "available": False, "reason": reason, "verdict": None, "reasons": [],
-                "questions": [], "model": None, "label": ADVISORY, "created_at": None}
+    def none_yet(reason: str) -> Response:
+        """"No second opinion" (spec 18 AC-11): 204 with the reason in a header, so the body never looks like one."""
+        return Response(status_code=204, headers={"X-No-Opinion-Reason": reason})
 
     def shown(case_id: str, got: judge.SecondOpinion) -> dict[str, Any]:
-        return {"case_id": case_id, "available": True, "reason": None, "verdict": got.verdict,
-                "reasons": [r.model_dump() for r in got.reasons], "questions": [q.model_dump() for q in got.questions],
-                "model": got.model, "label": ADVISORY, "created_at": got.created_at}
+        return {"case_id": case_id, "verdict": got.verdict, "reasons": [r.model_dump() for r in got.reasons],
+                "questions": [q.model_dump() for q in got.questions], "model": got.model, "label": ADVISORY,
+                "created_at": got.created_at.isoformat()}
 
     @app.get("/api/console/cases/{case_id}/second-opinion")
     def get_second_opinion(case_id: str, _: str = Depends(analyst)):
-        """AC-12: the latest second opinion of the case, or `available: false` ("No second opinion")."""
+        """AC-18: the latest second opinion of the case; 404 while it has none."""
         case(case_id)
         kept = app.state.second_opinions.get(case_id)
-        return kept[1] if kept else none_yet(case_id, "not_requested")
+        if kept is None:
+            raise ApiError(404, "NOT_FOUND", "No second opinion yet")
+        return kept[1]
 
     @app.post("/api/console/cases/{case_id}/second-opinion")
     def post_second_opinion(case_id: str, _: str = Depends(analyst)):
-        """AC-12 (spec 18 T5): one judge call per case and handoff version, on demand; advisory only, so it writes no
+        """AC-18 (spec 18 T5): one judge call per case and handoff version, on demand; advisory only, so it writes no
         case event and no status. Skipped before calling when the day's spend plus the judge's per-case cap would
         pass DAILY_LLM_CAP_USD; every billed call is one `llm_calls` row (`judge-` trace id)."""
         record = case(case_id)
         handoff, version = handoff_of(store.events(case_id))
         kept = app.state.second_opinions.get(case_id)
-        if kept and kept[0] == version and kept[1]["available"]:
+        if kept and kept[0] == version:
             return kept[1]
         if not handoff:
-            return none_yet(case_id, "no_handoff")
+            return none_yet("no_handoff")
         client = judge_client()
         if client is None:
-            return none_yet(case_id, "unavailable")
+            return none_yet("unavailable")
         if spent() + judge.MAX_COST_USD > day_cap:            # G-OPS-01: the worst case of the call, before it
-            return none_yet(case_id, "budget")
+            return none_yet("budget")
         why: dict[str, str] = {}
 
         def on_call(result: Optional[llm.LLMResult], reason: str) -> None:
@@ -506,6 +525,8 @@ def install(app: FastAPI, *, store: Store, catalog: Any, analyst: Callable, char
             log.error("audit for the judge failed case=%s error=%s", case_id, type(error).__name__)
         got = judge.opinion(handoff, [], evidence, client=client, audit=findings, now=app.state.now(),
                             on_call=on_call)
-        out = shown(case_id, got) if got else none_yet(case_id, why.get("reason", "error"))
+        if got is None:
+            return none_yet(why.get("reason", "error"))        # a failure is not kept: the next ask may call again
+        out = shown(case_id, got)
         app.state.second_opinions[case_id] = (version, out)
         return out

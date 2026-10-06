@@ -1,4 +1,4 @@
-"""Spec 08 AC-10 to AC-15: the assisted console's api (`app/console.py`): case context, summary, deadline, audit
+"""Spec 08 AC-16 to AC-21: the assisted console's api (`app/console.py`): case context, summary, deadline, audit
 checklist and the copilot proposal in plain words; spec 18 AC-09 and AC-11 for the second opinion (T5).
 
 Offline: MemoryStore, the fixture catalog, the spec 05 Cognito test key and `fake` LLM clients (never a real model).
@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import datetime as dt
 
+import jsonschema
 import pytest
 from fastapi.testclient import TestClient
 
@@ -16,7 +17,7 @@ from app.auth import CognitoVerifier
 from app.catalog import FixtureCatalog
 from app.main import create_app
 from nick_of_time import ids, llm
-from nick_of_time.contracts import AnalystActionIn
+from nick_of_time.contracts import AnalystActionIn, load_schema
 from nick_of_time.policy.clock import deadline
 from nick_of_time.receipt import build
 from nick_of_time.store import NewCase
@@ -101,30 +102,31 @@ def state(env: Env, case_id: str):
     return [(e.type, e.payload) for e in env.store.events(case_id)], env.store.queue_status(case_id)
 
 
-# ---------- AC-15 auth ----------
+# ---------- AC-21 auth ----------
 @pytest.mark.parametrize("path", PATHS)
-def test_ac_15_every_assisted_route_needs_the_analyst_token(path):
+def test_ac_21_every_assisted_route_needs_the_analyst_token(path):
     env = Env()
     c, _ = env.verified_case()
     assert env.client.get(f"/api/console/cases/{c.case_id}/{path}").status_code == 401
     bad = env.client.get(f"/api/console/cases/{c.case_id}/{path}", headers={"Authorization": "Bearer forged"})
     assert bad.status_code == 401
-    assert env.get(c.case_id, path).status_code == 200
+    assert env.get(c.case_id, path).status_code == (404 if path == "second-opinion" else 200)   # 404: none yet
 
 
-def test_ac_15_the_post_needs_the_token_and_an_unknown_or_eval_case_is_404():
+def test_ac_21_the_post_needs_the_token_and_an_unknown_or_eval_case_is_404():
     env = Env(judge_script=[judged()])
     c, _ = env.verified_case()
     assert env.client.post(f"/api/console/cases/{c.case_id}/second-opinion").status_code == 401
     assert env.judge.calls == []
+    assert env.get(c.case_id, "second-opinion").status_code == 404           # none yet
     hidden = env.case(run_id="eval-run-1").case_id                              # eval runs never reach the console
-    for path in PATHS:
+    for path in ("context", "summary", "audit"):
         assert env.get("K-999999", path).status_code == 404
         assert env.get(hidden, path).status_code == 404
 
 
-# ---------- AC-10 context ----------
-def test_ac_10_context_lists_the_customer_cases_cards_charges_calls_and_notifications():
+# ---------- AC-16 context ----------
+def test_ac_16_context_lists_the_customer_cases_cards_charges_calls_and_notifications():
     env = Env()
     old = env.case(transaction_id=OTHER_TRX)
     env.store.change_status(old.case_id, "review", on=dt.date(2026, 6, 1), actor="agent", trace_id="t")
@@ -152,7 +154,7 @@ def test_ac_10_context_lists_the_customer_cases_cards_charges_calls_and_notifica
         ("log", "case_opened", "delivered")]
 
 
-def test_ac_10_context_keeps_to_the_case_run():
+def test_ac_16_context_keeps_to_the_case_run():
     env = Env()
     mine = env.case(run_id=DEMO_RUN)
     same_run = env.case(run_id=DEMO_RUN, transaction_id=OTHER_TRX)
@@ -168,7 +170,7 @@ def test_ac_10_context_keeps_to_the_case_run():
     assert body["cards"][0]["status"] == "Active"                             # no block in this run
 
 
-def test_ac_10_the_window_is_thirty_days_around_the_charge_up_to_the_business_today(monkeypatch):
+def test_ac_16_the_window_is_thirty_days_around_the_charge_up_to_the_business_today(monkeypatch):
     env = Env()
     c = env.case()
     seen = {}
@@ -182,8 +184,8 @@ def test_ac_10_the_window_is_thirty_days_around_the_charge_up_to_the_business_to
     assert [t["disputed"] for t in body["transactions"]] == [True]            # the disputed charge is always there
 
 
-# ---------- AC-11 summary ----------
-def test_ac_11_template_summary_states_report_verified_actions_decision_and_deadline():
+# ---------- AC-17 summary ----------
+def test_ac_17_template_summary_states_report_verified_actions_decision_and_deadline():
     env = Env()
     c, handoff = env.verified_case()
     body = env.get(c.case_id, "summary").json()
@@ -200,7 +202,7 @@ def test_ac_11_template_summary_states_report_verified_actions_decision_and_dead
                                 "source_label": CLOCK.deadline_source, "source_url": CLOCK.source_url}
 
 
-def test_ac_11_unverified_actions_are_never_told_as_done():
+def test_ac_17_unverified_actions_are_never_told_as_done():
     env = Env()
     c, handoff = env.verified_case()
     assert sum(x.startswith("Hecho y verificado") for x in env.get(c.case_id, "summary").json()["lines"]) == 2
@@ -214,7 +216,7 @@ def test_ac_11_unverified_actions_are_never_told_as_done():
     assert sum(line.startswith("Sin confirmar") for line in lines) == 2
 
 
-def test_ac_11_no_legal_deadline_gives_null_and_no_invented_date():
+def test_ac_17_no_legal_deadline_gives_null_and_no_invented_date():
     env = Env()
     c = env.case(country="AR", credit_deadline=None, ruling_deadline=None, deadline_source=None,
                  deadline_source_url=None, deadline_verified_on=None)
@@ -223,7 +225,7 @@ def test_ac_11_no_legal_deadline_gives_null_and_no_invented_date():
     assert body["lines"][-1].startswith("Sin plazo legal verificado")
 
 
-def test_ac_11_llm_wording_keeps_grounded_lines_and_falls_back_on_the_rest():
+def test_ac_17_llm_wording_keeps_grounded_lines_and_falls_back_on_the_rest():
     env = Env(summary_script=["[1] Reporte: cargo no reconocido de USD 9999.00 en TIENDA X.\n"
                               "[2,3] El caso y el bloqueo quedaron verificados.\n"])
     env.store.record_setting("writer", "llm", actor="analyst:ana")
@@ -241,7 +243,7 @@ def test_ac_11_llm_wording_keeps_grounded_lines_and_falls_back_on_the_rest():
     assert again["lines"] == lines and len(env.writer.calls) == 1
 
 
-def test_ac_11_any_writer_failure_or_the_daily_cap_gives_the_template():
+def test_ac_17_any_writer_failure_or_the_daily_cap_gives_the_template():
     env = Env(summary_script=[llm.ProviderUnavailable("down")])
     env.store.record_setting("writer", "llm", actor="analyst:ana")
     c, _ = env.verified_case()
@@ -256,16 +258,16 @@ def test_ac_11_any_writer_failure_or_the_daily_cap_gives_the_template():
     assert capped.writer.calls == []
 
 
-# ---------- AC-12 second opinion (spec 18 AC-09, AC-11, T5) ----------
-def test_ac_12_second_opinion_is_advisory_logged_and_changes_nothing():
+# ---------- AC-18 second opinion (spec 18 AC-09, AC-11, T5) ----------
+def test_ac_18_second_opinion_is_advisory_logged_and_changes_nothing():
     env = Env(judge_script=[judged()])
     c, _ = env.verified_case()
     before = state(env, c.case_id)
-    assert env.get(c.case_id, "second-opinion").json()["available"] is False
+    assert env.get(c.case_id, "second-opinion").status_code == 404
     got = env.client.post(f"/api/console/cases/{c.case_id}/second-opinion", headers=bearer())
     assert got.status_code == 200
     body = got.json()
-    assert body["available"] is True and body["verdict"] == "agree"
+    assert body["verdict"] == "agree" and "available" not in body
     assert body["label"] == "model opinion (advisory)" and body["model"] == "fake-judge"
     assert body["reasons"] == [{"text": f"The charge {fx.TRANSACTION_ID} was blocked and verified.",
                                 "evidence_ids": [fx.TRANSACTION_ID]}]
@@ -277,28 +279,29 @@ def test_ac_12_second_opinion_is_advisory_logged_and_changes_nothing():
     assert len(env.judge.calls) == 1                                           # one call per handoff version
 
 
-def test_ac_12_the_daily_cap_is_respected_before_the_call():
+def test_ac_18_the_daily_cap_is_respected_before_the_call():
     env = Env(judge_script=[judged()])
     env.store.add_llm_call(trace_id="t", provider="fake", model="m", tokens_in=1, tokens_out=1, latency_ms=1,
                            cost_usd=4.995, run_id=None)
     c, _ = env.verified_case()
-    body = env.client.post(f"/api/console/cases/{c.case_id}/second-opinion", headers=bearer()).json()
-    assert (body["available"], body["reason"], body["verdict"]) == (False, "budget", None)
+    got = env.client.post(f"/api/console/cases/{c.case_id}/second-opinion", headers=bearer())
+    assert (got.status_code, got.headers["X-No-Opinion-Reason"], got.content) == (204, "budget", b"")
     assert env.judge.calls == [] and len(env.store.list_llm_calls(run_id=None)) == 1
 
 
-def test_ac_12_a_failing_judge_or_no_card_is_no_second_opinion():
+def test_ac_18_a_failing_judge_or_no_card_is_no_second_opinion():
     env = Env(judge_script=[llm.ProviderUnavailable("down")])
     c, _ = env.verified_case()
     before = state(env, c.case_id)
-    body = env.client.post(f"/api/console/cases/{c.case_id}/second-opinion", headers=bearer()).json()
-    assert (body["available"], body["reason"]) == (False, "error") and state(env, c.case_id) == before
+    got = env.client.post(f"/api/console/cases/{c.case_id}/second-opinion", headers=bearer())
+    assert (got.status_code, got.headers["X-No-Opinion-Reason"]) == (204, "error") and state(env, c.case_id) == before
+    assert env.get(c.case_id, "second-opinion").status_code == 404            # a failure is not kept
     bare = env.case(transaction_id=OTHER_TRX)
-    body = env.client.post(f"/api/console/cases/{bare.case_id}/second-opinion", headers=bearer()).json()
-    assert (body["available"], body["reason"]) == (False, "no_handoff")
+    got = env.client.post(f"/api/console/cases/{bare.case_id}/second-opinion", headers=bearer())
+    assert (got.status_code, got.headers["X-No-Opinion-Reason"]) == (204, "no_handoff")
 
 
-def test_ac_12_ungrounded_reasons_are_dropped_and_the_verdict_becomes_uncertain():
+def test_ac_18_ungrounded_reasons_are_dropped_and_the_verdict_becomes_uncertain():
     wrong = {"verdict": "disagree", "questions": [],
              "reasons": [{"text": "The customer has 4321 prior disputes.", "evidence_ids": [fx.TRANSACTION_ID]}]}
     env = Env(judge_script=[wrong])
@@ -307,8 +310,8 @@ def test_ac_12_ungrounded_reasons_are_dropped_and_the_verdict_becomes_uncertain(
     assert (body["verdict"], body["reasons"]) == ("uncertain", [])
 
 
-# ---------- AC-13 audit ----------
-def test_ac_13_audit_checklist_on_a_clean_case_matches():
+# ---------- AC-19 audit ----------
+def test_ac_19_audit_checklist_on_a_clean_case_matches():
     env = Env()
     c, _ = env.verified_case()
     before = state(env, c.case_id)
@@ -319,13 +322,14 @@ def test_ac_13_audit_checklist_on_a_clean_case_matches():
     assert [by_id[k]["passed"] for k in ("A1", "A2", "A3", "A6", "A7")] == [True] * 5
     assert by_id["A4"]["status"] == by_id["A5"]["status"] == "not_applicable" and by_id["A4"]["passed"] is None
     assert body["matches"] is True
-    assert body["rederived_outcome"] == {"zone": "high", "credit_deadline": str(CLOCK.credit_deadline),
+    assert body["rederived_outcome"].startswith("zone high · credit by ")
+    assert body["rederived"] == {"zone": "high", "credit_deadline": str(CLOCK.credit_deadline),
                                          "ruling_deadline": str(CLOCK.ruling_deadline),
                                          "deadline_source": CLOCK.deadline_source}
     assert state(env, c.case_id) == before
 
 
-def test_ac_13_audit_flags_a_zone_or_deadline_that_does_not_re_derive():
+def test_ac_19_audit_flags_a_zone_or_deadline_that_does_not_re_derive():
     env = Env()
     c, _ = env.verified_case(zone="human", score=87.0)                      # 87 is the high zone
     body = env.get(c.case_id, "audit").json()
@@ -335,26 +339,30 @@ def test_ac_13_audit_flags_a_zone_or_deadline_that_does_not_re_derive():
     body = env.get(late.case_id, "audit").json()
     a2 = next(x for x in body["checks"] if x["id"] == "A2")
     assert (a2["passed"], a2["severity"], body["matches"]) == (False, "critical", False)
-    assert body["rederived_outcome"]["credit_deadline"] == str(CLOCK.credit_deadline)
+    assert body["rederived"]["credit_deadline"] == str(CLOCK.credit_deadline)
 
 
-# ---------- AC-14 proposal in plain words ----------
+# ---------- AC-20 proposal in plain words ----------
 @pytest.mark.parametrize("zone, score, action, why", [
     ("medium", 40.0, "approve_block", "la zona es media"),
     ("human", None, "request_customer_info", "no hay puntaje de fraude del banco"),
 ])
-def test_ac_14_the_proposal_carries_a_plain_explanation(zone, score, action, why):
+def test_ac_20_the_proposal_carries_a_plain_explanation(zone, score, action, why):
     env = Env()
     proposal = {"action": action, "rationale": "x", "requires_human": True}
     c, handoff = env.verified_case(zone=zone, score=score, copilot_proposal=proposal)
     body = env.client.get(f"/api/console/cases/{c.case_id}", headers=bearer()).json()
-    assert body["handoff"] == handoff                                         # the card stays as the graph wrote it
-    assert body["proposal"]["action"] == action and body["proposal"]["requires_human"] is True
-    assert body["proposal"]["explanation"].startswith("Sugerencia: ") and why in body["proposal"]["explanation"]
-    assert ", porque " in body["proposal"]["explanation"]
+    shown = body["handoff"]["copilot_proposal"]
+    assert {k: v for k, v in shown.items() if k != "explanation"} == proposal
+    assert {**body["handoff"], "copilot_proposal": proposal} == handoff     # nothing else of the card changes
+    assert shown["explanation"].startswith("Sugerencia: ") and why in shown["explanation"]
+    assert ", porque " in shown["explanation"]
+    stored = [e.payload["handoff"] for e in env.store.events(c.case_id) if e.type == "handoff_emitted"]
+    assert stored == [handoff]                                                # the stored card is never changed
+    jsonschema.validate(body["handoff"], load_schema("handoff.schema.json"))
 
 
-def test_ac_14_no_proposal_no_explanation():
+def test_ac_20_no_proposal_no_explanation():
     env = Env()
     c, _ = env.verified_case()
-    assert env.client.get(f"/api/console/cases/{c.case_id}", headers=bearer()).json()["proposal"] is None
+    assert "copilot_proposal" not in env.client.get(f"/api/console/cases/{c.case_id}", headers=bearer()).json()["handoff"]

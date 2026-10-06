@@ -239,14 +239,14 @@ tools for the third line (internal audit).
       owns persistence: it calls `judge.record_decision` with the case's earlier analyst actions as `prior_actions` (only
       the first decisive action is matched, §4.2) and stores `matched_second_opinion` in the `analyst_action` payload,
       the opinion in `second_opinions`, and one `llm_calls` row per billed call (`on_call` result not `None`) · AC-10
-      Api side done (spec 08 AC-12, AC-13, PR `feat/08-assisted-console-api`): `POST/GET
+- [ ] T5b [P1] — auditor panel and critical flag in the console (with @gianzk) · AC-06
+- [ ] T6 [P2] — `judge` as a spec 15 task; KPIs in `ops_kpis`; calibration report · AC-12, AC-13, AC-14
+- [ ] T5 api side (spec 08 AC-18, AC-19; PR `feat/08-assisted-console-api`): `POST/GET
       /api/console/cases/{id}/second-opinion` runs `judge.opinion` on demand with its own client, under the daily cap,
       labeled "model opinion (advisory)", one `llm_calls` row per billed call (`judge-` trace id), no state change
       (`tests/test_spec18_console_second_opinion.py`, AC-09, AC-11); `GET /api/console/cases/{id}/audit` shows A1–A7 on
-      the store's records. Pending: a `second_opinions` table (the latest opinion is kept in api memory meanwhile) and
+      the store's records. Open: a `second_opinions` table (the latest opinion is kept in api memory meanwhile) and
       `matched_second_opinion` in the `analyst_action` payload (both store changes).
-- [ ] T5b [P1] — auditor panel and critical flag in the console (with @gianzk) · AC-06
-- [ ] T6 [P2] — `judge` as a spec 15 task; KPIs in `ops_kpis`; calibration report · AC-12, AC-13, AC-14
 
 ## 11. Sources
 External sources checked on 2026-10-04.
