@@ -310,7 +310,7 @@ function Conversation({ onExpired }: { onExpired: () => void }) {
         </div>
 
         <ChatThread
-          className="h-[min(68dvh,44rem)] min-h-80"
+          className="h-[calc(100dvh-17rem)] min-h-80"
           messages={messages}
           live={busy ? live : null}
           lang={lang}
@@ -354,7 +354,7 @@ function Conversation({ onExpired }: { onExpired: () => void }) {
         ) : null}
         {heard ? <p className="text-xs text-muted-foreground">{VOICE_COPY[lang].draft}</p> : null}
         <form
-          className="flex flex-wrap gap-2"
+          className="sticky bottom-0 z-10 flex flex-wrap gap-2 bg-background py-2"
           onSubmit={(e) => {
             e.preventDefault();
             send(input);
