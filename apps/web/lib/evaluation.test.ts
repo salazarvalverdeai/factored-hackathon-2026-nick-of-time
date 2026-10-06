@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import test from "node:test";
 import { dataDir } from "./data-dir.ts";
-import { GENERATOR_FLAG, METRICS, METRIC_MEANING, RULES_REVIEW_SENTENCE, DETAILS, detailUrl, headingSlug, limitations, RESULT_FILES, costQualityPoints, developmentNotice, generatorFlag, interval, pending, protocolNotice, rateParts, rateText, scoreText } from "./evaluation.ts";
+import { DEVELOPMENT_CHIP, GENERATOR_FLAG, developmentRuns, pageNotice, METRICS, METRIC_MEANING, RULES_REVIEW_SENTENCE, DETAILS, detailUrl, headingSlug, limitations, RESULT_FILES, costQualityPoints, developmentNotice, generatorFlag, interval, pending, protocolNotice, rateParts, rateText, scoreText } from "./evaluation.ts";
 import type { BenchmarkData, ClassifierData, EvaluationData, FraudData, Insight, Rate } from "./evaluation.ts";
 
 const SAMPLE = JSON.parse(
@@ -210,7 +210,11 @@ test("spec 12 AC-04, AC-05, AC-06, AC-07, AC-11: the new charts keep the empty s
   const read = (f: string) => readFileSync(new URL(`../app/evaluation/${f}`, import.meta.url), "utf-8");
   const page = read("page.tsx"), sections = read("sections.tsx"), results = read("results.tsx"), panel = read("panel.tsx");
   assert.match(page, /<Pending \{\.\.\.classifier\.missing!\} \/>/); // AC-04 still reaches every section
-  assert.match(sections, /<Notice protocol=/); // AC-05
+  assert.match(sections, /<DevChip show=\{protocolNotice\(file\.data\.protocol\) !== null\} \/>/); // AC-05: a chip per section
+  assert.match(results, /<DevChip show=\{developmentNotice\(data\) !== null\} \/>/);
+  for (const text of [sections, results]) assert.doesNotMatch(text, /development-notice/); // AC-05: the notice is said once, on the page
+  assert.equal((page.match(/data-slot="development-notice"/g) ?? []).length, 1);
+  assert.match(page, /pageNotice\(files\)/);
   assert.match(sections, /tabIndex=\{0\}[^]*?\{\.\.\.bind\(r\.tip\)\}/); // AC-06, AC-07: the bar rows take focus and show the tooltip
   assert.ok((sections.match(/<TableView/g) ?? []).length >= 2 && (sections.match(/<Table\b/g) ?? []).length >= 3); // AC-07 tables stay
   assert.equal((sections.match(/<Section title=/g) ?? []).length, 3);
@@ -229,4 +233,21 @@ test("spec 12 AC-11: EVALUATION_DATA_DIR is honored only inside the repo or the 
   assert.equal(dataDir("/repo/apps/web/app/evaluation/__fixtures__", cwd, tmpdir()), "/repo/apps/web/app/evaluation/__fixtures__");
   assert.equal(dataDir("/repo/../etc", cwd, tmpdir()), resolve(cwd, "public/data"));
   assert.equal(dataDir(resolve(tmpdir(), "fx"), cwd, tmpdir()), resolve(tmpdir(), "fx"));
+});
+
+test("spec 12 AC-05: one page notice names every development-run file and why; a sealed held-out file is not named", () => {
+  assert.deepEqual(developmentRuns(FILES).map((r) => r.file), ["evaluation_summary.json", "benchmark.json", "classifier.json", "fraud_benchmark.json"]);
+  const notice = pageNotice(FILES)!;
+  assert.match(notice, /^Development run, not the final result: evaluation_summary\.json \(it ran on the "dev" set, not the held-out and the evaluation protocol is UNSEALED\); benchmark\.json \(the evaluation protocol is UNSEALED\);/);
+  assert.ok(notice.includes(`"${DEVELOPMENT_CHIP}"`));
+  const sealed = { status: "SEALED", sha256: "a".repeat(64) };
+  const final = {
+    summary: { ...SAMPLE, data: { ...SAMPLE.data, set: "heldout", protocol: sealed } },
+    benchmark: { ...BENCH, data: { ...BENCH.data, protocol: sealed } },
+    classifier: null,
+    fraud: null,
+  };
+  assert.equal(pageNotice(final), null);
+  assert.deepEqual(developmentRuns({ ...final, fraud: FRAUD }).map((r) => r.file), ["fraud_benchmark.json"]);
+  assert.equal(pageNotice({ summary: null, benchmark: null, classifier: null, fraud: null }), null);
 });
