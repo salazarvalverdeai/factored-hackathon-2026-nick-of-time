@@ -29,6 +29,9 @@ export type EvaluationData = {
   arms: EvaluationArm[];
   scoring?: { official: string; secondary: string };
   scores_d070?: ScoresD070;
+  /** spec 10 AC-09: failed runs stay in every denominator; the exporter may carry their count. */
+  failed_runs?: number | null;
+  runs?: number | null;
 };
 
 export type ScoresD070 = {
@@ -329,12 +332,26 @@ export const RULES_REVIEW_SENTENCE = "The classifier test split was decided by f
  * spec 12 AC-11: plain sentences, only for the files that exist. With no result file there is nothing to limit,
  * so the list is empty.
  */
+/**
+ * spec 10 AC-09: one line on the failed runs. The count when the file carries it; on the held-out without it, the
+ * plain statement (the count is in the run's meta.json, not in this file); nothing when the file says none failed.
+ */
+export function failedRunsSentence(d: Pick<EvaluationData, "set" | "failed_runs" | "runs">): string | null {
+  if (typeof d.failed_runs === "number") {
+    if (d.failed_runs === 0) return null;
+    return `${d.failed_runs}${typeof d.runs === "number" ? ` of ${d.runs}` : ""} runs failed and stay in every denominator (AC-09).`;
+  }
+  return d.set === "heldout" ? "Some runs failed and stay in every denominator (AC-09)." : null;
+}
+
 export function limitations(files: ResultFiles): string[] {
   const out: string[] = [];
   const { summary, benchmark, classifier, fraud } = files;
   if (summary) {
     const d = summary.data;
     out.push(`Only ${d.cases} cases were scored (${d.runs_per_case} runs each): read the interval, not the single rate.`);
+    const failed = failedRunsSentence(d);
+    if (failed) out.push(failed);
   }
   if (classifier) {
     const n = Object.values(classifier.data.test_split.sentences).reduce<number>((a, b) => a + (b ?? 0), 0);

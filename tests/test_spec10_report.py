@@ -274,3 +274,13 @@ def test_ac_01_make_eval_runs_the_dev_set_on_s0_and_s1():
     other = subprocess.run(["make", "-n", "eval", "EVAL_CASES=eval/examples.jsonl", "EVAL_RUNS=2"], cwd=ROOT,
                            capture_output=True, text=True, check=True).stdout
     assert "--runs 2" in other and "--cases eval/examples.jsonl" in other
+
+
+def test_ac_09_ac_11_web_summary_carries_the_run_and_failed_run_counts(tmp_path, monkeypatch):
+    """AC-09, AC-11: failed runs stay in every denominator, and the web summary says how many runs failed of how many."""
+    monkeypatch.setattr(labels, "LABELS", tmp_path / "no-labels.parquet")
+    web = tmp_path / "web/evaluation_summary.json"
+    out = run_command(tmp_path, "--web", str(web))
+    meta = json.loads((out / "meta.json").read_text(encoding="utf-8"))
+    data = json.loads(web.read_text(encoding="utf-8"))["data"]
+    assert (data["runs"], data["failed_runs"]) == (meta["runs"], meta["failed_runs"]) == (20, 0)

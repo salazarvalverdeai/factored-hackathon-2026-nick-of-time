@@ -6,7 +6,9 @@
 // (collapsed) and a muted footer with the run's metadata.
 import { BigFigure, DevChip, Explain, Footer, IntervalBar } from "./explain";
 import { FOCUS, Swatch, TableView, TipBody, useTip } from "@/app/analytics/charts";
+import { DetailButton } from "@/components/detail-button";
 import { CountText, Reveal, Stagger } from "@/components/motion";
+import { repoUrl } from "@/lib/pipelines";
 import { staggerDelay } from "@/lib/motion";
 import {
   armModel,
@@ -15,6 +17,7 @@ import {
   d070View,
   developmentNotice,
   type D070View,
+  type ScoresD070,
   dollars,
   milliseconds,
   rateParts,
@@ -85,58 +88,91 @@ function Headline({ arm, index }: { arm: EvaluationArm; index: number }) {
   );
 }
 
-function HeldoutScores({ view }: { view: D070View }) {
+/**
+ * The held-out scored two ways (spec 10 AC-15, ADR 0031; the view is lib/evaluation.ts d070View, from #227). The official
+ * score under the sealed rules and the secondary D-070 score sit side by side at the same size, each with its label:
+ * the official one is never hidden. One plain line under the charts; the rule, the ADR and when it was decided are in
+ * the side panel.
+ */
+function HeldoutScores({ view, block }: { view: D070View; block: ScoresD070 }) {
+  const { bind, node } = useTip();
   const unsafe = view.metrics.find((m) => m.key === "unsafe_outcomes")!;
+  const sar = view.metrics.find((m) => m.key === "safe_automated_resolution")!;
+  const scores = [["official", view.officialLabel], ["secondary", view.secondaryLabel]] as const;
   return (
-    <section aria-label="Held-out scored twice" data-slot="d070-scores" className={`rounded-lg border bg-card p-5 ${PALETTE}`}>
-      <h2 className="text-base font-semibold">
-        Held-out, scored two ways <span className="font-mono text-xs font-normal text-muted-foreground">{view.tag}</span>
-      </h2>
-      <p className="mt-1 text-sm" data-slot="d070-sentence">{view.sentence}</p>
-      <div className="mt-3 grid gap-3 sm:grid-cols-3">
-        {unsafe.rows.map((r, i) => {
-          const p = rateParts(r.official);
+    <Reveal as="section" aria-label="Held-out scored twice" data-slot="d070-scores" className={`rounded-lg border bg-card p-6 text-card-foreground ${PALETTE}`}>
+      <h2 className="text-base font-semibold">Held-out, scored two ways</h2>
+      <Stagger className="mt-4 grid gap-4 lg:grid-cols-3" count={sar.rows.length}>
+        {sar.rows.map((r, i) => {
+          const bad = unsafe.rows.find((u) => u.arm === r.arm)!.official;
           return (
-            <div key={r.arm} className="rounded-md border p-3" data-slot="unsafe-card">
+            <div key={r.arm} className="min-w-0 rounded-md border p-4" data-slot="unsafe-card">
               <p className="flex items-center gap-1.5 text-xs text-muted-foreground"><Swatch color={armColor(i)} />{r.arm} · {r.model}</p>
-              <p className="text-2xl font-semibold tabular-nums">{r.official.numerator}/{r.official.denominator}</p>
-              <p className="text-xs text-muted-foreground">unsafe outcomes · 95% CI {p.interval}</p>
+              <p className="mt-1 text-xs text-muted-foreground">{sar.label}</p>
+              <div className="mt-2 grid grid-cols-2 gap-3">
+                {scores.map(([k, lab]) => (
+                  <div key={k} data-slot={`d070-${k}`}>
+                    <BigFigure size="md" value={rateParts(r[k]).value} label={view.tag} caption={lab} />
+                  </div>
+                ))}
+              </div>
+              <p className="mt-3 border-t pt-2 text-xs text-muted-foreground">
+                Unsafe outcomes, official:{" "}
+                <span className="font-semibold text-foreground tabular-nums"><CountText text={`${bad.numerator}/${bad.denominator}`} /></span> · 95% CI {rateParts(bad).interval}
+              </p>
             </div>
           );
         })}
-      </div>
-      <div className="mt-5 space-y-5">
+      </Stagger>
+      <div className="mt-6 space-y-5">
+        <div className="hidden gap-x-6 text-xs sm:grid sm:grid-cols-[10rem_1fr_1fr]">
+          <span />
+          <span className="font-medium">{view.officialLabel}</span>
+          <span className="text-muted-foreground">{view.secondaryLabel}</span>
+        </div>
         {view.metrics.filter((m) => m.key !== "unsafe_outcomes").map((m) => (
-          <div key={m.key}>
-            <p className="text-sm font-medium">{m.label}</p>
-            {m.rows.map((r, i) => (
-              <div key={r.arm} className="mt-1.5 grid gap-x-4 gap-y-1 sm:grid-cols-2">
-                {([["official", view.officialLabel, r.official], ["secondary", view.secondaryLabel, r.secondary]] as const).map(([k, lab, rate]) => {
-                  const parts = rateParts(rate);
-                  const empty = parts.value === "—";
-                  return (
-                    <div key={k} role="img" aria-label={`${m.label}, ${r.arm}, ${lab}: ${rateText(rate)}`} data-slot={`d070-${k}`}>
-                      <p className={k === "official" ? "text-xs font-medium" : "text-xs text-muted-foreground"}>{lab}</p>
-                      <div className="flex items-center gap-3">
-                        <span className="w-8 shrink-0 text-xs text-muted-foreground">{r.arm}</span>
-                        <IntervalBar value={empty ? null : rate.value} low={rate.ci_low} high={rate.ci_high} color={armColor(i)} />
-                        <span className="w-28 shrink-0 text-right text-xs tabular-nums">
-                          {parts.value}<span className="text-muted-foreground"> · {empty ? "n/a" : `${rate.numerator}/${rate.denominator}`}</span>
-                        </span>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            ))}
+          <div key={m.key} className="grid gap-x-6 gap-y-1.5 sm:grid-cols-[10rem_1fr_1fr]">
+            <p className="text-sm sm:row-span-3">{m.label}</p>
+            {m.rows.map((r, i) =>
+              scores.map(([k, lab]) => {
+                const rate = r[k];
+                const parts = rateParts(rate);
+                const empty = parts.value === "—";
+                return (
+                  <div key={`${r.arm}-${k}`} tabIndex={0} role="img" aria-label={`${m.label}, ${r.arm}, ${lab}: ${rateText(rate)}`} data-slot={`d070-${k}`}
+                    className={`flex items-center gap-3 rounded-sm sm:col-start-${k === "official" ? 2 : 3} ${FOCUS}`}
+                    {...bind(<TipBody title={`${m.label} · ${r.arm}`} rows={[["Score", lab], ["Rate", parts.value], ["Runs", parts.count], ["95% interval", parts.interval]]} note={`${view.tag} held-out, final state compared`} />)}>
+                    <span className="w-8 shrink-0 text-xs text-muted-foreground">{r.arm}<span className="sm:hidden">{k === "official" ? " off." : " D-070"}</span></span>
+                    <IntervalBar value={empty ? null : rate.value} low={rate.ci_low} high={rate.ci_high} color={armColor(i)} delay={staggerDelay(i, 90) + (k === "official" ? 0 : 60)} />
+                    <span className="w-28 shrink-0 text-right text-xs tabular-nums">
+                      {parts.value}<span className="text-muted-foreground"> · {empty ? "n/a" : `${rate.numerator}/${rate.denominator}`}</span>
+                    </span>
+                  </div>
+                );
+              }),
+            )}
           </div>
         ))}
       </div>
+      <p className="mt-5 text-sm" data-slot="d070-sentence">
+        {view.sentence}{" "}
+        <DetailButton
+          title="Held-out, scored two ways"
+          detail={{
+            meaning: `${view.officialLabel} is the official result. ${view.secondaryLabel} applies the rule that a person closes every case, and changes nothing else.`,
+            method: `${block.rule}. The decision was recorded in ADR 0031 before the held-out run, while no held-out result existed.`,
+            source: "evaluation_summary.json, scores_d070",
+            label: view.tag,
+            spec: repoUrl(block.adr),
+          }}
+        />
+      </p>
       <TableView
         head={["Metric", "Arm", view.officialLabel, view.secondaryLabel]}
         rows={view.metrics.flatMap((m) => m.rows.map((r) => [m.label, `${r.arm} (${r.model})`, rateText(r.official), rateText(r.secondary)]))}
       />
-    </section>
+      {node}
+    </Reveal>
   );
 }
 
@@ -268,7 +304,7 @@ export function EvaluationResults({ file }: { file: Insight<EvaluationData> }) {
           <Headline key={arm.arm} arm={arm} index={i} />
         ))}
       </Stagger>
-      {d070View(data) && <HeldoutScores view={d070View(data)!} />}
+      {d070View(data) && data.scores_d070 ? <HeldoutScores view={d070View(data)!} block={data.scores_d070} /> : null}
       <Comparison arms={data.arms} />
       <Footer>
         {data.label} {file.source} · generated {file.generated_at.slice(0, 10)} at {file.git_sha} · {run}

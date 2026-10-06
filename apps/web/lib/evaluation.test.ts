@@ -354,3 +354,34 @@ test("spec 12 AC-01: each arm names the model it used, the fast model included (
   const real = JSON.parse(readFileSync(new URL("../public/data/evaluation_summary.json", import.meta.url), "utf-8")).data as EvaluationData;
   for (const arm of real.arms) if (arm.run_meta.provider && arm.run_meta.provider !== "none") assert.ok(armModel(arm.run_meta), `${arm.arm} names its model`);
 });
+
+test("spec 12 AC-11 (spec 10 AC-09): failed runs get one limitation line, with the count when the file carries it", () => {
+  assert.equal(failedRunsSentence({ set: "heldout", failed_runs: 24, runs: 960 }), "24 of 960 runs failed and stay in every denominator (AC-09).");
+  assert.equal(failedRunsSentence({ set: "heldout", failed_runs: 0, runs: 960 }), null);
+  assert.equal(failedRunsSentence({ set: "heldout" }), "Some runs failed and stay in every denominator (AC-09).");
+  assert.equal(failedRunsSentence({ set: "dev" }), null);
+  const heldout = { ...SAMPLE, data: { ...SAMPLE.data, set: "heldout", failed_runs: 24, runs: 960 } };
+  const lines = limitations({ summary: heldout, benchmark: null, classifier: null, fraud: null });
+  assert.ok(lines.includes("24 of 960 runs failed and stay in every denominator (AC-09)."));
+  for (const text of lines) assert.ok(text.length <= 120, text);
+});
+
+test("spec 12 AC-06, AC-11: the held-out renders both scores with their labels, the official one never hidden", () => {
+  const src = readFileSync(new URL("../app/evaluation/results.tsx", import.meta.url), "utf-8");
+  const section = src.slice(src.indexOf("function HeldoutScores"), src.indexOf("export function EvaluationResults"));
+  // both scores, from one list, at the same size: the official is rendered wherever the secondary is
+  assert.match(section, /const scores = \[\["official", view\.officialLabel\], \["secondary", view\.secondaryLabel\]\] as const;/);
+  assert.equal((section.match(/scores\.map\(/g) ?? []).length, 2, "the big figures and the bars both map over the two scores");
+  assert.match(section, /<BigFigure size="md" value=\{rateParts\(r\[k\]\)\.value\} label=\{view\.tag\} caption=\{lab\} \/>/);
+  assert.doesNotMatch(section, /k === "secondary" \?[^:]*: null|official[^\n]*hidden|sr-only/, "nothing hides the official score");
+  // AC-06: every rate with its count and interval on focus; AC-11: one line and a Detail panel with the rule and the ADR
+  assert.match(section, /tabIndex=\{0\}[^]*?\{\.\.\.bind\(<TipBody[^]*?\["Runs", parts\.count\], \["95% interval", parts\.interval\]/);
+  assert.match(section, /\{view\.sentence\}\{" "\}\s*<DetailButton/);
+  assert.match(section, /method: `\$\{block\.rule\}\. The decision was recorded in ADR 0031 before the held-out run/);
+  assert.match(section, /spec: repoUrl\(block\.adr\)/);
+  assert.match(section, /<TableView/);
+  const real = JSON.parse(readFileSync(new URL("../public/data/evaluation_summary.json", import.meta.url), "utf-8")) as Insight<EvaluationData>;
+  const view = d070View(real.data);
+  if (!view) return;
+  for (const m of view.metrics) for (const r of m.rows) assert.ok(rateParts(r.official).value !== "—" || r.official.denominator === 0, `${m.key} ${r.arm}: official has a value`);
+});
