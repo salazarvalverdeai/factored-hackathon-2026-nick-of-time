@@ -2,15 +2,18 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import { METRICS, OPS_INTRO, POSITIONS, SAME_CONTACT, SAME_CONTACT_NOTE, chartDetail, daysText, introDetail, limitationDetail, opsState, tableRows, type OpsSeries } from "./ops.ts";
+import {
+  METRICS, OPS_INTRO, POSITIONS, SAME_CONTACT, SAME_CONTACT_NOTE, chartDetail, daysText, introDetail, limitationDetail, liveDetail, opsState, pct,
+  pendingDetail, tableRows, type LivePending, type LiveReady, type OpsSeries,
+} from "./ops.ts";
 
 const read = (p: string) => JSON.parse(readFileSync(new URL(p, import.meta.url), "utf-8"));
 const FILE = read("../public/data/ops_kpis.json") as { source: string; data: { series: OpsSeries } };
 const SERIES = FILE.data.series;
 const SRC = readFileSync(new URL("../app/analytics/operations.tsx", import.meta.url), "utf-8");
 
-test("spec 12 AC-02: the switch has three positions; both series carry their label, source and the 2026 window", () => {
-  assert.deepEqual(POSITIONS.map((p) => p.label), ["Bank today", "With Nick of Time (simulated)", "Live"]);
+test("spec 12 AC-02: the switch has three positions (the third, key live, is public demo traffic); both series carry their label, source and the 2026 window", () => {
+  assert.deepEqual(POSITIONS.map((p) => p.label), ["Bank today", "With Nick of Time (simulated)", "Public demo traffic"]);
   const bank = opsState(FILE, "bank_today");
   const sim = opsState(FILE, "replay");
   assert.ok(bank.kind === "ready" && sim.kind === "ready");
@@ -62,9 +65,77 @@ test("spec 12 AC-02: only the data's compare pairs are side by side; every other
   assert.match(SRC, /Compared with the other series/);
 });
 
-test("spec 12 AC-02: Live shows 'Pending: no live traffic yet' and no figure until spec 14 T5", () => {
-  const live = opsState(FILE, "live");
-  assert.ok(live.kind === "pending" && live.title === "Pending: no live traffic yet" && /T5/.test(live.missing));
+const LIVE = SERIES.live as LiveReady;
+const pending: LivePending = { key: "live", name: "Public demo traffic", status: "pending",
+  message: "Pending: no public demo traffic yet", reason: "spec 14 T5 (the Postgres source) has not run on the deployed app's demo traffic" };
+
+test("spec 12 AC-02: the Live position draws public demo traffic in both modes when its status is ready", () => {
+  assert.equal(POSITIONS[2].key, "live");
+  assert.equal(LIVE.status, "ready", "the committed file carries the run on a restored production backup");
+  const state = opsState(FILE, "live");
+  if (state.kind !== "live") return assert.fail("Live is ready");
+  const { view } = state;
+  assert.equal(LIVE.name, "Public demo traffic");
+  assert.equal(LIVE.label, "[simulated]");
+  assert.equal(LIVE.message, `Public demo traffic on the deployed app since ${LIVE.window[0]}`);
+  assert.match(LIVE.reason, /historical gold state with the fixed demo date 2026-06-01/);
+  assert.match(LIVE.reason, /live-mode charges are synthetic \(ADR 0020\)/);
+  assert.deepEqual(view.cards.map((c) => c.title), ["Cases", "Receipt with a legal deadline", "Handed to an analyst", "Unsafe outcomes"]);
+  const t = LIVE.total;
+  assert.deepEqual(view.cards.map((c) => c.value), [String(t.cases), pct(t.receipt_rate.value), pct(t.escalation_rate.value), String(t.unsafe_outcomes)]);
+  assert.equal(view.cards[1].sub, `${t.receipt_rate.numerator} of ${t.receipt_rate.denominator} cases`, "every rate shows its counts");
+  assert.deepEqual(view.modes.map((m) => [m.mode, m.title]), [["live", "Live mode"], ["replay", "Replay mode"]]);
+  assert.equal(view.modes[0].cases + view.modes[1].cases, t.cases, "the breakdown adds up to the cases");
+  assert.equal(view.bars.length, LIVE.days.length);
+  view.bars.forEach((b) => assert.equal(b.byMode.live + b.byMode.replay, b.cases, `${b.day}: a column is split by mode`));
+  assert.ok(view.bars.every((b) => b.cases <= view.scaleMax));
+  assert.equal(view.line.split(/(?<=\.)\s+/).length, 1, "one plain line");
+  assert.match(view.footer, /^make ops-live/);
+  for (const fig of [view.cards.map((c) => c.value + c.sub), view.rows.flat()].flat()) {
+    assert.doesNotMatch(fig, /CLI-|TRX-|demo-20|@/, "counts and rates only (spec 14 AC-08)");
+  }
+});
+
+test("spec 12 AC-02: the Live headline uses the motion kit's count-up, a per-day column chart and the breakdown", () => {
+  assert.match(SRC, /function LiveSection/);
+  assert.match(SRC, /<CountText className="text-3xl[^"]*" text=\{card\.value\} \/>/);
+  assert.match(SRC, /aria-label="Cases per day"/);
+  assert.match(SRC, /<h4 className="text-sm font-semibold">By mode<\/h4>/);
+  assert.match(SRC, /state\.kind === "live" \?/);
+  assert.match(SRC, /setDetail\(liveDetail\(state\.view\.live\)\)/);
+  const section = SRC.slice(SRC.indexOf("function LiveSection"), SRC.indexOf("export function Operations"));
+  assert.doesNotMatch(section, /transition|animate-|@keyframes/, "only the kit moves, so nothing moves under reduced motion");
+  assert.match(section, /<GrowBar[^>]*axis="y"/);
+});
+
+test("spec 12 AC-04: Live with status pending stays the empty state, with no figure", () => {
+  const all = { ...SERIES, live: pending };
+  const state = opsState({ data: { series: all } }, "live");
+  assert.ok(state.kind === "pending" && state.title === "Pending: no public demo traffic yet" && /T5/.test(state.missing));
+  assert.match(state.detail, /specs\/14-ops-lakehouse\.md#115-live/);
+  const none = opsState({ data: {} }, "live");
+  assert.ok(none.kind === "pending" && none.title === "Pending: no public demo traffic yet");
+  assert.match(pendingDetail(state, all).method.join(" "), /Public demo traffic will read/);
+});
+
+test("spec 12 AC-07: the Live columns' tooltips and the table hold the same values; Detail opens the method", () => {
+  const state = opsState(FILE, "live");
+  if (state.kind !== "live") return assert.fail("Live is ready");
+  const { view } = state;
+  assert.deepEqual(view.head, ["Day", ...view.bars[0].detail.map(([k]) => k)]);
+  view.bars.forEach((b, i) => assert.deepEqual(view.rows[i], [b.day, ...b.detail.map(([, v]) => v)]));
+  const last = view.rows.at(-1)!;
+  assert.equal(last[0], `${view.bars.length} ${view.bars.length === 1 ? "day" : "days"}`);
+  assert.equal(last[1], String(LIVE.total.cases));
+  assert.match(last[4], /^\d+\.\d% \(\d+ of \d+\)$/, "a rate with its numerator and denominator");
+  assert.match(SRC, /<TableView head=\{view\.head\} rows=\{view\.rows\} \/>/);
+  assert.match(SRC, /\{\.\.\.bind\(<TipBody title=\{dayName\(bar\.day\)\} rows=\{bar\.detail\} \/>\)\}/);
+  const detail = liveDetail(LIVE);
+  assert.equal(detail.title, LIVE.message);
+  assert.equal(detail.label, "[simulated]");
+  assert.match(detail.method.join(" "), /Evaluation runs never count/);
+  assert.match(detail.method.join(" "), /UTC date the case was written/);
+  assert.match(detail.href, /#115-live-the-postgres-source-t5-make-ops-live$/);
 });
 
 test("spec 12 AC-04: with no file, or a file with no series, the section shows 'Results pending' and what is missing", () => {
