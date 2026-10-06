@@ -50,6 +50,11 @@ class Catalog(Protocol):
         """The customer's latest card transactions dated on or before `until`, newest first, as
         `{transaction_id, product_id, date, amount, currency, merchant}` (no score, no label)."""
 
+    def transactions_between(self, customer_id: str, start: dt.date, end: dt.date,
+                             limit: int) -> list[dict[str, Any]]:
+        """The customer's card transactions dated from `start` to `end` (both included), newest first, in the same
+        shape as `recent_transactions`; the analyst console's context (spec 08 AC-10)."""
+
 
 class FixtureCatalog:
     def customers(self) -> list[dict[str, Any]]:
@@ -78,6 +83,11 @@ class FixtureCatalog:
         keep = customer_id == fx.OWNER and dt.date.fromisoformat(txn["date"]) <= until and limit > 0
         row = {k: txn[k] for k in ("transaction_id", "date", "amount", "currency", "merchant")}
         return [{**row, "product_id": fx.PRODUCT_ID}] if keep else []
+
+    def transactions_between(self, customer_id: str, start: dt.date, end: dt.date,
+                             limit: int) -> list[dict[str, Any]]:
+        return [t for t in self.recent_transactions(customer_id, end, limit)
+                if dt.date.fromisoformat(t["date"]) >= start]
 
 
 class GoldCatalog:
@@ -146,6 +156,18 @@ class GoldCatalog:
                           "transaction_status IN (?, ?) AND CAST(transaction_date AS DATE) <= ? "
                           "ORDER BY transaction_date DESC, transaction_id LIMIT ?",
                           [self._files["transactions_enriched"], customer_id, *CARD_TYPES, *STATUSES, until, limit])
+        return [{"transaction_id": tid, "product_id": pid, "date": date.isoformat(), "amount": float(amount),
+                 "currency": currency, "merchant": merchant} for tid, pid, date, amount, currency, merchant in rows]
+
+    def transactions_between(self, customer_id: str, start: dt.date, end: dt.date,
+                             limit: int) -> list[dict[str, Any]]:
+        rows = self._rows("SELECT transaction_id, product_id, CAST(transaction_date AS DATE), amount, currency, "
+                          "merchant_name "
+                          "FROM read_parquet(?) WHERE customer_id = ? AND product_type IN (?, ?) AND "
+                          "transaction_status IN (?, ?) AND CAST(transaction_date AS DATE) BETWEEN ? AND ? "
+                          "ORDER BY transaction_date DESC, transaction_id LIMIT ?",
+                          [self._files["transactions_enriched"], customer_id, *CARD_TYPES, *STATUSES, start, end,
+                           limit])
         return [{"transaction_id": tid, "product_id": pid, "date": date.isoformat(), "amount": float(amount),
                  "currency": currency, "merchant": merchant} for tid, pid, date, amount, currency, merchant in rows]
 
