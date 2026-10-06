@@ -103,7 +103,48 @@ export const CHAT_STRINGS = {
     respond: { es: "Escribir la respuesta", pt: "Escrever a resposta" },
     END: { es: "Turno terminado", pt: "Turno concluído" },
   } as Record<string, Bi>,
-  // Operator controls of the demo (English UI).
-  signOut: "Sign out",
+  signOut: { es: "Cerrar sesión", pt: "Sair" } as Bi,
+  // The demo tools beside the chat (right-hand panels): they follow the session's conversation language.
+  pickTitle: { es: "Elige un cargo para reclamar", pt: "Escolha uma cobrança para contestar" } as Bi,
+  pickDescription: {
+    es: "Tus cargos recientes con tarjeta. Un botón envía un mensaje que nombra el cargo; también puedes escribir.",
+    pt: "Suas cobranças recentes no cartão. Um botão envia uma mensagem que identifica a cobrança; você também pode digitar.",
+  } as Bi,
+  loadingCharges: { es: "Cargando tus cargos…", pt: "Carregando suas cobranças…" } as Bi,
+  cannotLoadCharges: { es: "No se pudieron cargar tus cargos", pt: "Não foi possível carregar suas cobranças" } as Bi,
+  noCharges: { es: "No hay cargos recientes.", pt: "Nenhuma cobrança recente." } as Bi,
+  testChargeTag: { es: "cargo de prueba", pt: "cobrança de teste" } as Bi,
+  testTitle: { es: "Registrar un cargo de prueba", pt: "Registrar uma cobrança de teste" } as Bi,
+  testDescription: {
+    es: "Monto en la moneda de tu cliente y el nombre de un comercio. Aparece primero en la lista de arriba.",
+    pt: "Valor na moeda do seu cliente e o nome de uma loja. Ela aparece primeiro na lista acima.",
+  } as Bi,
+  amountPlaceholder: { es: "Monto, p. ej. 1250.50", pt: "Valor, ex. 1250.50" } as Bi,
+  amountLabel: { es: "Monto del cargo de prueba", pt: "Valor da cobrança de teste" } as Bi,
+  merchantPlaceholder: { es: "Nombre del comercio", pt: "Nome da loja" } as Bi,
+  merchantLabel: { es: "Comercio del cargo de prueba", pt: "Loja da cobrança de teste" } as Bi,
+  register: { es: "Registrar", pt: "Registrar" } as Bi,
+  registered: {
+    es: (amount: string, currency: string, merchant: string) => `Cargo de prueba registrado: ${amount} ${currency} en ${merchant}.`,
+    pt: (amount: string, currency: string, merchant: string) => `Cobrança de teste registrada: ${amount} ${currency} em ${merchant}.`,
+  } as Bi<(amount: string, currency: string, merchant: string) => string>,
+  rateLimited: { es: "Un cargo de prueba por minuto (tres por sesión).", pt: "Uma cobrança de teste por minuto (três por sessão)." } as Bi,
+  notRegistered: { es: "No se registró", pt: "Não registrada" } as Bi,
+  unexpectedError: { es: "error inesperado", pt: "erro inesperado" } as Bi,
+  personasTitle: { es: "Prueba un tipo de cliente", pt: "Experimente um tipo de cliente" } as Bi,
+  personasDescription: {
+    es: "Sugiere un primer mensaje con la voz de ese personaje. Tú lo editas y lo envías.",
+    pt: "Sugere uma primeira mensagem com a voz desse personagem. Você edita e envia.",
+  } as Bi,
+  noSuggestion: { es: "Sin sugerencia", pt: "Sem sugestão" } as Bi,
+  personas: {
+    aggressive: { es: "Agresivo", pt: "Agressivo" },
+    passive: { es: "Pasivo", pt: "Passivo" },
+    terse: { es: "Escueto", pt: "Lacônico" },
+    verbose: { es: "Detallista", pt: "Prolixo" },
+    confused: { es: "Confundido", pt: "Confuso" },
+    code_switching: { es: "Mezcla ES/PT", pt: "Mistura ES/PT" },
+  } as Record<string, Bi>,
+  // Operator control of the demo (English UI).
   expire: "Expire session (demo)",
 } as const;
