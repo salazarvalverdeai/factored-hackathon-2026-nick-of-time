@@ -1,19 +1,10 @@
-import { formatDateTime } from "@/lib/handoff-labels";
-import type { ReactNode } from "react";
-import { cn } from "@/lib/utils";
+"use client";
 
-const LABEL: Record<string, string> = {
-  case_opened: "Case opened",
-  card_blocked: "Card blocked",
-  verification_started: "Verification started",
-  sent_to_review: "Sent to review",
-  credit_approved: "Credit approved",
-  case_closed: "Case closed",
-  call_requested: "Call requested",
-  customer_info_added: "Customer added information",
-  telegram_linked: "Telegram linked",
-  email_confirmed: "E-mail confirmed",
-};
+import type { ReactNode } from "react";
+import { useLocale } from "@/components/i18n-provider";
+import { formatDateTime } from "@/lib/handoff-labels";
+import { cn } from "@/lib/utils";
+import { ui } from "@/messages/ui";
 
 export interface TimelineEvent {
   id: string;
@@ -26,8 +17,11 @@ export interface TimelineEvent {
   meta?: string;
 }
 
-/** Vertical timeline of case events, oldest first. A case's status is its last event, so the last row is "now". */
+/** Vertical timeline of case events, oldest first. A case's status is its last event, so the last row is "now".
+ *  Event names and dates follow the UI language (spec 16 AC-06); 24 h clock. */
 export function Timeline({ events, className }: { events: TimelineEvent[]; className?: string }) {
+  const { locale } = useLocale();
+  const labels: Record<string, string> = ui[locale].timeline;
   return (
     <ol data-slot="timeline" className={cn("relative space-y-4 border-l pl-5", className)}>
       {events.map((e, i) => (
@@ -40,11 +34,11 @@ export function Timeline({ events, className }: { events: TimelineEvent[]; class
             )}
           />
           <div className="flex flex-wrap items-center gap-2 text-sm">
-            <span className="font-medium">{LABEL[e.type] ?? e.type.replaceAll("_", " ")}</span>
+            <span className="font-medium">{labels[e.type] ?? e.type.replaceAll("_", " ")}</span>
             {e.badge}
           </div>
           <p className="text-xs text-muted-foreground">
-            {formatDateTime(e.at)}
+            {formatDateTime(locale, e.at)}
             {e.meta ? ` · ${e.meta}` : ""}
           </p>
         </li>

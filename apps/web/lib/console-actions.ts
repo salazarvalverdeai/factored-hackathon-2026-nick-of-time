@@ -7,19 +7,19 @@ import type { CaseStatus } from "./types.ts";
 export type AnalystActionName = "take" | "approve_credit" | "resolve" | "close_case" | "reopen_case";
 
 export interface ConsoleAction {
+  /** Also its button's word: `console.actions.<action>` in the UI language (spec 16 AC-06). */
   action: AnalystActionName;
-  label: string;
   /** The api requires a reason for every action except `take` and `approve_*` (spec 05 AC-10). */
   needsReason: boolean;
   /** An approval: in supervised mode it asks for a second click. */
   approval?: boolean;
 }
 
-const TAKE: ConsoleAction = { action: "take", label: "Take the case", needsReason: false };
-const APPROVE: ConsoleAction = { action: "approve_credit", label: "Approve credit", needsReason: false, approval: true };
-const RESOLVE: ConsoleAction = { action: "resolve", label: "Resolve", needsReason: true };
-const CLOSE: ConsoleAction = { action: "close_case", label: "Close case", needsReason: true };
-const REOPEN: ConsoleAction = { action: "reopen_case", label: "Reopen for review", needsReason: true };
+const TAKE: ConsoleAction = { action: "take", needsReason: false };
+const APPROVE: ConsoleAction = { action: "approve_credit", needsReason: false, approval: true };
+const RESOLVE: ConsoleAction = { action: "resolve", needsReason: true };
+const CLOSE: ConsoleAction = { action: "close_case", needsReason: true };
+const REOPEN: ConsoleAction = { action: "reopen_case", needsReason: true };
 
 /**
  * Mock: the two-button flow of the first console (approving a credit resolves the case, then a person closes it).

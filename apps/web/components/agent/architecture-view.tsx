@@ -6,7 +6,8 @@ import { useEffect, useId, useRef, useState, type KeyboardEvent } from "react";
 import { Button } from "@/components/ui/button";
 import { ARCH_VIEW, flowsOf, nameOf, type ArchFlow, type FlowKind } from "@/lib/agent-architecture";
 import { pointAt } from "@/lib/agent-motion";
-import { AGENT_UI, fill } from "@/lib/agent-strings";
+import { useT } from "@/components/i18n-provider";
+import type { MessageKey } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import { FlowDot } from "./motion";
 
@@ -34,11 +35,11 @@ const DASH: Partial<Record<FlowKind, string>> = { llm: "4 3", deploy: "2 3" };
 const KINDS = Object.keys(STROKE) as FlowKind[];
 const FADE = "transition-[opacity,stroke-width] duration-200 ease-out motion-reduce:transition-none";
 const DWELL_MS = 1800;
-const T = AGENT_UI.arch;
 const { width: W, height: H, services, flows, ec2 } = ARCH_VIEW;
 const flowKey = (f: ArchFlow) => `${f.from}->${f.to}`;
 
 export function ArchitectureView({ className }: { className?: string }) {
+  const t = useT();
   const uid = useId().replace(/:/g, "");
   const frame = useRef<HTMLDivElement>(null);
   const reduced = useReducedMotion() ?? false;
@@ -114,18 +115,18 @@ export function ArchitectureView({ className }: { className?: string }) {
         <div className="flex flex-wrap items-center justify-between gap-2">
           <Legend />
           <div className="flex items-center gap-1.5">
-            <Button type="button" variant="outline" size="icon-sm" onClick={() => go(step === null ? flows.length - 1 : Math.max(0, step - 1))} aria-label={T.previous}>
+            <Button type="button" variant="outline" size="icon-sm" onClick={() => go(step === null ? flows.length - 1 : Math.max(0, step - 1))} aria-label={t("agent.ui.arch.previous")}>
               <ChevronLeft aria-hidden="true" />
             </Button>
             <span className="w-24 text-center text-xs tabular-nums text-muted-foreground" aria-live={playing ? "off" : "polite"}>
-              {step === null ? T.overview : fill(T.step, { n: step + 1, total: flows.length })}
+              {step === null ? t("agent.ui.arch.overview") : t("agent.ui.arch.step", { n: step + 1, total: flows.length })}
             </span>
-            <Button type="button" variant="outline" size="icon-sm" onClick={() => go(step === null ? 0 : Math.min(flows.length - 1, step + 1))} aria-label={T.next}>
+            <Button type="button" variant="outline" size="icon-sm" onClick={() => go(step === null ? 0 : Math.min(flows.length - 1, step + 1))} aria-label={t("agent.ui.arch.next")}>
               <ChevronRight aria-hidden="true" />
             </Button>
             <Button type="button" variant="outline" size="sm" onClick={toggle} aria-pressed={playing} className="w-32">
               {playing ? <Pause aria-hidden="true" /> : <Play aria-hidden="true" />}
-              {playing ? T.pause : T.play}
+              {playing ? t("agent.ui.arch.pause") : t("agent.ui.arch.play")}
             </Button>
           </div>
         </div>
@@ -140,7 +141,7 @@ export function ArchitectureView({ className }: { className?: string }) {
             style={{ maxWidth: 680 }}
             data-step={step ?? undefined}
           >
-            <title id={`${uid}-title`}>{fill(T.title, { services: services.length, flows: flows.length })}</title>
+            <title id={`${uid}-title`}>{t("agent.ui.arch.title", { services: services.length, flows: flows.length })}</title>
             <defs>
               {KINDS.map((kind) => (
                 <marker key={kind} id={`${uid}-${kind}`} viewBox="0 0 8 8" refX="7" refY="4" markerUnits="userSpaceOnUse" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
@@ -263,15 +264,16 @@ export function ArchitectureView({ className }: { className?: string }) {
 }
 
 function Legend() {
+  const t = useT();
   const kinds = KINDS.filter((k) => k !== "llm");
   return (
-    <ul aria-label={T.legendLabel} className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+    <ul aria-label={t("agent.ui.arch.legendLabel")} className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
       {[...kinds.slice(0, 2), "llm" as const, ...kinds.slice(2)].map((kind) => (
         <li key={kind} className="flex items-center gap-1.5">
           <svg aria-hidden="true" width="16" height="4" className="overflow-visible">
             <line x1="0" y1="2" x2="16" y2="2" strokeWidth={2} strokeDasharray={DASH[kind]} className={STROKE[kind]} />
           </svg>
-          {T.kinds[kind]}
+          {t(`agent.ui.arch.kinds.${kind}` as MessageKey)}
         </li>
       ))}
     </ul>
@@ -279,9 +281,10 @@ function Legend() {
 }
 
 function Steps({ current, onPick }: { current: number | null; onPick: (i: number) => void }) {
+  const t = useT();
   return (
     <details className="group mt-3 text-xs">
-      <summary className="cursor-pointer text-muted-foreground hover:text-foreground">{T.stepsTitle}</summary>
+      <summary className="cursor-pointer text-muted-foreground hover:text-foreground">{t("agent.ui.arch.stepsTitle")}</summary>
       <ol className="mt-2 grid gap-1 sm:grid-cols-2">
         {flows.map((f, i) => (
           <li key={flowKey(f)}>
@@ -305,13 +308,14 @@ function Steps({ current, onPick }: { current: number | null; onPick: (i: number
 }
 
 function Panel({ focus, step, quiet }: { focus: string | null; step: number | null; quiet: boolean }) {
+  const t = useT();
   const service = focus ? services.find((s) => s.id === focus) : null;
   const flow = step === null ? null : flows[step];
   const links = service ? flowsOf(service.id) : null;
   return (
     <aside
       aria-live={quiet ? "off" : "polite"}
-      aria-label={T.panelLabel}
+      aria-label={t("agent.ui.arch.panelLabel")}
       className="min-h-[9.5rem] self-start rounded-md border bg-card/95 p-3 text-sm xl:sticky xl:top-20"
     >
       {service && links ? (
@@ -321,20 +325,20 @@ function Panel({ focus, step, quiet }: { focus: string | null; step: number | nu
           <p className="mt-2 text-muted-foreground">{service.role}</p>
           {links.out.length ? (
             <p className="mt-3 text-xs text-muted-foreground">
-              {T.sends}{" "}
+              {t("agent.ui.arch.sends")}{" "}
               <span className="text-foreground">{links.out.map((f) => `${f.label} → ${nameOf(f.to)}`).join(" · ")}</span>
             </p>
           ) : null}
           {links.in.length ? (
             <p className="mt-1 text-xs text-muted-foreground">
-              {T.receives}{" "}
+              {t("agent.ui.arch.receives")}{" "}
               <span className="text-foreground">{links.in.map((f) => `${f.label} ← ${nameOf(f.from)}`).join(" · ")}</span>
             </p>
           ) : null}
         </>
       ) : flow && step !== null ? (
         <>
-          <p className="text-xs tabular-nums text-muted-foreground">{fill(T.step, { n: step + 1, total: flows.length })}</p>
+          <p className="text-xs tabular-nums text-muted-foreground">{t("agent.ui.arch.step", { n: step + 1, total: flows.length })}</p>
           <p className="mt-1 font-semibold">
             {nameOf(flow.from)} → {nameOf(flow.to)}
           </p>
@@ -342,7 +346,7 @@ function Panel({ focus, step, quiet }: { focus: string | null; step: number | nu
           <p className="mt-2 text-muted-foreground">{flow.text}</p>
         </>
       ) : (
-        <p className="text-xs text-muted-foreground">{T.panelHint}</p>
+        <p className="text-xs text-muted-foreground">{t("agent.ui.arch.panelHint")}</p>
       )}
     </aside>
   );

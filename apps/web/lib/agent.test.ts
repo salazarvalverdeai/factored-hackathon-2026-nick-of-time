@@ -5,7 +5,7 @@ import test from "node:test";
 import { parse } from "yaml";
 import { extract, render } from "../scripts/sync-agent.mjs";
 import { AGENT_REFERENCE } from "./agent-reference.ts";
-import { DIAGRAM, INVENTORY, NODE_INFO, codeSpans, nextOf, ruleHasMore, ruleSummary, rulesCiting, zoneRange } from "./agent.ts";
+import { DIAGRAM, INVENTORY, NODE_INFO, codeSpans, inventory, nextOf, nodeInfo, ruleHasMore, ruleSummary, rulesCiting, zoneRange } from "./agent.ts";
 
 const repo = (path: string) => readFileSync(new URL(`../../../${path}`, import.meta.url), "utf8");
 const POLICIES = parse(repo("contracts/policies.yaml"));
@@ -116,5 +116,23 @@ test("spec 04 AC-08: a rule is summarized by its first sentence, without decisio
 });
 
 test("spec 04 AC-08: the zones read as policies.yaml states them; a null score is the human zone", () => {
-  assert.deepEqual(policies.zones.map(zoneRange), ["≥ 50", "30–49", "< 30 or no score"]);
+  assert.deepEqual(policies.zones.map((zone) => zoneRange(zone)), ["≥ 50", "30–49", "< 30 or no score"]);
+  assert.deepEqual(policies.zones.map((zone) => zoneRange(zone, "es")), ["≥ 50", "30–49", "< 30 o sin puntaje"]);
+  assert.deepEqual(policies.zones.map((zone) => zoneRange(zone, "pt")), ["≥ 50", "30–49", "< 30 ou sem score"]);
+});
+
+test("spec 04 AC-08, spec 16 AC-06: every node and inventory row is described in each UI language; versions and sources do not change", () => {
+  for (const locale of ["es", "pt", "en"] as const) {
+    const info = nodeInfo(locale);
+    assert.deepEqual(Object.keys(info).sort(), [...graph.nodes].sort(), locale);
+    for (const node of graph.nodes) assert.ok(info[node].length > 0, `${locale} ${node}`);
+    const rows = inventory(locale);
+    assert.deepEqual(
+      rows.map((r) => [r.version, r.decides, r.source]).slice(0, -2),
+      INVENTORY.map((r) => [r.version, r.decides, r.source]).slice(0, -2),
+      locale,
+    );
+    for (const row of rows) assert.ok(row.engine && row.kind && row.role, `${locale} ${row.source}`);
+  }
+  assert.match(inventory("es")[0].role, /por defecto deny/);
 });
