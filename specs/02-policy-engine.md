@@ -2,13 +2,13 @@
 
 - **Feature:** pure, deterministic code that turns `contracts/policies.yaml` into decisions — zone, decision, approval
   mode per action, allowed queue transitions and legal deadlines — with the rule ids that justify each one.
-- **Status:** In progress (T1, T2, T4 and T5 done; gate 1 closed; Q7 closed by ADR 0020 on 2026-10-04; adds
-  `clock.today(mode)`, display currency and the re-evaluation window)
+- **Status:** Implemented (P1 deferred) (2026-10-06; T1–T6 done; AC-17 and AC-18 deferred as [P1], PE and CL clock
+  entries open, see §12)
 - **Owner:** @salazarvalverdeai · **Priority:** P0 · **Size:** M
 - **Challenge dimension:** Technical Judgment (deterministic logic where AI is not appropriate)
 - **Depends on:** `contracts/policies.yaml` · **Enables:** 03 (tools re-check permissions), 04 (decide node), 05 (queue
   transitions, supervised mode) · **ADRs:** 0005, 0006, 0019, 0020 (supersedes 0012), 0023 (amends 0019 and
-  0020), 0024
+  0020), 0024 · **PRs:** #22 (spec), #63, #67, #80, #191 (T6)
 - **Issue:** #4
 
 > Full profile: money and compliance decisions. The engine never calls a network, a database or an LLM.
@@ -65,11 +65,17 @@ AC-01 to AC-06 come from issue #4 with the same numbers; AC-07 onward are added 
   money actions (`block_card`, `unblock_card`, `provisional_credit`). · [T]
 - **AC-16** — The clock shall take "today" only from `clock.today(mode, country)`: `DEMO_TODAY` in `replay`, the real
   date in the country's time zone in `live`; no function reads the system clock elsewhere. · [T]
-- **AC-17** — When a conversion is requested, `fx.convert()` shall use only a reference rate that has `source_url`,
+- **AC-17 [P1]** — When a conversion is requested, `fx.convert()` shall use only a reference rate that has `source_url`,
   `as_of` and `verified_on`; if none exists it shall return no converted amount, and the original amount is shown
   alone. Deadlines and zones never depend on a converted amount. · [T]
-- **AC-18** — If a customer asks to re-evaluate a case resolved more than `reevaluation.window_days` ago in their
+  Deferred to P1 (2026-10-06): no `fx.convert()` and no `fx_reference` values exist in `nick_of_time.policy`; today
+  `convert_amount` answers no converted amount without a verified, labeled rate (spec 03 AC-20,
+  `tests/test_spec03_reads.py`), so the original amount is shown alone.
+- **AC-18 [P1]** — If a customer asks to re-evaluate a case resolved more than `reevaluation.window_days` ago in their
   country, then the engine shall deny it with `POL-REEVAL-WINDOW` and the agent offers a call instead. · [T]
+  Deferred to P1 (2026-10-06): the window is enforced by the `request_reevaluation` tool (spec 03 AC-19,
+  `tests/test_spec03_followups.py`), not by a `reevaluation_allowed()` in the engine; the agent's re-evaluation path is
+  spec 04 AC-24, also P1.
 - **AC-19** — When a call request reports a charge on one identified card transaction the customer did not reject, at
   intent confidence ≥ τ, the decision shall be `connect_person` with `open_case` only, no block in any zone and the
   call on the opened case; in the high zone the case shall wait in `review` with `person_requested`, unless the amount
@@ -399,6 +405,16 @@ Implementation goes in `feat/02-policy-engine` once this spec and spec 01 (packa
 
 **Closing checklist:** every AC has a passing test that cites it · status → Implemented · ADR if a question above
 changes a decision · lessons added to `CLAUDE.md`.
+
+T3 and T7 stay unticked on purpose: their remaining parts are the open items below.
+
+### Open items (closing review, 2026-10-06)
+Every non-P1 [T] criterion has a citing test (`python scripts/ci/ac_coverage.py`, run on `main` at `a2fa15e`).
+- **PE and CL clock entries (T3).** `regulatory_clock` in `contracts/policies.yaml` has no PE or CL entry, so a case
+  there opens with `POL-CLOCK-UNKNOWN` and no promised date (AC-14 behavior, tested). Adding them needs the official
+  sources of ADR 0019.
+- **`fx.convert()` and `fx_reference` (T7, AC-17 [P1]).** Not built; see AC-17.
+- **`reevaluation_allowed()` in the engine (T7, AC-18 [P1]).** The rule lives in the MCP tool today; see AC-18.
 
 ## 11. Sources
 External sources checked on 2026-10-04; the clock's legal sources are in the table of §4.3 (with the MX and AR

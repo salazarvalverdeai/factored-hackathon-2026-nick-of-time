@@ -2,12 +2,13 @@
 
 - **Feature:** the contract the three of us build against — folders, REST API, MCP tools, graph I/O, Postgres schema,
   customer receipt, evaluation hooks — plus stubs so nobody waits for anybody.
-- **Status:** Draft (contract 1.9.0, updated 2026-10-05: a demo visitor's own channels, ADR 0026 amended; 1.8.0 live stream events §6.4.1, ADR 0030; 16 customer tools, two time modes, action states, delivery
-  status, the store's §6.5 rules, the lead's 2026-10-05 follow-ups)
+- **Status:** In progress (contract 1.9.0, built and in production; the AC coverage gate still lists AC-08, AC-10 and
+  AC-11 as missing because their tests live in other specs' files, see §10 open items; 2026-10-06) · history: 1.9.0
+  updated 2026-10-05 (a demo visitor's own channels, ADR 0026 amended), 1.8.0 live stream events §6.4.1 (ADR 0030)
 - **Owner:** @salazarvalverdeai · **Priority:** P0 · **Size:** M
 - **Challenge dimension:** AI Engineering, Technical Judgment
 - **Depends on:** framework (#2) · **Enables:** 03, 05, 07, 08, 10, 13, 16 · **ADRs:** 0005, 0007, 0008, 0010, 0013, 0017, 0019,
-  0020
+  0020, 0026, 0030 · **PRs:** #21 (spec), #56, #58, #61, #78, #82, #107, #111, #117, #129, #149, #151, #198, #201, #203, #241
 - **Issue:** #3 · **Approval:** all three (@salazarvalverdeai, @gianzk, @vldiego)
 
 > Full profile: this spec *is* the contract. Contract version **1.9.0** (1.0.0 was the first review draft; 1.1.0 adds
@@ -652,6 +653,21 @@ Implementation goes in one `feat/01-*` branch per task (for example `feat/01-pac
 
 **Closing checklist:** every AC has a passing test or check · status → Implemented · contract version recorded in
 `/api/health` · lessons added to `CLAUDE.md`.
+
+### Open items (closing review, 2026-10-06)
+`python scripts/ci/ac_coverage.py` on `main` at `a2fa15e` reads only `tests/test_spec01_*.py` for this spec, so it
+lists three criteria as missing although tests exist elsewhere. The status stays In progress until the lead picks one
+fix (a citing test in a spec 01 file, or a gate that counts an explicit "spec 01 AC-NN" citation in another spec's file).
+- **AC-08** — `demo_transactions` rows flagged `synthetic: true` in a live session: tested in
+  `tests/test_spec05_synthetic_charge.py` (`test_ac_14_the_charge_is_found_and_scored_as_synthetic_by_its_run_only`);
+  the replay-only eval seed in `tests/test_spec10_local_stack.py` (`test_ac_06_the_seed_writes_a_replay_session_…`).
+  T4's note that AC-08 is P1 (D-001) is out of date: it landed with demo type C (#160).
+- **AC-10** — the block-release rule of the LLM writer: tested in `tests/test_spec04_writer.py`
+  (`test_spec01_ac_10_*`, `test_ac_37_spec01_ac_10_*`).
+- **AC-11** — the writer read only from the server-side setting: tested in `tests/test_spec05_stream_tool_text.py`
+  (`test_ac_11_*`, module docstring "Spec 01 … AC-11").
+- **Contract version on the public URL.** `/api/health` answered `contract_version: "1.8.0"` at `git_sha` `076a479` on
+  2026-10-06; 1.9.0 (#241) reaches it with the next deploy.
 
 ## 11. Sources
 External sources checked on 2026-10-04.

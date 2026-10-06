@@ -1,12 +1,14 @@
 # Spec 06 — Deploy + CI
 
 - **Feature:** a merge to `main` reaches the public URL by itself, with no AWS keys in GitHub.
-- **Status:** Draft
+- **Status:** In progress (2026-10-06; live: merges to `main` deploy after CI passes, 33 successful deploy runs `[data]`; the
+  rollback drill and the first S3 backup are not evidenced yet, see §10 open items)
 - **Owner:** @gianzk · **Priority:** P0 · **Size:** M
 - **Challenge dimension:** Technical Judgment
 - **Depends on:** framework PR (#2), OIDC role `nickoftime-gha-deploy`, Actions secrets (loaded by the lead)
 - **Enables:** every spec that must run on the public URL (05, 07, 08, 13, 16)
 - **ADRs:** [0010](../docs/adr/0010-postgres-for-case-state-and-audit.md), [0011](../docs/adr/0011-single-ec2-compose-oidc-ssm-deploy.md)
+- **PRs:** #40 (spec), #115, #119, #129, #136, #137, #140, #170, #182, #188
 - **Issue:** #8
 
 > **Profile.** Full minus sections 2 and 7: the deploy path is delicate (production, rollback, secrets) but has no
@@ -113,16 +115,33 @@ Only the health route; the rest of `/api` belongs to spec 05.
 - The real API and MCP servers (specs 05 and 03).
 
 ## 10. Plan, tasks and verification
-- [ ] T1 — `infra/compose.yml` and `infra/caddy/Caddyfile` · covers FR-05, FR-06, AC-04, AC-05 · done when: `docker compose config`
+- [x] T1 — `infra/compose.yml` and `infra/caddy/Caddyfile` · covers FR-05, FR-06, AC-04, AC-05 · done when: `docker compose config`
   passes and the static test finds the five services, the volume and both hosts
-- [ ] T2 — web and api placeholder images, health payload · covers FR-08, AC-06 · done when: the health test passes
-- [ ] T3 — `infra/deploy.sh` with pull-first, migration hook, health check and rollback · covers FR-04, AC-02, AC-07 ·
+- [x] T2 — web and api placeholder images, health payload · covers FR-08, AC-06 · done when: the health test passes
+- [x] T3 — `infra/deploy.sh` with pull-first, migration hook, health check and rollback · covers FR-04, AC-02, AC-07 ·
   done when: the static test finds the rollback path and `bash -n` passes
-- [ ] T4 — `infra/backup.sh` and its cron entry · covers FR-07, AC-04 · done when: `bash -n` passes; first dump seen in S3 `[C]`
-- [ ] T5 — `.github/workflows/deploy.yml` (build → OIDC → SSM) · covers FR-01..FR-03, AC-01, AC-03 · done when: no AWS key
+- [x] T4 — `infra/backup.sh` and its cron entry · covers FR-07, AC-04 · done when: `bash -n` passes; first dump seen in S3 `[C]`
+- [x] T5 — `.github/workflows/deploy.yml` (build → OIDC → SSM) · covers FR-01..FR-03, AC-01, AC-03 · done when: no AWS key
   names in workflows (test) and the first merge shows the new SHA at `/api/health` `[C]`
 - [ ] T6 — first real run on the public URL, TLS check, rollback drill · covers AC-01, AC-02, AC-05, AC-07 · done when: the
   outputs are pasted in the PR
 
 **Closing checklist** (last PR): every AC has a passing test or check that cites it · status → Implemented · ADR for any
 decision taken · lessons added to `CLAUDE.md`.
+
+### Open items (closing review, 2026-10-06)
+T1–T5 are ticked from `main`: `infra/compose.yml`, `infra/caddy/`, `infra/deploy.sh` (pull first, migration, health
+wait, restore of the last good version), `infra/backup.sh` with its cron entry, and `.github/workflows/deploy.yml`
+(OIDC role, SSM, run only after CI passes on `main`, #136). The offline checks are `tests/test_spec06_deploy.py` (AC-06
+has a citing test). Evidence on the public URL, 2026-10-06 `[data]`:
+- `GET https://nickoftime.salazarvalverdeai.com/api/health` answered `status: ok`, `git_sha` `076a479…` (#230),
+  `gold_version: v1`, `policies_version: 2`, `platform_revision: null`; the MCP host answered `/health` over TLS (AC-05,
+  AC-06).
+- `gh run list --workflow deploy.yml --limit 100`: 33 `success`, 2 `cancelled`, 64 `skipped` (the run is skipped when CI
+  did not pass on that commit `[assumption]`), so AC-01 holds on the merges that reached it.
+
+Still open (T6 and two `[C]` checks):
+- **Rollback drill (AC-02, AC-07).** The restore path exists in `infra/deploy.sh`; no drill output is recorded.
+- **First backup in S3 (AC-04).** The cron entry is installed by `deploy.sh`; no dump listing is recorded.
+- **Platform revision.** `platform_revision` stays `null` until the deploy knows the LangGraph Platform revision
+  (CONTRIBUTING §7).

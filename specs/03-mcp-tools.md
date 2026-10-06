@@ -3,11 +3,13 @@
 - **Feature:** a FastMCP server that gives the agent exactly sixteen tools over the gold data and Postgres — to find the
   charge, act on it, verify it, follow up on the case, and talk in the customer's currency — each scoped to the
   session's customer, idempotent where it writes, and re-checking the policies before acting.
-- **Status:** Draft (tool contract v1.1, updated 2026-10-04: Q4 decided — 9 new or enriched tools, case lifecycle, modes)
+- **Status:** Implemented (2026-10-06; tool contract v1.1, every [T] criterion has a citing test; live at
+  `mcp.nickoftime.salazarvalverdeai.com` with 16 handlers on Postgres, see §10 open items)
 - **Owner:** @salazarvalverdeai · **Priority:** P0 · **Size:** M
 - **Challenge dimension:** AI Engineering (tools used safely; permissions in the service layer)
 - **Depends on:** spec 01 (contract §6.3, store, ids), spec 02 (engine, clock, fx) · **Enables:** 04 · **ADRs:** 0005,
-  0006, 0008, 0010, 0016, 0019, 0020
+  0006, 0008, 0010, 0016, 0019, 0020, 0023, 0024, 0026 · **PRs:** #23 (spec), #59, #81, #106, #120, #122, #123, #124,
+  #149, #160, #162, #174
 - **Issue:** #5
 
 > Minimal profile plus §7 and §8, because the search rules decide which transaction the customer disputes and the
@@ -291,7 +293,7 @@ Implementation goes in one `feat/03-*` branch per task (T1: `feat/03-mcp-server`
       `summary_sends` backs the gate's 3-per-hour limit per session; an unconfirmed channel or the store limit is
       `DENY POL-DEFAULT-DENY`; a `list_my_notifications` read with another tool's or another customer's `action_id`
       is a plain read: it lists only the session customer's notifications, with `read_at` and no `action_id` or `V-`.
-- [ ] T8 — entry point, Dockerfile and compose service `mcp` · AC-02, AC-06, AC-12 · `apps/mcp/mcp_server/__main__.py`,
+- [x] T8 — entry point, Dockerfile and compose service `mcp` · AC-02, AC-06, AC-12 · `apps/mcp/mcp_server/__main__.py`,
       `apps/mcp/Dockerfile`, `tests/test_spec03_entrypoint.py`. Done (task 03d2): `python -m mcp_server` reads
       `MCP_API_KEY` (deploy writes it from SSM `/nickoftime/prod/MCP_API_KEY`; under 32 characters the server refuses
       to start, and the key is never logged), `DATABASE_URL` → `PostgresStore` (the in-memory store only with
@@ -309,6 +311,15 @@ Implementation goes in one `feat/03-*` branch per task (T1: `feat/03-mcp-server`
       (today `<name> (spec 03 §6)`), set from what spec 04 binds for the agent (owner: spec 04 / T8)
 
 **Closing checklist:** every AC has a passing test or check that cites it · status → Implemented · lessons to `CLAUDE.md`.
+
+### Open items (closing review, 2026-10-06)
+Every [T] criterion outside P1 has a citing test (`python scripts/ci/ac_coverage.py` on `main` at `a2fa15e`). The
+production MCP `/health` answered on 2026-10-06 with 16 tools, 16 handlers, store `postgres`, gold `v1`, policies 2 and
+no absent module `[data]`.
+- **`tools/list` descriptions.** Each tool is still described as `<name> (spec 03 §6)`
+  (`apps/mcp/mcp_server/server.py`); the graph's nodes call the tools by name, so no model reads these descriptions `[assumption]`; they matter to a
+  third-party MCP client.
+
 
 ## 11. Sources
 - Internal: `contracts/tools.py` (models), `contracts/policies.yaml` (`actors.customer.tools`, `case_queue.transitions`,

@@ -1,7 +1,7 @@
 # 0027. Model selection per LLM task (understand, word, judge)
 
-- **Status:** Proposed. This is a draft. Every number below comes from a **development run on validation, not the
-  pre-registered test result**. The lead fills the decision from `make bench` after the seal (M02).
+- **Status:** Accepted (2026-10-06, after the sealed `make bench` run on the test split; see "Result on the sealed test
+  split"). The development numbers further down are kept as the record of how the prompt was fixed; they decide nothing.
 - **Date:** 2026-10-05
 - **Deciders:** Freddy (lead) · **Owner:** @salazarvalverdeai · **Reviewer:** none yet (Diego could not continue,
   as the seal block of `eval/PROTOCOL.md` records)
@@ -28,20 +28,21 @@
   carries `test_review: rules-v1` and the PROTOCOL §1.1 label "test split decided by fixed rules, without independent
   human review", in `benchmark.json`, `bench_b1.md` and `bench_b1.csv`.
 
-## Decision (draft)
+## Decision
 The model map is the output of `make bench` on the sealed test split under PROTOCOL §2.3. This ADR records, for each
-task, three rows (best measured, cheapest that meets the bar, chosen) and the resulting map (spec 15 AC-07). Until the
-sealed run exists, the rows below come from the development run and decide nothing.
+task, three rows (best measured, cheapest that meets the bar, chosen) and the resulting map (spec 15 AC-07). The rows
+below are the sealed result of 2026-10-06 (details in "Result on the sealed test split").
 
 | Task | Best measured | Cheapest that meets the bar | Chosen |
 |---|---|---|---|
-| `understand` | `sonnet-4-6` | none | `b0_rules` (no LLM): no arm meets the hard limits `[assumption]`, see "How the code reads §2.3" |
+| `understand` | `sonnet-4-6` (accuracy 0.979) | none | `b0_rules` (no LLM): no arm meets the hard limits, so B0 stays under the D-077 reading below |
 | `word` | not run (AC-12 is P1) | — | `templates` |
 | `judge` | not run (joins in P2) | — | `haiku-4-5` (spec 15 §8, Q4) |
 
-### How the code reads §2.3 where it is silent `[assumption]`
-Lead decision D-077 is pending. `eval/bench/report.py` implements the recommended reading, set in one constant,
-`SELECTION_READING`, so it can be changed if the lead picks the other reading. Each output (`benchmark.json`
+### How the code reads §2.3 where it is silent (decided: D-077)
+The lead decided D-077 for the recommended reading. `eval/bench/report.py` implements it in one constant,
+`SELECTION_READING` (`among_passing`). The sealed outputs were written before the decision was recorded, so their labels
+still say "`[assumption]` D-077 pending"; the result files are sealed and are not rewritten. Each output (`benchmark.json`
 `model_map.understand.reading`, `bench_b1.md`) names the reading it used.
 - **Best arm of rule 2.** By default (`among_passing`), the best arm is the best among the arms that pass rule 1.
   This follows spec 11 §4: "among the rest". The alternative (`all_measured`) compares with the best of every
@@ -53,6 +54,35 @@ Lead decision D-077 is pending. `eval/bench/report.py` implements the recommende
 - **Rule 5.** The code applies it as the protocol words it: B0 stays when **no** LLM arm beats it with significance.
   It is not applied to the chosen arm alone.
 - **"Best".** The best arm is the one with the highest intent accuracy, the quantity that McNemar compares.
+
+## Result on the sealed test split
+One run of `make bench` under `protocol-v1`, started 2026-10-06T01:43:43Z (`eval/results/bench/bench.start.json`), on the
+236 test sentences (118 ES, 118 PT), 24 arms, 18 measured, spend 2.52 USD `[data]`. All quality figures are `[simulated]`:
+the sentences are model-written (ADR 0025) and the test split was decided by the fixed rules `rules-v1`, without
+independent human review (ADR 0028). Sources: `apps/web/public/data/benchmark.json` (`model_map`, `b1.arms`),
+`eval/results/bench_b1.md` and `bench_b1.csv`, `eval/results/bench_gate.csv`.
+
+| Arm | Accuracy [95% CI] | `human_request` recall | p95 ms | USD per 1k msgs | Rule 1 (hard limits) |
+|---|---|---|---|---|---|
+| `sonnet-4-6` | 0.979 [0.951, 0.991] | 45/47 | 1,369 | 5.15 | fails |
+| `mistral-large-3` | 0.975 [0.946, 0.988] | 45/47 | 1,368 | 0.31 | fails |
+| `deepseek-v3-2` | 0.966 [0.935, 0.983] | 45/47 | 9,684 | 0.69 | fails |
+| `haiku-4-5` | 0.924 [0.883, 0.951] | 43/47 | 1,631 | 1.84 | fails |
+| `b1_tfidf_lr` | 0.915 [0.873, 0.945] | 42/47 | 1.4 | 0 | fails |
+| `b0_rules` | 0.614 [0.551, 0.674] | 30/47 | 0.31 | 0 | fails |
+
+- **Every measured arm misses the Spanish `human_request` recall floor** (≥ 0.95 per language): the best is 21/23 =
+  0.913, so rule 1 removes every arm. Under D-077 the no-LLM option **B0 rules stays** for `understand`.
+- Best measured: Sonnet 4.6 (0.979). Mistral Large 3 is statistically tied with it (McNemar p = 1.0) at 0.31 USD per
+  1,000 messages, about 1/17 of Sonnet's cost; it would be the lean choice if the person-request floor were met.
+- No structured output (AC-11): Gemma 3 12B and 27B, Llama 3.3 70B, Nemotron Nano 3. Unavailable (AC-06): Sonnet 5.5
+  (not enabled on the account) and Jev (no key).
+- `word` and `judge` were not benchmarked (spec 15 AC-12 and spec 18 AC-12 are P1/P2): `word` stays on templates, with
+  the switchable LLM writer of ADR 0030 outside this rule; `judge` stays on Haiku 4.5.
+
+**Production note.** Demo sessions run arm S1 (`infra/deploy.sh` `DEFAULT_ARM=S1`): B0 first and Haiku 4.5 only below
+τ, a lead decision of 2026-10-05 taken before this result. This ADR's map selects B0 for `understand`; whether the demo
+keeps S1 is the lead's call, recorded in `docs/models.md`.
 
 ## Development run on validation, not the pre-registered test result
 Run of 2026-10-05: `make bench-dev` on Bedrock `us-east-2`, replay mode with `DEMO_TODAY` 2026-06-01. It used the 150
@@ -125,7 +155,7 @@ table above was measured with the prompt before this iteration; the orchestrator
   (5% of the fixed request, plus the omitted null slots in each reply) and is not expected, on its own, to bring Haiku
   4.5 under 1 USD per 1,000 messages. The validation re-run measures the real cost.
 
-## Open questions for the lead (after the seal, before `make bench`)
+## Questions the lead decided (after the seal, before `make bench`)
 The protocol was sealed on 2026-10-05 (tag `protocol-v1` → `7b18f72`). The sealed manifest covers the split files, so
 no label may change. Only the prompt or the schema may still change, validated on validation (PROTOCOL §2.1). Nothing
 may change once the test run has started.
@@ -141,7 +171,7 @@ may change once the test run has started.
   - **Do not act on this by relabeling.** `validation.jsonl` and `test.jsonl` are in the sealed manifest, so any label
     edit breaks the seal, and `make bench` would refuse.
   - Only the prompt wording may change, validated on validation before the test run.
-- **Q3: no arm meets the hard limits.** Handled by the reading above `[assumption]`; D-077 is pending.
+- **Q3: no arm meets the hard limits.** Decided as D-077: the reading above; B0 stays.
 - **Q4: Jev.** The local `.env` stops parsing at an unquoted value on line 40, so the Jev key was never loaded.
 
 ## Alternatives considered
@@ -157,5 +187,6 @@ may change once the test run has started.
   `make bench`. The split labels never change after the seal.
 
 ## Confidence
-Low until the sealed run exists. The development numbers are 150 sentences from one generator family. The sealed test
-run decides.
+Medium for the choice, low for the absolute numbers. B0 stays because every arm fails the same pre-registered floor on
+47 person requests (two misses in Spanish decide it); the sentences come from one generator family per split and the
+test split had no independent reviewer (ADR 0028), so the figures are `[simulated]` and indicative only.

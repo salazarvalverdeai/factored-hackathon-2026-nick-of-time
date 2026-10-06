@@ -3,11 +3,14 @@
 - **Feature:** the `dispute_intake` graph that takes a customer's message (ES/PT) to a verified outcome — block, case,
   deadline — tells the customer what it is doing while it does it, returns a verified receipt and a handoff card, and
   answers status questions by reading the system again.
-- **Status:** Draft — reviewed by the lead on 2026-10-04 (improvements #11–#16; suggestion chips added after the review)
+- **Status:** Implemented (P1 deferred) (2026-10-06; `dispute_intake` live on LangGraph Platform behind `/chat`;
+  AC-24 deferred as [P1], open items in §10)
 - **Owner:** @salazarvalverdeai · **Priority:** P0 · **Size:** L
 - **Challenge dimension:** AI Engineering, Technical Judgment
 - **Depends on:** 01 (graph I/O, arms, modes), 02 (engine, clock), 03 (tools v1.1), 11 (classifier; rules arm until it
-  lands), Bedrock · **Enables:** 07, 10, 15 · **ADRs:** 0005, 0008, 0009, 0013, 0016, 0019, 0020
+  lands), Bedrock · **Enables:** 07, 10, 15 · **ADRs:** 0005, 0008, 0009, 0013, 0016, 0019, 0020, 0024, 0027, 0030 ·
+  **PRs:** #25 (spec), #48, #53, #62, #88, #96, #109, #110, #133, #135, #138, #142, #156, #169, #184, #185, #191, #198,
+  #202, #207, #208, #220, #228, #233, #235
 - **Issue:** #6
 
 > Full profile: this is the core of the product and the place where AI and rules meet.
@@ -146,8 +149,10 @@ AC-01 to AC-08 come from issue #6 with the same numbers; the rest are added by t
 **Cases, money and modes (improvements #13 and #16)**
 - **AC-23** — If the customer disputes a transaction that already has an active case, the agent shall not open another
   one and shall say so with the existing case id and deadline. · [T]
-- **AC-24** — When the customer asks for re-evaluation, the agent shall use `request_reevaluation` and explain that a
+- **AC-24 [P1]** — When the customer asks for re-evaluation, the agent shall use `request_reevaluation` and explain that a
   person decides. · [T]
+  Deferred to P1 (D-001; confirmed 2026-10-06): the graph never calls `request_reevaluation` and offers no
+  re-evaluation chip; the tool itself works and is tested (spec 03 AC-19).
 - **AC-25** — Every amount shall be shown as the exact original amount, plus the customer's display currency as an
   approximation from `convert_amount`, with its rate source. · [T]
 - **AC-26** — When the customer asks for the receipt by e-mail or Telegram, the agent shall use `send_case_summary`
@@ -429,7 +434,7 @@ Case investigation, chargebacks, provisional credit (always a person), voice, mu
 messages.
 
 ## 10. Plan, tasks and verification
-- [ ] T1 — State and graph skeleton on the spec 01 echo graph; `langgraph dev` locally · AC-07, AC-27. Task 04a: state,
+- [x] T1 — State and graph skeleton on the spec 01 echo graph; `langgraph dev` locally · AC-07, AC-27. Task 04a: state,
       skeleton and AC-27 done in `apps/agent/agent/intake.py`, served as `dispute_intake` (D-048 applied once
       T3–T5 landed; the echo graph stays as `dispute_intake_echo`); `retrieve` landed in T3 and `status` in T6. Open: a
       `langgraph dev` run and AC-07 on Platform (T8)
@@ -483,7 +488,7 @@ messages.
       tests `tests/test_spec04_status.py`. AC-06 partial: `get_case` label, stored deadlines and next step done;
       recording new information with `add_case_info` (the "Agregar información" chip) is open. AC-24 (P1, D-001)
       is open, so no re-evaluation chip is offered yet
-- [ ] T7 — progress stream; S1/S2 wiring (Bedrock, structured output); usage; graceful degradation to S0 · AC-14, AC-17.
+- [x] T7 — progress stream; S1/S2 wiring (Bedrock, structured output); usage; graceful degradation to S0 · AC-14, AC-17.
       Task 04f did S1/S2 `understand` + usage + degradation (`nick_of_time.llm.steps`; tests
       `tests/test_spec04_arms.py`). AC-14 done: every run returns `usage` (one row per billed call; the api adds the
       session's `run_id`, D-023 `[assumption]`) and `denials`. `understand` asks the arm's LLM below τ
@@ -509,7 +514,7 @@ messages.
       is checked before calling too: the day's spend of every session (`configurable.llm_day_spent_usd`, the api's `llm_calls`
       sum, spec 05 AC-18) plus the call's estimate above `configurable.llm_day_cap_usd` (else env `DAILY_LLM_CAP_USD`,
       5 USD `[assumption]`) runs the step as S0 with `S1 -> S0: daily cap` and G-OPS-01
-- [ ] T7a — Shared LLM client `nick_of_time.llm` (`fake`, `bedrock`, `anthropic`) and `nick_of_time.config.resolve(arm)`:
+- [x] T7a — Shared LLM client `nick_of_time.llm` (`fake`, `bedrock`, `anthropic`) and `nick_of_time.config.resolve(arm)`:
       forced tool use with the tool → any → auto ladder (D-011), temperature 0 or provider default recorded per arm
       (D-016), usage, latency and cost from a price table, `ProviderUnavailable` for provider errors (graph degrades to
       S0, section 5), `NoStructuredOutput` when the accepted mode returns no or schema-invalid input (caller decides;
@@ -517,7 +522,7 @@ messages.
       `total_max_attempts`) and 15 s, 1 retry (Anthropic) `[assumption]`; Anthropic is
       an operator switch (`LLM_PROVIDER=anthropic`), not a runtime failover; a per-task arm config (spec 15 section
       4.2) is planned for spec 15 T6 · supports AC-14; tests `tests/test_spec04_llm.py` (lead decision D-003)
-- [ ] T8 — Platform deployment; `/agent` content · AC-07, AC-08
+- [x] T8 — Platform deployment; `/agent` content · AC-07, AC-08
 - [x] INT1 — the graph against the **real** MCP server, locally and offline · AC-01, AC-11, AC-12, AC-18, AC-28 (tests
       `tests/test_spec04_int_local.py`, harness `tests/local_mcp.py`). The harness builds the app `python -m mcp_server`
       serves (`mcp_server.__main__.build`: API-key middleware, gate, every tool module on main) over the entry point's
@@ -541,10 +546,27 @@ messages.
       change that needs the lead's approval. MSG2 added refuse.deny, clarify.ask_what and plan.declined
       (ES/PT) for the web mock (supports AC-03, AC-11). Task 04h added clarify.confirm_one, clarify.confirm_call,
       and suggest.confirm_charge (D-067, 0.7.0).
-- [ ] Tests `tests/test_spec04_*.py` with the `fake` LLM and the fake MCP; EV-0001 end to end in historical mode
+- [x] Tests `tests/test_spec04_*.py` with the `fake` LLM and the fake MCP; EV-0001 end to end in historical mode
 
 **Closing checklist:** every AC has a passing test or check · status → Implemented · ADR if a question changes a
 decision · lessons to `CLAUDE.md`.
+
+### Open items (closing review, 2026-10-06)
+Every non-P1 [T] criterion has a citing test (`python scripts/ci/ac_coverage.py` on `main` at `a2fa15e`). T1, T7, T7a,
+T8 and the test task are ticked from what `main` holds: the graph served as `dispute_intake` on Platform and drawn live
+beside `/chat` (#230), `nick_of_time.llm` with its tests (#53, `tests/test_spec04_llm.py`), the S1/S2 `understand`
+steps (#133), the progress stream (#156) and the writer of ADR 0030 (#202), and the `/agent` page (#191, #208, #220).
+T6 stays open for the two items below.
+- **AC-06, recording new information.** The "Agregar información" chip does not call `add_case_info` yet; the status
+  answer (label, stored deadlines, next step) is done.
+- **AC-24 [P1], re-evaluation.** Not wired in the graph; see AC-24.
+- **`langgraph dev` run.** T1 named a local `langgraph dev` check; the graph is exercised by the offline suites and by
+  Platform instead.
+- **Platform revision.** `/api/health` reports `platform_revision: null` (checked 2026-10-06), so the deployed graph
+  revision is not visible from the public URL; a new revision is created by hand on Platform.
+- **Benchmark versus production `understand` arm.** The sealed spec 15 run chose B0 rules for `understand` (ADR 0027),
+  while demo sessions run arm S1 (`infra/deploy.sh` `DEFAULT_ARM=S1`: B0 first, Haiku 4.5 below τ, lead decision of
+  2026-10-05). The lead decides whether S1 stays for the demo; see `docs/models.md`.
 
 ## 11. Sources
 External sources checked on 2026-10-04.
