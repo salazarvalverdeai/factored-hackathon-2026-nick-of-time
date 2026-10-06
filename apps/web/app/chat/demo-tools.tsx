@@ -2,7 +2,8 @@
 
 // What a live demo session adds around the conversation (spec 07 §8.6 to §8.8): the visitor's recent charges as chips,
 // the test-charge form (demo type C) and the six character chips (demo type D). None of it decides anything: a chip
-// sends text the visitor could type, a test charge is a labeled [simulated] row on the session's own run, and a persona
+// sends text the visitor could type, a test charge is a synthetic row on the session's own run (named "test charge" in
+// plain words, spec 07 AC-14), and a persona
 // answer is a draft in the composer, never sent on its own.
 import { useState } from "react";
 import { ErrorState, LoadingState } from "@/components/states";
@@ -95,7 +96,7 @@ function ChargeChips({
   );
 }
 
-/** Demo type C: a charge the visitor makes up, so the agent has something recent to dispute. Always labeled [simulated]. */
+/** Demo type C: a charge the visitor makes up, so the agent has something recent to dispute. Always called a test charge. */
 function TestCharge() {
   const [amount, setAmount] = useState("");
   const [merchant, setMerchant] = useState("");
@@ -114,7 +115,7 @@ function TestCharge() {
     setDone(null);
     try {
       const charge = await api.registerTestCharge(parsed, merchant.trim());
-      setDone(`Registered ${charge.amount.toFixed(2)} ${charge.currency} at ${charge.merchant} ${charge.label ?? "[simulated]"}`);
+      setDone(`Test charge registered: ${charge.amount.toFixed(2)} ${charge.currency} at ${charge.merchant}.`);
       setAmount("");
       setMerchant("");
     } catch (err) {
@@ -129,7 +130,7 @@ function TestCharge() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-sm">Register a test charge [simulated]</CardTitle>
+        <CardTitle className="text-sm">Register a test charge</CardTitle>
         <CardDescription>Amount in your customer&apos;s currency and a store name. It shows first in the list above.</CardDescription>
       </CardHeader>
       <CardContent>

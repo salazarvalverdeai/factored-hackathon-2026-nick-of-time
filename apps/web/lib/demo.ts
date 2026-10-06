@@ -71,9 +71,9 @@ export function chipMessage(tx: RecentTransaction, lang: Language, multipleCards
   return `Não reconheço a cobrança de ${tx.date} de ${amount} ${tx.currency}${merchant ? ` em ${merchant}` : ""}${card ? ` do cartão com final ${tx.last4}` : ""}.`;
 }
 
-/** The chip's visible label: short, with the `[simulated]` label on a test charge. */
+/** The chip's visible label: short; a test charge says so in plain words, never a bracket label (spec 07 AC-14). */
 export function chipLabel(tx: RecentTransaction): string {
-  return `${tx.date} · ${tx.amount.toFixed(2)} ${tx.currency}${tx.merchant ? ` · ${tx.merchant}` : ""}${tx.synthetic ? " [simulated]" : ""}`;
+  return `${tx.date} · ${tx.amount.toFixed(2)} ${tx.currency}${tx.merchant ? ` · ${tx.merchant}` : ""}${tx.synthetic ? " · test charge" : ""}`;
 }
 
 /** Does the customer have more than one card among these charges? */

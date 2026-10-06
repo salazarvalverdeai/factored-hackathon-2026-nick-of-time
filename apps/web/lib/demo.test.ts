@@ -31,9 +31,10 @@ test("spec 07 §8.6: several cards are detected from the charges", () => {
   assert.equal(hasSeveralCards([{ ...TX, last4: null }]), false);
 });
 
-test("spec 07 §8.7: a test charge's chip carries the [simulated] label", () => {
-  assert.match(chipLabel({ ...TX, synthetic: true }), /\[simulated\]$/);
-  assert.ok(!chipLabel(TX).includes("[simulated]"));
+test("spec 07 §8.7, AC-14: a test charge's chip says so in plain words, with no bracket label", () => {
+  assert.match(chipLabel({ ...TX, synthetic: true }), / · test charge$/);
+  assert.ok(!chipLabel({ ...TX, synthetic: true }).includes("["));
+  assert.ok(!chipLabel(TX).includes("test charge"));
   assert.equal(chipLabel({ ...TX, merchant: null }), "2026-10-04 · 4200.00 MXN");
 });
 
