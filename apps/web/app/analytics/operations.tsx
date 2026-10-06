@@ -54,12 +54,16 @@ function Switch({ value, onChange }: { value: Position; onChange: (p: Position) 
 
 const LINK = `whitespace-nowrap text-primary underline-offset-4 hover:underline ${FOCUS}`;
 
-function MetricChart({ chart, color, other }: { chart: Chart; color: string; other: { text: string; label: string } | null }) {
+function MetricChart({ chart, color, other, tag }: {
+  chart: Chart; color: string; other: { text: string; label: string } | null; tag: string;
+}) {
   const { bind, node } = useTip();
   const months = `${chart.points.length} months`;
+  const context = chart.metric.role === "context";
   return (
-    <figure className="min-w-0 rounded-lg border bg-card p-5 text-card-foreground">
-      <h3 className="text-base font-semibold">{chart.title}</h3>
+    <figure className={`min-w-0 rounded-lg border p-5 text-card-foreground ${context ? "border-dashed bg-card/60" : "bg-card"}`}>
+      <p className="text-[11px] font-medium tracking-wide text-muted-foreground uppercase">{tag}</p>
+      <h3 className="mt-1 text-base font-semibold">{chart.title}</h3>
       <p className="mt-2 flex flex-wrap items-baseline gap-x-2">
         <span className="text-3xl font-semibold tracking-tight tabular-nums">{fmt(chart, chart.total.value)}</span>
         <span className="font-mono text-xs text-muted-foreground">{chart.label}</span>
@@ -96,18 +100,16 @@ function MetricChart({ chart, color, other }: { chart: Chart; color: string; oth
           Detail →
         </a>
       </p>
-      {chart.secondary ? (
-        <div className="mt-3 rounded-md border border-dashed px-3 py-2 text-xs text-muted-foreground">
+      {chart.secondary.map((extra) => (
+        <div key={extra.title} className="mt-3 rounded-md border border-dashed px-3 py-2 text-xs text-muted-foreground">
           <p>
-            <span className="text-foreground">{chart.secondary.title}: </span>
-            <span className="font-semibold text-foreground tabular-nums">
-              {chart.secondary.point.detail[1][1]} of {chart.secondary.point.detail[2][1]}
-            </span>{" "}
+            <span className="text-foreground">{extra.title}: </span>
+            <span className="font-semibold text-foreground tabular-nums">{extra.value}</span>{" "}
             <span className="font-mono">{chart.label}</span>
           </p>
-          <p className="mt-1">{chart.secondary.note}</p>
+          <p className="mt-1">{extra.note}</p>
         </div>
-      ) : null}
+      ))}
       <TableView head={["Month", ...chart.total.detail.map(([k]) => k)]} rows={tableRows(chart)} />
       {node}
     </figure>
@@ -137,8 +139,9 @@ export function Operations({ file }: { file: { data?: { series?: OpsSeries } } |
         <p>
           The two headline figures measure different things. The bank&apos;s first contact resolution means the complaint
           was resolved in the first call. Ours means complete intake: a case on the right charge, its legal deadline and
-          the evidence handed to a person, who then decides. The simulation does not model the final resolution time,
-          which a person decides, and the customer names the charge exactly, so real customers will do less well.
+          the evidence handed to a person, who then decides. Ours is an upper bound, because the message names the charge
+          exactly as the statement shows it, while real customers misremember amounts and dates. The simulation does not
+          model the final resolution time, which a person decides.
         </p>
         <p>
           The window starts in January 2026 because the repository has verified bank holiday calendars for 2026 only;
@@ -166,14 +169,30 @@ export function Operations({ file }: { file: { data?: { series?: OpsSeries } } |
           <p className="mt-3 font-mono text-xs break-words text-muted-foreground">
             {state.series.source} · {state.series.window.join(" to ")}
           </p>
-          <div className="mt-4 grid gap-4 md:grid-cols-2">
-            {state.charts.map((chart) => {
+          <h3 className="mt-5 text-sm font-semibold">Compared with the other series</h3>
+          <p className="mt-0.5 max-w-3xl text-sm text-muted-foreground">
+            Only these two figures are set side by side, each with its own definition.
+          </p>
+          <div className="mt-3 grid gap-4 md:grid-cols-2">
+            {state.charts.filter((c) => c.metric.role === "comparison").map((chart) => {
               const match = twin.kind === "ready" ? twin.charts.find((c) => c.metric.id === chart.metric.id) : undefined;
               const other = match && twin.kind === "ready"
                 ? { text: `${twin.series.name}, ${match.title.toLowerCase()} ${fmt(match, match.total.value)}`, label: match.label }
                 : null;
-              return <MetricChart key={chart.metric.id} chart={chart} color={COLOR[position]} other={other} />;
+              const tag = twin.kind === "ready" ? `Compared with: ${twin.series.name}` : "Comparison";
+              return <MetricChart key={chart.metric.id} chart={chart} color={COLOR[position]} other={other} tag={tag} />;
             })}
+          </div>
+          <h3 className="mt-8 text-sm font-semibold">Context for {state.series.name} only</h3>
+          <p className="mt-0.5 max-w-3xl text-sm text-muted-foreground">
+            These figures are defined differently in each series, so they are never compared: read each one with its own
+            definition.
+          </p>
+          <div className="mt-3 grid gap-4 md:grid-cols-2">
+            {state.charts.filter((c) => c.metric.role === "context").map((chart) => (
+              <MetricChart key={chart.metric.id} chart={chart} color={COLOR[position]} other={null}
+                           tag={`Context · ${state.series.name} only`} />
+            ))}
           </div>
         </>
       )}

@@ -35,25 +35,35 @@ export const DETAIL = {
   live: `${SPEC14}#10-plan-tasks-and-verification`,
 };
 
-/** One chart slot; `keys` names the field each series fills it with, so the headline pairs FCR with complete intake. */
-export type Metric = { id: string; kind: "rate" | "days"; keys: Partial<Record<SeriesKey, string>>; titles: Partial<Record<SeriesKey, string>> };
+/**
+ * One chart slot. A "comparison" slot is filled by both series (the pairs of `data.series.compare`) and shares one
+ * axis; a "context" slot belongs to one series only, with its own definition, and is never drawn next to the other.
+ */
+export type Metric = {
+  id: string; kind: "rate" | "days"; role: "comparison" | "context";
+  keys: Partial<Record<SeriesKey, string>>; titles: Partial<Record<SeriesKey, string>>;
+};
 export const METRICS: Metric[] = [
-  { id: "headline", kind: "rate", keys: { bank_today: "first_contact_resolution", replay: "complete_intake" },
-    titles: { bank_today: "Resolved at first contact (FCR)", replay: "Complete intake at first contact" } },
-  { id: "days_to_receipt", kind: "days", keys: { bank_today: "days_to_receipt", replay: "days_to_receipt" },
-    titles: { bank_today: "Days to a first response", replay: "Days to a receipt with a legal deadline" } },
-  { id: "escalated", kind: "rate", keys: { bank_today: "escalated", replay: "escalated" },
-    titles: { bank_today: "Escalated", replay: "Handed to a person at intake" } },
-  { id: "outside_sla_at_intake", kind: "rate", keys: { bank_today: "outside_sla_at_intake", replay: "outside_sla_at_intake" },
-    titles: { bank_today: "Outside SLA", replay: "Opened without a legal deadline" } },
-  { id: "resolution_days", kind: "days", keys: { bank_today: "resolution_days" }, titles: { bank_today: "Days to the final resolution" } },
+  { id: "headline", kind: "rate", role: "comparison", keys: { bank_today: "first_contact_resolution", replay: "complete_intake" },
+    titles: { bank_today: "Resolved at first contact (FCR)", replay: "Complete intake at first contact (upper bound)" } },
+  { id: "days_to_receipt", kind: "days", role: "comparison", keys: { bank_today: "days_to_receipt", replay: "days_to_receipt" },
+    titles: { bank_today: "Days to a first response (proxy)", replay: "Days to a receipt with a legal deadline" } },
+  { id: "handed_to_analyst", kind: "rate", role: "context", keys: { replay: "handed_to_analyst" },
+    titles: { replay: "Handed to an analyst with evidence and a legal deadline" } },
+  { id: "opened_without_deadline", kind: "rate", role: "context", keys: { replay: "opened_without_deadline" },
+    titles: { replay: "Cases opened without a legal deadline" } },
+  { id: "escalated", kind: "rate", role: "context", keys: { bank_today: "escalated" }, titles: { bank_today: "Escalated inside the bank" } },
+  { id: "outside_sla", kind: "rate", role: "context", keys: { bank_today: "outside_sla_at_intake" },
+    titles: { bank_today: "Flagged outside SLA by the bank" } },
+  { id: "resolution_days", kind: "days", role: "context", keys: { bank_today: "resolution_days" },
+    titles: { bank_today: "Days to the final resolution" } },
 ];
 
 export type Point = { month: string; value: number | null; detail: [string, string][] };
-export type Secondary = { title: string; point: Point; note: string };
+export type Secondary = { title: string; value: string; note: string };
 export type Chart = {
   metric: Metric; title: string; label: string; note: string; total: Point; points: Point[]; scaleMax: number;
-  secondary: Secondary | null;
+  secondary: Secondary[];
 };
 export type OpsState = { kind: "pending"; title: string; missing: string; detail: string } | { kind: "ready"; series: Series; charts: Chart[] };
 
@@ -74,22 +84,40 @@ function point(kind: Metric["kind"], key: string, m: Month): Point {
   return { month: m.month, value: d?.p50 ?? null, detail };
 }
 
-/** The charts of one series; the axis of each slot spans both series, so switching keeps the scale (AC-07). */
+type Sensitivity = { variant: string; named: Record<string, Rate>; amount_and_date: Record<string, Rate> };
+
+/** Small figures under the replay's headline: safe automated resolution (as "k of n") and the no-merchant variant. */
+function secondary(series: Series): Secondary[] {
+  const out: Secondary[] = [];
+  const safe = series.total.safe_automated_resolution as Rate | undefined;
+  if (safe) out.push({ title: "Safe automated resolution", value: `${int(safe.numerator)} of ${int(safe.denominator)}`,
+                       note: series.notes.safe_automated_resolution ?? "" });
+  const sens = (series as Series & { sensitivity?: Sensitivity }).sensitivity;
+  if (sens) {
+    const [a, b] = [sens.named, sens.amount_and_date];
+    out.push({ title: "If the message names only the amount and the date",
+               value: `complete intake ${pct(b.complete_intake.value)}, asks ${pct(b.asked.value)}`,
+               note: `With the merchant named too: complete intake ${pct(a.complete_intake.value)}, asks ${pct(a.asked.value)}. Same contacts, ${sens.variant}.` });
+  }
+  return out;
+}
+
+/** The charts of one series. A comparison slot's axis spans both series, so switching keeps the scale (AC-07); a
+ * context slot's axis is its own series only. */
 export function charts(series: Series, all: OpsSeries): Chart[] {
   const both = [all.bank_today, all.replay].filter((s): s is Series => s !== null);
   return METRICS.filter((metric) => metric.keys[series.key] && metric.keys[series.key]! in series.total).map((metric) => {
     const key = metric.keys[series.key]!;
-    const values = both.flatMap((s) => {
+    const scope = metric.role === "comparison" ? both : [series];
+    const values = scope.flatMap((s) => {
       const k = metric.keys[s.key];
       return k && k in s.total ? [...s.months, s.total].map((m) => point(metric.kind, k, m).value ?? 0) : [];
     });
     const top = Math.max(...values, metric.kind === "rate" ? 0.01 : 1);
-    const safe = metric.id === "headline" && "safe_automated_resolution" in series.total;
     return {
       metric, title: metric.titles[series.key]!, label: series.label, note: series.notes[key] ?? "",
       total: point(metric.kind, key, series.total), points: series.months.map((m) => point(metric.kind, key, m)), scaleMax: top,
-      secondary: safe ? { title: "Safe automated resolution", point: point("rate", "safe_automated_resolution", series.total),
-                          note: series.notes.safe_automated_resolution ?? "" } : null,
+      secondary: metric.id === "headline" ? secondary(series) : [],
     };
   });
 }

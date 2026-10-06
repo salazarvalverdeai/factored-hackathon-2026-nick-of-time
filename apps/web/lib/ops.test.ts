@@ -24,7 +24,9 @@ test("spec 12 AC-02: the switch has three positions; both series carry their lab
     assert.ok(chart.note.length > 0, `${chart.metric.id}: a plain line on what it means`);
     assert.equal(chart.points.length, 5);
   }
-  assert.deepEqual(bank.charts.map((c) => c.metric.id), METRICS.map((m) => m.id));
+  const ids = (key: "bank_today" | "replay") => METRICS.filter((m) => m.keys[key]).map((m) => m.id);
+  assert.deepEqual(bank.charts.map((c) => c.metric.id), ids("bank_today"));
+  assert.deepEqual(sim.charts.map((c) => c.metric.id), ids("replay"));
   assert.ok(!sim.charts.some((c) => c.metric.id === "resolution_days"), "the final resolution time is never simulated");
 });
 
@@ -33,11 +35,30 @@ test("spec 12 AC-02: the headline pairs the bank's FCR with complete intake, and
   const sim = opsState(FILE, "replay");
   if (bank.kind !== "ready" || sim.kind !== "ready") return assert.fail("both series are ready");
   const [fcr, intake] = [bank.charts[0], sim.charts[0]];
-  assert.deepEqual([fcr.title, intake.title], ["Resolved at first contact (FCR)", "Complete intake at first contact"]);
+  assert.deepEqual([fcr.title, intake.title], ["Resolved at first contact (FCR)", "Complete intake at first contact (upper bound)"]);
   assert.equal(Math.round(fcr.total.value! * 1000) / 10, 43.6);
   assert.match(intake.note, /not the bank's resolved-at-first-contact/);
-  assert.ok(intake.secondary && intake.secondary.title === "Safe automated resolution" && fcr.secondary === null);
+  assert.match(intake.note, /upper bound: the message names the charge exactly/);
+  assert.deepEqual(intake.secondary.map((x) => x.title), ["Safe automated resolution", "If the message names only the amount and the date"]);
+  assert.equal(fcr.secondary.length, 0);
   assert.match(SRC, /The two headline figures measure different things/);
+});
+
+test("spec 12 AC-02: only the data's compare pairs are side by side; every other figure is context of one series", () => {
+  const pairs = (SERIES as OpsSeries & { compare: Record<string, string>[] }).compare;
+  const compared = METRICS.filter((m) => m.role === "comparison");
+  assert.deepEqual(compared.map((m) => m.keys), pairs);
+  for (const m of METRICS.filter((x) => x.role === "context")) {
+    assert.equal(Object.keys(m.keys).length, 1, `${m.id} belongs to one series only`);
+  }
+  const sim = opsState(FILE, "replay");
+  if (sim.kind !== "ready") return assert.fail("replay is ready");
+  const handed = sim.charts.find((c) => c.metric.id === "handed_to_analyst")!;
+  assert.equal(handed.title, "Handed to an analyst with evidence and a legal deadline");
+  assert.match(handed.note, /always go to a person, who decides the block or the credit/);
+  assert.ok(!sim.charts.some((c) => c.metric.id === "escalated" || c.metric.id === "outside_sla"));
+  assert.match(SRC, /Context · \$\{state\.series\.name\} only/);
+  assert.match(SRC, /Compared with the other series/);
 });
 
 test("spec 12 AC-02: Live shows 'Pending: no live traffic yet' and no figure until spec 14 T5", () => {
@@ -71,6 +92,6 @@ test("spec 12 AC-07: every bar answers hover and keyboard focus, every chart has
   assert.match(SRC, /<TableView/);
   assert.match(SRC, /Detail →/);
   assert.match(SRC, /href="\/agent"/, "the system links to /agent, no diagram here");
-  assert.match(SRC, /does not model the final resolution time,\s+which a person decides/);
+  assert.match(SRC, /does not\s+model the final resolution time,\s+which a person decides/);
   assert.doesNotMatch(SRC, /\[(data|simulated|projected)\]\s*[a-z]/i, "labels sit on figures, not in prose");
 });

@@ -143,7 +143,9 @@ Implementation goes in `feat/12-…` branches once this spec is approved.
       (lead's E1): an "Operation" section with a three-position switch, Bank today `[data]` | With Nick of Time
       (simulated) `[simulated]` | Live, read from `ops_kpis.json` `data.series` (spec 14 §7.4, §11), 2026-01..2026-05.
       The headline pairs the bank's FCR with complete intake at first contact (spec 10 §4.1), with a plain sentence
-      that they measure different things; safe automated resolution is a small secondary figure. One chart per
+      that they measure different things; safe automated resolution and the no-merchant sensitivity are small
+      secondary figures. Only the `compare` pairs of the file (the headline and the days to a receipt) are side by
+      side; every other figure is marked "Context · <series> only", with its own definition and its own axis. One chart per
       metric with its 5-month total, the other series' total, a plain line from the file's notes and a "Detail →"
       link; one axis per metric across both series; tooltips on hover and focus; a table view. Live shows "Pending:
       no live traffic yet" until spec 14 T5; a missing series shows "Results pending" (AC-04). The final resolution time
