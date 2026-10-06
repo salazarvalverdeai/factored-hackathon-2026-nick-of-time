@@ -10,17 +10,6 @@ import { MOTION, MOTION_LIVE, MOTION_OK } from "@/lib/motion";
 export type MotionTag = "div" | "section" | "figure" | "article" | "ol" | "ul" | "li" | "dl" | "span" | "p" | "g" | "path" | "polyline";
 export type MotionKind = "reveal" | "stagger" | "grow" | "draw" | "flow" | "group";
 
-/** Spread on an element inside a root to make it a part (motion.css holds the start and end states). */
-export const part = {
-  rise: { "data-motion-rise": "" },
-  fade: { "data-motion-fade": "" },
-  growX: { "data-motion-grow": "x" },
-  growY: { "data-motion-grow": "y" },
-  draw: { "data-motion-draw": "", pathLength: 1 },
-  /** Fades in once the root's main part has finished (grow or draw). */
-  after: { "data-motion-after": "" },
-} as const;
-
 export type MotionGroupProps<T extends MotionTag = "div"> = {
   as?: T;
   /** Milliseconds before the root's parts start. */

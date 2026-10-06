@@ -38,6 +38,25 @@ export const MOTION_HEAD_SCRIPT =
 
 export type MotionState = "pending" | "in" | "done";
 
+// Plain data, kept out of the "use client" kit so a server component can import it too (an export of a client module
+// reaches the server as a client reference, not as its value).
+/** Spread on an element inside a root to make it a part (motion.css holds the start and end states). */
+export const part = {
+  rise: { "data-motion-rise": "" },
+  fade: { "data-motion-fade": "" },
+  growX: { "data-motion-grow": "x" },
+  growY: { "data-motion-grow": "y" },
+  draw: { "data-motion-draw": "", pathLength: 1 },
+  /** Fades in once the root's main part has finished (grow or draw). */
+  after: { "data-motion-after": "" },
+} as const;
+
+/** Subtle hover and focus elevation: 2 px up and a violet-tinted border; no shadow or glow (BRAND.md). */
+export const lift =
+  "motion-safe:transition-[translate,border-color] motion-safe:duration-200 motion-safe:ease-out hover:border-primary/40 focus-within:border-primary/40 " +
+  "motion-safe:hover:-translate-y-0.5 motion-safe:focus-within:-translate-y-0.5";
+
+
 /** Where a part starts: with reduced motion (or no motion flag) it is the final state at once, never a start state. */
 export function initialState(reduced: boolean | null, motionOk: boolean): MotionState {
   return reduced || !motionOk ? "done" : "pending";

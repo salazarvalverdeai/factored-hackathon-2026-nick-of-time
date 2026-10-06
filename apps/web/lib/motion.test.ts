@@ -120,5 +120,7 @@ test("spec 12 AC-07, AC-09: every kit component reads useReducedMotion and passe
   }
   for (const name of ["Lift", "Crossfade"]) assert.match(kit, new RegExp(`export function ${name}[^]*?useReducedMotion\\(\\)`), name);
   assert.match(kit, /export \{ NumberTicker \}/);
+  // a "use client" module exports components only: a constant or helper would reach a server component as a reference
+  assert.doesNotMatch(kit + group, /export const|export \{[^}]*\b(part|lift|MOTION|staggerDelay|fitStep|growTarget|walkSchedule)\b/);
   assert.doesNotMatch(kit + group + CSS, /spring|bounce|overshoot\s*:/i);
 });

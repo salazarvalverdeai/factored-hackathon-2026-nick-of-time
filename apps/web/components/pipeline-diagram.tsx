@@ -7,7 +7,8 @@
 // reduced motion everything is in place at once). The edges sit in the grid gap, so nothing shifts.
 import { FOCUS, TipBody, useTip } from "@/app/analytics/charts";
 import { DetailButton } from "@/components/detail-button";
-import { CountText, FlowConnector, Reveal, lift, walkSchedule } from "@/components/motion";
+import { CountText, FlowConnector, Reveal } from "@/components/motion";
+import { lift, walkSchedule } from "@/lib/motion";
 import type { CSSProperties } from "react";
 import type { PipelineStep } from "@/lib/pipelines";
 

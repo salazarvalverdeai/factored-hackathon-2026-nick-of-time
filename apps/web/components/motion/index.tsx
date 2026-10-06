@@ -6,13 +6,14 @@
 import { useEffect, useRef, type ComponentPropsWithoutRef, type ReactNode } from "react";
 import { useReducedMotion } from "motion/react";
 import { NumberTicker } from "@/components/ui/number-ticker";
-import { EASE, MOTION, splitFigures } from "@/lib/motion";
+import { EASE, MOTION, lift, part, splitFigures } from "@/lib/motion";
 import { cn } from "@/lib/utils";
-import { MotionGroup, part, type MotionGroupProps, type MotionTag } from "./motion-group";
+import { MotionGroup, type MotionGroupProps, type MotionTag } from "./motion-group";
 
-export { MotionGroup, MotionReady, part, useMotionOnce } from "./motion-group";
+// Components only: `part`, `lift` and the helpers (MOTION, staggerDelay, fitStep, growTarget, walkSchedule) live in
+// "@/lib/motion", so server components can import them too.
+export { MotionGroup, MotionReady, useMotionOnce } from "./motion-group";
 export { NumberTicker };
-export { MOTION, fitStep, growTarget, staggerDelay, walkSchedule } from "@/lib/motion";
 
 type Without<T extends MotionTag> = Omit<MotionGroupProps<T>, "kind">;
 
@@ -79,11 +80,7 @@ export function FlowConnector({ direction = "right", length = 16, delay = 0, loo
   );
 }
 
-/** Subtle hover and focus elevation: 2 px up and a violet-tinted border; no shadow or glow (BRAND.md). */
-export const lift =
-  "motion-safe:transition-[translate,border-color] motion-safe:duration-200 motion-safe:ease-out hover:border-primary/40 focus-within:border-primary/40 " +
-  "motion-safe:hover:-translate-y-0.5 motion-safe:focus-within:-translate-y-0.5";
-
+/** Subtle hover and focus elevation (`lift` from "@/lib/motion"): 2 px up and a violet-tinted border, no shadow or glow. */
 export function Lift<T extends "div" | "li" | "article" | "section" = "div">({ as, className, ...props }: { as?: T } & ComponentPropsWithoutRef<T>) {
   const reduced = useReducedMotion();
   const Tag = (as ?? "div") as "div";

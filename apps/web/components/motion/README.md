@@ -1,7 +1,9 @@
 # Motion kit
 
 Small, typed motion parts for the web app: charts that grow, lines that draw, diagrams that walk, figures that count.
-Import from `@/components/motion`. No new dependency: `motion/react` (for `useReducedMotion` and `useInView`) plus CSS.
+Import the components from `@/components/motion` and the plain data and helpers (`part`, `lift`, `MOTION`,
+`staggerDelay`, `fitStep`, `growTarget`, `walkSchedule`) from `@/lib/motion`: the kit is a `"use client"` module, and a
+constant or function exported by it reaches a server component as a client reference, not as its value. No new dependency: `motion/react` (for `useReducedMotion` and `useInView`) plus CSS.
 
 ## Rules every part follows
 - **Once, on entering the viewport.** A part plays the first time it is seen, never again on scroll.
@@ -32,10 +34,13 @@ Import from `@/components/motion`. No new dependency: `motion/react` (for `useRe
 | `CountText` | a formatted figure that counts up (`"88.9%"`, `"1,234,567 rows [data]"`) | a number counts only if it formats back to the same text; dates and versions stay text |
 | `NumberTicker` | a single number that counts up | re-exported from `components/ui/number-ticker.tsx` |
 
-Helpers: `MOTION`, `staggerDelay(i, step)`, `fitStep(count)`, `growTarget(value, max, span)`, `walkSchedule(nodes, outputs)` (the
+Helpers, from `@/lib/motion`: `part`, `lift`, `MOTION`, `staggerDelay(i, step)`, `fitStep(count)`, `growTarget(value, max, span)`, `walkSchedule(nodes, outputs)` (the
 step-by-step walk of `PipelineDiagram`).
 
 ```tsx
+import { CountText, GrowBar, MotionGroup, Stagger } from "@/components/motion";
+import { growTarget, part } from "@/lib/motion";
+
 <Stagger className="grid gap-4 md:grid-cols-2">{cards}</Stagger>
 <GrowBar tabIndex={0} role="img" aria-label="FCR 43.6%" style={{ width: `${growTarget(0.436)}%` }} {...bind(tip)} />
 <MotionGroup as="g" after={600}><polyline {...part.draw} points={pts} /><circle {...part.after} … /></MotionGroup>
