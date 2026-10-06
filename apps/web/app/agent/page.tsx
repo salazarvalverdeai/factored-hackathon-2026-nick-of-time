@@ -1,8 +1,10 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
+import { ArchitectureView } from "@/components/agent/architecture-view";
 import { GraphView } from "@/components/agent/graph-view";
 import { PageShell } from "@/components/page-shell";
 import { AGENT_REFERENCE } from "@/lib/agent-reference";
+import { AGENT_UI } from "@/lib/agent-strings";
 import {
   CONSTITUTION,
   DIAGRAM,
@@ -144,22 +146,20 @@ export default function Page() {
           title="Architecture"
           note={
             <>
-              Agent on LangGraph Platform, customer tools as an MCP server, case state in Postgres. Diagram from{" "}
-              <Source path={DIAGRAM.source} />, as shown in the README; where it and the tables below differ, the tables are
-              current.
+              Agent on LangGraph Platform, customer tools as an MCP server, case state in Postgres. Services from{" "}
+              <Source path="docs/infrastructure.md" /> and <Source path="infra/compose.yml" />; the static diagram is{" "}
+              <Source path={DIAGRAM.source} />, as shown in the README. Where a diagram and the tables below differ, the tables
+              are current.
             </>
           }
         >
-          <a href={DIAGRAM.src} className="block overflow-hidden rounded-md border bg-white" aria-label="Open the architecture diagram at full size">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={DIAGRAM.src}
-              alt="Architecture: customer and analyst web pages, the FastAPI api, the FastMCP tool server, Postgres and gold data on one EC2; the dispute_intake graph on LangGraph Platform calling Amazon Bedrock and the MCP tools."
-              className="h-auto w-full"
-              width={1500}
-              height={1010}
-            />
-          </a>
+          <ArchitectureView />
+          <p className="mt-3 text-xs text-muted-foreground">
+            <a href={DIAGRAM.src} className="underline decoration-muted-foreground/40 underline-offset-2 hover:text-foreground">
+              {AGENT_UI.arch.staticView}
+            </a>{" "}
+            {AGENT_UI.arch.staticNote}
+          </p>
         </Section>
 
         <Section
