@@ -47,7 +47,7 @@ themes:
   - name: Agent, rules and safety
     adrs: ["0005", "0006", "0008", "0009", "0013", "0016", "0024", "0027"]
   - name: Platform and identity
-    adrs: ["0010", "0011", "0017", "0026"]
+    adrs: ["0010", "0011", "0017", "0026", "0029"]
   - name: Time and regulation
     adrs: ["0012", "0019", "0020", "0023"]
 
@@ -72,7 +72,7 @@ components:
   "11": [packages/nick_of_time/nlu/]
   "12": [apps/web/app/evaluation/, apps/web/app/analytics/, apps/web/app/data/]
   "13": [apps/web/app/case/, apps/mcp/mcp_server/notify.py, apps/api/app/notify.py]
-  "14": [data/pipeline/]
+  "14": [data/pipeline/, data/ops/]
   "15": [eval/bench/]
   "16": [apps/web/README.md, apps/web/components/]
   "17": [scripts/ml/]

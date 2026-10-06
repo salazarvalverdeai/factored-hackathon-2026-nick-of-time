@@ -3,9 +3,11 @@
 // /evaluation content for evaluation_summary.json (spec 12 §7.3, parts 1 to 4). Nothing is computed here: every
 // number is the harness's. Every rate shows its numerator, denominator and interval on hover, on keyboard focus and
 // in the table view (AC-06, AC-07).
+import { Explain, IntervalBar } from "./explain";
 import { FOCUS, Swatch, TableView, TipBody, useTip } from "@/app/analytics/charts";
 import {
   METRICS,
+  METRIC_MEANING,
   developmentNotice,
   dollars,
   milliseconds,
@@ -105,9 +107,10 @@ function Comparison({ arms }: { arms: EvaluationArm[] }) {
   return (
     <figure className={`rounded-lg border bg-card p-5 text-card-foreground ${PALETTE}`}>
       <h2 className="text-base font-semibold">The same cases on every arm</h2>
-      <p className="mt-0.5 text-sm text-muted-foreground">
-        Each dot is a rate over the runs it applies to; the band is its 95% Wilson interval. Scale 0% to 100%.
-      </p>
+      <Explain detail="harness" className="mt-0.5">
+        Each bar is a rate over the runs it applies to; the dot is the rate and the band is its 95% Wilson interval, on a scale of 0% to 100%. The arms
+        run the same cases; arms whose bands overlap cannot be told apart.
+      </Explain>
       <div className="mt-3">
         <Legend arms={arms} />
       </div>
@@ -117,6 +120,7 @@ function Comparison({ arms }: { arms: EvaluationArm[] }) {
             <p className="text-sm">
               {metric.label}
               <span className="block text-xs text-muted-foreground">{metric.good === "high" ? "higher is better" : "lower is better"}</span>
+              <span className="mt-0.5 block text-xs text-muted-foreground">{METRIC_MEANING[metric.key]}</span>
             </p>
             <div className="space-y-1.5">
               {arms.map((arm, i) => {
@@ -143,25 +147,7 @@ function Comparison({ arms }: { arms: EvaluationArm[] }) {
                     )}
                   >
                     <span className="w-8 shrink-0 text-xs text-muted-foreground">{arm.arm}</span>
-                    <div className="relative h-4 flex-1">
-                      <div className="absolute inset-x-0 top-1/2 h-px bg-border" />
-                      {empty || rate.ci_low === null || rate.ci_high === null ? null : (
-                        <div
-                          className="absolute top-1/2 h-1.5 -translate-y-1/2 rounded-full opacity-35"
-                          style={{
-                            left: `${rate.ci_low * 100}%`,
-                            width: `${Math.max((rate.ci_high - rate.ci_low) * 100, 0.5)}%`,
-                            background: armColor(i),
-                          }}
-                        />
-                      )}
-                      {empty ? null : (
-                        <div
-                          className="absolute top-1/2 size-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full ring-2 ring-card"
-                          style={{ left: `${(rate.value ?? 0) * 100}%`, background: armColor(i) }}
-                        />
-                      )}
-                    </div>
+                    <IntervalBar value={empty ? null : rate.value} low={rate.ci_low} high={rate.ci_high} color={armColor(i)} />
                     <span className="w-28 shrink-0 text-right text-xs tabular-nums">
                       {parts.value}
                       <span className="text-muted-foreground"> · {empty ? "n/a" : `${rate.numerator}/${rate.denominator}`}</span>
@@ -196,9 +182,9 @@ function Breakdown({ arms }: { arms: EvaluationArm[] }) {
   return (
     <section className="rounded-lg border bg-card p-5">
       <h2 className="text-base font-semibold">By language, case type and segment</h2>
-      <p className="mt-0.5 text-sm text-muted-foreground">
+      <Explain detail="harness" className="mt-0.5">
         n is the number of cases in the cell. A cell marked small has fewer than 5 cases: read its interval, not its rate.
-      </p>
+      </Explain>
       <div className="mt-4 overflow-x-auto">
         <table className="w-full text-left text-xs tabular-nums">
           <thead className="text-muted-foreground">

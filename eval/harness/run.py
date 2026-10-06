@@ -3,9 +3,9 @@ from __future__ import annotations
 
 import csv
 import json
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any, Callable, Iterable, Optional
 
 from eval.harness import metrics, report
 from eval.harness.client import Api, HarnessError
@@ -39,10 +39,13 @@ def run_one(api: Api, case: dict[str, Any], arm: str, k: int) -> dict[str, Any]:
 
 
 def run_set(cases: Iterable[dict[str, Any]], arms: Iterable[str], runs: int = 4, *, api: Api | None = None,
-            api_url: str | None = None, workers: int = 4) -> list[dict[str, Any]]:
+            api_url: str | None = None, workers: int = 4,
+            on_record: Optional[Callable[[dict[str, Any]], None]] = None) -> list[dict[str, Any]]:
     """Every case on every arm, `runs` times each (pass^4 needs four). Give `api` or `api_url`. Records come back
-    in a fixed order whatever the concurrency. A held-out case runs only after the seal and only as sealed (AC-07):
-    the guard lives here, not in the command line, because spec 15 calls this function directly (FR-06)."""
+    in a fixed order whatever the concurrency; `on_record` sees each one as it finishes (the held-out appends it to
+    runs.jsonl at once, so a crash keeps what was seen). A HarnessError stops the set: pending runs are cancelled and
+    every run that already finished still reaches `on_record`. A held-out case runs only after the seal and only as
+    sealed (AC-07): the guard lives here, not in the command line, because spec 15 calls this function directly (FR-06)."""
     cases = list(cases)
     report.check_heldout_cases(cases)
     owned = api is None
@@ -51,10 +54,25 @@ def run_set(cases: Iterable[dict[str, Any]], arms: Iterable[str], runs: int = 4,
             raise HarnessError("run_set needs api or api_url")
         api = Api.at(api_url)
     jobs = [(case, arm, k) for arm in arms for case in cases for k in range(1, runs + 1)]
+    pool = ThreadPoolExecutor(max_workers=max(1, workers))
+    futures = [pool.submit(run_one, api, *job) for job in jobs]
+    seen: set = set()
     try:
-        with ThreadPoolExecutor(max_workers=max(1, workers)) as pool:
-            return list(pool.map(lambda job: run_one(api, *job), jobs))
+        for future in as_completed(futures):
+            record = future.result()
+            seen.add(future)
+            if on_record:
+                on_record(record)
+        return [future.result() for future in futures]
+    except BaseException:
+        pool.shutdown(wait=True, cancel_futures=True)
+        if on_record:                                        # finished before the stop, not yet handed over
+            for future in futures:
+                if future not in seen and future.done() and not future.cancelled() and future.exception() is None:
+                    on_record(future.result())
+        raise
     finally:
+        pool.shutdown(wait=True)
         if owned:
             api.close()
 

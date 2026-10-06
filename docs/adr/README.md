@@ -36,3 +36,4 @@ The whole log as one picture, from the problem to the evidence: [decisions graph
 | [0026](0026-demo-sessions-isolated-by-run-id.md) | Public demo sessions: a scenario picks the customer server-side and each session runs under its own `demo-…` run_id | Accepted | 2026-10-05 |
 | [0027](0027-model-selection.md) | Model selection per LLM task by the pre-registered lean rule (draft: development numbers on validation only) | Proposed | 2026-10-05 |
 | [0028](0028-test-split-decided-by-fixed-rules-without-independent-reviewer.md) | The classifier test split is decided by fixed rules (`rules-v1`) when no independent person can review it before the seal (amends 0025) | Accepted | 2026-10-05 |
+| [0029](0029-voice-input-voxtral-stt-browser-tts.md) | Voice: Bedrock Voxtral speech-to-text on the api and the browser's text-to-speech (no Nova Sonic: us-east-1 only) | Accepted | 2026-10-05 |

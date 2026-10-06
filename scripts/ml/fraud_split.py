@@ -65,6 +65,18 @@ def read_labels(labels_path: str | Path, split: pl.DataFrame, windows) -> pl.Dat
     return out
 
 
+def read_test_labels(labels_path: str | Path, split: pl.DataFrame, *, sealed: bool) -> pl.DataFrame:
+    """The ONE read of the test-window labels (ADR 0022 rule 2), for the evaluation step of 17c after the model files
+    are frozen. `sealed` is the caller's proof that eval/PROTOCOL.md is SEALED; without it nothing is read."""
+    if not sealed:
+        raise LabelAccessError("test-window labels are read only after eval/PROTOCOL.md is SEALED")
+    ids = split.filter(pl.col("split_window") == TEST).select("transaction_id", "split_window")
+    con = duckdb.connect()
+    con.register("ids", ids.to_arrow())
+    return con.execute(f"SELECT i.transaction_id, i.split_window, l.is_fraud FROM ids i "
+                       f"JOIN read_parquet('{labels_path}') l USING (transaction_id)").pl()
+
+
 def split_record(split: pl.DataFrame, labels: pl.DataFrame | None = None) -> dict:
     """What later tasks verify: the hash and the counts. The test window is a transaction count only."""
     rec = {"windows": WINDOWS, "split_hash": split_hash(split),

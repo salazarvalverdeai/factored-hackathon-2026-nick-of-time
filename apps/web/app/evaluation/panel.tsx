@@ -46,7 +46,7 @@ export function AsIsPanel({ contacts, source, generatedAt, summary, benchmark = 
             <span className="font-semibold tabular-nums">{fmt(state.projection.high)}</span> more of the {fmt(state.projection.volume)} complaint contacts of the
             full synthetic dataset resolved at first contact (95% CI of the rate; today&apos;s first-contact resolution is {pct(state.projection.fcrAsIs)}).
             Computed on the share of contacts that end in an automatic block and case (n = {state.n} runs); applied to all complaints as an upper-bound
-            illustration <span className="font-mono text-xs">[projected]</span>. Savings in money are not projected: the repo has no cost per contact.
+            illustration. Savings in money are not projected: the repo has no cost per contact.
           </p>
         ) : (
           <p className="mt-1 text-muted-foreground">Results pending{state.kind === "pending" ? `: ${state.reason}` : ""} No number and no projection until then.</p>

@@ -257,6 +257,14 @@
       "theme": "Data and evaluation"
     },
     {
+      "id": "adr-0029",
+      "layer": "decision",
+      "label": "0029 Voice: Bedrock Voxtral speech-to-text on the api and the browser's text-to-speech",
+      "status": "Accepted",
+      "file": "docs/adr/0029-voice-input-voxtral-stt-browser-tts.md",
+      "theme": "Platform and identity"
+    },
+    {
       "id": "spec-01",
       "layer": "spec",
       "label": "Spec 01 Integration contract + stubs",
@@ -404,7 +412,8 @@
       "status": "In progress",
       "file": "specs/14-ops-lakehouse.md",
       "components": [
-        "data/pipeline/"
+        "data/pipeline/",
+        "data/ops/"
       ]
     },
     {
@@ -1618,6 +1627,18 @@
       "to": "spec-11"
     },
     {
+      "from": "adr-0029",
+      "kind": "implemented_by",
+      "source": "both-headers",
+      "to": "spec-05"
+    },
+    {
+      "from": "adr-0029",
+      "kind": "implemented_by",
+      "source": "both-headers",
+      "to": "spec-07"
+    },
+    {
       "from": "P1",
       "kind": "motivates",
       "source": "extra",
@@ -1940,6 +1961,18 @@
       "kind": "related",
       "source": "adr-header",
       "to": "adr-0025"
+    },
+    {
+      "from": "adr-0029",
+      "kind": "related",
+      "source": "adr-header",
+      "to": "adr-0009"
+    },
+    {
+      "from": "adr-0029",
+      "kind": "related",
+      "source": "adr-header",
+      "to": "adr-0017"
     },
     {
       "from": "adr-0020",
