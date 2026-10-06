@@ -43,7 +43,7 @@ from nick_of_time.events import TextChunk, ToolEvent
 from nick_of_time.ids import new_id
 from nick_of_time.llm import writer as wording
 from nick_of_time.receipt import build
-from nick_of_time.nlu import load_nlu
+from nick_of_time.nlu import load_nlu, tone
 from nick_of_time.nlu.rules import detect_language
 from nick_of_time.nlu.text import fold
 from nick_of_time.policy import DecisionInput, PolicyDecision, PolicyEngine
@@ -158,6 +158,7 @@ class Internal(TypedDict, total=False):     # spec 04 §4.1 fields outside TurnR
     llm_spent_usd: float                    # the conversation's LLM spend, for the G-OPS-01 cap (task 04f)
     llm_notes: dict[str, str]               # LLM step → "S1: ok" or "S1 -> S0: <reason>", for the trace
     llm_alerts: list[str]                   # guardrails the LLM step triggered (G-OPS-01)
+    tone: str                               # AC-44: calm | urgent | frustrated of the turn's text; wording only
 
 State = TypedDict("State", {**InputState.__annotations__, **OutputState.__annotations__, **Internal.__annotations__},
                   total=False)
@@ -166,11 +167,15 @@ RESET = {"decision": None, "zone": None, "case_id": None, "actions": [], "denial
          "body": [], "row": None, "route": None, "active_case": None, "greet_pending": False, "plan": [], "options": [],
          "answer": None, "decision_record": None, "path": [], "read_failed": None, "writes": {},
          "unconfirmed": [], "readings": {}, "seen": None, "usage": [], "llm_notes": {}, "llm_alerts": [],
-         "listed": False}
+         "listed": False, "tone": "calm"}
 WRITING = {"open_case": "opening_case", "block_card": "blocking_card"}   # act's progress key per write (AC-17)
 
 
 def progress(state: State, key: str) -> None:
+    progress_label(state, key, f"progress.{key}")
+
+
+def progress_label(state: State, key: str, label: str) -> None:
     """AC-17: the step's customer label (messages.yaml progress.<key>, in the thread's language) as a LangGraph custom
     stream event, which the api forwards as `event: progress`. It says what is being attempted, never a result
     (constitution #4); outside a run (a node called directly) it does nothing."""
@@ -180,7 +185,7 @@ def progress(state: State, key: str) -> None:
         return
     language = (state.get("language") or state.get("language_last") or (state.get("profile") or {}).get("language")
                 or "es")
-    write(ProgressItem(step=key, label=msg.text(f"progress.{key}", language), state="in_progress",
+    write(ProgressItem(step=key, label=msg.text(label, language), state="in_progress",
                        at=now()).model_dump(mode="json"))
 
 
@@ -273,7 +278,11 @@ async def understand(state: State, config: RunnableConfig) -> dict[str, Any]:
     charge (no amount, date or merchant) is about the charge shown, so `retrieve` keeps it (spec 04 AC-36)."""
     out = await understood(state, config)
     intent = out.get("intent")
-    return {**out, "dispute_intent": intent if intent in DISPUTES else state.get("dispute_intent")}
+    texts = [m.get("content", "") for m in state.get("messages") or [] if m.get("role", "user") == "user"]
+    felt = tone(texts[-1]) if texts and not state.get("action") else "calm"
+    if felt != "calm":                      # AC-44: one acknowledgement label, on the progress path the api forwards
+        progress_label({**state, "language": out.get("language")}, "tone", f"tone.{felt}")
+    return {**out, "tone": felt, "dispute_intent": intent if intent in DISPUTES else state.get("dispute_intent")}
 
 
 async def understood(state: State, config: RunnableConfig) -> dict[str, Any]:
@@ -964,12 +973,15 @@ async def respond(state: State, config: RunnableConfig) -> dict[str, Any]:
     dropped += len(lines) + len(body) - len(kept)
     # [assumption] nothing left to say: the line that states nothing it could not verify
     kept = kept or [msg.text("status.read_failed", language)]
+    felt = state.get("tone") or "calm"
     usage, notes, extra_alerts, chosen = list(state.get("usage") or []), dict(state.get("llm_notes") or {}), [], None
     if ((config.get("configurable") or {}).get("writer") or "template") == "llm":
         worded = await write_reply(state, config, kept, facts, row)
         kept, chosen, dropped = worded.lines, worded.chips, dropped + worded.dropped
         usage += [worded.usage] if worded.usage else []
         notes["respond"], extra_alerts = worded.note, worded.alerts
+    elif felt != "calm":                    # AC-44: the template reply opens with the same digit-free line
+        kept = [msg.text(f"tone.{felt}", language), *kept]
     alerts = [build.ALERT] * bool(dropped) + [a for a in [*(state.get("llm_alerts") or []), *extra_alerts]
                                               if a not in (state.get("guardrails_triggered") or [])]
     turn = TurnResult(
@@ -1010,7 +1022,7 @@ async def write_reply(state: State, config: RunnableConfig, lines: list[str], fa
         config, lines, facts, language=language, first_name=(state.get("profile") or {}).get("first_name"),
         chips=chips, person=next((c for c in allowed if c in msg.PERSON), None), emit=emit,
         score=(state.get("score") or {}).get("score"), transcript=texts, cards=cards, shown=shown,
-        over_cap=lambda estimate: arms.over_day_cap(config, estimate))
+        over_cap=lambda estimate: arms.over_day_cap(config, estimate), tone=state.get("tone") or "calm")
 
 
 SHOWN_KEYS = frozenset({"verification_id", "read_at", "verified_at", "deadline_source", "deadline_source_label",
