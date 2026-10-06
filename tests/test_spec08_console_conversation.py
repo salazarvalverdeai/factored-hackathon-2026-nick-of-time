@@ -101,7 +101,13 @@ def test_ac_22_returns_only_the_customer_visible_messages_of_the_case_threads(en
         ("customer", SAID), ("agent", "Bloqueamos tu tarjeta y abrimos el caso."),
         ("customer", "¿Cuándo me devuelven el dinero?"), ("agent", "Bloqueamos tu tarjeta y abrimos el caso.")]
     assert all(set(m) == {"role", "text", "at"} for m in t["messages"])
-    raw = got.text
+    body = got.json()
+    body.pop("case_id")                                                       # random id, its digits may collide
+    for th in body["threads"]:                                                # timestamps are real-clock digits
+        th.pop("session_started_at", None)
+        for m in th["messages"]:
+            m.pop("at", None)
+    raw = json.dumps(body)
     for internal in ("87", "POL-", "zone", "score", "handoff", "trace_id", "tr-c1", "G-IN-01"):
         assert internal not in raw, internal                                  # never internal state
 
