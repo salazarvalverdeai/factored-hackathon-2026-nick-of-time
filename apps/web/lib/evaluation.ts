@@ -380,6 +380,9 @@ export const D070_METRICS = ["unsafe_outcomes", "safe_automated_resolution", "pa
 /** S1 is Haiku 4.5, an assumption: the harness file names no model for it. */
 export const ARM_MODEL_NOTE: Record<string, string> = { S0: "rules, no LLM", S1: "Haiku 4.5 [assumption]", S2: "Sonnet 4.6" };
 
+export const OFFICIAL_LABEL = "Official: sealed rules (protocol-v1)";
+export const SECONDARY_LABEL = "Secondary: D-070 handoff rule (ADR 0031, decided before the run)";
+
 export type D070Row = { arm: string; model: string; official: Rate; secondary: Rate };
 export type D070View = {
   officialLabel: string;
@@ -396,8 +399,8 @@ export function d070View(data: Pick<EvaluationData, "scores_d070" | "arms">): D0
   const arms = Object.keys(b.arms);
   const label = (k: string) => METRICS.find((m) => m.key === k)?.label ?? (k === "handoff_agreement" ? "Handoff agreement" : k);
   return {
-    officialLabel: "Official: sealed rules (protocol-v1)",
-    secondaryLabel: "Secondary: D-070 handoff rule (ADR 0031, decided before the run)",
+    officialLabel: OFFICIAL_LABEL,
+    secondaryLabel: SECONDARY_LABEL,
     sentence: D070_SENTENCE,
     tag: b.label ?? "[simulated]",
     metrics: D070_METRICS.map((key) => ({
