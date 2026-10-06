@@ -116,7 +116,14 @@ export const evaluation = defineMessages({
     },
     results: {
       noLlm: "no LLM",
-      facts: { set: "Set", cases: "Cases", runs: "Runs per case", arms: "Arms", protocol: "Protocol", sha: "Case file sha256" },
+      facts: {
+        set: "Set",
+        cases: "Cases",
+        runs: "Runs per case",
+        arms: "Arms",
+        protocol: "Protocol",
+        sha: "Case file sha256",
+      },
       armAria: "Arm {arm}",
       rulesNoLlm: "rules and templates, no LLM",
       latency: "Latency p95 per turn",
