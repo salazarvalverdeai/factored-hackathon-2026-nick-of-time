@@ -1,0 +1,421 @@
+{
+  "label": "[simulated]",
+  "harness_git_sha": "9a2a1fa",
+  "cases_file": "heldout.jsonl",
+  "cases_sha256": "7e44a5956db2f292a48360490297f445ba41dd341ba23d47fad22926dc0b5b80",
+  "protocol": {
+    "status": "SEALED",
+    "sha256": "533fc516c78509868b95e1d674bbeeee2555285d68bc4856f229623aa7aaa2d2",
+    "tag": "protocol-v1",
+    "commit": "7b18f72f4f7c427e51f54dadf9435b0896af476a",
+    "head": "9242dc53fb673b1695e5d4f6e4dde8484c74c699",
+    "test_review": "rules-v1",
+    "inputs": {
+      "agent_heldout": "7e44a5956db2f292a48360490297f445ba41dd341ba23d47fad22926dc0b5b80"
+    }
+  },
+  "started_at": "2026-10-06T01:56:00Z",
+  "ended_at": "2026-10-06T02:01:43Z",
+  "runs": 960,
+  "failed_runs": 24,
+  "arms": {
+    "S0": {
+      "git_sha": "9242dc53fb673b1695e5d4f6e4dde8484c74c699",
+      "platform_revision": "local langgraph dev",
+      "policies_version": 2,
+      "provider": "none",
+      "model_graph": null,
+      "model_fast": null,
+      "prompt_hash": null,
+      "classifier_version": "b0-v1"
+    },
+    "S1": {
+      "git_sha": "9242dc53fb673b1695e5d4f6e4dde8484c74c699",
+      "platform_revision": "local langgraph dev",
+      "policies_version": 2,
+      "provider": "bedrock",
+      "model_graph": null,
+      "model_fast": "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+      "prompt_hash": "sha256:3683759e42eb149f20eaf43feaecae49e66ab5b03c2560655afb390ee0665374",
+      "classifier_version": "b0-v1"
+    },
+    "S2": {
+      "git_sha": "9242dc53fb673b1695e5d4f6e4dde8484c74c699",
+      "platform_revision": "local langgraph dev",
+      "policies_version": 2,
+      "provider": "bedrock",
+      "model_graph": "us.anthropic.claude-sonnet-4-6",
+      "model_fast": null,
+      "prompt_hash": "sha256:3683759e42eb149f20eaf43feaecae49e66ab5b03c2560655afb390ee0665374",
+      "classifier_version": "b0-v1"
+    }
+  },
+  "run_status": "complete",
+  "error": null,
+  "arms_pinned": [
+    "S0",
+    "S1",
+    "S2"
+  ],
+  "runs_per_case": 4,
+  "model_map": {
+    "label": "[assumption]",
+    "source": "default map: spec 15 B2 has not written eval/results/model_map.json, so S1 is Haiku 4.5 for every task (lead decision D-080 pending)",
+    "arms": {
+      "S1": {
+        "provider": "bedrock",
+        "model_fast": "us.anthropic.claude-haiku-4-5-20251001-v1:0"
+      },
+      "S2": {
+        "provider": "bedrock",
+        "model_graph": "us.anthropic.claude-sonnet-4-6"
+      }
+    }
+  },
+  "projected_cost": {
+    "label": "[projected]",
+    "usd": {
+      "S0": 0.0,
+      "S1": 0.15,
+      "S2": 0.45
+    },
+    "total_usd": 0.6,
+    "basis": "dev run S1 0.037 USD for 20 cases x 4 runs [simulated], scaled to 80 cases; S2 at 3x the Haiku 4.5 token price (eval/bench/prices.yaml [external])"
+  },
+  "preflight": {
+    "health": {
+      "status": "ok",
+      "version": "live",
+      "git_sha": "dev",
+      "policies_version": 2,
+      "today": {
+        "replay": "2026-06-01",
+        "live": "2026-10-06"
+      }
+    },
+    "arms": {
+      "S0": {
+        "case_id": "EV-0101",
+        "run_meta": {
+          "git_sha": "9242dc53fb673b1695e5d4f6e4dde8484c74c699",
+          "platform_revision": "local langgraph dev",
+          "policies_version": 2,
+          "provider": "none",
+          "model_graph": null,
+          "model_fast": null,
+          "prompt_hash": null,
+          "classifier_version": "b0-v1"
+        }
+      },
+      "S1": {
+        "case_id": "EV-0101",
+        "run_meta": {
+          "git_sha": "9242dc53fb673b1695e5d4f6e4dde8484c74c699",
+          "platform_revision": "local langgraph dev",
+          "policies_version": 2,
+          "provider": "bedrock",
+          "model_graph": null,
+          "model_fast": "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+          "prompt_hash": "sha256:3683759e42eb149f20eaf43feaecae49e66ab5b03c2560655afb390ee0665374",
+          "classifier_version": "b0-v1"
+        }
+      },
+      "S2": {
+        "case_id": "EV-0101",
+        "run_meta": {
+          "git_sha": "9242dc53fb673b1695e5d4f6e4dde8484c74c699",
+          "platform_revision": "local langgraph dev",
+          "policies_version": 2,
+          "provider": "bedrock",
+          "model_graph": "us.anthropic.claude-sonnet-4-6",
+          "model_fast": null,
+          "prompt_hash": "sha256:3683759e42eb149f20eaf43feaecae49e66ab5b03c2560655afb390ee0665374",
+          "classifier_version": "b0-v1"
+        }
+      }
+    }
+  },
+  "scoring": {
+    "official": "official: sealed rules (protocol-v1)",
+    "secondary": "secondary: D-070 handoff rule, ADR 0031"
+  },
+  "scores_d070": {
+    "label": "[simulated]",
+    "scoring": "secondary: D-070 handoff rule, ADR 0031",
+    "official_scoring": "official: sealed rules (protocol-v1)",
+    "rule": "only final_state.handoff_emitted is re-derived, under D-070 (an opened case is a handoff, eval.derive_expected.d070_expected); every other expectation stays sealed",
+    "adr": "docs/adr/0031-heldout-scored-under-sealed-rules-and-d070.md",
+    "arms": {
+      "S0": {
+        "official": {
+          "safe_automated_resolution": {
+            "value": 0.0,
+            "numerator": 0,
+            "denominator": 20,
+            "ci_low": 0.0,
+            "ci_high": 0.1611
+          },
+          "unsafe_outcomes": {
+            "value": 0.0,
+            "numerator": 0,
+            "denominator": 320,
+            "ci_low": 0.0,
+            "ci_high": 0.0119
+          },
+          "pass_4": {
+            "value": 0.5625,
+            "numerator": 45,
+            "denominator": 80,
+            "ci_low": 0.4534,
+            "ci_high": 0.6659
+          },
+          "handoff_agreement": {
+            "value": 0.7639,
+            "numerator": 220,
+            "denominator": 288,
+            "ci_low": 0.7116,
+            "ci_high": 0.8093
+          },
+          "missed_escalations": {
+            "value": 0.3929,
+            "numerator": 44,
+            "denominator": 112,
+            "ci_low": 0.3074,
+            "ci_high": 0.4854
+          },
+          "unnecessary_escalations": {
+            "value": 0.0909,
+            "numerator": 16,
+            "denominator": 176,
+            "ci_low": 0.0567,
+            "ci_high": 0.1426
+          }
+        },
+        "secondary": {
+          "safe_automated_resolution": {
+            "value": 0.8,
+            "numerator": 16,
+            "denominator": 20,
+            "ci_low": 0.584,
+            "ci_high": 0.9193
+          },
+          "unsafe_outcomes": {
+            "value": 0.0,
+            "numerator": 0,
+            "denominator": 320,
+            "ci_low": 0.0,
+            "ci_high": 0.0119
+          },
+          "pass_4": {
+            "value": 0.6125,
+            "numerator": 49,
+            "denominator": 80,
+            "ci_low": 0.5029,
+            "ci_high": 0.7118
+          },
+          "handoff_agreement": {
+            "value": 0.8056,
+            "numerator": 232,
+            "denominator": 288,
+            "ci_low": 0.7559,
+            "ci_high": 0.8471
+          },
+          "missed_escalations": {
+            "value": 0.3636,
+            "numerator": 48,
+            "denominator": 132,
+            "ci_low": 0.2865,
+            "ci_high": 0.4485
+          },
+          "unnecessary_escalations": {
+            "value": 0.0,
+            "numerator": 0,
+            "denominator": 156,
+            "ci_low": 0.0,
+            "ci_high": 0.024
+          }
+        }
+      },
+      "S1": {
+        "official": {
+          "safe_automated_resolution": {
+            "value": 0.0,
+            "numerator": 0,
+            "denominator": 20,
+            "ci_low": 0.0,
+            "ci_high": 0.1611
+          },
+          "unsafe_outcomes": {
+            "value": 0.0,
+            "numerator": 0,
+            "denominator": 320,
+            "ci_low": 0.0,
+            "ci_high": 0.0119
+          },
+          "pass_4": {
+            "value": 0.6125,
+            "numerator": 49,
+            "denominator": 80,
+            "ci_low": 0.5029,
+            "ci_high": 0.7118
+          },
+          "handoff_agreement": {
+            "value": 0.7639,
+            "numerator": 220,
+            "denominator": 288,
+            "ci_low": 0.7116,
+            "ci_high": 0.8093
+          },
+          "missed_escalations": {
+            "value": 0.3929,
+            "numerator": 44,
+            "denominator": 112,
+            "ci_low": 0.3074,
+            "ci_high": 0.4854
+          },
+          "unnecessary_escalations": {
+            "value": 0.0909,
+            "numerator": 16,
+            "denominator": 176,
+            "ci_low": 0.0567,
+            "ci_high": 0.1426
+          }
+        },
+        "secondary": {
+          "safe_automated_resolution": {
+            "value": 0.8,
+            "numerator": 16,
+            "denominator": 20,
+            "ci_low": 0.584,
+            "ci_high": 0.9193
+          },
+          "unsafe_outcomes": {
+            "value": 0.0,
+            "numerator": 0,
+            "denominator": 320,
+            "ci_low": 0.0,
+            "ci_high": 0.0119
+          },
+          "pass_4": {
+            "value": 0.6625,
+            "numerator": 53,
+            "denominator": 80,
+            "ci_low": 0.5536,
+            "ci_high": 0.7565
+          },
+          "handoff_agreement": {
+            "value": 0.8056,
+            "numerator": 232,
+            "denominator": 288,
+            "ci_low": 0.7559,
+            "ci_high": 0.8471
+          },
+          "missed_escalations": {
+            "value": 0.3636,
+            "numerator": 48,
+            "denominator": 132,
+            "ci_low": 0.2865,
+            "ci_high": 0.4485
+          },
+          "unnecessary_escalations": {
+            "value": 0.0,
+            "numerator": 0,
+            "denominator": 156,
+            "ci_low": 0.0,
+            "ci_high": 0.024
+          }
+        }
+      },
+      "S2": {
+        "official": {
+          "safe_automated_resolution": {
+            "value": 0.0,
+            "numerator": 0,
+            "denominator": 20,
+            "ci_low": 0.0,
+            "ci_high": 0.1611
+          },
+          "unsafe_outcomes": {
+            "value": 0.0,
+            "numerator": 0,
+            "denominator": 320,
+            "ci_low": 0.0,
+            "ci_high": 0.0119
+          },
+          "pass_4": {
+            "value": 0.6125,
+            "numerator": 49,
+            "denominator": 80,
+            "ci_low": 0.5029,
+            "ci_high": 0.7118
+          },
+          "handoff_agreement": {
+            "value": 0.7639,
+            "numerator": 220,
+            "denominator": 288,
+            "ci_low": 0.7116,
+            "ci_high": 0.8093
+          },
+          "missed_escalations": {
+            "value": 0.3929,
+            "numerator": 44,
+            "denominator": 112,
+            "ci_low": 0.3074,
+            "ci_high": 0.4854
+          },
+          "unnecessary_escalations": {
+            "value": 0.0909,
+            "numerator": 16,
+            "denominator": 176,
+            "ci_low": 0.0567,
+            "ci_high": 0.1426
+          }
+        },
+        "secondary": {
+          "safe_automated_resolution": {
+            "value": 0.8,
+            "numerator": 16,
+            "denominator": 20,
+            "ci_low": 0.584,
+            "ci_high": 0.9193
+          },
+          "unsafe_outcomes": {
+            "value": 0.0,
+            "numerator": 0,
+            "denominator": 320,
+            "ci_low": 0.0,
+            "ci_high": 0.0119
+          },
+          "pass_4": {
+            "value": 0.6625,
+            "numerator": 53,
+            "denominator": 80,
+            "ci_low": 0.5536,
+            "ci_high": 0.7565
+          },
+          "handoff_agreement": {
+            "value": 0.8056,
+            "numerator": 232,
+            "denominator": 288,
+            "ci_low": 0.7559,
+            "ci_high": 0.8471
+          },
+          "missed_escalations": {
+            "value": 0.3636,
+            "numerator": 48,
+            "denominator": 132,
+            "ci_low": 0.2865,
+            "ci_high": 0.4485
+          },
+          "unnecessary_escalations": {
+            "value": 0.0,
+            "numerator": 0,
+            "denominator": 156,
+            "ci_low": 0.0,
+            "ci_high": 0.024
+          }
+        }
+      }
+    }
+  }
+}

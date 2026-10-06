@@ -1,0 +1,3841 @@
+{
+  "generated_at": "2026-10-06T01:57:46Z",
+  "git_sha": "9a2a1fa",
+  "source": "scripts/ml/fraud_report.py, test window, scored once [data]",
+  "data": {
+    "label": "[data]",
+    "run_kind": "test window, scored once",
+    "scored_window": "test",
+    "protocol": {
+      "status": "SEALED",
+      "sha256": "533fc516c78509868b95e1d674bbeeee2555285d68bc4856f229623aa7aaa2d2",
+      "tag": "protocol-v1",
+      "commit": "7b18f72f4f7c427e51f54dadf9435b0896af476a",
+      "head": "9242dc53fb673b1695e5d4f6e4dde8484c74c699",
+      "test_review": "rules-v1",
+      "inputs": {
+        "fraud_split": "877a3a2386375dd35fe535e29f1f04d2326fa79bcc5c65349b151cda445df15a"
+      },
+      "fraud_split_hash": "877a3a2386375dd35fe535e29f1f04d2326fa79bcc5c65349b151cda445df15a"
+    },
+    "windows": {
+      "train": {
+        "from": "2025-06",
+        "to": "2026-01"
+      },
+      "validation": {
+        "from": "2026-02",
+        "to": "2026-03"
+      },
+      "test": {
+        "from": "2026-04",
+        "to": "2026-05",
+        "transactions": 238990,
+        "frauds": 211
+      }
+    },
+    "machine": {
+      "cpu": "macOS-26.6.2-arm64-arm-64bit-Mach-O, 14 cores",
+      "memory_gb": 24.0
+    },
+    "chosen_arm": "S-bank",
+    "arms": [
+      {
+        "arm": "S-bank",
+        "family": "baseline",
+        "version": "fraud_score",
+        "cost": {
+          "train_seconds": 0.0,
+          "score_p95_ms": 0.0,
+          "throughput_per_s": 0.0,
+          "model_mb": 0.0,
+          "peak_memory_mb": 0.0
+        },
+        "subsets": {
+          "all": {
+            "pr_auc": 0.5657,
+            "pr_auc_ci": [
+              0.5002,
+              0.6332
+            ],
+            "brier": 0.000577,
+            "recall_at_bank_precision": {
+              "0.80": {
+                "value": 0.564,
+                "numerator": 119,
+                "denominator": 211,
+                "ci_low": 0.4965,
+                "ci_high": 0.6292
+              },
+              "0.95": {
+                "value": 0.564,
+                "numerator": 119,
+                "denominator": 211,
+                "ci_low": 0.4965,
+                "ci_high": 0.6292
+              }
+            },
+            "recall_at_1pct": {
+              "value": 0.5735,
+              "numerator": 121,
+              "denominator": 211,
+              "ci_low": 0.506,
+              "ci_high": 0.6383
+            },
+            "recall_no_score_at_1pct": {
+              "value": null,
+              "numerator": null,
+              "denominator": 45,
+              "ci_low": null,
+              "ci_high": null
+            },
+            "by_score_band": [
+              {
+                "band": "none",
+                "n_fraud": 45,
+                "recall": {
+                  "value": 0.0,
+                  "numerator": 0,
+                  "denominator": 45,
+                  "ci_low": 0.0,
+                  "ci_high": 0.0787
+                }
+              },
+              {
+                "band": "<30",
+                "n_fraud": 47,
+                "recall": {
+                  "value": 0.0426,
+                  "numerator": 2,
+                  "denominator": 47,
+                  "ci_low": 0.0117,
+                  "ci_high": 0.1425
+                }
+              },
+              {
+                "band": "30-49",
+                "n_fraud": 33,
+                "recall": {
+                  "value": 1.0,
+                  "numerator": 33,
+                  "denominator": 33,
+                  "ci_low": 0.8957,
+                  "ci_high": 1.0
+                }
+              },
+              {
+                "band": ">=50",
+                "n_fraud": 86,
+                "recall": {
+                  "value": 1.0,
+                  "numerator": 86,
+                  "denominator": 86,
+                  "ci_low": 0.9572,
+                  "ci_high": 1.0
+                }
+              }
+            ],
+            "by_country": [
+              {
+                "country": "Argentina",
+                "n_fraud": 44,
+                "recall": {
+                  "value": 0.5455,
+                  "numerator": 24,
+                  "denominator": 44,
+                  "ci_low": 0.4007,
+                  "ci_high": 0.6829
+                }
+              },
+              {
+                "country": "Colombia",
+                "n_fraud": 62,
+                "recall": {
+                  "value": 0.5323,
+                  "numerator": 33,
+                  "denominator": 62,
+                  "ci_low": 0.4098,
+                  "ci_high": 0.6509
+                }
+              },
+              {
+                "country": "México",
+                "n_fraud": 105,
+                "recall": {
+                  "value": 0.6095,
+                  "numerator": 64,
+                  "denominator": 105,
+                  "ci_low": 0.5139,
+                  "ci_high": 0.6974
+                }
+              }
+            ],
+            "by_segment": [
+              {
+                "segment": "Basic",
+                "n_fraud": 117,
+                "recall": {
+                  "value": 0.5385,
+                  "numerator": 63,
+                  "denominator": 117,
+                  "ci_low": 0.4483,
+                  "ci_high": 0.6261
+                }
+              },
+              {
+                "segment": "Plus",
+                "n_fraud": 58,
+                "recall": {
+                  "value": 0.5862,
+                  "numerator": 34,
+                  "denominator": 58,
+                  "ci_low": 0.458,
+                  "ci_high": 0.7037
+                }
+              },
+              {
+                "segment": "Premium",
+                "n_fraud": 21,
+                "recall": {
+                  "value": 0.619,
+                  "numerator": 13,
+                  "denominator": 21,
+                  "ci_low": 0.4088,
+                  "ci_high": 0.7925
+                }
+              },
+              {
+                "segment": "Student",
+                "n_fraud": 15,
+                "recall": {
+                  "value": 0.7333,
+                  "numerator": 11,
+                  "denominator": 15,
+                  "ci_low": 0.4805,
+                  "ci_high": 0.891
+                }
+              }
+            ]
+          },
+          "card": {
+            "pr_auc": 0.5092,
+            "pr_auc_ci": [
+              0.3986,
+              0.6258
+            ],
+            "brier": 0.000571,
+            "recall_at_bank_precision": {
+              "0.80": {
+                "value": 0.5067,
+                "numerator": 38,
+                "denominator": 75,
+                "ci_low": 0.396,
+                "ci_high": 0.6167
+              },
+              "0.95": {
+                "value": 0.5067,
+                "numerator": 38,
+                "denominator": 75,
+                "ci_low": 0.396,
+                "ci_high": 0.6167
+              }
+            },
+            "recall_at_1pct": {
+              "value": 0.52,
+              "numerator": 39,
+              "denominator": 75,
+              "ci_low": 0.4087,
+              "ci_high": 0.6293
+            },
+            "recall_no_score_at_1pct": {
+              "value": null,
+              "numerator": null,
+              "denominator": 19,
+              "ci_low": null,
+              "ci_high": null
+            },
+            "by_score_band": [
+              {
+                "band": "none",
+                "n_fraud": 19,
+                "recall": {
+                  "value": 0.0,
+                  "numerator": 0,
+                  "denominator": 19,
+                  "ci_low": 0.0,
+                  "ci_high": 0.1682
+                }
+              },
+              {
+                "band": "<30",
+                "n_fraud": 18,
+                "recall": {
+                  "value": 0.0556,
+                  "numerator": 1,
+                  "denominator": 18,
+                  "ci_low": 0.0099,
+                  "ci_high": 0.2576
+                }
+              },
+              {
+                "band": "30-49",
+                "n_fraud": 8,
+                "recall": {
+                  "value": 1.0,
+                  "numerator": 8,
+                  "denominator": 8,
+                  "ci_low": 0.6756,
+                  "ci_high": 1.0
+                }
+              },
+              {
+                "band": ">=50",
+                "n_fraud": 30,
+                "recall": {
+                  "value": 1.0,
+                  "numerator": 30,
+                  "denominator": 30,
+                  "ci_low": 0.8865,
+                  "ci_high": 1.0
+                }
+              }
+            ],
+            "by_country": [
+              {
+                "country": "Argentina",
+                "n_fraud": 19,
+                "recall": {
+                  "value": 0.5789,
+                  "numerator": 11,
+                  "denominator": 19,
+                  "ci_low": 0.3628,
+                  "ci_high": 0.7686
+                }
+              },
+              {
+                "country": "Colombia",
+                "n_fraud": 18,
+                "recall": {
+                  "value": 0.4444,
+                  "numerator": 8,
+                  "denominator": 18,
+                  "ci_low": 0.2456,
+                  "ci_high": 0.6628
+                }
+              },
+              {
+                "country": "México",
+                "n_fraud": 38,
+                "recall": {
+                  "value": 0.5263,
+                  "numerator": 20,
+                  "denominator": 38,
+                  "ci_low": 0.3726,
+                  "ci_high": 0.6752
+                }
+              }
+            ],
+            "by_segment": [
+              {
+                "segment": "Basic",
+                "n_fraud": 37,
+                "recall": {
+                  "value": 0.5405,
+                  "numerator": 20,
+                  "denominator": 37,
+                  "ci_low": 0.3838,
+                  "ci_high": 0.6896
+                }
+              },
+              {
+                "segment": "Plus",
+                "n_fraud": 24,
+                "recall": {
+                  "value": 0.5,
+                  "numerator": 12,
+                  "denominator": 24,
+                  "ci_low": 0.3143,
+                  "ci_high": 0.6857
+                }
+              },
+              {
+                "segment": "Premium",
+                "n_fraud": 7,
+                "recall": {
+                  "value": 0.4286,
+                  "numerator": 3,
+                  "denominator": 7,
+                  "ci_low": 0.1582,
+                  "ci_high": 0.7495
+                }
+              },
+              {
+                "segment": "Student",
+                "n_fraud": 7,
+                "recall": {
+                  "value": 0.5714,
+                  "numerator": 4,
+                  "denominator": 7,
+                  "ci_low": 0.2505,
+                  "ci_high": 0.8418
+                }
+              }
+            ]
+          }
+        },
+        "passes_rule": null
+      },
+      {
+        "arm": "IsolationForest",
+        "family": "no-labels",
+        "version": "04aa5dcf0778",
+        "cost": {
+          "train_seconds": 0.2,
+          "score_p95_ms": 2.47,
+          "throughput_per_s": 390531,
+          "model_mb": 1.08,
+          "peak_memory_mb": 182.0
+        },
+        "subsets": {
+          "all": {
+            "pr_auc": 0.0009,
+            "pr_auc_ci": [
+              0.0008,
+              0.0011
+            ],
+            "brier": 0.000882,
+            "recall_at_bank_precision": {
+              "0.80": {
+                "value": 0.0,
+                "numerator": 0,
+                "denominator": 211,
+                "ci_low": 0.0,
+                "ci_high": 0.0179
+              },
+              "0.95": {
+                "value": 0.0,
+                "numerator": 0,
+                "denominator": 211,
+                "ci_low": 0.0,
+                "ci_high": 0.0179
+              }
+            },
+            "recall_at_1pct": {
+              "value": 0.0047,
+              "numerator": 1,
+              "denominator": 211,
+              "ci_low": 0.0008,
+              "ci_high": 0.0264
+            },
+            "recall_no_score_at_1pct": {
+              "value": 0.0,
+              "numerator": 0,
+              "denominator": 45,
+              "ci_low": 0.0,
+              "ci_high": 0.0787
+            },
+            "by_score_band": [
+              {
+                "band": "none",
+                "n_fraud": 45,
+                "recall": {
+                  "value": 0.0,
+                  "numerator": 0,
+                  "denominator": 45,
+                  "ci_low": 0.0,
+                  "ci_high": 0.0787
+                }
+              },
+              {
+                "band": "<30",
+                "n_fraud": 47,
+                "recall": {
+                  "value": 0.0,
+                  "numerator": 0,
+                  "denominator": 47,
+                  "ci_low": 0.0,
+                  "ci_high": 0.0756
+                }
+              },
+              {
+                "band": "30-49",
+                "n_fraud": 33,
+                "recall": {
+                  "value": 0.0,
+                  "numerator": 0,
+                  "denominator": 33,
+                  "ci_low": 0.0,
+                  "ci_high": 0.1043
+                }
+              },
+              {
+                "band": ">=50",
+                "n_fraud": 86,
+                "recall": {
+                  "value": 0.0116,
+                  "numerator": 1,
+                  "denominator": 86,
+                  "ci_low": 0.0021,
+                  "ci_high": 0.063
+                }
+              }
+            ],
+            "by_country": [
+              {
+                "country": "Argentina",
+                "n_fraud": 44,
+                "recall": {
+                  "value": 0.0,
+                  "numerator": 0,
+                  "denominator": 44,
+                  "ci_low": 0.0,
+                  "ci_high": 0.0803
+                }
+              },
+              {
+                "country": "Colombia",
+                "n_fraud": 62,
+                "recall": {
+                  "value": 0.0,
+                  "numerator": 0,
+                  "denominator": 62,
+                  "ci_low": 0.0,
+                  "ci_high": 0.0583
+                }
+              },
+              {
+                "country": "México",
+                "n_fraud": 105,
+                "recall": {
+                  "value": 0.0095,
+                  "numerator": 1,
+                  "denominator": 105,
+                  "ci_low": 0.0017,
+                  "ci_high": 0.052
+                }
+              }
+            ],
+            "by_segment": [
+              {
+                "segment": "Basic",
+                "n_fraud": 117,
+                "recall": {
+                  "value": 0.0085,
+                  "numerator": 1,
+                  "denominator": 117,
+                  "ci_low": 0.0015,
+                  "ci_high": 0.0468
+                }
+              },
+              {
+                "segment": "Plus",
+                "n_fraud": 58,
+                "recall": {
+                  "value": 0.0,
+                  "numerator": 0,
+                  "denominator": 58,
+                  "ci_low": 0.0,
+                  "ci_high": 0.0621
+                }
+              },
+              {
+                "segment": "Premium",
+                "n_fraud": 21,
+                "recall": {
+                  "value": 0.0,
+                  "numerator": 0,
+                  "denominator": 21,
+                  "ci_low": 0.0,
+                  "ci_high": 0.1546
+                }
+              },
+              {
+                "segment": "Student",
+                "n_fraud": 15,
+                "recall": {
+                  "value": 0.0,
+                  "numerator": 0,
+                  "denominator": 15,
+                  "ci_low": 0.0,
+                  "ci_high": 0.2039
+                }
+              }
+            ]
+          },
+          "card": {
+            "pr_auc": 0.0011,
+            "pr_auc_ci": [
+              0.0007,
+              0.0017
+            ],
+            "brier": 0.000897,
+            "recall_at_bank_precision": {
+              "0.80": {
+                "value": 0.0,
+                "numerator": 0,
+                "denominator": 75,
+                "ci_low": 0.0,
+                "ci_high": 0.0487
+              },
+              "0.95": {
+                "value": 0.0,
+                "numerator": 0,
+                "denominator": 75,
+                "ci_low": 0.0,
+                "ci_high": 0.0487
+              }
+            },
+            "recall_at_1pct": {
+              "value": 0.0133,
+              "numerator": 1,
+              "denominator": 75,
+              "ci_low": 0.0024,
+              "ci_high": 0.0717
+            },
+            "recall_no_score_at_1pct": {
+              "value": 0.0,
+              "numerator": 0,
+              "denominator": 19,
+              "ci_low": 0.0,
+              "ci_high": 0.1682
+            },
+            "by_score_band": [
+              {
+                "band": "none",
+                "n_fraud": 19,
+                "recall": {
+                  "value": 0.0,
+                  "numerator": 0,
+                  "denominator": 19,
+                  "ci_low": 0.0,
+                  "ci_high": 0.1682
+                }
+              },
+              {
+                "band": "<30",
+                "n_fraud": 18,
+                "recall": {
+                  "value": 0.0,
+                  "numerator": 0,
+                  "denominator": 18,
+                  "ci_low": 0.0,
+                  "ci_high": 0.1759
+                }
+              },
+              {
+                "band": "30-49",
+                "n_fraud": 8,
+                "recall": {
+                  "value": 0.0,
+                  "numerator": 0,
+                  "denominator": 8,
+                  "ci_low": 0.0,
+                  "ci_high": 0.3244
+                }
+              },
+              {
+                "band": ">=50",
+                "n_fraud": 30,
+                "recall": {
+                  "value": 0.0333,
+                  "numerator": 1,
+                  "denominator": 30,
+                  "ci_low": 0.0059,
+                  "ci_high": 0.1667
+                }
+              }
+            ],
+            "by_country": [
+              {
+                "country": "Argentina",
+                "n_fraud": 19,
+                "recall": {
+                  "value": 0.0,
+                  "numerator": 0,
+                  "denominator": 19,
+                  "ci_low": 0.0,
+                  "ci_high": 0.1682
+                }
+              },
+              {
+                "country": "Colombia",
+                "n_fraud": 18,
+                "recall": {
+                  "value": 0.0,
+                  "numerator": 0,
+                  "denominator": 18,
+                  "ci_low": 0.0,
+                  "ci_high": 0.1759
+                }
+              },
+              {
+                "country": "México",
+                "n_fraud": 38,
+                "recall": {
+                  "value": 0.0263,
+                  "numerator": 1,
+                  "denominator": 38,
+                  "ci_low": 0.0047,
+                  "ci_high": 0.1349
+                }
+              }
+            ],
+            "by_segment": [
+              {
+                "segment": "Basic",
+                "n_fraud": 37,
+                "recall": {
+                  "value": 0.027,
+                  "numerator": 1,
+                  "denominator": 37,
+                  "ci_low": 0.0048,
+                  "ci_high": 0.1382
+                }
+              },
+              {
+                "segment": "Plus",
+                "n_fraud": 24,
+                "recall": {
+                  "value": 0.0,
+                  "numerator": 0,
+                  "denominator": 24,
+                  "ci_low": 0.0,
+                  "ci_high": 0.138
+                }
+              },
+              {
+                "segment": "Premium",
+                "n_fraud": 7,
+                "recall": {
+                  "value": 0.0,
+                  "numerator": 0,
+                  "denominator": 7,
+                  "ci_low": 0.0,
+                  "ci_high": 0.3543
+                }
+              },
+              {
+                "segment": "Student",
+                "n_fraud": 7,
+                "recall": {
+                  "value": 0.0,
+                  "numerator": 0,
+                  "denominator": 7,
+                  "ci_low": 0.0,
+                  "ci_high": 0.3543
+                }
+              }
+            ]
+          }
+        },
+        "passes_rule": false
+      },
+      {
+        "arm": "LogisticRegression",
+        "family": "linear",
+        "version": "e313e601d398",
+        "cost": {
+          "train_seconds": 0.13,
+          "score_p95_ms": 0.666,
+          "throughput_per_s": 6347697,
+          "model_mb": 0.0,
+          "peak_memory_mb": 178.2
+        },
+        "subsets": {
+          "all": {
+            "pr_auc": 0.0009,
+            "pr_auc_ci": [
+              0.0007,
+              0.0011
+            ],
+            "brier": 0.000882,
+            "recall_at_bank_precision": {
+              "0.80": {
+                "value": 0.0,
+                "numerator": 0,
+                "denominator": 211,
+                "ci_low": 0.0,
+                "ci_high": 0.0179
+              },
+              "0.95": {
+                "value": 0.0,
+                "numerator": 0,
+                "denominator": 211,
+                "ci_low": 0.0,
+                "ci_high": 0.0179
+              }
+            },
+            "recall_at_1pct": {
+              "value": 0.0047,
+              "numerator": 1,
+              "denominator": 211,
+              "ci_low": 0.0008,
+              "ci_high": 0.0264
+            },
+            "recall_no_score_at_1pct": {
+              "value": 0.0,
+              "numerator": 0,
+              "denominator": 45,
+              "ci_low": 0.0,
+              "ci_high": 0.0787
+            },
+            "by_score_band": [
+              {
+                "band": "none",
+                "n_fraud": 45,
+                "recall": {
+                  "value": 0.0,
+                  "numerator": 0,
+                  "denominator": 45,
+                  "ci_low": 0.0,
+                  "ci_high": 0.0787
+                }
+              },
+              {
+                "band": "<30",
+                "n_fraud": 47,
+                "recall": {
+                  "value": 0.0213,
+                  "numerator": 1,
+                  "denominator": 47,
+                  "ci_low": 0.0038,
+                  "ci_high": 0.1111
+                }
+              },
+              {
+                "band": "30-49",
+                "n_fraud": 33,
+                "recall": {
+                  "value": 0.0,
+                  "numerator": 0,
+                  "denominator": 33,
+                  "ci_low": 0.0,
+                  "ci_high": 0.1043
+                }
+              },
+              {
+                "band": ">=50",
+                "n_fraud": 86,
+                "recall": {
+                  "value": 0.0,
+                  "numerator": 0,
+                  "denominator": 86,
+                  "ci_low": 0.0,
+                  "ci_high": 0.0428
+                }
+              }
+            ],
+            "by_country": [
+              {
+                "country": "Argentina",
+                "n_fraud": 44,
+                "recall": {
+                  "value": 0.0,
+                  "numerator": 0,
+                  "denominator": 44,
+                  "ci_low": 0.0,
+                  "ci_high": 0.0803
+                }
+              },
+              {
+                "country": "Colombia",
+                "n_fraud": 62,
+                "recall": {
+                  "value": 0.0161,
+                  "numerator": 1,
+                  "denominator": 62,
+                  "ci_low": 0.0029,
+                  "ci_high": 0.0859
+                }
+              },
+              {
+                "country": "México",
+                "n_fraud": 105,
+                "recall": {
+                  "value": 0.0,
+                  "numerator": 0,
+                  "denominator": 105,
+                  "ci_low": 0.0,
+                  "ci_high": 0.0353
+                }
+              }
+            ],
+            "by_segment": [
+              {
+                "segment": "Basic",
+                "n_fraud": 117,
+                "recall": {
+                  "value": 0.0,
+                  "numerator": 0,
+                  "denominator": 117,
+                  "ci_low": 0.0,
+                  "ci_high": 0.0318
+                }
+              },
+              {
+                "segment": "Plus",
+                "n_fraud": 58,
+                "recall": {
+                  "value": 0.0172,
+                  "numerator": 1,
+                  "denominator": 58,
+                  "ci_low": 0.0031,
+                  "ci_high": 0.0914
+                }
+              },
+              {
+                "segment": "Premium",
+                "n_fraud": 21,
+                "recall": {
+                  "value": 0.0,
+                  "numerator": 0,
+                  "denominator": 21,
+                  "ci_low": 0.0,
+                  "ci_high": 0.1546
+                }
+              },
+              {
+                "segment": "Student",
+                "n_fraud": 15,
+                "recall": {
+                  "value": 0.0,
+                  "numerator": 0,
+                  "denominator": 15,
+                  "ci_low": 0.0,
+                  "ci_high": 0.2039
+                }
+              }
+            ]
+          },
+          "card": {
+            "pr_auc": 0.001,
+            "pr_auc_ci": [
+              0.0007,
+              0.0015
+            ],
+            "brier": 0.000897,
+            "recall_at_bank_precision": {
+              "0.80": {
+                "value": 0.0,
+                "numerator": 0,
+                "denominator": 75,
+                "ci_low": 0.0,
+                "ci_high": 0.0487
+              },
+              "0.95": {
+                "value": 0.0,
+                "numerator": 0,
+                "denominator": 75,
+                "ci_low": 0.0,
+                "ci_high": 0.0487
+              }
+            },
+            "recall_at_1pct": {
+              "value": 0.0,
+              "numerator": 0,
+              "denominator": 75,
+              "ci_low": 0.0,
+              "ci_high": 0.0487
+            },
+            "recall_no_score_at_1pct": {
+              "value": 0.0,
+              "numerator": 0,
+              "denominator": 19,
+              "ci_low": 0.0,
+              "ci_high": 0.1682
+            },
+            "by_score_band": [
+              {
+                "band": "none",
+                "n_fraud": 19,
+                "recall": {
+                  "value": 0.0,
+                  "numerator": 0,
+                  "denominator": 19,
+                  "ci_low": 0.0,
+                  "ci_high": 0.1682
+                }
+              },
+              {
+                "band": "<30",
+                "n_fraud": 18,
+                "recall": {
+                  "value": 0.0,
+                  "numerator": 0,
+                  "denominator": 18,
+                  "ci_low": 0.0,
+                  "ci_high": 0.1759
+                }
+              },
+              {
+                "band": "30-49",
+                "n_fraud": 8,
+                "recall": {
+                  "value": 0.0,
+                  "numerator": 0,
+                  "denominator": 8,
+                  "ci_low": 0.0,
+                  "ci_high": 0.3244
+                }
+              },
+              {
+                "band": ">=50",
+                "n_fraud": 30,
+                "recall": {
+                  "value": 0.0,
+                  "numerator": 0,
+                  "denominator": 30,
+                  "ci_low": 0.0,
+                  "ci_high": 0.1135
+                }
+              }
+            ],
+            "by_country": [
+              {
+                "country": "Argentina",
+                "n_fraud": 19,
+                "recall": {
+                  "value": 0.0,
+                  "numerator": 0,
+                  "denominator": 19,
+                  "ci_low": 0.0,
+                  "ci_high": 0.1682
+                }
+              },
+              {
+                "country": "Colombia",
+                "n_fraud": 18,
+                "recall": {
+                  "value": 0.0,
+                  "numerator": 0,
+                  "denominator": 18,
+                  "ci_low": 0.0,
+                  "ci_high": 0.1759
+                }
+              },
+              {
+                "country": "México",
+                "n_fraud": 38,
+                "recall": {
+                  "value": 0.0,
+                  "numerator": 0,
+                  "denominator": 38,
+                  "ci_low": 0.0,
+                  "ci_high": 0.0918
+                }
+              }
+            ],
+            "by_segment": [
+              {
+                "segment": "Basic",
+                "n_fraud": 37,
+                "recall": {
+                  "value": 0.0,
+                  "numerator": 0,
+                  "denominator": 37,
+                  "ci_low": 0.0,
+                  "ci_high": 0.0941
+                }
+              },
+              {
+                "segment": "Plus",
+                "n_fraud": 24,
+                "recall": {
+                  "value": 0.0,
+                  "numerator": 0,
+                  "denominator": 24,
+                  "ci_low": 0.0,
+                  "ci_high": 0.138
+                }
+              },
+              {
+                "segment": "Premium",
+                "n_fraud": 7,
+                "recall": {
+                  "value": 0.0,
+                  "numerator": 0,
+                  "denominator": 7,
+                  "ci_low": 0.0,
+                  "ci_high": 0.3543
+                }
+              },
+              {
+                "segment": "Student",
+                "n_fraud": 7,
+                "recall": {
+                  "value": 0.0,
+                  "numerator": 0,
+                  "denominator": 7,
+                  "ci_low": 0.0,
+                  "ci_high": 0.3543
+                }
+              }
+            ]
+          }
+        },
+        "passes_rule": false
+      },
+      {
+        "arm": "SGDClassifier",
+        "family": "linear",
+        "version": "6864e9fe5d26",
+        "cost": {
+          "train_seconds": 0.25,
+          "score_p95_ms": 0.696,
+          "throughput_per_s": 6044839,
+          "model_mb": 0.0,
+          "peak_memory_mb": 179.2
+        },
+        "subsets": {
+          "all": {
+            "pr_auc": 0.001,
+            "pr_auc_ci": [
+              0.0008,
+              0.0012
+            ],
+            "brier": 0.000882,
+            "recall_at_bank_precision": {
+              "0.80": {
+                "value": 0.0,
+                "numerator": 0,
+                "denominator": 211,
+                "ci_low": 0.0,
+                "ci_high": 0.0179
+              },
+              "0.95": {
+                "value": 0.0,
+                "numerator": 0,
+                "denominator": 211,
+                "ci_low": 0.0,
+                "ci_high": 0.0179
+              }
+            },
+            "recall_at_1pct": {
+              "value": 0.0,
+              "numerator": 0,
+              "denominator": 211,
+              "ci_low": 0.0,
+              "ci_high": 0.0179
+            },
+            "recall_no_score_at_1pct": {
+              "value": 0.0,
+              "numerator": 0,
+              "denominator": 45,
+              "ci_low": 0.0,
+              "ci_high": 0.0787
+            },
+            "by_score_band": [
+              {
+                "band": "none",
+                "n_fraud": 45,
+                "recall": {
+                  "value": 0.0,
+                  "numerator": 0,
+                  "denominator": 45,
+                  "ci_low": 0.0,
+                  "ci_high": 0.0787
+                }
+              },
+              {
+                "band": "<30",
+                "n_fraud": 47,
+                "recall": {
+                  "value": 0.0,
+                  "numerator": 0,
+                  "denominator": 47,
+                  "ci_low": 0.0,
+                  "ci_high": 0.0756
+                }
+              },
+              {
+                "band": "30-49",
+                "n_fraud": 33,
+                "recall": {
+                  "value": 0.0,
+                  "numerator": 0,
+                  "denominator": 33,
+                  "ci_low": 0.0,
+                  "ci_high": 0.1043
+                }
+              },
+              {
+                "band": ">=50",
+                "n_fraud": 86,
+                "recall": {
+                  "value": 0.0,
+                  "numerator": 0,
+                  "denominator": 86,
+                  "ci_low": 0.0,
+                  "ci_high": 0.0428
+                }
+              }
+            ],
+            "by_country": [
+              {
+                "country": "Argentina",
+                "n_fraud": 44,
+                "recall": {
+                  "value": 0.0,
+                  "numerator": 0,
+                  "denominator": 44,
+                  "ci_low": 0.0,
+                  "ci_high": 0.0803
+                }
+              },
+              {
+                "country": "Colombia",
+                "n_fraud": 62,
+                "recall": {
+                  "value": 0.0,
+                  "numerator": 0,
+                  "denominator": 62,
+                  "ci_low": 0.0,
+                  "ci_high": 0.0583
+                }
+              },
+              {
+                "country": "México",
+                "n_fraud": 105,
+                "recall": {
+                  "value": 0.0,
+                  "numerator": 0,
+                  "denominator": 105,
+                  "ci_low": 0.0,
+                  "ci_high": 0.0353
+                }
+              }
+            ],
+            "by_segment": [
+              {
+                "segment": "Basic",
+                "n_fraud": 117,
+                "recall": {
+                  "value": 0.0,
+                  "numerator": 0,
+                  "denominator": 117,
+                  "ci_low": 0.0,
+                  "ci_high": 0.0318
+                }
+              },
+              {
+                "segment": "Plus",
+                "n_fraud": 58,
+                "recall": {
+                  "value": 0.0,
+                  "numerator": 0,
+                  "denominator": 58,
+                  "ci_low": 0.0,
+                  "ci_high": 0.0621
+                }
+              },
+              {
+                "segment": "Premium",
+                "n_fraud": 21,
+                "recall": {
+                  "value": 0.0,
+                  "numerator": 0,
+                  "denominator": 21,
+                  "ci_low": 0.0,
+                  "ci_high": 0.1546
+                }
+              },
+              {
+                "segment": "Student",
+                "n_fraud": 15,
+                "recall": {
+                  "value": 0.0,
+                  "numerator": 0,
+                  "denominator": 15,
+                  "ci_low": 0.0,
+                  "ci_high": 0.2039
+                }
+              }
+            ]
+          },
+          "card": {
+            "pr_auc": 0.0012,
+            "pr_auc_ci": [
+              0.0008,
+              0.0019
+            ],
+            "brier": 0.000897,
+            "recall_at_bank_precision": {
+              "0.80": {
+                "value": 0.0,
+                "numerator": 0,
+                "denominator": 75,
+                "ci_low": 0.0,
+                "ci_high": 0.0487
+              },
+              "0.95": {
+                "value": 0.0,
+                "numerator": 0,
+                "denominator": 75,
+                "ci_low": 0.0,
+                "ci_high": 0.0487
+              }
+            },
+            "recall_at_1pct": {
+              "value": 0.0267,
+              "numerator": 2,
+              "denominator": 75,
+              "ci_low": 0.0073,
+              "ci_high": 0.0921
+            },
+            "recall_no_score_at_1pct": {
+              "value": 0.0,
+              "numerator": 0,
+              "denominator": 19,
+              "ci_low": 0.0,
+              "ci_high": 0.1682
+            },
+            "by_score_band": [
+              {
+                "band": "none",
+                "n_fraud": 19,
+                "recall": {
+                  "value": 0.0,
+                  "numerator": 0,
+                  "denominator": 19,
+                  "ci_low": 0.0,
+                  "ci_high": 0.1682
+                }
+              },
+              {
+                "band": "<30",
+                "n_fraud": 18,
+                "recall": {
+                  "value": 0.0,
+                  "numerator": 0,
+                  "denominator": 18,
+                  "ci_low": 0.0,
+                  "ci_high": 0.1759
+                }
+              },
+              {
+                "band": "30-49",
+                "n_fraud": 8,
+                "recall": {
+                  "value": 0.125,
+                  "numerator": 1,
+                  "denominator": 8,
+                  "ci_low": 0.0224,
+                  "ci_high": 0.4709
+                }
+              },
+              {
+                "band": ">=50",
+                "n_fraud": 30,
+                "recall": {
+                  "value": 0.0333,
+                  "numerator": 1,
+                  "denominator": 30,
+                  "ci_low": 0.0059,
+                  "ci_high": 0.1667
+                }
+              }
+            ],
+            "by_country": [
+              {
+                "country": "Argentina",
+                "n_fraud": 19,
+                "recall": {
+                  "value": 0.0,
+                  "numerator": 0,
+                  "denominator": 19,
+                  "ci_low": 0.0,
+                  "ci_high": 0.1682
+                }
+              },
+              {
+                "country": "Colombia",
+                "n_fraud": 18,
+                "recall": {
+                  "value": 0.0,
+                  "numerator": 0,
+                  "denominator": 18,
+                  "ci_low": 0.0,
+                  "ci_high": 0.1759
+                }
+              },
+              {
+                "country": "México",
+                "n_fraud": 38,
+                "recall": {
+                  "value": 0.0526,
+                  "numerator": 2,
+                  "denominator": 38,
+                  "ci_low": 0.0146,
+                  "ci_high": 0.1729
+                }
+              }
+            ],
+            "by_segment": [
+              {
+                "segment": "Basic",
+                "n_fraud": 37,
+                "recall": {
+                  "value": 0.027,
+                  "numerator": 1,
+                  "denominator": 37,
+                  "ci_low": 0.0048,
+                  "ci_high": 0.1382
+                }
+              },
+              {
+                "segment": "Plus",
+                "n_fraud": 24,
+                "recall": {
+                  "value": 0.0417,
+                  "numerator": 1,
+                  "denominator": 24,
+                  "ci_low": 0.0074,
+                  "ci_high": 0.2024
+                }
+              },
+              {
+                "segment": "Premium",
+                "n_fraud": 7,
+                "recall": {
+                  "value": 0.0,
+                  "numerator": 0,
+                  "denominator": 7,
+                  "ci_low": 0.0,
+                  "ci_high": 0.3543
+                }
+              },
+              {
+                "segment": "Student",
+                "n_fraud": 7,
+                "recall": {
+                  "value": 0.0,
+                  "numerator": 0,
+                  "denominator": 7,
+                  "ci_low": 0.0,
+                  "ci_high": 0.3543
+                }
+              }
+            ]
+          }
+        },
+        "passes_rule": false
+      },
+      {
+        "arm": "GaussianNB",
+        "family": "probabilistic",
+        "version": "71132bc038f2",
+        "cost": {
+          "train_seconds": 0.1,
+          "score_p95_ms": 0.77,
+          "throughput_per_s": 3273447,
+          "model_mb": 0.0,
+          "peak_memory_mb": 172.0
+        },
+        "subsets": {
+          "all": {
+            "pr_auc": 0.0008,
+            "pr_auc_ci": [
+              0.0007,
+              0.001
+            ],
+            "brier": 0.000882,
+            "recall_at_bank_precision": {
+              "0.80": {
+                "value": 0.0,
+                "numerator": 0,
+                "denominator": 211,
+                "ci_low": 0.0,
+                "ci_high": 0.0179
+              },
+              "0.95": {
+                "value": 0.0,
+                "numerator": 0,
+                "denominator": 211,
+                "ci_low": 0.0,
+                "ci_high": 0.0179
+              }
+            },
+            "recall_at_1pct": {
+              "value": 0.0047,
+              "numerator": 1,
+              "denominator": 211,
+              "ci_low": 0.0008,
+              "ci_high": 0.0264
+            },
+            "recall_no_score_at_1pct": {
+              "value": 0.0,
+              "numerator": 0,
+              "denominator": 45,
+              "ci_low": 0.0,
+              "ci_high": 0.0787
+            },
+            "by_score_band": [
+              {
+                "band": "none",
+                "n_fraud": 45,
+                "recall": {
+                  "value": 0.0,
+                  "numerator": 0,
+                  "denominator": 45,
+                  "ci_low": 0.0,
+                  "ci_high": 0.0787
+                }
+              },
+              {
+                "band": "<30",
+                "n_fraud": 47,
+                "recall": {
+                  "value": 0.0,
+                  "numerator": 0,
+                  "denominator": 47,
+                  "ci_low": 0.0,
+                  "ci_high": 0.0756
+                }
+              },
+              {
+                "band": "30-49",
+                "n_fraud": 33,
+                "recall": {
+                  "value": 0.0,
+                  "numerator": 0,
+                  "denominator": 33,
+                  "ci_low": 0.0,
+                  "ci_high": 0.1043
+                }
+              },
+              {
+                "band": ">=50",
+                "n_fraud": 86,
+                "recall": {
+                  "value": 0.0116,
+                  "numerator": 1,
+                  "denominator": 86,
+                  "ci_low": 0.0021,
+                  "ci_high": 0.063
+                }
+              }
+            ],
+            "by_country": [
+              {
+                "country": "Argentina",
+                "n_fraud": 44,
+                "recall": {
+                  "value": 0.0,
+                  "numerator": 0,
+                  "denominator": 44,
+                  "ci_low": 0.0,
+                  "ci_high": 0.0803
+                }
+              },
+              {
+                "country": "Colombia",
+                "n_fraud": 62,
+                "recall": {
+                  "value": 0.0161,
+                  "numerator": 1,
+                  "denominator": 62,
+                  "ci_low": 0.0029,
+                  "ci_high": 0.0859
+                }
+              },
+              {
+                "country": "México",
+                "n_fraud": 105,
+                "recall": {
+                  "value": 0.0,
+                  "numerator": 0,
+                  "denominator": 105,
+                  "ci_low": 0.0,
+                  "ci_high": 0.0353
+                }
+              }
+            ],
+            "by_segment": [
+              {
+                "segment": "Basic",
+                "n_fraud": 117,
+                "recall": {
+                  "value": 0.0,
+                  "numerator": 0,
+                  "denominator": 117,
+                  "ci_low": 0.0,
+                  "ci_high": 0.0318
+                }
+              },
+              {
+                "segment": "Plus",
+                "n_fraud": 58,
+                "recall": {
+                  "value": 0.0172,
+                  "numerator": 1,
+                  "denominator": 58,
+                  "ci_low": 0.0031,
+                  "ci_high": 0.0914
+                }
+              },
+              {
+                "segment": "Premium",
+                "n_fraud": 21,
+                "recall": {
+                  "value": 0.0,
+                  "numerator": 0,
+                  "denominator": 21,
+                  "ci_low": 0.0,
+                  "ci_high": 0.1546
+                }
+              },
+              {
+                "segment": "Student",
+                "n_fraud": 15,
+                "recall": {
+                  "value": 0.0,
+                  "numerator": 0,
+                  "denominator": 15,
+                  "ci_low": 0.0,
+                  "ci_high": 0.2039
+                }
+              }
+            ]
+          },
+          "card": {
+            "pr_auc": 0.0009,
+            "pr_auc_ci": [
+              0.0007,
+              0.0012
+            ],
+            "brier": 0.000897,
+            "recall_at_bank_precision": {
+              "0.80": {
+                "value": 0.0,
+                "numerator": 0,
+                "denominator": 75,
+                "ci_low": 0.0,
+                "ci_high": 0.0487
+              },
+              "0.95": {
+                "value": 0.0,
+                "numerator": 0,
+                "denominator": 75,
+                "ci_low": 0.0,
+                "ci_high": 0.0487
+              }
+            },
+            "recall_at_1pct": {
+              "value": 0.0,
+              "numerator": 0,
+              "denominator": 75,
+              "ci_low": 0.0,
+              "ci_high": 0.0487
+            },
+            "recall_no_score_at_1pct": {
+              "value": 0.0,
+              "numerator": 0,
+              "denominator": 19,
+              "ci_low": 0.0,
+              "ci_high": 0.1682
+            },
+            "by_score_band": [
+              {
+                "band": "none",
+                "n_fraud": 19,
+                "recall": {
+                  "value": 0.0,
+                  "numerator": 0,
+                  "denominator": 19,
+                  "ci_low": 0.0,
+                  "ci_high": 0.1682
+                }
+              },
+              {
+                "band": "<30",
+                "n_fraud": 18,
+                "recall": {
+                  "value": 0.0,
+                  "numerator": 0,
+                  "denominator": 18,
+                  "ci_low": 0.0,
+                  "ci_high": 0.1759
+                }
+              },
+              {
+                "band": "30-49",
+                "n_fraud": 8,
+                "recall": {
+                  "value": 0.0,
+                  "numerator": 0,
+                  "denominator": 8,
+                  "ci_low": 0.0,
+                  "ci_high": 0.3244
+                }
+              },
+              {
+                "band": ">=50",
+                "n_fraud": 30,
+                "recall": {
+                  "value": 0.0,
+                  "numerator": 0,
+                  "denominator": 30,
+                  "ci_low": 0.0,
+                  "ci_high": 0.1135
+                }
+              }
+            ],
+            "by_country": [
+              {
+                "country": "Argentina",
+                "n_fraud": 19,
+                "recall": {
+                  "value": 0.0,
+                  "numerator": 0,
+                  "denominator": 19,
+                  "ci_low": 0.0,
+                  "ci_high": 0.1682
+                }
+              },
+              {
+                "country": "Colombia",
+                "n_fraud": 18,
+                "recall": {
+                  "value": 0.0,
+                  "numerator": 0,
+                  "denominator": 18,
+                  "ci_low": 0.0,
+                  "ci_high": 0.1759
+                }
+              },
+              {
+                "country": "México",
+                "n_fraud": 38,
+                "recall": {
+                  "value": 0.0,
+                  "numerator": 0,
+                  "denominator": 38,
+                  "ci_low": 0.0,
+                  "ci_high": 0.0918
+                }
+              }
+            ],
+            "by_segment": [
+              {
+                "segment": "Basic",
+                "n_fraud": 37,
+                "recall": {
+                  "value": 0.0,
+                  "numerator": 0,
+                  "denominator": 37,
+                  "ci_low": 0.0,
+                  "ci_high": 0.0941
+                }
+              },
+              {
+                "segment": "Plus",
+                "n_fraud": 24,
+                "recall": {
+                  "value": 0.0,
+                  "numerator": 0,
+                  "denominator": 24,
+                  "ci_low": 0.0,
+                  "ci_high": 0.138
+                }
+              },
+              {
+                "segment": "Premium",
+                "n_fraud": 7,
+                "recall": {
+                  "value": 0.0,
+                  "numerator": 0,
+                  "denominator": 7,
+                  "ci_low": 0.0,
+                  "ci_high": 0.3543
+                }
+              },
+              {
+                "segment": "Student",
+                "n_fraud": 7,
+                "recall": {
+                  "value": 0.0,
+                  "numerator": 0,
+                  "denominator": 7,
+                  "ci_low": 0.0,
+                  "ci_high": 0.3543
+                }
+              }
+            ]
+          }
+        },
+        "passes_rule": false
+      },
+      {
+        "arm": "DecisionTreeClassifier",
+        "family": "tree",
+        "version": "44b955f9611e",
+        "cost": {
+          "train_seconds": 0.31,
+          "score_p95_ms": 0.868,
+          "throughput_per_s": 7015654,
+          "model_mb": 0.01,
+          "peak_memory_mb": 178.8
+        },
+        "subsets": {
+          "all": {
+            "pr_auc": 0.0009,
+            "pr_auc_ci": [
+              0.0008,
+              0.0011
+            ],
+            "brier": 0.000882,
+            "recall_at_bank_precision": {
+              "0.80": {
+                "value": 0.0,
+                "numerator": 0,
+                "denominator": 211,
+                "ci_low": 0.0,
+                "ci_high": 0.0179
+              },
+              "0.95": {
+                "value": 0.0,
+                "numerator": 0,
+                "denominator": 211,
+                "ci_low": 0.0,
+                "ci_high": 0.0179
+              }
+            },
+            "recall_at_1pct": {
+              "value": 0.0047,
+              "numerator": 1,
+              "denominator": 211,
+              "ci_low": 0.0008,
+              "ci_high": 0.0264
+            },
+            "recall_no_score_at_1pct": {
+              "value": 0.0,
+              "numerator": 0,
+              "denominator": 45,
+              "ci_low": 0.0,
+              "ci_high": 0.0787
+            },
+            "by_score_band": [
+              {
+                "band": "none",
+                "n_fraud": 45,
+                "recall": {
+                  "value": 0.0,
+                  "numerator": 0,
+                  "denominator": 45,
+                  "ci_low": 0.0,
+                  "ci_high": 0.0787
+                }
+              },
+              {
+                "band": "<30",
+                "n_fraud": 47,
+                "recall": {
+                  "value": 0.0,
+                  "numerator": 0,
+                  "denominator": 47,
+                  "ci_low": 0.0,
+                  "ci_high": 0.0756
+                }
+              },
+              {
+                "band": "30-49",
+                "n_fraud": 33,
+                "recall": {
+                  "value": 0.0,
+                  "numerator": 0,
+                  "denominator": 33,
+                  "ci_low": 0.0,
+                  "ci_high": 0.1043
+                }
+              },
+              {
+                "band": ">=50",
+                "n_fraud": 86,
+                "recall": {
+                  "value": 0.0116,
+                  "numerator": 1,
+                  "denominator": 86,
+                  "ci_low": 0.0021,
+                  "ci_high": 0.063
+                }
+              }
+            ],
+            "by_country": [
+              {
+                "country": "Argentina",
+                "n_fraud": 44,
+                "recall": {
+                  "value": 0.0,
+                  "numerator": 0,
+                  "denominator": 44,
+                  "ci_low": 0.0,
+                  "ci_high": 0.0803
+                }
+              },
+              {
+                "country": "Colombia",
+                "n_fraud": 62,
+                "recall": {
+                  "value": 0.0,
+                  "numerator": 0,
+                  "denominator": 62,
+                  "ci_low": 0.0,
+                  "ci_high": 0.0583
+                }
+              },
+              {
+                "country": "México",
+                "n_fraud": 105,
+                "recall": {
+                  "value": 0.0095,
+                  "numerator": 1,
+                  "denominator": 105,
+                  "ci_low": 0.0017,
+                  "ci_high": 0.052
+                }
+              }
+            ],
+            "by_segment": [
+              {
+                "segment": "Basic",
+                "n_fraud": 117,
+                "recall": {
+                  "value": 0.0085,
+                  "numerator": 1,
+                  "denominator": 117,
+                  "ci_low": 0.0015,
+                  "ci_high": 0.0468
+                }
+              },
+              {
+                "segment": "Plus",
+                "n_fraud": 58,
+                "recall": {
+                  "value": 0.0,
+                  "numerator": 0,
+                  "denominator": 58,
+                  "ci_low": 0.0,
+                  "ci_high": 0.0621
+                }
+              },
+              {
+                "segment": "Premium",
+                "n_fraud": 21,
+                "recall": {
+                  "value": 0.0,
+                  "numerator": 0,
+                  "denominator": 21,
+                  "ci_low": 0.0,
+                  "ci_high": 0.1546
+                }
+              },
+              {
+                "segment": "Student",
+                "n_fraud": 15,
+                "recall": {
+                  "value": 0.0,
+                  "numerator": 0,
+                  "denominator": 15,
+                  "ci_low": 0.0,
+                  "ci_high": 0.2039
+                }
+              }
+            ]
+          },
+          "card": {
+            "pr_auc": 0.0009,
+            "pr_auc_ci": [
+              0.0007,
+              0.0012
+            ],
+            "brier": 0.000897,
+            "recall_at_bank_precision": {
+              "0.80": {
+                "value": 0.0,
+                "numerator": 0,
+                "denominator": 75,
+                "ci_low": 0.0,
+                "ci_high": 0.0487
+              },
+              "0.95": {
+                "value": 0.0,
+                "numerator": 0,
+                "denominator": 75,
+                "ci_low": 0.0,
+                "ci_high": 0.0487
+              }
+            },
+            "recall_at_1pct": {
+              "value": 0.0,
+              "numerator": 0,
+              "denominator": 75,
+              "ci_low": 0.0,
+              "ci_high": 0.0487
+            },
+            "recall_no_score_at_1pct": {
+              "value": 0.0,
+              "numerator": 0,
+              "denominator": 19,
+              "ci_low": 0.0,
+              "ci_high": 0.1682
+            },
+            "by_score_band": [
+              {
+                "band": "none",
+                "n_fraud": 19,
+                "recall": {
+                  "value": 0.0,
+                  "numerator": 0,
+                  "denominator": 19,
+                  "ci_low": 0.0,
+                  "ci_high": 0.1682
+                }
+              },
+              {
+                "band": "<30",
+                "n_fraud": 18,
+                "recall": {
+                  "value": 0.0,
+                  "numerator": 0,
+                  "denominator": 18,
+                  "ci_low": 0.0,
+                  "ci_high": 0.1759
+                }
+              },
+              {
+                "band": "30-49",
+                "n_fraud": 8,
+                "recall": {
+                  "value": 0.0,
+                  "numerator": 0,
+                  "denominator": 8,
+                  "ci_low": 0.0,
+                  "ci_high": 0.3244
+                }
+              },
+              {
+                "band": ">=50",
+                "n_fraud": 30,
+                "recall": {
+                  "value": 0.0,
+                  "numerator": 0,
+                  "denominator": 30,
+                  "ci_low": 0.0,
+                  "ci_high": 0.1135
+                }
+              }
+            ],
+            "by_country": [
+              {
+                "country": "Argentina",
+                "n_fraud": 19,
+                "recall": {
+                  "value": 0.0,
+                  "numerator": 0,
+                  "denominator": 19,
+                  "ci_low": 0.0,
+                  "ci_high": 0.1682
+                }
+              },
+              {
+                "country": "Colombia",
+                "n_fraud": 18,
+                "recall": {
+                  "value": 0.0,
+                  "numerator": 0,
+                  "denominator": 18,
+                  "ci_low": 0.0,
+                  "ci_high": 0.1759
+                }
+              },
+              {
+                "country": "México",
+                "n_fraud": 38,
+                "recall": {
+                  "value": 0.0,
+                  "numerator": 0,
+                  "denominator": 38,
+                  "ci_low": 0.0,
+                  "ci_high": 0.0918
+                }
+              }
+            ],
+            "by_segment": [
+              {
+                "segment": "Basic",
+                "n_fraud": 37,
+                "recall": {
+                  "value": 0.0,
+                  "numerator": 0,
+                  "denominator": 37,
+                  "ci_low": 0.0,
+                  "ci_high": 0.0941
+                }
+              },
+              {
+                "segment": "Plus",
+                "n_fraud": 24,
+                "recall": {
+                  "value": 0.0,
+                  "numerator": 0,
+                  "denominator": 24,
+                  "ci_low": 0.0,
+                  "ci_high": 0.138
+                }
+              },
+              {
+                "segment": "Premium",
+                "n_fraud": 7,
+                "recall": {
+                  "value": 0.0,
+                  "numerator": 0,
+                  "denominator": 7,
+                  "ci_low": 0.0,
+                  "ci_high": 0.3543
+                }
+              },
+              {
+                "segment": "Student",
+                "n_fraud": 7,
+                "recall": {
+                  "value": 0.0,
+                  "numerator": 0,
+                  "denominator": 7,
+                  "ci_low": 0.0,
+                  "ci_high": 0.3543
+                }
+              }
+            ]
+          }
+        },
+        "passes_rule": false
+      },
+      {
+        "arm": "RandomForestClassifier",
+        "family": "ensemble",
+        "version": "bb3825908788",
+        "cost": {
+          "train_seconds": 0.73,
+          "score_p95_ms": 14.677,
+          "throughput_per_s": 1151289,
+          "model_mb": 27.4,
+          "peak_memory_mb": 236.5
+        },
+        "subsets": {
+          "all": {
+            "pr_auc": 0.0009,
+            "pr_auc_ci": [
+              0.0007,
+              0.001
+            ],
+            "brier": 0.000882,
+            "recall_at_bank_precision": {
+              "0.80": {
+                "value": 0.0,
+                "numerator": 0,
+                "denominator": 211,
+                "ci_low": 0.0,
+                "ci_high": 0.0179
+              },
+              "0.95": {
+                "value": 0.0,
+                "numerator": 0,
+                "denominator": 211,
+                "ci_low": 0.0,
+                "ci_high": 0.0179
+              }
+            },
+            "recall_at_1pct": {
+              "value": 0.0095,
+              "numerator": 2,
+              "denominator": 211,
+              "ci_low": 0.0026,
+              "ci_high": 0.0339
+            },
+            "recall_no_score_at_1pct": {
+              "value": 0.0,
+              "numerator": 0,
+              "denominator": 45,
+              "ci_low": 0.0,
+              "ci_high": 0.0787
+            },
+            "by_score_band": [
+              {
+                "band": "none",
+                "n_fraud": 45,
+                "recall": {
+                  "value": 0.0,
+                  "numerator": 0,
+                  "denominator": 45,
+                  "ci_low": 0.0,
+                  "ci_high": 0.0787
+                }
+              },
+              {
+                "band": "<30",
+                "n_fraud": 47,
+                "recall": {
+                  "value": 0.0426,
+                  "numerator": 2,
+                  "denominator": 47,
+                  "ci_low": 0.0117,
+                  "ci_high": 0.1425
+                }
+              },
+              {
+                "band": "30-49",
+                "n_fraud": 33,
+                "recall": {
+                  "value": 0.0,
+                  "numerator": 0,
+                  "denominator": 33,
+                  "ci_low": 0.0,
+                  "ci_high": 0.1043
+                }
+              },
+              {
+                "band": ">=50",
+                "n_fraud": 86,
+                "recall": {
+                  "value": 0.0,
+                  "numerator": 0,
+                  "denominator": 86,
+                  "ci_low": 0.0,
+                  "ci_high": 0.0428
+                }
+              }
+            ],
+            "by_country": [
+              {
+                "country": "Argentina",
+                "n_fraud": 44,
+                "recall": {
+                  "value": 0.0,
+                  "numerator": 0,
+                  "denominator": 44,
+                  "ci_low": 0.0,
+                  "ci_high": 0.0803
+                }
+              },
+              {
+                "country": "Colombia",
+                "n_fraud": 62,
+                "recall": {
+                  "value": 0.0,
+                  "numerator": 0,
+                  "denominator": 62,
+                  "ci_low": 0.0,
+                  "ci_high": 0.0583
+                }
+              },
+              {
+                "country": "México",
+                "n_fraud": 105,
+                "recall": {
+                  "value": 0.019,
+                  "numerator": 2,
+                  "denominator": 105,
+                  "ci_low": 0.0052,
+                  "ci_high": 0.0668
+                }
+              }
+            ],
+            "by_segment": [
+              {
+                "segment": "Basic",
+                "n_fraud": 117,
+                "recall": {
+                  "value": 0.0171,
+                  "numerator": 2,
+                  "denominator": 117,
+                  "ci_low": 0.0047,
+                  "ci_high": 0.0602
+                }
+              },
+              {
+                "segment": "Plus",
+                "n_fraud": 58,
+                "recall": {
+                  "value": 0.0,
+                  "numerator": 0,
+                  "denominator": 58,
+                  "ci_low": 0.0,
+                  "ci_high": 0.0621
+                }
+              },
+              {
+                "segment": "Premium",
+                "n_fraud": 21,
+                "recall": {
+                  "value": 0.0,
+                  "numerator": 0,
+                  "denominator": 21,
+                  "ci_low": 0.0,
+                  "ci_high": 0.1546
+                }
+              },
+              {
+                "segment": "Student",
+                "n_fraud": 15,
+                "recall": {
+                  "value": 0.0,
+                  "numerator": 0,
+                  "denominator": 15,
+                  "ci_low": 0.0,
+                  "ci_high": 0.2039
+                }
+              }
+            ]
+          },
+          "card": {
+            "pr_auc": 0.001,
+            "pr_auc_ci": [
+              0.0008,
+              0.0015
+            ],
+            "brier": 0.000897,
+            "recall_at_bank_precision": {
+              "0.80": {
+                "value": 0.0,
+                "numerator": 0,
+                "denominator": 75,
+                "ci_low": 0.0,
+                "ci_high": 0.0487
+              },
+              "0.95": {
+                "value": 0.0,
+                "numerator": 0,
+                "denominator": 75,
+                "ci_low": 0.0,
+                "ci_high": 0.0487
+              }
+            },
+            "recall_at_1pct": {
+              "value": 0.0133,
+              "numerator": 1,
+              "denominator": 75,
+              "ci_low": 0.0024,
+              "ci_high": 0.0717
+            },
+            "recall_no_score_at_1pct": {
+              "value": 0.0,
+              "numerator": 0,
+              "denominator": 19,
+              "ci_low": 0.0,
+              "ci_high": 0.1682
+            },
+            "by_score_band": [
+              {
+                "band": "none",
+                "n_fraud": 19,
+                "recall": {
+                  "value": 0.0,
+                  "numerator": 0,
+                  "denominator": 19,
+                  "ci_low": 0.0,
+                  "ci_high": 0.1682
+                }
+              },
+              {
+                "band": "<30",
+                "n_fraud": 18,
+                "recall": {
+                  "value": 0.0556,
+                  "numerator": 1,
+                  "denominator": 18,
+                  "ci_low": 0.0099,
+                  "ci_high": 0.2576
+                }
+              },
+              {
+                "band": "30-49",
+                "n_fraud": 8,
+                "recall": {
+                  "value": 0.0,
+                  "numerator": 0,
+                  "denominator": 8,
+                  "ci_low": 0.0,
+                  "ci_high": 0.3244
+                }
+              },
+              {
+                "band": ">=50",
+                "n_fraud": 30,
+                "recall": {
+                  "value": 0.0,
+                  "numerator": 0,
+                  "denominator": 30,
+                  "ci_low": 0.0,
+                  "ci_high": 0.1135
+                }
+              }
+            ],
+            "by_country": [
+              {
+                "country": "Argentina",
+                "n_fraud": 19,
+                "recall": {
+                  "value": 0.0,
+                  "numerator": 0,
+                  "denominator": 19,
+                  "ci_low": 0.0,
+                  "ci_high": 0.1682
+                }
+              },
+              {
+                "country": "Colombia",
+                "n_fraud": 18,
+                "recall": {
+                  "value": 0.0,
+                  "numerator": 0,
+                  "denominator": 18,
+                  "ci_low": 0.0,
+                  "ci_high": 0.1759
+                }
+              },
+              {
+                "country": "México",
+                "n_fraud": 38,
+                "recall": {
+                  "value": 0.0263,
+                  "numerator": 1,
+                  "denominator": 38,
+                  "ci_low": 0.0047,
+                  "ci_high": 0.1349
+                }
+              }
+            ],
+            "by_segment": [
+              {
+                "segment": "Basic",
+                "n_fraud": 37,
+                "recall": {
+                  "value": 0.027,
+                  "numerator": 1,
+                  "denominator": 37,
+                  "ci_low": 0.0048,
+                  "ci_high": 0.1382
+                }
+              },
+              {
+                "segment": "Plus",
+                "n_fraud": 24,
+                "recall": {
+                  "value": 0.0,
+                  "numerator": 0,
+                  "denominator": 24,
+                  "ci_low": 0.0,
+                  "ci_high": 0.138
+                }
+              },
+              {
+                "segment": "Premium",
+                "n_fraud": 7,
+                "recall": {
+                  "value": 0.0,
+                  "numerator": 0,
+                  "denominator": 7,
+                  "ci_low": 0.0,
+                  "ci_high": 0.3543
+                }
+              },
+              {
+                "segment": "Student",
+                "n_fraud": 7,
+                "recall": {
+                  "value": 0.0,
+                  "numerator": 0,
+                  "denominator": 7,
+                  "ci_low": 0.0,
+                  "ci_high": 0.3543
+                }
+              }
+            ]
+          }
+        },
+        "passes_rule": false
+      },
+      {
+        "arm": "ExtraTreesClassifier",
+        "family": "ensemble",
+        "version": "88ad0ccbc9f7",
+        "cost": {
+          "train_seconds": 0.44,
+          "score_p95_ms": 15.381,
+          "throughput_per_s": 1012612,
+          "model_mb": 49.96,
+          "peak_memory_mb": 286.5
+        },
+        "subsets": {
+          "all": {
+            "pr_auc": 0.0008,
+            "pr_auc_ci": [
+              0.0007,
+              0.0011
+            ],
+            "brier": 0.000882,
+            "recall_at_bank_precision": {
+              "0.80": {
+                "value": 0.0,
+                "numerator": 0,
+                "denominator": 211,
+                "ci_low": 0.0,
+                "ci_high": 0.0179
+              },
+              "0.95": {
+                "value": 0.0,
+                "numerator": 0,
+                "denominator": 211,
+                "ci_low": 0.0,
+                "ci_high": 0.0179
+              }
+            },
+            "recall_at_1pct": {
+              "value": 0.0095,
+              "numerator": 2,
+              "denominator": 211,
+              "ci_low": 0.0026,
+              "ci_high": 0.0339
+            },
+            "recall_no_score_at_1pct": {
+              "value": 0.0,
+              "numerator": 0,
+              "denominator": 45,
+              "ci_low": 0.0,
+              "ci_high": 0.0787
+            },
+            "by_score_band": [
+              {
+                "band": "none",
+                "n_fraud": 45,
+                "recall": {
+                  "value": 0.0,
+                  "numerator": 0,
+                  "denominator": 45,
+                  "ci_low": 0.0,
+                  "ci_high": 0.0787
+                }
+              },
+              {
+                "band": "<30",
+                "n_fraud": 47,
+                "recall": {
+                  "value": 0.0,
+                  "numerator": 0,
+                  "denominator": 47,
+                  "ci_low": 0.0,
+                  "ci_high": 0.0756
+                }
+              },
+              {
+                "band": "30-49",
+                "n_fraud": 33,
+                "recall": {
+                  "value": 0.0606,
+                  "numerator": 2,
+                  "denominator": 33,
+                  "ci_low": 0.0168,
+                  "ci_high": 0.1961
+                }
+              },
+              {
+                "band": ">=50",
+                "n_fraud": 86,
+                "recall": {
+                  "value": 0.0,
+                  "numerator": 0,
+                  "denominator": 86,
+                  "ci_low": 0.0,
+                  "ci_high": 0.0428
+                }
+              }
+            ],
+            "by_country": [
+              {
+                "country": "Argentina",
+                "n_fraud": 44,
+                "recall": {
+                  "value": 0.0,
+                  "numerator": 0,
+                  "denominator": 44,
+                  "ci_low": 0.0,
+                  "ci_high": 0.0803
+                }
+              },
+              {
+                "country": "Colombia",
+                "n_fraud": 62,
+                "recall": {
+                  "value": 0.0161,
+                  "numerator": 1,
+                  "denominator": 62,
+                  "ci_low": 0.0029,
+                  "ci_high": 0.0859
+                }
+              },
+              {
+                "country": "México",
+                "n_fraud": 105,
+                "recall": {
+                  "value": 0.0095,
+                  "numerator": 1,
+                  "denominator": 105,
+                  "ci_low": 0.0017,
+                  "ci_high": 0.052
+                }
+              }
+            ],
+            "by_segment": [
+              {
+                "segment": "Basic",
+                "n_fraud": 117,
+                "recall": {
+                  "value": 0.0171,
+                  "numerator": 2,
+                  "denominator": 117,
+                  "ci_low": 0.0047,
+                  "ci_high": 0.0602
+                }
+              },
+              {
+                "segment": "Plus",
+                "n_fraud": 58,
+                "recall": {
+                  "value": 0.0,
+                  "numerator": 0,
+                  "denominator": 58,
+                  "ci_low": 0.0,
+                  "ci_high": 0.0621
+                }
+              },
+              {
+                "segment": "Premium",
+                "n_fraud": 21,
+                "recall": {
+                  "value": 0.0,
+                  "numerator": 0,
+                  "denominator": 21,
+                  "ci_low": 0.0,
+                  "ci_high": 0.1546
+                }
+              },
+              {
+                "segment": "Student",
+                "n_fraud": 15,
+                "recall": {
+                  "value": 0.0,
+                  "numerator": 0,
+                  "denominator": 15,
+                  "ci_low": 0.0,
+                  "ci_high": 0.2039
+                }
+              }
+            ]
+          },
+          "card": {
+            "pr_auc": 0.0009,
+            "pr_auc_ci": [
+              0.0007,
+              0.0013
+            ],
+            "brier": 0.000897,
+            "recall_at_bank_precision": {
+              "0.80": {
+                "value": 0.0,
+                "numerator": 0,
+                "denominator": 75,
+                "ci_low": 0.0,
+                "ci_high": 0.0487
+              },
+              "0.95": {
+                "value": 0.0,
+                "numerator": 0,
+                "denominator": 75,
+                "ci_low": 0.0,
+                "ci_high": 0.0487
+              }
+            },
+            "recall_at_1pct": {
+              "value": 0.0,
+              "numerator": 0,
+              "denominator": 75,
+              "ci_low": 0.0,
+              "ci_high": 0.0487
+            },
+            "recall_no_score_at_1pct": {
+              "value": 0.0,
+              "numerator": 0,
+              "denominator": 19,
+              "ci_low": 0.0,
+              "ci_high": 0.1682
+            },
+            "by_score_band": [
+              {
+                "band": "none",
+                "n_fraud": 19,
+                "recall": {
+                  "value": 0.0,
+                  "numerator": 0,
+                  "denominator": 19,
+                  "ci_low": 0.0,
+                  "ci_high": 0.1682
+                }
+              },
+              {
+                "band": "<30",
+                "n_fraud": 18,
+                "recall": {
+                  "value": 0.0,
+                  "numerator": 0,
+                  "denominator": 18,
+                  "ci_low": 0.0,
+                  "ci_high": 0.1759
+                }
+              },
+              {
+                "band": "30-49",
+                "n_fraud": 8,
+                "recall": {
+                  "value": 0.0,
+                  "numerator": 0,
+                  "denominator": 8,
+                  "ci_low": 0.0,
+                  "ci_high": 0.3244
+                }
+              },
+              {
+                "band": ">=50",
+                "n_fraud": 30,
+                "recall": {
+                  "value": 0.0,
+                  "numerator": 0,
+                  "denominator": 30,
+                  "ci_low": 0.0,
+                  "ci_high": 0.1135
+                }
+              }
+            ],
+            "by_country": [
+              {
+                "country": "Argentina",
+                "n_fraud": 19,
+                "recall": {
+                  "value": 0.0,
+                  "numerator": 0,
+                  "denominator": 19,
+                  "ci_low": 0.0,
+                  "ci_high": 0.1682
+                }
+              },
+              {
+                "country": "Colombia",
+                "n_fraud": 18,
+                "recall": {
+                  "value": 0.0,
+                  "numerator": 0,
+                  "denominator": 18,
+                  "ci_low": 0.0,
+                  "ci_high": 0.1759
+                }
+              },
+              {
+                "country": "México",
+                "n_fraud": 38,
+                "recall": {
+                  "value": 0.0,
+                  "numerator": 0,
+                  "denominator": 38,
+                  "ci_low": 0.0,
+                  "ci_high": 0.0918
+                }
+              }
+            ],
+            "by_segment": [
+              {
+                "segment": "Basic",
+                "n_fraud": 37,
+                "recall": {
+                  "value": 0.0,
+                  "numerator": 0,
+                  "denominator": 37,
+                  "ci_low": 0.0,
+                  "ci_high": 0.0941
+                }
+              },
+              {
+                "segment": "Plus",
+                "n_fraud": 24,
+                "recall": {
+                  "value": 0.0,
+                  "numerator": 0,
+                  "denominator": 24,
+                  "ci_low": 0.0,
+                  "ci_high": 0.138
+                }
+              },
+              {
+                "segment": "Premium",
+                "n_fraud": 7,
+                "recall": {
+                  "value": 0.0,
+                  "numerator": 0,
+                  "denominator": 7,
+                  "ci_low": 0.0,
+                  "ci_high": 0.3543
+                }
+              },
+              {
+                "segment": "Student",
+                "n_fraud": 7,
+                "recall": {
+                  "value": 0.0,
+                  "numerator": 0,
+                  "denominator": 7,
+                  "ci_low": 0.0,
+                  "ci_high": 0.3543
+                }
+              }
+            ]
+          }
+        },
+        "passes_rule": false
+      },
+      {
+        "arm": "HistGradientBoostingClassifier",
+        "family": "ensemble",
+        "version": "002a905ae7cb",
+        "cost": {
+          "train_seconds": 0.89,
+          "score_p95_ms": 3.844,
+          "throughput_per_s": 5754173,
+          "model_mb": 0.06,
+          "peak_memory_mb": 180.5
+        },
+        "subsets": {
+          "all": {
+            "pr_auc": 0.0009,
+            "pr_auc_ci": [
+              0.0007,
+              0.0011
+            ],
+            "brier": 0.000882,
+            "recall_at_bank_precision": {
+              "0.80": {
+                "value": 0.0,
+                "numerator": 0,
+                "denominator": 211,
+                "ci_low": 0.0,
+                "ci_high": 0.0179
+              },
+              "0.95": {
+                "value": 0.0,
+                "numerator": 0,
+                "denominator": 211,
+                "ci_low": 0.0,
+                "ci_high": 0.0179
+              }
+            },
+            "recall_at_1pct": {
+              "value": 0.0,
+              "numerator": 0,
+              "denominator": 211,
+              "ci_low": 0.0,
+              "ci_high": 0.0179
+            },
+            "recall_no_score_at_1pct": {
+              "value": 0.0,
+              "numerator": 0,
+              "denominator": 45,
+              "ci_low": 0.0,
+              "ci_high": 0.0787
+            },
+            "by_score_band": [
+              {
+                "band": "none",
+                "n_fraud": 45,
+                "recall": {
+                  "value": 0.0,
+                  "numerator": 0,
+                  "denominator": 45,
+                  "ci_low": 0.0,
+                  "ci_high": 0.0787
+                }
+              },
+              {
+                "band": "<30",
+                "n_fraud": 47,
+                "recall": {
+                  "value": 0.0,
+                  "numerator": 0,
+                  "denominator": 47,
+                  "ci_low": 0.0,
+                  "ci_high": 0.0756
+                }
+              },
+              {
+                "band": "30-49",
+                "n_fraud": 33,
+                "recall": {
+                  "value": 0.0,
+                  "numerator": 0,
+                  "denominator": 33,
+                  "ci_low": 0.0,
+                  "ci_high": 0.1043
+                }
+              },
+              {
+                "band": ">=50",
+                "n_fraud": 86,
+                "recall": {
+                  "value": 0.0,
+                  "numerator": 0,
+                  "denominator": 86,
+                  "ci_low": 0.0,
+                  "ci_high": 0.0428
+                }
+              }
+            ],
+            "by_country": [
+              {
+                "country": "Argentina",
+                "n_fraud": 44,
+                "recall": {
+                  "value": 0.0,
+                  "numerator": 0,
+                  "denominator": 44,
+                  "ci_low": 0.0,
+                  "ci_high": 0.0803
+                }
+              },
+              {
+                "country": "Colombia",
+                "n_fraud": 62,
+                "recall": {
+                  "value": 0.0,
+                  "numerator": 0,
+                  "denominator": 62,
+                  "ci_low": 0.0,
+                  "ci_high": 0.0583
+                }
+              },
+              {
+                "country": "México",
+                "n_fraud": 105,
+                "recall": {
+                  "value": 0.0,
+                  "numerator": 0,
+                  "denominator": 105,
+                  "ci_low": 0.0,
+                  "ci_high": 0.0353
+                }
+              }
+            ],
+            "by_segment": [
+              {
+                "segment": "Basic",
+                "n_fraud": 117,
+                "recall": {
+                  "value": 0.0,
+                  "numerator": 0,
+                  "denominator": 117,
+                  "ci_low": 0.0,
+                  "ci_high": 0.0318
+                }
+              },
+              {
+                "segment": "Plus",
+                "n_fraud": 58,
+                "recall": {
+                  "value": 0.0,
+                  "numerator": 0,
+                  "denominator": 58,
+                  "ci_low": 0.0,
+                  "ci_high": 0.0621
+                }
+              },
+              {
+                "segment": "Premium",
+                "n_fraud": 21,
+                "recall": {
+                  "value": 0.0,
+                  "numerator": 0,
+                  "denominator": 21,
+                  "ci_low": 0.0,
+                  "ci_high": 0.1546
+                }
+              },
+              {
+                "segment": "Student",
+                "n_fraud": 15,
+                "recall": {
+                  "value": 0.0,
+                  "numerator": 0,
+                  "denominator": 15,
+                  "ci_low": 0.0,
+                  "ci_high": 0.2039
+                }
+              }
+            ]
+          },
+          "card": {
+            "pr_auc": 0.0009,
+            "pr_auc_ci": [
+              0.0007,
+              0.0014
+            ],
+            "brier": 0.000897,
+            "recall_at_bank_precision": {
+              "0.80": {
+                "value": 0.0,
+                "numerator": 0,
+                "denominator": 75,
+                "ci_low": 0.0,
+                "ci_high": 0.0487
+              },
+              "0.95": {
+                "value": 0.0,
+                "numerator": 0,
+                "denominator": 75,
+                "ci_low": 0.0,
+                "ci_high": 0.0487
+              }
+            },
+            "recall_at_1pct": {
+              "value": 0.0,
+              "numerator": 0,
+              "denominator": 75,
+              "ci_low": 0.0,
+              "ci_high": 0.0487
+            },
+            "recall_no_score_at_1pct": {
+              "value": 0.0,
+              "numerator": 0,
+              "denominator": 19,
+              "ci_low": 0.0,
+              "ci_high": 0.1682
+            },
+            "by_score_band": [
+              {
+                "band": "none",
+                "n_fraud": 19,
+                "recall": {
+                  "value": 0.0,
+                  "numerator": 0,
+                  "denominator": 19,
+                  "ci_low": 0.0,
+                  "ci_high": 0.1682
+                }
+              },
+              {
+                "band": "<30",
+                "n_fraud": 18,
+                "recall": {
+                  "value": 0.0,
+                  "numerator": 0,
+                  "denominator": 18,
+                  "ci_low": 0.0,
+                  "ci_high": 0.1759
+                }
+              },
+              {
+                "band": "30-49",
+                "n_fraud": 8,
+                "recall": {
+                  "value": 0.0,
+                  "numerator": 0,
+                  "denominator": 8,
+                  "ci_low": 0.0,
+                  "ci_high": 0.3244
+                }
+              },
+              {
+                "band": ">=50",
+                "n_fraud": 30,
+                "recall": {
+                  "value": 0.0,
+                  "numerator": 0,
+                  "denominator": 30,
+                  "ci_low": 0.0,
+                  "ci_high": 0.1135
+                }
+              }
+            ],
+            "by_country": [
+              {
+                "country": "Argentina",
+                "n_fraud": 19,
+                "recall": {
+                  "value": 0.0,
+                  "numerator": 0,
+                  "denominator": 19,
+                  "ci_low": 0.0,
+                  "ci_high": 0.1682
+                }
+              },
+              {
+                "country": "Colombia",
+                "n_fraud": 18,
+                "recall": {
+                  "value": 0.0,
+                  "numerator": 0,
+                  "denominator": 18,
+                  "ci_low": 0.0,
+                  "ci_high": 0.1759
+                }
+              },
+              {
+                "country": "México",
+                "n_fraud": 38,
+                "recall": {
+                  "value": 0.0,
+                  "numerator": 0,
+                  "denominator": 38,
+                  "ci_low": 0.0,
+                  "ci_high": 0.0918
+                }
+              }
+            ],
+            "by_segment": [
+              {
+                "segment": "Basic",
+                "n_fraud": 37,
+                "recall": {
+                  "value": 0.0,
+                  "numerator": 0,
+                  "denominator": 37,
+                  "ci_low": 0.0,
+                  "ci_high": 0.0941
+                }
+              },
+              {
+                "segment": "Plus",
+                "n_fraud": 24,
+                "recall": {
+                  "value": 0.0,
+                  "numerator": 0,
+                  "denominator": 24,
+                  "ci_low": 0.0,
+                  "ci_high": 0.138
+                }
+              },
+              {
+                "segment": "Premium",
+                "n_fraud": 7,
+                "recall": {
+                  "value": 0.0,
+                  "numerator": 0,
+                  "denominator": 7,
+                  "ci_low": 0.0,
+                  "ci_high": 0.3543
+                }
+              },
+              {
+                "segment": "Student",
+                "n_fraud": 7,
+                "recall": {
+                  "value": 0.0,
+                  "numerator": 0,
+                  "denominator": 7,
+                  "ci_low": 0.0,
+                  "ci_high": 0.3543
+                }
+              }
+            ]
+          }
+        },
+        "passes_rule": false
+      },
+      {
+        "arm": "MLPClassifier",
+        "family": "neural",
+        "version": "e4d32d5c047b",
+        "cost": {
+          "train_seconds": 6.71,
+          "score_p95_ms": 0.771,
+          "throughput_per_s": 3638188,
+          "model_mb": 0.05,
+          "peak_memory_mb": 178.4
+        },
+        "subsets": {
+          "all": {
+            "pr_auc": 0.001,
+            "pr_auc_ci": [
+              0.0008,
+              0.002
+            ],
+            "brier": 0.000882,
+            "recall_at_bank_precision": {
+              "0.80": {
+                "value": 0.0,
+                "numerator": 0,
+                "denominator": 211,
+                "ci_low": 0.0,
+                "ci_high": 0.0179
+              },
+              "0.95": {
+                "value": 0.0,
+                "numerator": 0,
+                "denominator": 211,
+                "ci_low": 0.0,
+                "ci_high": 0.0179
+              }
+            },
+            "recall_at_1pct": {
+              "value": 0.019,
+              "numerator": 4,
+              "denominator": 211,
+              "ci_low": 0.0074,
+              "ci_high": 0.0477
+            },
+            "recall_no_score_at_1pct": {
+              "value": 0.0,
+              "numerator": 0,
+              "denominator": 45,
+              "ci_low": 0.0,
+              "ci_high": 0.0787
+            },
+            "by_score_band": [
+              {
+                "band": "none",
+                "n_fraud": 45,
+                "recall": {
+                  "value": 0.0,
+                  "numerator": 0,
+                  "denominator": 45,
+                  "ci_low": 0.0,
+                  "ci_high": 0.0787
+                }
+              },
+              {
+                "band": "<30",
+                "n_fraud": 47,
+                "recall": {
+                  "value": 0.0213,
+                  "numerator": 1,
+                  "denominator": 47,
+                  "ci_low": 0.0038,
+                  "ci_high": 0.1111
+                }
+              },
+              {
+                "band": "30-49",
+                "n_fraud": 33,
+                "recall": {
+                  "value": 0.0303,
+                  "numerator": 1,
+                  "denominator": 33,
+                  "ci_low": 0.0054,
+                  "ci_high": 0.1532
+                }
+              },
+              {
+                "band": ">=50",
+                "n_fraud": 86,
+                "recall": {
+                  "value": 0.0233,
+                  "numerator": 2,
+                  "denominator": 86,
+                  "ci_low": 0.0064,
+                  "ci_high": 0.0809
+                }
+              }
+            ],
+            "by_country": [
+              {
+                "country": "Argentina",
+                "n_fraud": 44,
+                "recall": {
+                  "value": 0.0,
+                  "numerator": 0,
+                  "denominator": 44,
+                  "ci_low": 0.0,
+                  "ci_high": 0.0803
+                }
+              },
+              {
+                "country": "Colombia",
+                "n_fraud": 62,
+                "recall": {
+                  "value": 0.0323,
+                  "numerator": 2,
+                  "denominator": 62,
+                  "ci_low": 0.0089,
+                  "ci_high": 0.1102
+                }
+              },
+              {
+                "country": "México",
+                "n_fraud": 105,
+                "recall": {
+                  "value": 0.019,
+                  "numerator": 2,
+                  "denominator": 105,
+                  "ci_low": 0.0052,
+                  "ci_high": 0.0668
+                }
+              }
+            ],
+            "by_segment": [
+              {
+                "segment": "Basic",
+                "n_fraud": 117,
+                "recall": {
+                  "value": 0.0171,
+                  "numerator": 2,
+                  "denominator": 117,
+                  "ci_low": 0.0047,
+                  "ci_high": 0.0602
+                }
+              },
+              {
+                "segment": "Plus",
+                "n_fraud": 58,
+                "recall": {
+                  "value": 0.0172,
+                  "numerator": 1,
+                  "denominator": 58,
+                  "ci_low": 0.0031,
+                  "ci_high": 0.0914
+                }
+              },
+              {
+                "segment": "Premium",
+                "n_fraud": 21,
+                "recall": {
+                  "value": 0.0476,
+                  "numerator": 1,
+                  "denominator": 21,
+                  "ci_low": 0.0085,
+                  "ci_high": 0.2267
+                }
+              },
+              {
+                "segment": "Student",
+                "n_fraud": 15,
+                "recall": {
+                  "value": 0.0,
+                  "numerator": 0,
+                  "denominator": 15,
+                  "ci_low": 0.0,
+                  "ci_high": 0.2039
+                }
+              }
+            ]
+          },
+          "card": {
+            "pr_auc": 0.0013,
+            "pr_auc_ci": [
+              0.0008,
+              0.0042
+            ],
+            "brier": 0.000897,
+            "recall_at_bank_precision": {
+              "0.80": {
+                "value": 0.0,
+                "numerator": 0,
+                "denominator": 75,
+                "ci_low": 0.0,
+                "ci_high": 0.0487
+              },
+              "0.95": {
+                "value": 0.0,
+                "numerator": 0,
+                "denominator": 75,
+                "ci_low": 0.0,
+                "ci_high": 0.0487
+              }
+            },
+            "recall_at_1pct": {
+              "value": 0.0267,
+              "numerator": 2,
+              "denominator": 75,
+              "ci_low": 0.0073,
+              "ci_high": 0.0921
+            },
+            "recall_no_score_at_1pct": {
+              "value": 0.0,
+              "numerator": 0,
+              "denominator": 19,
+              "ci_low": 0.0,
+              "ci_high": 0.1682
+            },
+            "by_score_band": [
+              {
+                "band": "none",
+                "n_fraud": 19,
+                "recall": {
+                  "value": 0.0,
+                  "numerator": 0,
+                  "denominator": 19,
+                  "ci_low": 0.0,
+                  "ci_high": 0.1682
+                }
+              },
+              {
+                "band": "<30",
+                "n_fraud": 18,
+                "recall": {
+                  "value": 0.0556,
+                  "numerator": 1,
+                  "denominator": 18,
+                  "ci_low": 0.0099,
+                  "ci_high": 0.2576
+                }
+              },
+              {
+                "band": "30-49",
+                "n_fraud": 8,
+                "recall": {
+                  "value": 0.0,
+                  "numerator": 0,
+                  "denominator": 8,
+                  "ci_low": 0.0,
+                  "ci_high": 0.3244
+                }
+              },
+              {
+                "band": ">=50",
+                "n_fraud": 30,
+                "recall": {
+                  "value": 0.0333,
+                  "numerator": 1,
+                  "denominator": 30,
+                  "ci_low": 0.0059,
+                  "ci_high": 0.1667
+                }
+              }
+            ],
+            "by_country": [
+              {
+                "country": "Argentina",
+                "n_fraud": 19,
+                "recall": {
+                  "value": 0.0,
+                  "numerator": 0,
+                  "denominator": 19,
+                  "ci_low": 0.0,
+                  "ci_high": 0.1682
+                }
+              },
+              {
+                "country": "Colombia",
+                "n_fraud": 18,
+                "recall": {
+                  "value": 0.0556,
+                  "numerator": 1,
+                  "denominator": 18,
+                  "ci_low": 0.0099,
+                  "ci_high": 0.2576
+                }
+              },
+              {
+                "country": "México",
+                "n_fraud": 38,
+                "recall": {
+                  "value": 0.0263,
+                  "numerator": 1,
+                  "denominator": 38,
+                  "ci_low": 0.0047,
+                  "ci_high": 0.1349
+                }
+              }
+            ],
+            "by_segment": [
+              {
+                "segment": "Basic",
+                "n_fraud": 37,
+                "recall": {
+                  "value": 0.0,
+                  "numerator": 0,
+                  "denominator": 37,
+                  "ci_low": 0.0,
+                  "ci_high": 0.0941
+                }
+              },
+              {
+                "segment": "Plus",
+                "n_fraud": 24,
+                "recall": {
+                  "value": 0.0417,
+                  "numerator": 1,
+                  "denominator": 24,
+                  "ci_low": 0.0074,
+                  "ci_high": 0.2024
+                }
+              },
+              {
+                "segment": "Premium",
+                "n_fraud": 7,
+                "recall": {
+                  "value": 0.1429,
+                  "numerator": 1,
+                  "denominator": 7,
+                  "ci_low": 0.0257,
+                  "ci_high": 0.5131
+                }
+              },
+              {
+                "segment": "Student",
+                "n_fraud": 7,
+                "recall": {
+                  "value": 0.0,
+                  "numerator": 0,
+                  "denominator": 7,
+                  "ci_low": 0.0,
+                  "ci_high": 0.3543
+                }
+              }
+            ]
+          }
+        },
+        "passes_rule": false
+      },
+      {
+        "arm": "stacked",
+        "family": "stacked",
+        "version": "7f047237dbc2",
+        "stacked_on": "hgb",
+        "cost": {
+          "train_seconds": 1.33,
+          "score_p95_ms": 7.281,
+          "throughput_per_s": 2007123,
+          "model_mb": 0.14,
+          "peak_memory_mb": 179.6
+        },
+        "subsets": {
+          "all": {
+            "pr_auc": 0.5659,
+            "pr_auc_ci": [
+              0.4998,
+              0.6332
+            ],
+            "brier": 0.000392,
+            "recall_at_bank_precision": {
+              "0.80": {
+                "value": 0.564,
+                "numerator": 119,
+                "denominator": 211,
+                "ci_low": 0.4965,
+                "ci_high": 0.6292
+              },
+              "0.95": {
+                "value": 0.564,
+                "numerator": 119,
+                "denominator": 211,
+                "ci_low": 0.4965,
+                "ci_high": 0.6292
+              }
+            },
+            "recall_at_1pct": {
+              "value": 0.564,
+              "numerator": 119,
+              "denominator": 211,
+              "ci_low": 0.4965,
+              "ci_high": 0.6292
+            },
+            "recall_no_score_at_1pct": {
+              "value": 0.0,
+              "numerator": 0,
+              "denominator": 45,
+              "ci_low": 0.0,
+              "ci_high": 0.0787
+            },
+            "by_score_band": [
+              {
+                "band": "none",
+                "n_fraud": 45,
+                "recall": {
+                  "value": 0.0,
+                  "numerator": 0,
+                  "denominator": 45,
+                  "ci_low": 0.0,
+                  "ci_high": 0.0787
+                }
+              },
+              {
+                "band": "<30",
+                "n_fraud": 47,
+                "recall": {
+                  "value": 0.0,
+                  "numerator": 0,
+                  "denominator": 47,
+                  "ci_low": 0.0,
+                  "ci_high": 0.0756
+                }
+              },
+              {
+                "band": "30-49",
+                "n_fraud": 33,
+                "recall": {
+                  "value": 1.0,
+                  "numerator": 33,
+                  "denominator": 33,
+                  "ci_low": 0.8957,
+                  "ci_high": 1.0
+                }
+              },
+              {
+                "band": ">=50",
+                "n_fraud": 86,
+                "recall": {
+                  "value": 1.0,
+                  "numerator": 86,
+                  "denominator": 86,
+                  "ci_low": 0.9572,
+                  "ci_high": 1.0
+                }
+              }
+            ],
+            "by_country": [
+              {
+                "country": "Argentina",
+                "n_fraud": 44,
+                "recall": {
+                  "value": 0.5455,
+                  "numerator": 24,
+                  "denominator": 44,
+                  "ci_low": 0.4007,
+                  "ci_high": 0.6829
+                }
+              },
+              {
+                "country": "Colombia",
+                "n_fraud": 62,
+                "recall": {
+                  "value": 0.5161,
+                  "numerator": 32,
+                  "denominator": 62,
+                  "ci_low": 0.3945,
+                  "ci_high": 0.6359
+                }
+              },
+              {
+                "country": "México",
+                "n_fraud": 105,
+                "recall": {
+                  "value": 0.6,
+                  "numerator": 63,
+                  "denominator": 105,
+                  "ci_low": 0.5044,
+                  "ci_high": 0.6886
+                }
+              }
+            ],
+            "by_segment": [
+              {
+                "segment": "Basic",
+                "n_fraud": 117,
+                "recall": {
+                  "value": 0.5299,
+                  "numerator": 62,
+                  "denominator": 117,
+                  "ci_low": 0.44,
+                  "ci_high": 0.618
+                }
+              },
+              {
+                "segment": "Plus",
+                "n_fraud": 58,
+                "recall": {
+                  "value": 0.5862,
+                  "numerator": 34,
+                  "denominator": 58,
+                  "ci_low": 0.458,
+                  "ci_high": 0.7037
+                }
+              },
+              {
+                "segment": "Premium",
+                "n_fraud": 21,
+                "recall": {
+                  "value": 0.619,
+                  "numerator": 13,
+                  "denominator": 21,
+                  "ci_low": 0.4088,
+                  "ci_high": 0.7925
+                }
+              },
+              {
+                "segment": "Student",
+                "n_fraud": 15,
+                "recall": {
+                  "value": 0.6667,
+                  "numerator": 10,
+                  "denominator": 15,
+                  "ci_low": 0.4171,
+                  "ci_high": 0.8482
+                }
+              }
+            ]
+          },
+          "card": {
+            "pr_auc": 0.5088,
+            "pr_auc_ci": [
+              0.3966,
+              0.6242
+            ],
+            "brier": 0.00045,
+            "recall_at_bank_precision": {
+              "0.80": {
+                "value": 0.5067,
+                "numerator": 38,
+                "denominator": 75,
+                "ci_low": 0.396,
+                "ci_high": 0.6167
+              },
+              "0.95": {
+                "value": 0.5067,
+                "numerator": 38,
+                "denominator": 75,
+                "ci_low": 0.396,
+                "ci_high": 0.6167
+              }
+            },
+            "recall_at_1pct": {
+              "value": 0.5067,
+              "numerator": 38,
+              "denominator": 75,
+              "ci_low": 0.396,
+              "ci_high": 0.6167
+            },
+            "recall_no_score_at_1pct": {
+              "value": 0.0,
+              "numerator": 0,
+              "denominator": 19,
+              "ci_low": 0.0,
+              "ci_high": 0.1682
+            },
+            "by_score_band": [
+              {
+                "band": "none",
+                "n_fraud": 19,
+                "recall": {
+                  "value": 0.0,
+                  "numerator": 0,
+                  "denominator": 19,
+                  "ci_low": 0.0,
+                  "ci_high": 0.1682
+                }
+              },
+              {
+                "band": "<30",
+                "n_fraud": 18,
+                "recall": {
+                  "value": 0.0,
+                  "numerator": 0,
+                  "denominator": 18,
+                  "ci_low": 0.0,
+                  "ci_high": 0.1759
+                }
+              },
+              {
+                "band": "30-49",
+                "n_fraud": 8,
+                "recall": {
+                  "value": 1.0,
+                  "numerator": 8,
+                  "denominator": 8,
+                  "ci_low": 0.6756,
+                  "ci_high": 1.0
+                }
+              },
+              {
+                "band": ">=50",
+                "n_fraud": 30,
+                "recall": {
+                  "value": 1.0,
+                  "numerator": 30,
+                  "denominator": 30,
+                  "ci_low": 0.8865,
+                  "ci_high": 1.0
+                }
+              }
+            ],
+            "by_country": [
+              {
+                "country": "Argentina",
+                "n_fraud": 19,
+                "recall": {
+                  "value": 0.5789,
+                  "numerator": 11,
+                  "denominator": 19,
+                  "ci_low": 0.3628,
+                  "ci_high": 0.7686
+                }
+              },
+              {
+                "country": "Colombia",
+                "n_fraud": 18,
+                "recall": {
+                  "value": 0.3889,
+                  "numerator": 7,
+                  "denominator": 18,
+                  "ci_low": 0.2031,
+                  "ci_high": 0.6138
+                }
+              },
+              {
+                "country": "México",
+                "n_fraud": 38,
+                "recall": {
+                  "value": 0.5263,
+                  "numerator": 20,
+                  "denominator": 38,
+                  "ci_low": 0.3726,
+                  "ci_high": 0.6752
+                }
+              }
+            ],
+            "by_segment": [
+              {
+                "segment": "Basic",
+                "n_fraud": 37,
+                "recall": {
+                  "value": 0.5405,
+                  "numerator": 20,
+                  "denominator": 37,
+                  "ci_low": 0.3838,
+                  "ci_high": 0.6896
+                }
+              },
+              {
+                "segment": "Plus",
+                "n_fraud": 24,
+                "recall": {
+                  "value": 0.5,
+                  "numerator": 12,
+                  "denominator": 24,
+                  "ci_low": 0.3143,
+                  "ci_high": 0.6857
+                }
+              },
+              {
+                "segment": "Premium",
+                "n_fraud": 7,
+                "recall": {
+                  "value": 0.4286,
+                  "numerator": 3,
+                  "denominator": 7,
+                  "ci_low": 0.1582,
+                  "ci_high": 0.7495
+                }
+              },
+              {
+                "segment": "Student",
+                "n_fraud": 7,
+                "recall": {
+                  "value": 0.4286,
+                  "numerator": 3,
+                  "denominator": 7,
+                  "ci_low": 0.1582,
+                  "ci_high": 0.7495
+                }
+              }
+            ]
+          }
+        },
+        "passes_rule": false
+      }
+    ]
+  }
+}

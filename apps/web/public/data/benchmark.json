@@ -1,0 +1,3238 @@
+{
+  "generated_at": "2026-10-06T02:07:29Z",
+  "git_sha": "9a2a1fa",
+  "source": "eval/bench B1 [simulated], pre-registered test run",
+  "data": {
+    "label": "[simulated]",
+    "protocol": {
+      "status": "SEALED",
+      "sha256": "533fc516c78509868b95e1d674bbeeee2555285d68bc4856f229623aa7aaa2d2",
+      "tag": "protocol-v1",
+      "commit": "7b18f72f4f7c427e51f54dadf9435b0896af476a",
+      "head": "9242dc53fb673b1695e5d4f6e4dde8484c74c699",
+      "test_review": "rules-v1",
+      "inputs": {
+        "classifier_splits": "6334f41a5c9c6787cd2d107fd051e24cd38ad7c82de9897ed8ce6a4a6496e99b"
+      }
+    },
+    "mode": "replay",
+    "demo_today": "2026-06-01",
+    "run_date": "2026-06-01",
+    "split": "test",
+    "run_kind": "pre-registered test run",
+    "test_review": "rules-v1",
+    "test_review_label": "test split decided by fixed rules, without independent human review",
+    "provider": "bedrock",
+    "b1_model": {
+      "path": "models/intent-b1-v1.joblib",
+      "sha256": "8017f0230e6c99d0263d100e70f4124edf138ec79b5b83d35def59c66d7fd726",
+      "sklearn_version": "1.9.1",
+      "source": "loaded from the classifier-test run (apps/web/public/data/classifier.json b1_model); never refit"
+    },
+    "b1": {
+      "arms": [
+        {
+          "arm": "b0_rules",
+          "model_id": null,
+          "version": null,
+          "prompt_hash": "3683759e42eb149f",
+          "tool_choice_mode": null,
+          "temperature": null,
+          "status": "ok",
+          "unavailable_reason": null,
+          "price": {
+            "label": null,
+            "input_per_1m_usd": null,
+            "output_per_1m_usd": null,
+            "source": null,
+            "date": null
+          },
+          "macro_f1": {
+            "es": 0.5828,
+            "pt": 0.6683
+          },
+          "macro_f1_ci": {
+            "es": [
+              0.4838,
+              0.6653
+            ],
+            "pt": [
+              0.5775,
+              0.7468
+            ]
+          },
+          "accuracy": {
+            "value": 0.6144,
+            "numerator": 145,
+            "denominator": 236,
+            "ci_low": 0.5509,
+            "ci_high": 0.6742
+          },
+          "dispute_recall": {
+            "value": 0.5,
+            "numerator": 47,
+            "denominator": 94,
+            "ci_low": 0.4009,
+            "ci_high": 0.5991
+          },
+          "human_request_recall": {
+            "value": 0.6383,
+            "numerator": 30,
+            "denominator": 47,
+            "ci_low": 0.4954,
+            "ci_high": 0.7603
+          },
+          "slot_accuracy": {
+            "value": 0.8398,
+            "numerator": 173,
+            "denominator": 206,
+            "ci_low": 0.7836,
+            "ci_high": 0.8836
+          },
+          "missing_tool_calls": 0,
+          "errors": 0,
+          "p50_ms": 0.154,
+          "p95_ms": 0.31,
+          "cost_per_1000_usd": 0.0,
+          "errors_by_class": {},
+          "meets_bar": false,
+          "pareto": false,
+          "mcnemar_p_vs_best": 0.0,
+          "same_family_as_generator": false,
+          "gate": {
+            "benchmark_pass": null,
+            "production_pass": null,
+            "criteria": []
+          }
+        },
+        {
+          "arm": "b1_tfidf_lr",
+          "model_id": null,
+          "version": "b1-v1 sha256:8017f0230e6c",
+          "prompt_hash": "3683759e42eb149f",
+          "tool_choice_mode": null,
+          "temperature": null,
+          "status": "ok",
+          "unavailable_reason": null,
+          "price": {
+            "label": null,
+            "input_per_1m_usd": null,
+            "output_per_1m_usd": null,
+            "source": null,
+            "date": null
+          },
+          "macro_f1": {
+            "es": 0.916,
+            "pt": 0.9136
+          },
+          "macro_f1_ci": {
+            "es": [
+              0.8629,
+              0.9614
+            ],
+            "pt": [
+              0.8559,
+              0.9589
+            ]
+          },
+          "accuracy": {
+            "value": 0.9153,
+            "numerator": 216,
+            "denominator": 236,
+            "ci_low": 0.8727,
+            "ci_high": 0.9445
+          },
+          "dispute_recall": {
+            "value": 0.9574,
+            "numerator": 90,
+            "denominator": 94,
+            "ci_low": 0.8956,
+            "ci_high": 0.9833
+          },
+          "human_request_recall": {
+            "value": 0.8936,
+            "numerator": 42,
+            "denominator": 47,
+            "ci_low": 0.7741,
+            "ci_high": 0.9537
+          },
+          "slot_accuracy": {
+            "value": 0.8398,
+            "numerator": 173,
+            "denominator": 206,
+            "ci_low": 0.7836,
+            "ci_high": 0.8836
+          },
+          "missing_tool_calls": 0,
+          "errors": 0,
+          "p50_ms": 1.037,
+          "p95_ms": 1.412,
+          "cost_per_1000_usd": 0.0,
+          "errors_by_class": {},
+          "meets_bar": false,
+          "pareto": true,
+          "mcnemar_p_vs_best": 0.0007,
+          "same_family_as_generator": false,
+          "gate": {
+            "benchmark_pass": null,
+            "production_pass": null,
+            "criteria": []
+          }
+        },
+        {
+          "arm": "nova-micro",
+          "model_id": "us.amazon.nova-micro-v1:0",
+          "version": "us.amazon.nova-micro-v1:0",
+          "prompt_hash": "3683759e42eb149f",
+          "tool_choice_mode": "tool",
+          "temperature": 0,
+          "status": "ok",
+          "unavailable_reason": null,
+          "price": {
+            "label": "[external]",
+            "input_per_1m_usd": 0.035,
+            "output_per_1m_usd": 0.14,
+            "source": "https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonBedrock/current/us-east-2/index.json",
+            "date": "2026-10-04"
+          },
+          "macro_f1": {
+            "es": 0.8168,
+            "pt": 0.8571
+          },
+          "macro_f1_ci": {
+            "es": [
+              0.7379,
+              0.8833
+            ],
+            "pt": [
+              0.7938,
+              0.9145
+            ]
+          },
+          "accuracy": {
+            "value": 0.8347,
+            "numerator": 197,
+            "denominator": 236,
+            "ci_low": 0.7821,
+            "ci_high": 0.8767
+          },
+          "dispute_recall": {
+            "value": 0.9787,
+            "numerator": 92,
+            "denominator": 94,
+            "ci_low": 0.9257,
+            "ci_high": 0.9941
+          },
+          "human_request_recall": {
+            "value": 0.8085,
+            "numerator": 38,
+            "denominator": 47,
+            "ci_low": 0.6746,
+            "ci_high": 0.8958
+          },
+          "slot_accuracy": {
+            "value": 0.699,
+            "numerator": 144,
+            "denominator": 206,
+            "ci_low": 0.6332,
+            "ci_high": 0.7576
+          },
+          "missing_tool_calls": 0,
+          "errors": 0,
+          "p50_ms": 549,
+          "p95_ms": 690,
+          "cost_per_1000_usd": 0.035351,
+          "errors_by_class": {},
+          "meets_bar": false,
+          "pareto": false,
+          "mcnemar_p_vs_best": 0.0,
+          "same_family_as_generator": false,
+          "gate": {
+            "benchmark_pass": true,
+            "production_pass": false,
+            "criteria": [
+              {
+                "criterion": "synthetic_only",
+                "needed_benchmark": true,
+                "needed_production": false,
+                "verdict": "pass",
+                "evidence_url": "docs/adr/0009 (internal: synthetic data only)",
+                "checked_on": "2026-10-04"
+              },
+              {
+                "criterion": "no_training",
+                "needed_benchmark": true,
+                "needed_production": true,
+                "verdict": "pass",
+                "evidence_url": "https://aws.amazon.com/bedrock/security-compliance/",
+                "checked_on": "2026-10-04"
+              },
+              {
+                "criterion": "retention",
+                "needed_benchmark": false,
+                "needed_production": true,
+                "verdict": "pass",
+                "evidence_url": "https://docs.aws.amazon.com/bedrock/latest/userguide/data-retention.html",
+                "checked_on": "2026-10-04"
+              },
+              {
+                "criterion": "region",
+                "needed_benchmark": false,
+                "needed_production": true,
+                "verdict": "pass",
+                "evidence_url": "https://docs.aws.amazon.com/bedrock/latest/userguide/cross-region-inference.html",
+                "checked_on": "2026-10-04"
+              },
+              {
+                "criterion": "certification",
+                "needed_benchmark": false,
+                "needed_production": true,
+                "verdict": "pass",
+                "evidence_url": "https://aws.amazon.com/bedrock/security-compliance/",
+                "checked_on": "2026-10-04"
+              },
+              {
+                "criterion": "credentials",
+                "needed_benchmark": true,
+                "needed_production": true,
+                "verdict": "pass",
+                "evidence_url": "docs/infrastructure.md section IAM (internal: svc-nickoftime-langgraph, Bedrock invoke only; its key lives in the Platform deployment secrets) and CLAUDE.md constraint 10",
+                "checked_on": "2026-10-04"
+              },
+              {
+                "criterion": "version_pinning",
+                "needed_benchmark": true,
+                "needed_production": true,
+                "verdict": "pass",
+                "evidence_url": "https://docs.aws.amazon.com/bedrock/latest/userguide/model-lifecycle-legacy.html",
+                "checked_on": "2026-10-04"
+              },
+              {
+                "criterion": "availability",
+                "needed_benchmark": false,
+                "needed_production": true,
+                "verdict": "pass",
+                "evidence_url": "https://aws.amazon.com/bedrock/sla/",
+                "checked_on": "2026-10-05"
+              },
+              {
+                "criterion": "es_pt_quality",
+                "needed_benchmark": false,
+                "needed_production": true,
+                "verdict": "fail",
+                "evidence_url": "eval/results/bench_b1.csv, macro-F1 per language >= 0.9",
+                "checked_on": "2026-06-01"
+              }
+            ]
+          }
+        },
+        {
+          "arm": "nova-lite",
+          "model_id": "us.amazon.nova-lite-v1:0",
+          "version": "us.amazon.nova-lite-v1:0",
+          "prompt_hash": "3683759e42eb149f",
+          "tool_choice_mode": "tool",
+          "temperature": 0,
+          "status": "ok",
+          "unavailable_reason": null,
+          "price": {
+            "label": "[external]",
+            "input_per_1m_usd": 0.06,
+            "output_per_1m_usd": 0.24,
+            "source": "https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonBedrock/current/us-east-2/index.json",
+            "date": "2026-10-04"
+          },
+          "macro_f1": {
+            "es": 0.7155,
+            "pt": 0.7904
+          },
+          "macro_f1_ci": {
+            "es": [
+              0.619,
+              0.7908
+            ],
+            "pt": [
+              0.7102,
+              0.8619
+            ]
+          },
+          "accuracy": {
+            "value": 0.7585,
+            "numerator": 179,
+            "denominator": 236,
+            "ci_low": 0.7,
+            "ci_high": 0.8087
+          },
+          "dispute_recall": {
+            "value": 0.8936,
+            "numerator": 84,
+            "denominator": 94,
+            "ci_low": 0.8151,
+            "ci_high": 0.9412
+          },
+          "human_request_recall": {
+            "value": 0.9574,
+            "numerator": 45,
+            "denominator": 47,
+            "ci_low": 0.8575,
+            "ci_high": 0.9883
+          },
+          "slot_accuracy": {
+            "value": 0.7136,
+            "numerator": 147,
+            "denominator": 206,
+            "ci_low": 0.6484,
+            "ci_high": 0.771
+          },
+          "missing_tool_calls": 0,
+          "errors": 1,
+          "p50_ms": 815,
+          "p95_ms": 1211,
+          "cost_per_1000_usd": 0.060699,
+          "errors_by_class": {
+            "ProviderUnavailable": 1
+          },
+          "meets_bar": false,
+          "pareto": false,
+          "mcnemar_p_vs_best": 0.0,
+          "same_family_as_generator": false,
+          "gate": {
+            "benchmark_pass": true,
+            "production_pass": false,
+            "criteria": [
+              {
+                "criterion": "synthetic_only",
+                "needed_benchmark": true,
+                "needed_production": false,
+                "verdict": "pass",
+                "evidence_url": "docs/adr/0009 (internal: synthetic data only)",
+                "checked_on": "2026-10-04"
+              },
+              {
+                "criterion": "no_training",
+                "needed_benchmark": true,
+                "needed_production": true,
+                "verdict": "pass",
+                "evidence_url": "https://aws.amazon.com/bedrock/security-compliance/",
+                "checked_on": "2026-10-04"
+              },
+              {
+                "criterion": "retention",
+                "needed_benchmark": false,
+                "needed_production": true,
+                "verdict": "pass",
+                "evidence_url": "https://docs.aws.amazon.com/bedrock/latest/userguide/data-retention.html",
+                "checked_on": "2026-10-04"
+              },
+              {
+                "criterion": "region",
+                "needed_benchmark": false,
+                "needed_production": true,
+                "verdict": "pass",
+                "evidence_url": "https://docs.aws.amazon.com/bedrock/latest/userguide/cross-region-inference.html",
+                "checked_on": "2026-10-04"
+              },
+              {
+                "criterion": "certification",
+                "needed_benchmark": false,
+                "needed_production": true,
+                "verdict": "pass",
+                "evidence_url": "https://aws.amazon.com/bedrock/security-compliance/",
+                "checked_on": "2026-10-04"
+              },
+              {
+                "criterion": "credentials",
+                "needed_benchmark": true,
+                "needed_production": true,
+                "verdict": "pass",
+                "evidence_url": "docs/infrastructure.md section IAM (internal: svc-nickoftime-langgraph, Bedrock invoke only; its key lives in the Platform deployment secrets) and CLAUDE.md constraint 10",
+                "checked_on": "2026-10-04"
+              },
+              {
+                "criterion": "version_pinning",
+                "needed_benchmark": true,
+                "needed_production": true,
+                "verdict": "pass",
+                "evidence_url": "https://docs.aws.amazon.com/bedrock/latest/userguide/model-lifecycle-legacy.html",
+                "checked_on": "2026-10-04"
+              },
+              {
+                "criterion": "availability",
+                "needed_benchmark": false,
+                "needed_production": true,
+                "verdict": "pass",
+                "evidence_url": "https://aws.amazon.com/bedrock/sla/",
+                "checked_on": "2026-10-05"
+              },
+              {
+                "criterion": "es_pt_quality",
+                "needed_benchmark": false,
+                "needed_production": true,
+                "verdict": "fail",
+                "evidence_url": "eval/results/bench_b1.csv, macro-F1 per language >= 0.9",
+                "checked_on": "2026-06-01"
+              }
+            ]
+          }
+        },
+        {
+          "arm": "nova-2-lite",
+          "model_id": "us.amazon.nova-2-lite-v1:0",
+          "version": "us.amazon.nova-2-lite-v1:0",
+          "prompt_hash": "3683759e42eb149f",
+          "tool_choice_mode": "tool",
+          "temperature": 0,
+          "status": "ok",
+          "unavailable_reason": null,
+          "price": {
+            "label": "[external]",
+            "input_per_1m_usd": 0.33,
+            "output_per_1m_usd": 2.75,
+            "source": "https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonBedrock/current/us-east-2/index.json",
+            "date": "2026-10-04"
+          },
+          "macro_f1": {
+            "es": 0.9575,
+            "pt": 0.9568
+          },
+          "macro_f1_ci": {
+            "es": [
+              0.9129,
+              0.9908
+            ],
+            "pt": [
+              0.9146,
+              0.9899
+            ]
+          },
+          "accuracy": {
+            "value": 0.9576,
+            "numerator": 226,
+            "denominator": 236,
+            "ci_low": 0.9238,
+            "ci_high": 0.9768
+          },
+          "dispute_recall": {
+            "value": 0.9787,
+            "numerator": 92,
+            "denominator": 94,
+            "ci_low": 0.9257,
+            "ci_high": 0.9941
+          },
+          "human_request_recall": {
+            "value": 0.9362,
+            "numerator": 44,
+            "denominator": 47,
+            "ci_low": 0.8284,
+            "ci_high": 0.9781
+          },
+          "slot_accuracy": {
+            "value": 0.7816,
+            "numerator": 161,
+            "denominator": 206,
+            "ci_low": 0.7203,
+            "ci_high": 0.8325
+          },
+          "missing_tool_calls": 0,
+          "errors": 0,
+          "p50_ms": 748,
+          "p95_ms": 1276,
+          "cost_per_1000_usd": 0.62234,
+          "errors_by_class": {},
+          "meets_bar": false,
+          "pareto": false,
+          "mcnemar_p_vs_best": 0.125,
+          "same_family_as_generator": false,
+          "gate": {
+            "benchmark_pass": true,
+            "production_pass": true,
+            "criteria": [
+              {
+                "criterion": "synthetic_only",
+                "needed_benchmark": true,
+                "needed_production": false,
+                "verdict": "pass",
+                "evidence_url": "docs/adr/0009 (internal: synthetic data only)",
+                "checked_on": "2026-10-04"
+              },
+              {
+                "criterion": "no_training",
+                "needed_benchmark": true,
+                "needed_production": true,
+                "verdict": "pass",
+                "evidence_url": "https://aws.amazon.com/bedrock/security-compliance/",
+                "checked_on": "2026-10-04"
+              },
+              {
+                "criterion": "retention",
+                "needed_benchmark": false,
+                "needed_production": true,
+                "verdict": "pass",
+                "evidence_url": "https://docs.aws.amazon.com/bedrock/latest/userguide/data-retention.html",
+                "checked_on": "2026-10-04"
+              },
+              {
+                "criterion": "region",
+                "needed_benchmark": false,
+                "needed_production": true,
+                "verdict": "pass",
+                "evidence_url": "https://docs.aws.amazon.com/bedrock/latest/userguide/cross-region-inference.html",
+                "checked_on": "2026-10-04"
+              },
+              {
+                "criterion": "certification",
+                "needed_benchmark": false,
+                "needed_production": true,
+                "verdict": "pass",
+                "evidence_url": "https://aws.amazon.com/bedrock/security-compliance/",
+                "checked_on": "2026-10-04"
+              },
+              {
+                "criterion": "credentials",
+                "needed_benchmark": true,
+                "needed_production": true,
+                "verdict": "pass",
+                "evidence_url": "docs/infrastructure.md section IAM (internal: svc-nickoftime-langgraph, Bedrock invoke only; its key lives in the Platform deployment secrets) and CLAUDE.md constraint 10",
+                "checked_on": "2026-10-04"
+              },
+              {
+                "criterion": "version_pinning",
+                "needed_benchmark": true,
+                "needed_production": true,
+                "verdict": "pass",
+                "evidence_url": "https://docs.aws.amazon.com/bedrock/latest/userguide/model-lifecycle-legacy.html",
+                "checked_on": "2026-10-04"
+              },
+              {
+                "criterion": "availability",
+                "needed_benchmark": false,
+                "needed_production": true,
+                "verdict": "pass",
+                "evidence_url": "https://aws.amazon.com/bedrock/sla/",
+                "checked_on": "2026-10-05"
+              },
+              {
+                "criterion": "es_pt_quality",
+                "needed_benchmark": false,
+                "needed_production": true,
+                "verdict": "pass",
+                "evidence_url": "eval/results/bench_b1.csv, macro-F1 per language >= 0.9",
+                "checked_on": "2026-06-01"
+              }
+            ]
+          }
+        },
+        {
+          "arm": "nova-pro",
+          "model_id": "us.amazon.nova-pro-v1:0",
+          "version": "us.amazon.nova-pro-v1:0",
+          "prompt_hash": "3683759e42eb149f",
+          "tool_choice_mode": "tool",
+          "temperature": 0,
+          "status": "ok",
+          "unavailable_reason": null,
+          "price": {
+            "label": "[external]",
+            "input_per_1m_usd": 0.8,
+            "output_per_1m_usd": 3.2,
+            "source": "https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonBedrock/current/us-east-2/index.json",
+            "date": "2026-10-04"
+          },
+          "macro_f1": {
+            "es": 0.8996,
+            "pt": 0.9147
+          },
+          "macro_f1_ci": {
+            "es": [
+              0.8375,
+              0.9481
+            ],
+            "pt": [
+              0.8552,
+              0.9653
+            ]
+          },
+          "accuracy": {
+            "value": 0.9068,
+            "numerator": 214,
+            "denominator": 236,
+            "ci_low": 0.8629,
+            "ci_high": 0.9376
+          },
+          "dispute_recall": {
+            "value": 0.9468,
+            "numerator": 89,
+            "denominator": 94,
+            "ci_low": 0.8815,
+            "ci_high": 0.9771
+          },
+          "human_request_recall": {
+            "value": 0.9149,
+            "numerator": 43,
+            "denominator": 47,
+            "ci_low": 0.8007,
+            "ci_high": 0.9664
+          },
+          "slot_accuracy": {
+            "value": 0.8301,
+            "numerator": 171,
+            "denominator": 206,
+            "ci_low": 0.7729,
+            "ci_high": 0.8752
+          },
+          "missing_tool_calls": 0,
+          "errors": 0,
+          "p50_ms": 839,
+          "p95_ms": 1147,
+          "cost_per_1000_usd": 0.819932,
+          "errors_by_class": {},
+          "meets_bar": false,
+          "pareto": false,
+          "mcnemar_p_vs_best": 0.0,
+          "same_family_as_generator": false,
+          "gate": {
+            "benchmark_pass": true,
+            "production_pass": false,
+            "criteria": [
+              {
+                "criterion": "synthetic_only",
+                "needed_benchmark": true,
+                "needed_production": false,
+                "verdict": "pass",
+                "evidence_url": "docs/adr/0009 (internal: synthetic data only)",
+                "checked_on": "2026-10-04"
+              },
+              {
+                "criterion": "no_training",
+                "needed_benchmark": true,
+                "needed_production": true,
+                "verdict": "pass",
+                "evidence_url": "https://aws.amazon.com/bedrock/security-compliance/",
+                "checked_on": "2026-10-04"
+              },
+              {
+                "criterion": "retention",
+                "needed_benchmark": false,
+                "needed_production": true,
+                "verdict": "pass",
+                "evidence_url": "https://docs.aws.amazon.com/bedrock/latest/userguide/data-retention.html",
+                "checked_on": "2026-10-04"
+              },
+              {
+                "criterion": "region",
+                "needed_benchmark": false,
+                "needed_production": true,
+                "verdict": "pass",
+                "evidence_url": "https://docs.aws.amazon.com/bedrock/latest/userguide/cross-region-inference.html",
+                "checked_on": "2026-10-04"
+              },
+              {
+                "criterion": "certification",
+                "needed_benchmark": false,
+                "needed_production": true,
+                "verdict": "pass",
+                "evidence_url": "https://aws.amazon.com/bedrock/security-compliance/",
+                "checked_on": "2026-10-04"
+              },
+              {
+                "criterion": "credentials",
+                "needed_benchmark": true,
+                "needed_production": true,
+                "verdict": "pass",
+                "evidence_url": "docs/infrastructure.md section IAM (internal: svc-nickoftime-langgraph, Bedrock invoke only; its key lives in the Platform deployment secrets) and CLAUDE.md constraint 10",
+                "checked_on": "2026-10-04"
+              },
+              {
+                "criterion": "version_pinning",
+                "needed_benchmark": true,
+                "needed_production": true,
+                "verdict": "pass",
+                "evidence_url": "https://docs.aws.amazon.com/bedrock/latest/userguide/model-lifecycle-legacy.html",
+                "checked_on": "2026-10-04"
+              },
+              {
+                "criterion": "availability",
+                "needed_benchmark": false,
+                "needed_production": true,
+                "verdict": "pass",
+                "evidence_url": "https://aws.amazon.com/bedrock/sla/",
+                "checked_on": "2026-10-05"
+              },
+              {
+                "criterion": "es_pt_quality",
+                "needed_benchmark": false,
+                "needed_production": true,
+                "verdict": "fail",
+                "evidence_url": "eval/results/bench_b1.csv, macro-F1 per language >= 0.9",
+                "checked_on": "2026-06-01"
+              }
+            ]
+          }
+        },
+        {
+          "arm": "gpt-oss-20b",
+          "model_id": "openai.gpt-oss-20b-1:0",
+          "version": "openai.gpt-oss-20b-1:0",
+          "prompt_hash": "3683759e42eb149f",
+          "tool_choice_mode": "tool",
+          "temperature": 0,
+          "status": "ok",
+          "unavailable_reason": null,
+          "price": {
+            "label": "[external]",
+            "input_per_1m_usd": 0.07,
+            "output_per_1m_usd": 0.3,
+            "source": "https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonBedrock/current/us-east-2/index.json",
+            "date": "2026-10-04"
+          },
+          "macro_f1": {
+            "es": 0.9205,
+            "pt": 0.9351
+          },
+          "macro_f1_ci": {
+            "es": [
+              0.8653,
+              0.9644
+            ],
+            "pt": [
+              0.8879,
+              0.9714
+            ]
+          },
+          "accuracy": {
+            "value": 0.9153,
+            "numerator": 216,
+            "denominator": 236,
+            "ci_low": 0.8727,
+            "ci_high": 0.9445
+          },
+          "dispute_recall": {
+            "value": 0.8511,
+            "numerator": 80,
+            "denominator": 94,
+            "ci_low": 0.7654,
+            "ci_high": 0.9092
+          },
+          "human_request_recall": {
+            "value": 0.9574,
+            "numerator": 45,
+            "denominator": 47,
+            "ci_low": 0.8575,
+            "ci_high": 0.9883
+          },
+          "slot_accuracy": {
+            "value": 0.7282,
+            "numerator": 150,
+            "denominator": 206,
+            "ci_low": 0.6636,
+            "ci_high": 0.7843
+          },
+          "missing_tool_calls": 8,
+          "errors": 0,
+          "p50_ms": 741,
+          "p95_ms": 1409,
+          "cost_per_1000_usd": 0.097236,
+          "errors_by_class": {},
+          "meets_bar": false,
+          "pareto": false,
+          "mcnemar_p_vs_best": 0.0001,
+          "same_family_as_generator": false,
+          "gate": {
+            "benchmark_pass": true,
+            "production_pass": true,
+            "criteria": [
+              {
+                "criterion": "synthetic_only",
+                "needed_benchmark": true,
+                "needed_production": false,
+                "verdict": "pass",
+                "evidence_url": "docs/adr/0009 (internal: synthetic data only)",
+                "checked_on": "2026-10-04"
+              },
+              {
+                "criterion": "no_training",
+                "needed_benchmark": true,
+                "needed_production": true,
+                "verdict": "pass",
+                "evidence_url": "https://aws.amazon.com/bedrock/security-compliance/",
+                "checked_on": "2026-10-04"
+              },
+              {
+                "criterion": "retention",
+                "needed_benchmark": false,
+                "needed_production": true,
+                "verdict": "pass",
+                "evidence_url": "https://docs.aws.amazon.com/bedrock/latest/userguide/data-retention.html",
+                "checked_on": "2026-10-04"
+              },
+              {
+                "criterion": "region",
+                "needed_benchmark": false,
+                "needed_production": true,
+                "verdict": "pass",
+                "evidence_url": "https://docs.aws.amazon.com/bedrock/latest/userguide/cross-region-inference.html",
+                "checked_on": "2026-10-04"
+              },
+              {
+                "criterion": "certification",
+                "needed_benchmark": false,
+                "needed_production": true,
+                "verdict": "pass",
+                "evidence_url": "https://aws.amazon.com/bedrock/security-compliance/",
+                "checked_on": "2026-10-04"
+              },
+              {
+                "criterion": "credentials",
+                "needed_benchmark": true,
+                "needed_production": true,
+                "verdict": "pass",
+                "evidence_url": "docs/infrastructure.md section IAM (internal: svc-nickoftime-langgraph, Bedrock invoke only; its key lives in the Platform deployment secrets) and CLAUDE.md constraint 10",
+                "checked_on": "2026-10-04"
+              },
+              {
+                "criterion": "version_pinning",
+                "needed_benchmark": true,
+                "needed_production": true,
+                "verdict": "pass",
+                "evidence_url": "https://docs.aws.amazon.com/bedrock/latest/userguide/model-lifecycle-legacy.html",
+                "checked_on": "2026-10-04"
+              },
+              {
+                "criterion": "availability",
+                "needed_benchmark": false,
+                "needed_production": true,
+                "verdict": "pass",
+                "evidence_url": "https://aws.amazon.com/bedrock/sla/",
+                "checked_on": "2026-10-05"
+              },
+              {
+                "criterion": "es_pt_quality",
+                "needed_benchmark": false,
+                "needed_production": true,
+                "verdict": "pass",
+                "evidence_url": "eval/results/bench_b1.csv, macro-F1 per language >= 0.9",
+                "checked_on": "2026-06-01"
+              }
+            ]
+          }
+        },
+        {
+          "arm": "gpt-oss-120b",
+          "model_id": "openai.gpt-oss-120b-1:0",
+          "version": "openai.gpt-oss-120b-1:0",
+          "prompt_hash": "3683759e42eb149f",
+          "tool_choice_mode": "tool",
+          "temperature": 0,
+          "status": "ok",
+          "unavailable_reason": null,
+          "price": {
+            "label": "[external]",
+            "input_per_1m_usd": 0.15,
+            "output_per_1m_usd": 0.6,
+            "source": "https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonBedrock/current/us-east-2/index.json",
+            "date": "2026-10-04"
+          },
+          "macro_f1": {
+            "es": 0.9355,
+            "pt": 0.9362
+          },
+          "macro_f1_ci": {
+            "es": [
+              0.8849,
+              0.9749
+            ],
+            "pt": [
+              0.8908,
+              0.9736
+            ]
+          },
+          "accuracy": {
+            "value": 0.9237,
+            "numerator": 218,
+            "denominator": 236,
+            "ci_low": 0.8827,
+            "ci_high": 0.9512
+          },
+          "dispute_recall": {
+            "value": 0.9149,
+            "numerator": 86,
+            "denominator": 94,
+            "ci_low": 0.841,
+            "ci_high": 0.9562
+          },
+          "human_request_recall": {
+            "value": 0.9574,
+            "numerator": 45,
+            "denominator": 47,
+            "ci_low": 0.8575,
+            "ci_high": 0.9883
+          },
+          "slot_accuracy": {
+            "value": 0.8447,
+            "numerator": 174,
+            "denominator": 206,
+            "ci_low": 0.7889,
+            "ci_high": 0.8878
+          },
+          "missing_tool_calls": 7,
+          "errors": 0,
+          "p50_ms": 1309,
+          "p95_ms": 2936,
+          "cost_per_1000_usd": 0.195015,
+          "errors_by_class": {},
+          "meets_bar": false,
+          "pareto": false,
+          "mcnemar_p_vs_best": 0.0002,
+          "same_family_as_generator": false,
+          "gate": {
+            "benchmark_pass": true,
+            "production_pass": true,
+            "criteria": [
+              {
+                "criterion": "synthetic_only",
+                "needed_benchmark": true,
+                "needed_production": false,
+                "verdict": "pass",
+                "evidence_url": "docs/adr/0009 (internal: synthetic data only)",
+                "checked_on": "2026-10-04"
+              },
+              {
+                "criterion": "no_training",
+                "needed_benchmark": true,
+                "needed_production": true,
+                "verdict": "pass",
+                "evidence_url": "https://aws.amazon.com/bedrock/security-compliance/",
+                "checked_on": "2026-10-04"
+              },
+              {
+                "criterion": "retention",
+                "needed_benchmark": false,
+                "needed_production": true,
+                "verdict": "pass",
+                "evidence_url": "https://docs.aws.amazon.com/bedrock/latest/userguide/data-retention.html",
+                "checked_on": "2026-10-04"
+              },
+              {
+                "criterion": "region",
+                "needed_benchmark": false,
+                "needed_production": true,
+                "verdict": "pass",
+                "evidence_url": "https://docs.aws.amazon.com/bedrock/latest/userguide/cross-region-inference.html",
+                "checked_on": "2026-10-04"
+              },
+              {
+                "criterion": "certification",
+                "needed_benchmark": false,
+                "needed_production": true,
+                "verdict": "pass",
+                "evidence_url": "https://aws.amazon.com/bedrock/security-compliance/",
+                "checked_on": "2026-10-04"
+              },
+              {
+                "criterion": "credentials",
+                "needed_benchmark": true,
+                "needed_production": true,
+                "verdict": "pass",
+                "evidence_url": "docs/infrastructure.md section IAM (internal: svc-nickoftime-langgraph, Bedrock invoke only; its key lives in the Platform deployment secrets) and CLAUDE.md constraint 10",
+                "checked_on": "2026-10-04"
+              },
+              {
+                "criterion": "version_pinning",
+                "needed_benchmark": true,
+                "needed_production": true,
+                "verdict": "pass",
+                "evidence_url": "https://docs.aws.amazon.com/bedrock/latest/userguide/model-lifecycle-legacy.html",
+                "checked_on": "2026-10-04"
+              },
+              {
+                "criterion": "availability",
+                "needed_benchmark": false,
+                "needed_production": true,
+                "verdict": "pass",
+                "evidence_url": "https://aws.amazon.com/bedrock/sla/",
+                "checked_on": "2026-10-05"
+              },
+              {
+                "criterion": "es_pt_quality",
+                "needed_benchmark": false,
+                "needed_production": true,
+                "verdict": "pass",
+                "evidence_url": "eval/results/bench_b1.csv, macro-F1 per language >= 0.9",
+                "checked_on": "2026-06-01"
+              }
+            ]
+          }
+        },
+        {
+          "arm": "ministral-3-8b",
+          "model_id": "mistral.ministral-3-8b-instruct",
+          "version": "mistral.ministral-3-8b-instruct",
+          "prompt_hash": "3683759e42eb149f",
+          "tool_choice_mode": "tool",
+          "temperature": 0,
+          "status": "ok",
+          "unavailable_reason": null,
+          "price": {
+            "label": "[external]",
+            "input_per_1m_usd": 0.15,
+            "output_per_1m_usd": 0.15,
+            "source": "https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonBedrock/current/us-east-2/index.json",
+            "date": "2026-10-04"
+          },
+          "macro_f1": {
+            "es": 0.6745,
+            "pt": 0.8221
+          },
+          "macro_f1_ci": {
+            "es": [
+              0.5894,
+              0.7441
+            ],
+            "pt": [
+              0.7504,
+              0.8883
+            ]
+          },
+          "accuracy": {
+            "value": 0.7415,
+            "numerator": 175,
+            "denominator": 236,
+            "ci_low": 0.6821,
+            "ci_high": 0.7932
+          },
+          "dispute_recall": {
+            "value": 0.8191,
+            "numerator": 77,
+            "denominator": 94,
+            "ci_low": 0.7293,
+            "ci_high": 0.8839
+          },
+          "human_request_recall": {
+            "value": 0.9574,
+            "numerator": 45,
+            "denominator": 47,
+            "ci_low": 0.8575,
+            "ci_high": 0.9883
+          },
+          "slot_accuracy": {
+            "value": 0.7621,
+            "numerator": 157,
+            "denominator": 206,
+            "ci_low": 0.6995,
+            "ci_high": 0.8151
+          },
+          "missing_tool_calls": 1,
+          "errors": 0,
+          "p50_ms": 338,
+          "p95_ms": 478,
+          "cost_per_1000_usd": 0.075835,
+          "errors_by_class": {},
+          "meets_bar": false,
+          "pareto": false,
+          "mcnemar_p_vs_best": 0.0,
+          "same_family_as_generator": false,
+          "gate": {
+            "benchmark_pass": true,
+            "production_pass": false,
+            "criteria": [
+              {
+                "criterion": "synthetic_only",
+                "needed_benchmark": true,
+                "needed_production": false,
+                "verdict": "pass",
+                "evidence_url": "docs/adr/0009 (internal: synthetic data only)",
+                "checked_on": "2026-10-04"
+              },
+              {
+                "criterion": "no_training",
+                "needed_benchmark": true,
+                "needed_production": true,
+                "verdict": "pass",
+                "evidence_url": "https://aws.amazon.com/bedrock/security-compliance/",
+                "checked_on": "2026-10-04"
+              },
+              {
+                "criterion": "retention",
+                "needed_benchmark": false,
+                "needed_production": true,
+                "verdict": "pass",
+                "evidence_url": "https://docs.aws.amazon.com/bedrock/latest/userguide/data-retention.html",
+                "checked_on": "2026-10-04"
+              },
+              {
+                "criterion": "region",
+                "needed_benchmark": false,
+                "needed_production": true,
+                "verdict": "pass",
+                "evidence_url": "https://docs.aws.amazon.com/bedrock/latest/userguide/cross-region-inference.html",
+                "checked_on": "2026-10-04"
+              },
+              {
+                "criterion": "certification",
+                "needed_benchmark": false,
+                "needed_production": true,
+                "verdict": "pass",
+                "evidence_url": "https://aws.amazon.com/bedrock/security-compliance/",
+                "checked_on": "2026-10-04"
+              },
+              {
+                "criterion": "credentials",
+                "needed_benchmark": true,
+                "needed_production": true,
+                "verdict": "pass",
+                "evidence_url": "docs/infrastructure.md section IAM (internal: svc-nickoftime-langgraph, Bedrock invoke only; its key lives in the Platform deployment secrets) and CLAUDE.md constraint 10",
+                "checked_on": "2026-10-04"
+              },
+              {
+                "criterion": "version_pinning",
+                "needed_benchmark": true,
+                "needed_production": true,
+                "verdict": "pass",
+                "evidence_url": "https://docs.aws.amazon.com/bedrock/latest/userguide/model-lifecycle-legacy.html",
+                "checked_on": "2026-10-04"
+              },
+              {
+                "criterion": "availability",
+                "needed_benchmark": false,
+                "needed_production": true,
+                "verdict": "pass",
+                "evidence_url": "https://aws.amazon.com/bedrock/sla/",
+                "checked_on": "2026-10-05"
+              },
+              {
+                "criterion": "es_pt_quality",
+                "needed_benchmark": false,
+                "needed_production": true,
+                "verdict": "fail",
+                "evidence_url": "eval/results/bench_b1.csv, macro-F1 per language >= 0.9",
+                "checked_on": "2026-06-01"
+              }
+            ]
+          }
+        },
+        {
+          "arm": "ministral-3-14b",
+          "model_id": "mistral.ministral-3-14b-instruct",
+          "version": "mistral.ministral-3-14b-instruct",
+          "prompt_hash": "3683759e42eb149f",
+          "tool_choice_mode": "tool",
+          "temperature": 0,
+          "status": "ok",
+          "unavailable_reason": null,
+          "price": {
+            "label": "[external]",
+            "input_per_1m_usd": 0.2,
+            "output_per_1m_usd": 0.2,
+            "source": "https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonBedrock/current/us-east-2/index.json",
+            "date": "2026-10-04"
+          },
+          "macro_f1": {
+            "es": 0.7595,
+            "pt": 0.7694
+          },
+          "macro_f1_ci": {
+            "es": [
+              0.683,
+              0.8236
+            ],
+            "pt": [
+              0.6862,
+              0.8367
+            ]
+          },
+          "accuracy": {
+            "value": 0.7754,
+            "numerator": 183,
+            "denominator": 236,
+            "ci_low": 0.718,
+            "ci_high": 0.824
+          },
+          "dispute_recall": {
+            "value": 0.9574,
+            "numerator": 90,
+            "denominator": 94,
+            "ci_low": 0.8956,
+            "ci_high": 0.9833
+          },
+          "human_request_recall": {
+            "value": 0.9574,
+            "numerator": 45,
+            "denominator": 47,
+            "ci_low": 0.8575,
+            "ci_high": 0.9883
+          },
+          "slot_accuracy": {
+            "value": 0.7816,
+            "numerator": 161,
+            "denominator": 206,
+            "ci_low": 0.7203,
+            "ci_high": 0.8325
+          },
+          "missing_tool_calls": 1,
+          "errors": 0,
+          "p50_ms": 395,
+          "p95_ms": 580,
+          "cost_per_1000_usd": 0.101027,
+          "errors_by_class": {},
+          "meets_bar": false,
+          "pareto": false,
+          "mcnemar_p_vs_best": 0.0,
+          "same_family_as_generator": false,
+          "gate": {
+            "benchmark_pass": true,
+            "production_pass": false,
+            "criteria": [
+              {
+                "criterion": "synthetic_only",
+                "needed_benchmark": true,
+                "needed_production": false,
+                "verdict": "pass",
+                "evidence_url": "docs/adr/0009 (internal: synthetic data only)",
+                "checked_on": "2026-10-04"
+              },
+              {
+                "criterion": "no_training",
+                "needed_benchmark": true,
+                "needed_production": true,
+                "verdict": "pass",
+                "evidence_url": "https://aws.amazon.com/bedrock/security-compliance/",
+                "checked_on": "2026-10-04"
+              },
+              {
+                "criterion": "retention",
+                "needed_benchmark": false,
+                "needed_production": true,
+                "verdict": "pass",
+                "evidence_url": "https://docs.aws.amazon.com/bedrock/latest/userguide/data-retention.html",
+                "checked_on": "2026-10-04"
+              },
+              {
+                "criterion": "region",
+                "needed_benchmark": false,
+                "needed_production": true,
+                "verdict": "pass",
+                "evidence_url": "https://docs.aws.amazon.com/bedrock/latest/userguide/cross-region-inference.html",
+                "checked_on": "2026-10-04"
+              },
+              {
+                "criterion": "certification",
+                "needed_benchmark": false,
+                "needed_production": true,
+                "verdict": "pass",
+                "evidence_url": "https://aws.amazon.com/bedrock/security-compliance/",
+                "checked_on": "2026-10-04"
+              },
+              {
+                "criterion": "credentials",
+                "needed_benchmark": true,
+                "needed_production": true,
+                "verdict": "pass",
+                "evidence_url": "docs/infrastructure.md section IAM (internal: svc-nickoftime-langgraph, Bedrock invoke only; its key lives in the Platform deployment secrets) and CLAUDE.md constraint 10",
+                "checked_on": "2026-10-04"
+              },
+              {
+                "criterion": "version_pinning",
+                "needed_benchmark": true,
+                "needed_production": true,
+                "verdict": "pass",
+                "evidence_url": "https://docs.aws.amazon.com/bedrock/latest/userguide/model-lifecycle-legacy.html",
+                "checked_on": "2026-10-04"
+              },
+              {
+                "criterion": "availability",
+                "needed_benchmark": false,
+                "needed_production": true,
+                "verdict": "pass",
+                "evidence_url": "https://aws.amazon.com/bedrock/sla/",
+                "checked_on": "2026-10-05"
+              },
+              {
+                "criterion": "es_pt_quality",
+                "needed_benchmark": false,
+                "needed_production": true,
+                "verdict": "fail",
+                "evidence_url": "eval/results/bench_b1.csv, macro-F1 per language >= 0.9",
+                "checked_on": "2026-06-01"
+              }
+            ]
+          }
+        },
+        {
+          "arm": "mistral-large-3",
+          "model_id": "mistral.mistral-large-3-675b-instruct",
+          "version": "mistral.mistral-large-3-675b-instruct",
+          "prompt_hash": "3683759e42eb149f",
+          "tool_choice_mode": "tool",
+          "temperature": 0,
+          "status": "ok",
+          "unavailable_reason": null,
+          "price": {
+            "label": "[external]",
+            "input_per_1m_usd": 0.5,
+            "output_per_1m_usd": 1.5,
+            "source": "https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonBedrock/current/us-east-2/index.json",
+            "date": "2026-10-04"
+          },
+          "macro_f1": {
+            "es": 0.9657,
+            "pt": 0.9826
+          },
+          "macro_f1_ci": {
+            "es": [
+              0.9281,
+              0.9922
+            ],
+            "pt": [
+              0.9505,
+              1.0
+            ]
+          },
+          "accuracy": {
+            "value": 0.9746,
+            "numerator": 230,
+            "denominator": 236,
+            "ci_low": 0.9457,
+            "ci_high": 0.9883
+          },
+          "dispute_recall": {
+            "value": 1.0,
+            "numerator": 94,
+            "denominator": 94,
+            "ci_low": 0.9607,
+            "ci_high": 1.0
+          },
+          "human_request_recall": {
+            "value": 0.9574,
+            "numerator": 45,
+            "denominator": 47,
+            "ci_low": 0.8575,
+            "ci_high": 0.9883
+          },
+          "slot_accuracy": {
+            "value": 0.9126,
+            "numerator": 188,
+            "denominator": 206,
+            "ci_low": 0.8661,
+            "ci_high": 0.944
+          },
+          "missing_tool_calls": 0,
+          "errors": 0,
+          "p50_ms": 614,
+          "p95_ms": 1368,
+          "cost_per_1000_usd": 0.311097,
+          "errors_by_class": {},
+          "meets_bar": false,
+          "pareto": true,
+          "mcnemar_p_vs_best": 1.0,
+          "same_family_as_generator": false,
+          "gate": {
+            "benchmark_pass": true,
+            "production_pass": true,
+            "criteria": [
+              {
+                "criterion": "synthetic_only",
+                "needed_benchmark": true,
+                "needed_production": false,
+                "verdict": "pass",
+                "evidence_url": "docs/adr/0009 (internal: synthetic data only)",
+                "checked_on": "2026-10-04"
+              },
+              {
+                "criterion": "no_training",
+                "needed_benchmark": true,
+                "needed_production": true,
+                "verdict": "pass",
+                "evidence_url": "https://aws.amazon.com/bedrock/security-compliance/",
+                "checked_on": "2026-10-04"
+              },
+              {
+                "criterion": "retention",
+                "needed_benchmark": false,
+                "needed_production": true,
+                "verdict": "pass",
+                "evidence_url": "https://docs.aws.amazon.com/bedrock/latest/userguide/data-retention.html",
+                "checked_on": "2026-10-04"
+              },
+              {
+                "criterion": "region",
+                "needed_benchmark": false,
+                "needed_production": true,
+                "verdict": "pass",
+                "evidence_url": "https://docs.aws.amazon.com/bedrock/latest/userguide/cross-region-inference.html",
+                "checked_on": "2026-10-04"
+              },
+              {
+                "criterion": "certification",
+                "needed_benchmark": false,
+                "needed_production": true,
+                "verdict": "pass",
+                "evidence_url": "https://aws.amazon.com/bedrock/security-compliance/",
+                "checked_on": "2026-10-04"
+              },
+              {
+                "criterion": "credentials",
+                "needed_benchmark": true,
+                "needed_production": true,
+                "verdict": "pass",
+                "evidence_url": "docs/infrastructure.md section IAM (internal: svc-nickoftime-langgraph, Bedrock invoke only; its key lives in the Platform deployment secrets) and CLAUDE.md constraint 10",
+                "checked_on": "2026-10-04"
+              },
+              {
+                "criterion": "version_pinning",
+                "needed_benchmark": true,
+                "needed_production": true,
+                "verdict": "pass",
+                "evidence_url": "https://docs.aws.amazon.com/bedrock/latest/userguide/model-lifecycle-legacy.html",
+                "checked_on": "2026-10-04"
+              },
+              {
+                "criterion": "availability",
+                "needed_benchmark": false,
+                "needed_production": true,
+                "verdict": "pass",
+                "evidence_url": "https://aws.amazon.com/bedrock/sla/",
+                "checked_on": "2026-10-05"
+              },
+              {
+                "criterion": "es_pt_quality",
+                "needed_benchmark": false,
+                "needed_production": true,
+                "verdict": "pass",
+                "evidence_url": "eval/results/bench_b1.csv, macro-F1 per language >= 0.9",
+                "checked_on": "2026-06-01"
+              }
+            ]
+          }
+        },
+        {
+          "arm": "gemma-3-12b",
+          "model_id": "google.gemma-3-12b-it",
+          "version": "google.gemma-3-12b-it",
+          "prompt_hash": "3683759e42eb149f",
+          "tool_choice_mode": "tool",
+          "temperature": 0,
+          "status": "no structured output",
+          "unavailable_reason": "no tool call returned; toolChoice=tool; stopReason=end_turn; reply='```json\\n{\\n  \"record_intent\": {\\n    \"dispute_detected\": true,\\n    \"unrecognized_charge\": true,\\n    \"human_request\": false,\\n    \"status_inquiry\": false,\\n    \"out_of_scope\": false,\\n    \"slots\": {\\n      \"'",
+          "price": {
+            "label": "[external]",
+            "input_per_1m_usd": 0.09,
+            "output_per_1m_usd": 0.29,
+            "source": "https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonBedrock/current/us-east-2/index.json",
+            "date": "2026-10-04"
+          },
+          "macro_f1": null,
+          "macro_f1_ci": null,
+          "accuracy": null,
+          "dispute_recall": null,
+          "human_request_recall": null,
+          "slot_accuracy": null,
+          "missing_tool_calls": null,
+          "errors": null,
+          "p50_ms": null,
+          "p95_ms": null,
+          "cost_per_1000_usd": null,
+          "errors_by_class": {},
+          "meets_bar": null,
+          "pareto": null,
+          "mcnemar_p_vs_best": null,
+          "same_family_as_generator": false,
+          "gate": {
+            "benchmark_pass": true,
+            "production_pass": false,
+            "criteria": [
+              {
+                "criterion": "synthetic_only",
+                "needed_benchmark": true,
+                "needed_production": false,
+                "verdict": "pass",
+                "evidence_url": "docs/adr/0009 (internal: synthetic data only)",
+                "checked_on": "2026-10-04"
+              },
+              {
+                "criterion": "no_training",
+                "needed_benchmark": true,
+                "needed_production": true,
+                "verdict": "pass",
+                "evidence_url": "https://aws.amazon.com/bedrock/security-compliance/",
+                "checked_on": "2026-10-04"
+              },
+              {
+                "criterion": "retention",
+                "needed_benchmark": false,
+                "needed_production": true,
+                "verdict": "pass",
+                "evidence_url": "https://docs.aws.amazon.com/bedrock/latest/userguide/data-retention.html",
+                "checked_on": "2026-10-04"
+              },
+              {
+                "criterion": "region",
+                "needed_benchmark": false,
+                "needed_production": true,
+                "verdict": "pass",
+                "evidence_url": "https://docs.aws.amazon.com/bedrock/latest/userguide/cross-region-inference.html",
+                "checked_on": "2026-10-04"
+              },
+              {
+                "criterion": "certification",
+                "needed_benchmark": false,
+                "needed_production": true,
+                "verdict": "pass",
+                "evidence_url": "https://aws.amazon.com/bedrock/security-compliance/",
+                "checked_on": "2026-10-04"
+              },
+              {
+                "criterion": "credentials",
+                "needed_benchmark": true,
+                "needed_production": true,
+                "verdict": "pass",
+                "evidence_url": "docs/infrastructure.md section IAM (internal: svc-nickoftime-langgraph, Bedrock invoke only; its key lives in the Platform deployment secrets) and CLAUDE.md constraint 10",
+                "checked_on": "2026-10-04"
+              },
+              {
+                "criterion": "version_pinning",
+                "needed_benchmark": true,
+                "needed_production": true,
+                "verdict": "pass",
+                "evidence_url": "https://docs.aws.amazon.com/bedrock/latest/userguide/model-lifecycle-legacy.html",
+                "checked_on": "2026-10-04"
+              },
+              {
+                "criterion": "availability",
+                "needed_benchmark": false,
+                "needed_production": true,
+                "verdict": "pass",
+                "evidence_url": "https://aws.amazon.com/bedrock/sla/",
+                "checked_on": "2026-10-05"
+              },
+              {
+                "criterion": "es_pt_quality",
+                "needed_benchmark": false,
+                "needed_production": true,
+                "verdict": "not documented",
+                "evidence_url": "",
+                "checked_on": "2026-06-01"
+              }
+            ]
+          }
+        },
+        {
+          "arm": "gemma-3-27b",
+          "model_id": "google.gemma-3-27b-it",
+          "version": "google.gemma-3-27b-it",
+          "prompt_hash": "3683759e42eb149f",
+          "tool_choice_mode": "tool",
+          "temperature": 0,
+          "status": "no structured output",
+          "unavailable_reason": "no tool call returned; toolChoice=tool; stopReason=end_turn; reply='```json\\n{\\n  \"intent\": \"unrecognized_charge\",\\n  \"confidence\": 0.95,\\n  \"slots\": {\\n    \"amount\": \"45.00\",\\n    \"currency\": \"USD\"\\n  },\\n  \"dispute_detected\": true\\n}\\n```'",
+          "price": {
+            "label": "[external]",
+            "input_per_1m_usd": 0.23,
+            "output_per_1m_usd": 0.38,
+            "source": "https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonBedrock/current/us-east-2/index.json",
+            "date": "2026-10-04"
+          },
+          "macro_f1": null,
+          "macro_f1_ci": null,
+          "accuracy": null,
+          "dispute_recall": null,
+          "human_request_recall": null,
+          "slot_accuracy": null,
+          "missing_tool_calls": null,
+          "errors": null,
+          "p50_ms": null,
+          "p95_ms": null,
+          "cost_per_1000_usd": null,
+          "errors_by_class": {},
+          "meets_bar": null,
+          "pareto": null,
+          "mcnemar_p_vs_best": null,
+          "same_family_as_generator": false,
+          "gate": {
+            "benchmark_pass": true,
+            "production_pass": false,
+            "criteria": [
+              {
+                "criterion": "synthetic_only",
+                "needed_benchmark": true,
+                "needed_production": false,
+                "verdict": "pass",
+                "evidence_url": "docs/adr/0009 (internal: synthetic data only)",
+                "checked_on": "2026-10-04"
+              },
+              {
+                "criterion": "no_training",
+                "needed_benchmark": true,
+                "needed_production": true,
+                "verdict": "pass",
+                "evidence_url": "https://aws.amazon.com/bedrock/security-compliance/",
+                "checked_on": "2026-10-04"
+              },
+              {
+                "criterion": "retention",
+                "needed_benchmark": false,
+                "needed_production": true,
+                "verdict": "pass",
+                "evidence_url": "https://docs.aws.amazon.com/bedrock/latest/userguide/data-retention.html",
+                "checked_on": "2026-10-04"
+              },
+              {
+                "criterion": "region",
+                "needed_benchmark": false,
+                "needed_production": true,
+                "verdict": "pass",
+                "evidence_url": "https://docs.aws.amazon.com/bedrock/latest/userguide/cross-region-inference.html",
+                "checked_on": "2026-10-04"
+              },
+              {
+                "criterion": "certification",
+                "needed_benchmark": false,
+                "needed_production": true,
+                "verdict": "pass",
+                "evidence_url": "https://aws.amazon.com/bedrock/security-compliance/",
+                "checked_on": "2026-10-04"
+              },
+              {
+                "criterion": "credentials",
+                "needed_benchmark": true,
+                "needed_production": true,
+                "verdict": "pass",
+                "evidence_url": "docs/infrastructure.md section IAM (internal: svc-nickoftime-langgraph, Bedrock invoke only; its key lives in the Platform deployment secrets) and CLAUDE.md constraint 10",
+                "checked_on": "2026-10-04"
+              },
+              {
+                "criterion": "version_pinning",
+                "needed_benchmark": true,
+                "needed_production": true,
+                "verdict": "pass",
+                "evidence_url": "https://docs.aws.amazon.com/bedrock/latest/userguide/model-lifecycle-legacy.html",
+                "checked_on": "2026-10-04"
+              },
+              {
+                "criterion": "availability",
+                "needed_benchmark": false,
+                "needed_production": true,
+                "verdict": "pass",
+                "evidence_url": "https://aws.amazon.com/bedrock/sla/",
+                "checked_on": "2026-10-05"
+              },
+              {
+                "criterion": "es_pt_quality",
+                "needed_benchmark": false,
+                "needed_production": true,
+                "verdict": "not documented",
+                "evidence_url": "",
+                "checked_on": "2026-06-01"
+              }
+            ]
+          }
+        },
+        {
+          "arm": "llama-3-3-70b",
+          "model_id": "meta.llama3-3-70b-instruct-v1:0",
+          "version": "meta.llama3-3-70b-instruct-v1:0",
+          "prompt_hash": "3683759e42eb149f",
+          "tool_choice_mode": "auto",
+          "temperature": 0,
+          "status": "no structured output",
+          "unavailable_reason": "no tool call returned; toolChoice=auto; stopReason=end_turn; reply='{\"type\": \"function\", \"name\": \"record_intent\", \"parameters\": {\"intent\": \"unrecognized_charge\", \"confidence\": \"0.8\", \"dispute_detected\": \"true\", \"slots\": {\"date\": \"null\", \"merchant\": \"null\", \"amount\": \"'",
+          "price": {
+            "label": "[external]",
+            "input_per_1m_usd": 0.72,
+            "output_per_1m_usd": 0.72,
+            "source": "https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonBedrock/current/us-east-2/index.json",
+            "date": "2026-10-04"
+          },
+          "macro_f1": null,
+          "macro_f1_ci": null,
+          "accuracy": null,
+          "dispute_recall": null,
+          "human_request_recall": null,
+          "slot_accuracy": null,
+          "missing_tool_calls": null,
+          "errors": null,
+          "p50_ms": null,
+          "p95_ms": null,
+          "cost_per_1000_usd": null,
+          "errors_by_class": {},
+          "meets_bar": null,
+          "pareto": null,
+          "mcnemar_p_vs_best": null,
+          "same_family_as_generator": false,
+          "gate": {
+            "benchmark_pass": true,
+            "production_pass": false,
+            "criteria": [
+              {
+                "criterion": "synthetic_only",
+                "needed_benchmark": true,
+                "needed_production": false,
+                "verdict": "pass",
+                "evidence_url": "docs/adr/0009 (internal: synthetic data only)",
+                "checked_on": "2026-10-04"
+              },
+              {
+                "criterion": "no_training",
+                "needed_benchmark": true,
+                "needed_production": true,
+                "verdict": "pass",
+                "evidence_url": "https://aws.amazon.com/bedrock/security-compliance/",
+                "checked_on": "2026-10-04"
+              },
+              {
+                "criterion": "retention",
+                "needed_benchmark": false,
+                "needed_production": true,
+                "verdict": "pass",
+                "evidence_url": "https://docs.aws.amazon.com/bedrock/latest/userguide/data-retention.html",
+                "checked_on": "2026-10-04"
+              },
+              {
+                "criterion": "region",
+                "needed_benchmark": false,
+                "needed_production": true,
+                "verdict": "pass",
+                "evidence_url": "https://docs.aws.amazon.com/bedrock/latest/userguide/cross-region-inference.html",
+                "checked_on": "2026-10-04"
+              },
+              {
+                "criterion": "certification",
+                "needed_benchmark": false,
+                "needed_production": true,
+                "verdict": "pass",
+                "evidence_url": "https://aws.amazon.com/bedrock/security-compliance/",
+                "checked_on": "2026-10-04"
+              },
+              {
+                "criterion": "credentials",
+                "needed_benchmark": true,
+                "needed_production": true,
+                "verdict": "pass",
+                "evidence_url": "docs/infrastructure.md section IAM (internal: svc-nickoftime-langgraph, Bedrock invoke only; its key lives in the Platform deployment secrets) and CLAUDE.md constraint 10",
+                "checked_on": "2026-10-04"
+              },
+              {
+                "criterion": "version_pinning",
+                "needed_benchmark": true,
+                "needed_production": true,
+                "verdict": "pass",
+                "evidence_url": "https://docs.aws.amazon.com/bedrock/latest/userguide/model-lifecycle-legacy.html",
+                "checked_on": "2026-10-04"
+              },
+              {
+                "criterion": "availability",
+                "needed_benchmark": false,
+                "needed_production": true,
+                "verdict": "pass",
+                "evidence_url": "https://aws.amazon.com/bedrock/sla/",
+                "checked_on": "2026-10-05"
+              },
+              {
+                "criterion": "es_pt_quality",
+                "needed_benchmark": false,
+                "needed_production": true,
+                "verdict": "not documented",
+                "evidence_url": "",
+                "checked_on": "2026-06-01"
+              }
+            ]
+          }
+        },
+        {
+          "arm": "llama-4-scout",
+          "model_id": "us.meta.llama4-scout-17b-instruct-v1:0",
+          "version": "us.meta.llama4-scout-17b-instruct-v1:0",
+          "prompt_hash": "3683759e42eb149f",
+          "tool_choice_mode": "auto",
+          "temperature": 0,
+          "status": "ok",
+          "unavailable_reason": null,
+          "price": {
+            "label": "[external]",
+            "input_per_1m_usd": 0.17,
+            "output_per_1m_usd": 0.66,
+            "source": "https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonBedrock/current/us-east-2/index.json",
+            "date": "2026-10-04"
+          },
+          "macro_f1": {
+            "es": 0.8368,
+            "pt": 0.8609
+          },
+          "macro_f1_ci": {
+            "es": [
+              0.7629,
+              0.898
+            ],
+            "pt": [
+              0.7968,
+              0.9184
+            ]
+          },
+          "accuracy": {
+            "value": 0.8602,
+            "numerator": 203,
+            "denominator": 236,
+            "ci_low": 0.8101,
+            "ci_high": 0.8987
+          },
+          "dispute_recall": {
+            "value": 0.9894,
+            "numerator": 93,
+            "denominator": 94,
+            "ci_low": 0.9422,
+            "ci_high": 0.9981
+          },
+          "human_request_recall": {
+            "value": 0.9574,
+            "numerator": 45,
+            "denominator": 47,
+            "ci_low": 0.8575,
+            "ci_high": 0.9883
+          },
+          "slot_accuracy": {
+            "value": 0.7816,
+            "numerator": 161,
+            "denominator": 206,
+            "ci_low": 0.7203,
+            "ci_high": 0.8325
+          },
+          "missing_tool_calls": 0,
+          "errors": 0,
+          "p50_ms": 495,
+          "p95_ms": 620,
+          "cost_per_1000_usd": 0.136384,
+          "errors_by_class": {},
+          "meets_bar": false,
+          "pareto": false,
+          "mcnemar_p_vs_best": 0.0,
+          "same_family_as_generator": false,
+          "gate": {
+            "benchmark_pass": true,
+            "production_pass": false,
+            "criteria": [
+              {
+                "criterion": "synthetic_only",
+                "needed_benchmark": true,
+                "needed_production": false,
+                "verdict": "pass",
+                "evidence_url": "docs/adr/0009 (internal: synthetic data only)",
+                "checked_on": "2026-10-04"
+              },
+              {
+                "criterion": "no_training",
+                "needed_benchmark": true,
+                "needed_production": true,
+                "verdict": "pass",
+                "evidence_url": "https://aws.amazon.com/bedrock/security-compliance/",
+                "checked_on": "2026-10-04"
+              },
+              {
+                "criterion": "retention",
+                "needed_benchmark": false,
+                "needed_production": true,
+                "verdict": "pass",
+                "evidence_url": "https://docs.aws.amazon.com/bedrock/latest/userguide/data-retention.html",
+                "checked_on": "2026-10-04"
+              },
+              {
+                "criterion": "region",
+                "needed_benchmark": false,
+                "needed_production": true,
+                "verdict": "pass",
+                "evidence_url": "https://docs.aws.amazon.com/bedrock/latest/userguide/cross-region-inference.html",
+                "checked_on": "2026-10-04"
+              },
+              {
+                "criterion": "certification",
+                "needed_benchmark": false,
+                "needed_production": true,
+                "verdict": "pass",
+                "evidence_url": "https://aws.amazon.com/bedrock/security-compliance/",
+                "checked_on": "2026-10-04"
+              },
+              {
+                "criterion": "credentials",
+                "needed_benchmark": true,
+                "needed_production": true,
+                "verdict": "pass",
+                "evidence_url": "docs/infrastructure.md section IAM (internal: svc-nickoftime-langgraph, Bedrock invoke only; its key lives in the Platform deployment secrets) and CLAUDE.md constraint 10",
+                "checked_on": "2026-10-04"
+              },
+              {
+                "criterion": "version_pinning",
+                "needed_benchmark": true,
+                "needed_production": true,
+                "verdict": "pass",
+                "evidence_url": "https://docs.aws.amazon.com/bedrock/latest/userguide/model-lifecycle-legacy.html",
+                "checked_on": "2026-10-04"
+              },
+              {
+                "criterion": "availability",
+                "needed_benchmark": false,
+                "needed_production": true,
+                "verdict": "pass",
+                "evidence_url": "https://aws.amazon.com/bedrock/sla/",
+                "checked_on": "2026-10-05"
+              },
+              {
+                "criterion": "es_pt_quality",
+                "needed_benchmark": false,
+                "needed_production": true,
+                "verdict": "fail",
+                "evidence_url": "eval/results/bench_b1.csv, macro-F1 per language >= 0.9",
+                "checked_on": "2026-06-01"
+              }
+            ]
+          }
+        },
+        {
+          "arm": "llama-4-maverick",
+          "model_id": "us.meta.llama4-maverick-17b-instruct-v1:0",
+          "version": "us.meta.llama4-maverick-17b-instruct-v1:0",
+          "prompt_hash": "3683759e42eb149f",
+          "tool_choice_mode": "auto",
+          "temperature": 0,
+          "status": "ok",
+          "unavailable_reason": null,
+          "price": {
+            "label": "[external]",
+            "input_per_1m_usd": 0.24,
+            "output_per_1m_usd": 0.97,
+            "source": "https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonBedrock/current/us-east-2/index.json",
+            "date": "2026-10-04"
+          },
+          "macro_f1": {
+            "es": 0.6623,
+            "pt": 0.73
+          },
+          "macro_f1_ci": {
+            "es": [
+              0.567,
+              0.7367
+            ],
+            "pt": [
+              0.6415,
+              0.8039
+            ]
+          },
+          "accuracy": {
+            "value": 0.6992,
+            "numerator": 165,
+            "denominator": 236,
+            "ci_low": 0.6378,
+            "ci_high": 0.7541
+          },
+          "dispute_recall": {
+            "value": 0.617,
+            "numerator": 58,
+            "denominator": 94,
+            "ci_low": 0.516,
+            "ci_high": 0.7089
+          },
+          "human_request_recall": {
+            "value": 0.9787,
+            "numerator": 46,
+            "denominator": 47,
+            "ci_low": 0.8889,
+            "ci_high": 0.9962
+          },
+          "slot_accuracy": {
+            "value": 0.767,
+            "numerator": 158,
+            "denominator": 206,
+            "ci_low": 0.7047,
+            "ci_high": 0.8195
+          },
+          "missing_tool_calls": 0,
+          "errors": 0,
+          "p50_ms": 504,
+          "p95_ms": 607,
+          "cost_per_1000_usd": 0.203497,
+          "errors_by_class": {},
+          "meets_bar": false,
+          "pareto": false,
+          "mcnemar_p_vs_best": 0.0,
+          "same_family_as_generator": false,
+          "gate": {
+            "benchmark_pass": true,
+            "production_pass": false,
+            "criteria": [
+              {
+                "criterion": "synthetic_only",
+                "needed_benchmark": true,
+                "needed_production": false,
+                "verdict": "pass",
+                "evidence_url": "docs/adr/0009 (internal: synthetic data only)",
+                "checked_on": "2026-10-04"
+              },
+              {
+                "criterion": "no_training",
+                "needed_benchmark": true,
+                "needed_production": true,
+                "verdict": "pass",
+                "evidence_url": "https://aws.amazon.com/bedrock/security-compliance/",
+                "checked_on": "2026-10-04"
+              },
+              {
+                "criterion": "retention",
+                "needed_benchmark": false,
+                "needed_production": true,
+                "verdict": "pass",
+                "evidence_url": "https://docs.aws.amazon.com/bedrock/latest/userguide/data-retention.html",
+                "checked_on": "2026-10-04"
+              },
+              {
+                "criterion": "region",
+                "needed_benchmark": false,
+                "needed_production": true,
+                "verdict": "pass",
+                "evidence_url": "https://docs.aws.amazon.com/bedrock/latest/userguide/cross-region-inference.html",
+                "checked_on": "2026-10-04"
+              },
+              {
+                "criterion": "certification",
+                "needed_benchmark": false,
+                "needed_production": true,
+                "verdict": "pass",
+                "evidence_url": "https://aws.amazon.com/bedrock/security-compliance/",
+                "checked_on": "2026-10-04"
+              },
+              {
+                "criterion": "credentials",
+                "needed_benchmark": true,
+                "needed_production": true,
+                "verdict": "pass",
+                "evidence_url": "docs/infrastructure.md section IAM (internal: svc-nickoftime-langgraph, Bedrock invoke only; its key lives in the Platform deployment secrets) and CLAUDE.md constraint 10",
+                "checked_on": "2026-10-04"
+              },
+              {
+                "criterion": "version_pinning",
+                "needed_benchmark": true,
+                "needed_production": true,
+                "verdict": "pass",
+                "evidence_url": "https://docs.aws.amazon.com/bedrock/latest/userguide/model-lifecycle-legacy.html",
+                "checked_on": "2026-10-04"
+              },
+              {
+                "criterion": "availability",
+                "needed_benchmark": false,
+                "needed_production": true,
+                "verdict": "pass",
+                "evidence_url": "https://aws.amazon.com/bedrock/sla/",
+                "checked_on": "2026-10-05"
+              },
+              {
+                "criterion": "es_pt_quality",
+                "needed_benchmark": false,
+                "needed_production": true,
+                "verdict": "fail",
+                "evidence_url": "eval/results/bench_b1.csv, macro-F1 per language >= 0.9",
+                "checked_on": "2026-06-01"
+              }
+            ]
+          }
+        },
+        {
+          "arm": "qwen3-32b",
+          "model_id": "qwen.qwen3-32b-v1:0",
+          "version": "qwen.qwen3-32b-v1:0",
+          "prompt_hash": "3683759e42eb149f",
+          "tool_choice_mode": "tool",
+          "temperature": 0,
+          "status": "ok",
+          "unavailable_reason": null,
+          "price": {
+            "label": "[external]",
+            "input_per_1m_usd": 0.15,
+            "output_per_1m_usd": 0.6,
+            "source": "https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonBedrock/current/us-east-2/index.json",
+            "date": "2026-10-04"
+          },
+          "macro_f1": {
+            "es": 0.864,
+            "pt": 0.8657
+          },
+          "macro_f1_ci": {
+            "es": [
+              0.795,
+              0.9203
+            ],
+            "pt": [
+              0.7895,
+              0.9286
+            ]
+          },
+          "accuracy": {
+            "value": 0.8686,
+            "numerator": 205,
+            "denominator": 236,
+            "ci_low": 0.8196,
+            "ci_high": 0.9059
+          },
+          "dispute_recall": {
+            "value": 0.9787,
+            "numerator": 92,
+            "denominator": 94,
+            "ci_low": 0.9257,
+            "ci_high": 0.9941
+          },
+          "human_request_recall": {
+            "value": 0.9149,
+            "numerator": 43,
+            "denominator": 47,
+            "ci_low": 0.8007,
+            "ci_high": 0.9664
+          },
+          "slot_accuracy": {
+            "value": 0.767,
+            "numerator": 158,
+            "denominator": 206,
+            "ci_low": 0.7047,
+            "ci_high": 0.8195
+          },
+          "missing_tool_calls": 0,
+          "errors": 0,
+          "p50_ms": 451,
+          "p95_ms": 662,
+          "cost_per_1000_usd": 0.114431,
+          "errors_by_class": {},
+          "meets_bar": false,
+          "pareto": false,
+          "mcnemar_p_vs_best": 0.0,
+          "same_family_as_generator": false,
+          "gate": {
+            "benchmark_pass": true,
+            "production_pass": false,
+            "criteria": [
+              {
+                "criterion": "synthetic_only",
+                "needed_benchmark": true,
+                "needed_production": false,
+                "verdict": "pass",
+                "evidence_url": "docs/adr/0009 (internal: synthetic data only)",
+                "checked_on": "2026-10-04"
+              },
+              {
+                "criterion": "no_training",
+                "needed_benchmark": true,
+                "needed_production": true,
+                "verdict": "pass",
+                "evidence_url": "https://aws.amazon.com/bedrock/security-compliance/",
+                "checked_on": "2026-10-04"
+              },
+              {
+                "criterion": "retention",
+                "needed_benchmark": false,
+                "needed_production": true,
+                "verdict": "pass",
+                "evidence_url": "https://docs.aws.amazon.com/bedrock/latest/userguide/data-retention.html",
+                "checked_on": "2026-10-04"
+              },
+              {
+                "criterion": "region",
+                "needed_benchmark": false,
+                "needed_production": true,
+                "verdict": "pass",
+                "evidence_url": "https://docs.aws.amazon.com/bedrock/latest/userguide/cross-region-inference.html",
+                "checked_on": "2026-10-04"
+              },
+              {
+                "criterion": "certification",
+                "needed_benchmark": false,
+                "needed_production": true,
+                "verdict": "pass",
+                "evidence_url": "https://aws.amazon.com/bedrock/security-compliance/",
+                "checked_on": "2026-10-04"
+              },
+              {
+                "criterion": "credentials",
+                "needed_benchmark": true,
+                "needed_production": true,
+                "verdict": "pass",
+                "evidence_url": "docs/infrastructure.md section IAM (internal: svc-nickoftime-langgraph, Bedrock invoke only; its key lives in the Platform deployment secrets) and CLAUDE.md constraint 10",
+                "checked_on": "2026-10-04"
+              },
+              {
+                "criterion": "version_pinning",
+                "needed_benchmark": true,
+                "needed_production": true,
+                "verdict": "pass",
+                "evidence_url": "https://docs.aws.amazon.com/bedrock/latest/userguide/model-lifecycle-legacy.html",
+                "checked_on": "2026-10-04"
+              },
+              {
+                "criterion": "availability",
+                "needed_benchmark": false,
+                "needed_production": true,
+                "verdict": "pass",
+                "evidence_url": "https://aws.amazon.com/bedrock/sla/",
+                "checked_on": "2026-10-05"
+              },
+              {
+                "criterion": "es_pt_quality",
+                "needed_benchmark": false,
+                "needed_production": true,
+                "verdict": "fail",
+                "evidence_url": "eval/results/bench_b1.csv, macro-F1 per language >= 0.9",
+                "checked_on": "2026-06-01"
+              }
+            ]
+          }
+        },
+        {
+          "arm": "qwen3-235b",
+          "model_id": "qwen.qwen3-235b-a22b-2507-v1:0",
+          "version": "qwen.qwen3-235b-a22b-2507-v1:0",
+          "prompt_hash": "3683759e42eb149f",
+          "tool_choice_mode": "tool",
+          "temperature": 0,
+          "status": "ok",
+          "unavailable_reason": null,
+          "price": {
+            "label": "[external]",
+            "input_per_1m_usd": 0.22,
+            "output_per_1m_usd": 0.88,
+            "source": "https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonBedrock/current/us-east-2/index.json",
+            "date": "2026-10-04"
+          },
+          "macro_f1": {
+            "es": 0.9225,
+            "pt": 0.9736
+          },
+          "macro_f1_ci": {
+            "es": [
+              0.8693,
+              0.967
+            ],
+            "pt": [
+              0.9359,
+              1.0
+            ]
+          },
+          "accuracy": {
+            "value": 0.9492,
+            "numerator": 224,
+            "denominator": 236,
+            "ci_low": 0.9132,
+            "ci_high": 0.9707
+          },
+          "dispute_recall": {
+            "value": 0.9468,
+            "numerator": 89,
+            "denominator": 94,
+            "ci_low": 0.8815,
+            "ci_high": 0.9771
+          },
+          "human_request_recall": {
+            "value": 0.9574,
+            "numerator": 45,
+            "denominator": 47,
+            "ci_low": 0.8575,
+            "ci_high": 0.9883
+          },
+          "slot_accuracy": {
+            "value": 0.8689,
+            "numerator": 179,
+            "denominator": 206,
+            "ci_low": 0.816,
+            "ci_high": 0.9083
+          },
+          "missing_tool_calls": 0,
+          "errors": 0,
+          "p50_ms": 903,
+          "p95_ms": 1415,
+          "cost_per_1000_usd": 0.167243,
+          "errors_by_class": {},
+          "meets_bar": false,
+          "pareto": true,
+          "mcnemar_p_vs_best": 0.0156,
+          "same_family_as_generator": false,
+          "gate": {
+            "benchmark_pass": true,
+            "production_pass": true,
+            "criteria": [
+              {
+                "criterion": "synthetic_only",
+                "needed_benchmark": true,
+                "needed_production": false,
+                "verdict": "pass",
+                "evidence_url": "docs/adr/0009 (internal: synthetic data only)",
+                "checked_on": "2026-10-04"
+              },
+              {
+                "criterion": "no_training",
+                "needed_benchmark": true,
+                "needed_production": true,
+                "verdict": "pass",
+                "evidence_url": "https://aws.amazon.com/bedrock/security-compliance/",
+                "checked_on": "2026-10-04"
+              },
+              {
+                "criterion": "retention",
+                "needed_benchmark": false,
+                "needed_production": true,
+                "verdict": "pass",
+                "evidence_url": "https://docs.aws.amazon.com/bedrock/latest/userguide/data-retention.html",
+                "checked_on": "2026-10-04"
+              },
+              {
+                "criterion": "region",
+                "needed_benchmark": false,
+                "needed_production": true,
+                "verdict": "pass",
+                "evidence_url": "https://docs.aws.amazon.com/bedrock/latest/userguide/cross-region-inference.html",
+                "checked_on": "2026-10-04"
+              },
+              {
+                "criterion": "certification",
+                "needed_benchmark": false,
+                "needed_production": true,
+                "verdict": "pass",
+                "evidence_url": "https://aws.amazon.com/bedrock/security-compliance/",
+                "checked_on": "2026-10-04"
+              },
+              {
+                "criterion": "credentials",
+                "needed_benchmark": true,
+                "needed_production": true,
+                "verdict": "pass",
+                "evidence_url": "docs/infrastructure.md section IAM (internal: svc-nickoftime-langgraph, Bedrock invoke only; its key lives in the Platform deployment secrets) and CLAUDE.md constraint 10",
+                "checked_on": "2026-10-04"
+              },
+              {
+                "criterion": "version_pinning",
+                "needed_benchmark": true,
+                "needed_production": true,
+                "verdict": "pass",
+                "evidence_url": "https://docs.aws.amazon.com/bedrock/latest/userguide/model-lifecycle-legacy.html",
+                "checked_on": "2026-10-04"
+              },
+              {
+                "criterion": "availability",
+                "needed_benchmark": false,
+                "needed_production": true,
+                "verdict": "pass",
+                "evidence_url": "https://aws.amazon.com/bedrock/sla/",
+                "checked_on": "2026-10-05"
+              },
+              {
+                "criterion": "es_pt_quality",
+                "needed_benchmark": false,
+                "needed_production": true,
+                "verdict": "pass",
+                "evidence_url": "eval/results/bench_b1.csv, macro-F1 per language >= 0.9",
+                "checked_on": "2026-06-01"
+              }
+            ]
+          }
+        },
+        {
+          "arm": "nemotron-nano-3",
+          "model_id": "nvidia.nemotron-nano-3-30b",
+          "version": "nvidia.nemotron-nano-3-30b",
+          "prompt_hash": "3683759e42eb149f",
+          "tool_choice_mode": "tool",
+          "temperature": 0,
+          "status": "no structured output",
+          "unavailable_reason": "no tool call returned; toolChoice=tool; stopReason=end_turn; reply='{\\n  \"message\": \"No reconozco un cargo de 45 dólares en mi tarjeta.\",\\n  \"intent\": \"unrecognized_charge\",\\n  \"confidence\": 0.96,\\n  \"dispute_detected\": true,\\n  \"slots\": {\\n    \"amount\": \"45\",\\n    \"currency'",
+          "price": {
+            "label": "[external]",
+            "input_per_1m_usd": 0.06,
+            "output_per_1m_usd": 0.24,
+            "source": "https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonBedrock/current/us-east-2/index.json",
+            "date": "2026-10-04"
+          },
+          "macro_f1": null,
+          "macro_f1_ci": null,
+          "accuracy": null,
+          "dispute_recall": null,
+          "human_request_recall": null,
+          "slot_accuracy": null,
+          "missing_tool_calls": null,
+          "errors": null,
+          "p50_ms": null,
+          "p95_ms": null,
+          "cost_per_1000_usd": null,
+          "errors_by_class": {},
+          "meets_bar": null,
+          "pareto": null,
+          "mcnemar_p_vs_best": null,
+          "same_family_as_generator": false,
+          "gate": {
+            "benchmark_pass": true,
+            "production_pass": false,
+            "criteria": [
+              {
+                "criterion": "synthetic_only",
+                "needed_benchmark": true,
+                "needed_production": false,
+                "verdict": "pass",
+                "evidence_url": "docs/adr/0009 (internal: synthetic data only)",
+                "checked_on": "2026-10-04"
+              },
+              {
+                "criterion": "no_training",
+                "needed_benchmark": true,
+                "needed_production": true,
+                "verdict": "pass",
+                "evidence_url": "https://aws.amazon.com/bedrock/security-compliance/",
+                "checked_on": "2026-10-04"
+              },
+              {
+                "criterion": "retention",
+                "needed_benchmark": false,
+                "needed_production": true,
+                "verdict": "pass",
+                "evidence_url": "https://docs.aws.amazon.com/bedrock/latest/userguide/data-retention.html",
+                "checked_on": "2026-10-04"
+              },
+              {
+                "criterion": "region",
+                "needed_benchmark": false,
+                "needed_production": true,
+                "verdict": "pass",
+                "evidence_url": "https://docs.aws.amazon.com/bedrock/latest/userguide/cross-region-inference.html",
+                "checked_on": "2026-10-04"
+              },
+              {
+                "criterion": "certification",
+                "needed_benchmark": false,
+                "needed_production": true,
+                "verdict": "pass",
+                "evidence_url": "https://aws.amazon.com/bedrock/security-compliance/",
+                "checked_on": "2026-10-04"
+              },
+              {
+                "criterion": "credentials",
+                "needed_benchmark": true,
+                "needed_production": true,
+                "verdict": "pass",
+                "evidence_url": "docs/infrastructure.md section IAM (internal: svc-nickoftime-langgraph, Bedrock invoke only; its key lives in the Platform deployment secrets) and CLAUDE.md constraint 10",
+                "checked_on": "2026-10-04"
+              },
+              {
+                "criterion": "version_pinning",
+                "needed_benchmark": true,
+                "needed_production": true,
+                "verdict": "pass",
+                "evidence_url": "https://docs.aws.amazon.com/bedrock/latest/userguide/model-lifecycle-legacy.html",
+                "checked_on": "2026-10-04"
+              },
+              {
+                "criterion": "availability",
+                "needed_benchmark": false,
+                "needed_production": true,
+                "verdict": "pass",
+                "evidence_url": "https://aws.amazon.com/bedrock/sla/",
+                "checked_on": "2026-10-05"
+              },
+              {
+                "criterion": "es_pt_quality",
+                "needed_benchmark": false,
+                "needed_production": true,
+                "verdict": "not documented",
+                "evidence_url": "",
+                "checked_on": "2026-06-01"
+              }
+            ]
+          }
+        },
+        {
+          "arm": "deepseek-v3-2",
+          "model_id": "deepseek.v3.2",
+          "version": "deepseek.v3.2",
+          "prompt_hash": "3683759e42eb149f",
+          "tool_choice_mode": "tool",
+          "temperature": 0,
+          "status": "ok",
+          "unavailable_reason": null,
+          "price": {
+            "label": "[external]",
+            "input_per_1m_usd": 0.62,
+            "output_per_1m_usd": 1.85,
+            "source": "https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonBedrock/current/us-east-2/index.json",
+            "date": "2026-10-04"
+          },
+          "macro_f1": {
+            "es": 0.9496,
+            "pt": 0.9826
+          },
+          "macro_f1_ci": {
+            "es": [
+              0.9063,
+              0.9839
+            ],
+            "pt": [
+              0.9529,
+              1.0
+            ]
+          },
+          "accuracy": {
+            "value": 0.9661,
+            "numerator": 228,
+            "denominator": 236,
+            "ci_low": 0.9345,
+            "ci_high": 0.9827
+          },
+          "dispute_recall": {
+            "value": 0.9894,
+            "numerator": 93,
+            "denominator": 94,
+            "ci_low": 0.9422,
+            "ci_high": 0.9981
+          },
+          "human_request_recall": {
+            "value": 0.9574,
+            "numerator": 45,
+            "denominator": 47,
+            "ci_low": 0.8575,
+            "ci_high": 0.9883
+          },
+          "slot_accuracy": {
+            "value": 0.8058,
+            "numerator": 166,
+            "denominator": 206,
+            "ci_low": 0.7464,
+            "ci_high": 0.854
+          },
+          "missing_tool_calls": 0,
+          "errors": 0,
+          "p50_ms": 3398,
+          "p95_ms": 9684,
+          "cost_per_1000_usd": 0.691094,
+          "errors_by_class": {},
+          "meets_bar": false,
+          "pareto": false,
+          "mcnemar_p_vs_best": 0.4531,
+          "same_family_as_generator": true,
+          "gate": {
+            "benchmark_pass": true,
+            "production_pass": true,
+            "criteria": [
+              {
+                "criterion": "synthetic_only",
+                "needed_benchmark": true,
+                "needed_production": false,
+                "verdict": "pass",
+                "evidence_url": "docs/adr/0009 (internal: synthetic data only)",
+                "checked_on": "2026-10-04"
+              },
+              {
+                "criterion": "no_training",
+                "needed_benchmark": true,
+                "needed_production": true,
+                "verdict": "pass",
+                "evidence_url": "https://aws.amazon.com/bedrock/security-compliance/",
+                "checked_on": "2026-10-04"
+              },
+              {
+                "criterion": "retention",
+                "needed_benchmark": false,
+                "needed_production": true,
+                "verdict": "pass",
+                "evidence_url": "https://docs.aws.amazon.com/bedrock/latest/userguide/data-retention.html",
+                "checked_on": "2026-10-04"
+              },
+              {
+                "criterion": "region",
+                "needed_benchmark": false,
+                "needed_production": true,
+                "verdict": "pass",
+                "evidence_url": "https://docs.aws.amazon.com/bedrock/latest/userguide/cross-region-inference.html",
+                "checked_on": "2026-10-04"
+              },
+              {
+                "criterion": "certification",
+                "needed_benchmark": false,
+                "needed_production": true,
+                "verdict": "pass",
+                "evidence_url": "https://aws.amazon.com/bedrock/security-compliance/",
+                "checked_on": "2026-10-04"
+              },
+              {
+                "criterion": "credentials",
+                "needed_benchmark": true,
+                "needed_production": true,
+                "verdict": "pass",
+                "evidence_url": "docs/infrastructure.md section IAM (internal: svc-nickoftime-langgraph, Bedrock invoke only; its key lives in the Platform deployment secrets) and CLAUDE.md constraint 10",
+                "checked_on": "2026-10-04"
+              },
+              {
+                "criterion": "version_pinning",
+                "needed_benchmark": true,
+                "needed_production": true,
+                "verdict": "pass",
+                "evidence_url": "https://docs.aws.amazon.com/bedrock/latest/userguide/model-lifecycle-legacy.html",
+                "checked_on": "2026-10-04"
+              },
+              {
+                "criterion": "availability",
+                "needed_benchmark": false,
+                "needed_production": true,
+                "verdict": "pass",
+                "evidence_url": "https://aws.amazon.com/bedrock/sla/",
+                "checked_on": "2026-10-05"
+              },
+              {
+                "criterion": "es_pt_quality",
+                "needed_benchmark": false,
+                "needed_production": true,
+                "verdict": "pass",
+                "evidence_url": "eval/results/bench_b1.csv, macro-F1 per language >= 0.9",
+                "checked_on": "2026-06-01"
+              }
+            ]
+          }
+        },
+        {
+          "arm": "haiku-4-5",
+          "model_id": "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+          "version": "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+          "prompt_hash": "3683759e42eb149f",
+          "tool_choice_mode": "tool",
+          "temperature": 0,
+          "status": "ok",
+          "unavailable_reason": null,
+          "price": {
+            "label": "[external]",
+            "input_per_1m_usd": 1.1,
+            "output_per_1m_usd": 5.5,
+            "source": "https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonBedrockFoundationModels/current/us-east-2/index.json",
+            "date": "2026-10-04"
+          },
+          "macro_f1": {
+            "es": 0.9322,
+            "pt": 0.9147
+          },
+          "macro_f1_ci": {
+            "es": [
+              0.8773,
+              0.9736
+            ],
+            "pt": [
+              0.858,
+              0.9624
+            ]
+          },
+          "accuracy": {
+            "value": 0.9237,
+            "numerator": 218,
+            "denominator": 236,
+            "ci_low": 0.8827,
+            "ci_high": 0.9512
+          },
+          "dispute_recall": {
+            "value": 0.9894,
+            "numerator": 93,
+            "denominator": 94,
+            "ci_low": 0.9422,
+            "ci_high": 0.9981
+          },
+          "human_request_recall": {
+            "value": 0.9149,
+            "numerator": 43,
+            "denominator": 47,
+            "ci_low": 0.8007,
+            "ci_high": 0.9664
+          },
+          "slot_accuracy": {
+            "value": 0.7718,
+            "numerator": 159,
+            "denominator": 206,
+            "ci_low": 0.7099,
+            "ci_high": 0.8239
+          },
+          "missing_tool_calls": 0,
+          "errors": 0,
+          "p50_ms": 1093,
+          "p95_ms": 1631,
+          "cost_per_1000_usd": 1.837937,
+          "errors_by_class": {},
+          "meets_bar": false,
+          "pareto": false,
+          "mcnemar_p_vs_best": 0.001,
+          "same_family_as_generator": false,
+          "gate": {
+            "benchmark_pass": true,
+            "production_pass": true,
+            "criteria": [
+              {
+                "criterion": "synthetic_only",
+                "needed_benchmark": true,
+                "needed_production": false,
+                "verdict": "pass",
+                "evidence_url": "docs/adr/0009 (internal: synthetic data only)",
+                "checked_on": "2026-10-04"
+              },
+              {
+                "criterion": "no_training",
+                "needed_benchmark": true,
+                "needed_production": true,
+                "verdict": "pass",
+                "evidence_url": "https://aws.amazon.com/bedrock/security-compliance/",
+                "checked_on": "2026-10-04"
+              },
+              {
+                "criterion": "retention",
+                "needed_benchmark": false,
+                "needed_production": true,
+                "verdict": "pass",
+                "evidence_url": "https://docs.aws.amazon.com/bedrock/latest/userguide/data-retention.html",
+                "checked_on": "2026-10-04"
+              },
+              {
+                "criterion": "region",
+                "needed_benchmark": false,
+                "needed_production": true,
+                "verdict": "pass",
+                "evidence_url": "https://docs.aws.amazon.com/bedrock/latest/userguide/cross-region-inference.html",
+                "checked_on": "2026-10-04"
+              },
+              {
+                "criterion": "certification",
+                "needed_benchmark": false,
+                "needed_production": true,
+                "verdict": "pass",
+                "evidence_url": "https://aws.amazon.com/bedrock/security-compliance/",
+                "checked_on": "2026-10-04"
+              },
+              {
+                "criterion": "credentials",
+                "needed_benchmark": true,
+                "needed_production": true,
+                "verdict": "pass",
+                "evidence_url": "docs/infrastructure.md section IAM (internal: svc-nickoftime-langgraph, Bedrock invoke only; its key lives in the Platform deployment secrets) and CLAUDE.md constraint 10",
+                "checked_on": "2026-10-04"
+              },
+              {
+                "criterion": "version_pinning",
+                "needed_benchmark": true,
+                "needed_production": true,
+                "verdict": "pass",
+                "evidence_url": "https://docs.aws.amazon.com/bedrock/latest/userguide/model-lifecycle-legacy.html",
+                "checked_on": "2026-10-04"
+              },
+              {
+                "criterion": "availability",
+                "needed_benchmark": false,
+                "needed_production": true,
+                "verdict": "pass",
+                "evidence_url": "https://aws.amazon.com/bedrock/sla/",
+                "checked_on": "2026-10-05"
+              },
+              {
+                "criterion": "es_pt_quality",
+                "needed_benchmark": false,
+                "needed_production": true,
+                "verdict": "pass",
+                "evidence_url": "eval/results/bench_b1.csv, macro-F1 per language >= 0.9",
+                "checked_on": "2026-06-01"
+              }
+            ]
+          }
+        },
+        {
+          "arm": "sonnet-5-5",
+          "model_id": "us.anthropic.claude-sonnet-5-5",
+          "version": "us.anthropic.claude-sonnet-5-5",
+          "prompt_hash": "3683759e42eb149f",
+          "tool_choice_mode": null,
+          "temperature": null,
+          "status": "unavailable",
+          "unavailable_reason": "AccessDeniedException: anthropic.claude-sonnet-5-5 is not available for this account. You can explore other available models on Amazon Bedrock. For additional access options, contact AWS Sales at https://aws.amazon.com/contact-us/sales-support/",
+          "price": {
+            "label": "[external]",
+            "input_per_1m_usd": 2.2,
+            "output_per_1m_usd": 11.0,
+            "source": "https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonBedrockFoundationModels/current/us-east-2/index.json",
+            "date": "2026-10-04"
+          },
+          "macro_f1": null,
+          "macro_f1_ci": null,
+          "accuracy": null,
+          "dispute_recall": null,
+          "human_request_recall": null,
+          "slot_accuracy": null,
+          "missing_tool_calls": null,
+          "errors": null,
+          "p50_ms": null,
+          "p95_ms": null,
+          "cost_per_1000_usd": null,
+          "errors_by_class": {},
+          "meets_bar": null,
+          "pareto": null,
+          "mcnemar_p_vs_best": null,
+          "same_family_as_generator": false,
+          "gate": {
+            "benchmark_pass": true,
+            "production_pass": false,
+            "criteria": [
+              {
+                "criterion": "synthetic_only",
+                "needed_benchmark": true,
+                "needed_production": false,
+                "verdict": "pass",
+                "evidence_url": "docs/adr/0009 (internal: synthetic data only)",
+                "checked_on": "2026-10-04"
+              },
+              {
+                "criterion": "no_training",
+                "needed_benchmark": true,
+                "needed_production": true,
+                "verdict": "pass",
+                "evidence_url": "https://aws.amazon.com/bedrock/security-compliance/",
+                "checked_on": "2026-10-04"
+              },
+              {
+                "criterion": "retention",
+                "needed_benchmark": false,
+                "needed_production": true,
+                "verdict": "pass",
+                "evidence_url": "https://docs.aws.amazon.com/bedrock/latest/userguide/data-retention.html",
+                "checked_on": "2026-10-04"
+              },
+              {
+                "criterion": "region",
+                "needed_benchmark": false,
+                "needed_production": true,
+                "verdict": "pass",
+                "evidence_url": "https://docs.aws.amazon.com/bedrock/latest/userguide/cross-region-inference.html",
+                "checked_on": "2026-10-04"
+              },
+              {
+                "criterion": "certification",
+                "needed_benchmark": false,
+                "needed_production": true,
+                "verdict": "pass",
+                "evidence_url": "https://aws.amazon.com/bedrock/security-compliance/",
+                "checked_on": "2026-10-04"
+              },
+              {
+                "criterion": "credentials",
+                "needed_benchmark": true,
+                "needed_production": true,
+                "verdict": "pass",
+                "evidence_url": "docs/infrastructure.md section IAM (internal: svc-nickoftime-langgraph, Bedrock invoke only; its key lives in the Platform deployment secrets) and CLAUDE.md constraint 10",
+                "checked_on": "2026-10-04"
+              },
+              {
+                "criterion": "version_pinning",
+                "needed_benchmark": true,
+                "needed_production": true,
+                "verdict": "pass",
+                "evidence_url": "https://docs.aws.amazon.com/bedrock/latest/userguide/model-lifecycle-legacy.html",
+                "checked_on": "2026-10-04"
+              },
+              {
+                "criterion": "availability",
+                "needed_benchmark": false,
+                "needed_production": true,
+                "verdict": "fail",
+                "evidence_url": "specs/15-model-benchmark.md section 8 (internal: quota 0, AccessDeniedException on 2026-10-04)",
+                "checked_on": "2026-10-04"
+              },
+              {
+                "criterion": "es_pt_quality",
+                "needed_benchmark": false,
+                "needed_production": true,
+                "verdict": "not documented",
+                "evidence_url": "",
+                "checked_on": "2026-06-01"
+              }
+            ]
+          }
+        },
+        {
+          "arm": "sonnet-4-6",
+          "model_id": "us.anthropic.claude-sonnet-4-6",
+          "version": "us.anthropic.claude-sonnet-4-6",
+          "prompt_hash": "3683759e42eb149f",
+          "tool_choice_mode": "tool",
+          "temperature": 0,
+          "status": "ok",
+          "unavailable_reason": null,
+          "price": {
+            "label": "[external]",
+            "input_per_1m_usd": 3.3,
+            "output_per_1m_usd": 16.5,
+            "source": "https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonBedrockFoundationModels/current/us-east-2/index.json",
+            "date": "2026-10-04"
+          },
+          "macro_f1": {
+            "es": 0.9659,
+            "pt": 0.9913
+          },
+          "macro_f1_ci": {
+            "es": [
+              0.9258,
+              0.9928
+            ],
+            "pt": [
+              0.9698,
+              1.0
+            ]
+          },
+          "accuracy": {
+            "value": 0.9788,
+            "numerator": 231,
+            "denominator": 236,
+            "ci_low": 0.9514,
+            "ci_high": 0.9909
+          },
+          "dispute_recall": {
+            "value": 0.9787,
+            "numerator": 92,
+            "denominator": 94,
+            "ci_low": 0.9257,
+            "ci_high": 0.9941
+          },
+          "human_request_recall": {
+            "value": 0.9574,
+            "numerator": 45,
+            "denominator": 47,
+            "ci_low": 0.8575,
+            "ci_high": 0.9883
+          },
+          "slot_accuracy": {
+            "value": 0.9757,
+            "numerator": 201,
+            "denominator": 206,
+            "ci_low": 0.9444,
+            "ci_high": 0.9896
+          },
+          "missing_tool_calls": 0,
+          "errors": 0,
+          "p50_ms": 1130,
+          "p95_ms": 1369,
+          "cost_per_1000_usd": 5.14642,
+          "errors_by_class": {},
+          "meets_bar": false,
+          "pareto": true,
+          "mcnemar_p_vs_best": 1.0,
+          "same_family_as_generator": false,
+          "gate": {
+            "benchmark_pass": true,
+            "production_pass": true,
+            "criteria": [
+              {
+                "criterion": "synthetic_only",
+                "needed_benchmark": true,
+                "needed_production": false,
+                "verdict": "pass",
+                "evidence_url": "docs/adr/0009 (internal: synthetic data only)",
+                "checked_on": "2026-10-04"
+              },
+              {
+                "criterion": "no_training",
+                "needed_benchmark": true,
+                "needed_production": true,
+                "verdict": "pass",
+                "evidence_url": "https://aws.amazon.com/bedrock/security-compliance/",
+                "checked_on": "2026-10-04"
+              },
+              {
+                "criterion": "retention",
+                "needed_benchmark": false,
+                "needed_production": true,
+                "verdict": "pass",
+                "evidence_url": "https://docs.aws.amazon.com/bedrock/latest/userguide/data-retention.html",
+                "checked_on": "2026-10-04"
+              },
+              {
+                "criterion": "region",
+                "needed_benchmark": false,
+                "needed_production": true,
+                "verdict": "pass",
+                "evidence_url": "https://docs.aws.amazon.com/bedrock/latest/userguide/cross-region-inference.html",
+                "checked_on": "2026-10-04"
+              },
+              {
+                "criterion": "certification",
+                "needed_benchmark": false,
+                "needed_production": true,
+                "verdict": "pass",
+                "evidence_url": "https://aws.amazon.com/bedrock/security-compliance/",
+                "checked_on": "2026-10-04"
+              },
+              {
+                "criterion": "credentials",
+                "needed_benchmark": true,
+                "needed_production": true,
+                "verdict": "pass",
+                "evidence_url": "docs/infrastructure.md section IAM (internal: svc-nickoftime-langgraph, Bedrock invoke only; its key lives in the Platform deployment secrets) and CLAUDE.md constraint 10",
+                "checked_on": "2026-10-04"
+              },
+              {
+                "criterion": "version_pinning",
+                "needed_benchmark": true,
+                "needed_production": true,
+                "verdict": "pass",
+                "evidence_url": "https://docs.aws.amazon.com/bedrock/latest/userguide/model-lifecycle-legacy.html",
+                "checked_on": "2026-10-04"
+              },
+              {
+                "criterion": "availability",
+                "needed_benchmark": false,
+                "needed_production": true,
+                "verdict": "pass",
+                "evidence_url": "https://aws.amazon.com/bedrock/sla/",
+                "checked_on": "2026-10-05"
+              },
+              {
+                "criterion": "es_pt_quality",
+                "needed_benchmark": false,
+                "needed_production": true,
+                "verdict": "pass",
+                "evidence_url": "eval/results/bench_b1.csv, macro-F1 per language >= 0.9",
+                "checked_on": "2026-06-01"
+              }
+            ]
+          }
+        },
+        {
+          "arm": "jev",
+          "model_id": "jev-1.13.0",
+          "version": "jev-1.13.0",
+          "prompt_hash": "3683759e42eb149f",
+          "tool_choice_mode": null,
+          "temperature": null,
+          "status": "unavailable",
+          "unavailable_reason": "TYPESAFE_API_KEY is not in the environment",
+          "price": {
+            "label": "[assumption]",
+            "input_per_1m_usd": 0.042,
+            "output_per_1m_usd": 0.0,
+            "source": "https://opper.ai/typesafe/jev-1-13-0",
+            "date": "2026-10-04"
+          },
+          "macro_f1": null,
+          "macro_f1_ci": null,
+          "accuracy": null,
+          "dispute_recall": null,
+          "human_request_recall": null,
+          "slot_accuracy": null,
+          "missing_tool_calls": null,
+          "errors": null,
+          "p50_ms": null,
+          "p95_ms": null,
+          "cost_per_1000_usd": null,
+          "errors_by_class": {},
+          "meets_bar": null,
+          "pareto": null,
+          "mcnemar_p_vs_best": null,
+          "same_family_as_generator": false,
+          "gate": {
+            "benchmark_pass": true,
+            "production_pass": false,
+            "criteria": [
+              {
+                "criterion": "synthetic_only",
+                "needed_benchmark": true,
+                "needed_production": false,
+                "verdict": "pass",
+                "evidence_url": "docs/adr/0009 (internal: synthetic data only)",
+                "checked_on": "2026-10-04"
+              },
+              {
+                "criterion": "no_training",
+                "needed_benchmark": true,
+                "needed_production": true,
+                "verdict": "pass",
+                "evidence_url": "https://docs.typesafe.ai/legal.md",
+                "checked_on": "2026-10-04"
+              },
+              {
+                "criterion": "retention",
+                "needed_benchmark": false,
+                "needed_production": true,
+                "verdict": "not documented",
+                "evidence_url": "https://docs.typesafe.ai/legal.md",
+                "checked_on": "2026-10-04"
+              },
+              {
+                "criterion": "region",
+                "needed_benchmark": false,
+                "needed_production": true,
+                "verdict": "not documented",
+                "evidence_url": "",
+                "checked_on": "2026-06-01"
+              },
+              {
+                "criterion": "certification",
+                "needed_benchmark": false,
+                "needed_production": true,
+                "verdict": "not documented",
+                "evidence_url": "",
+                "checked_on": "2026-06-01"
+              },
+              {
+                "criterion": "credentials",
+                "needed_benchmark": true,
+                "needed_production": true,
+                "verdict": "pass",
+                "evidence_url": "specs/15-model-benchmark.md section 4.5 (internal: key in SSM /nickoftime/prod/TYPESAFE_API_KEY)",
+                "checked_on": "2026-10-04"
+              },
+              {
+                "criterion": "version_pinning",
+                "needed_benchmark": true,
+                "needed_production": true,
+                "verdict": "pass",
+                "evidence_url": "model id jev-1.13.0 (fallback: version in the id)",
+                "checked_on": "2026-06-01"
+              },
+              {
+                "criterion": "availability",
+                "needed_benchmark": false,
+                "needed_production": true,
+                "verdict": "not documented",
+                "evidence_url": "",
+                "checked_on": "2026-06-01"
+              },
+              {
+                "criterion": "es_pt_quality",
+                "needed_benchmark": false,
+                "needed_production": true,
+                "verdict": "not documented",
+                "evidence_url": "",
+                "checked_on": "2026-06-01"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "word": {
+      "arms": []
+    },
+    "judge": {
+      "arms": []
+    },
+    "b2": {
+      "set": "dev",
+      "cases": 20,
+      "runs_per_case": 4,
+      "arms": []
+    },
+    "model_map": {
+      "understand": {
+        "reading": "among_passing",
+        "reading_label": "[assumption] D-077 pending: the best arm of rule 2 is chosen among the arms that pass rule 1 (spec 11 §4, among the rest)",
+        "best_measured": "sonnet-4-6",
+        "bar_reference": null,
+        "cheapest_meeting_bar": null,
+        "chosen": "b0_rules",
+        "chosen_by": "[assumption] D-077 pending: fallback not in PROTOCOL §2.3 (every measured arm fails rule 1 (hard limits)): the no-LLM option B0 stays",
+        "refused": false,
+        "notes": [
+          "chosen by [assumption] D-077 pending: fallback not in PROTOCOL §2.3 (every measured arm fails rule 1 (hard limits)): the no-LLM option B0 stays"
+        ]
+      },
+      "word": {
+        "chosen": "templates"
+      },
+      "judge": {
+        "chosen": "haiku-4-5"
+      }
+    }
+  }
+}
