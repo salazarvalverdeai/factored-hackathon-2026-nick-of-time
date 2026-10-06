@@ -49,6 +49,25 @@ by the console KPI work (PR `feat/web-console-kpis`).
   resolved) and whether the nearest legal deadline was **met** (resolved on or before it on the case's business clock),
   **missed**, or did not exist (**no legal deadline**). A case's status is its last event. · [T] ("spec 08 AC-09: …") · [U]
 
+AC-10 to AC-14 are added by the assisted case view (PR `feat/08-assisted-console-web`); the routes they read are the
+analyst-only `GET /api/console/cases/{id}/context`, `/summary`, `/audit` and `GET|POST …/second-opinion`.
+- AC-10 — When the analyst opens a case, the case view shall start with the agent's summary (its lines and who wrote
+  them, model or template) and the nearest legal deadline with its countdown and its source as a named link; if the
+  case has no legal deadline, then it shall say a person decides and show no date. · [T] `lib/console-assist.test.ts` · [U]
+- AC-11 — The case view shall show the customer's history as cards: previous cases, transactions within ±30 days with
+  the disputed one marked by a word as well as a color, cards, calls and notifications; "Detail" shall open the shared
+  detail panel (`components/detail-panel.tsx`, spec 07) with the whole list. · [T] · [U]
+- AC-12 — The case view shall show the deterministic auditor A1–A7 as a checklist titled "The outcome re-derives from
+  the rules" (an icon and a word per check, spec 18 AC-06), then, only when the analyst asks for it, the judge's opinion
+  labeled "AI second opinion — advisory" with every reason tied to its evidence ids; without one it shall say "No second
+  opinion" (spec 18 AC-09, AC-11). · [T] · [U]
+- AC-13 — The copilot proposal shall read in plain words (`explanation`, else the rationale); its button shall run an
+  existing analyst action only after a confirm step, supervised mode keeps its second confirmation, and a proposal no
+  console action carries out shall say so. · [T] · [U]
+- AC-14 — The case header shall show a status stepper (new → verification or review → resolved → closed, each step's
+  state in words) and the SLA light of AC-08; every enum shall read as a human label, dates as es-MX on a 24 h clock,
+  with no bracket tags, no horizontal scroll at 390 px, both themes and full keyboard use. · [T] · [U]
+
 ## 8. Assumptions and open questions
 - Assumption `[assumption]`: mock accounts `freddy`, `gianmarco`, `diego`, `judge` with any non-empty password stand in for
   Cognito (ADR 0017).
@@ -62,6 +81,9 @@ by the console KPI work (PR `feat/web-console-kpis`).
   detail (`GET /api/console/cases/{id}`, six at a time). The api's events carry no payload, so a live credit approval
   shows as "Resolved by a person" with the analyst who resolved it; the mock names "Credit approved". Adding either to
   the list is a spec 01 change and is out of this PR.
+- Assumption `[assumption]` (AC-10 to AC-13): until the api lane's routes are on `main`, mock mode answers them from
+  `apps/web/lib/mock/console.ts`, derived from the mock case (simulated); live mode calls the routes with the analyst's
+  id token and never invents data. A `GET …/second-opinion` 404 and a `POST` 204 or `null` read as no opinion.
 - Open question: the approval payload becomes `POST /api/cases/{id}/action` with `AnalystActionIn` when the live API is wired.
 
 ## 9. Out of scope
@@ -75,6 +97,8 @@ by the console KPI work (PR `feat/web-console-kpis`).
 - [x] Task 4 — responsive tabs · covers AC-06 · done when: tabs below 1024 px, grid from 1024 px
 - [x] Task 6 — KPI strip, SLA light and Closed tab · covers AC-07 to AC-09 · done when: `lib/console-metrics.test.ts`
   passes and the console shows them at 1440 px and 390 px
+- [ ] Task 7 — assisted case view: summary, customer history, auditor, second opinion, proposal, stepper · covers
+  AC-10 to AC-14 · done when: `lib/console-assist.test.ts` passes on the mock and the view works against the live routes
 - [ ] Task 5 — Cognito login and `POST /api/cases/{id}/action` · covers AC-01, AC-04, AC-05 · done when: same flow on the public URL
 
 **Closing checklist** (last PR): every AC has a passing test or check that cites it · status → Implemented · ADR for

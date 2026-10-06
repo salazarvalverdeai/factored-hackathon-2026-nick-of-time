@@ -4,6 +4,11 @@ import { copilotActionLabel, formatTime, handoffReasonLabel } from "@/lib/handof
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { StatusBadge, ZoneBadge } from "@/components/badges";
+import { AgentSummary } from "@/components/console/agent-summary";
+import { CaseHeader } from "@/components/console/case-header";
+import { CopilotProposal } from "@/components/console/copilot-proposal";
+import { CustomerHistory } from "@/components/console/customer-history";
+import { AuditChecklist, SecondOpinionPanel } from "@/components/console/oversight";
 import { PageShell } from "@/components/page-shell";
 import { EmptyState, ErrorState, LoadingState } from "@/components/states";
 import { Timeline } from "@/components/timeline";
@@ -13,7 +18,9 @@ import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ApiError, api } from "@/lib/api";
 import { type AnalystActionName, type ConsoleAction, consoleActions } from "@/lib/console-actions";
+import { type CopilotProposal as CopilotProposalShape, consoleApi } from "@/lib/console-api";
 import { DONE_STATUSES, OPEN_STATUSES, loadBoard, slaOf } from "@/lib/console-metrics";
+import { plain } from "@/lib/console-view";
 import { formatDeadline } from "@/lib/format";
 import type { ConsoleCase } from "@/lib/types";
 import { useMounted, useQuery, useSession } from "@/lib/use-query";
@@ -246,7 +253,8 @@ function Console({ actor }: { actor: string }) {
       <KpiStrip board={all} />
 
       {/* Three columns from 1024 px up; tabs below that (spec 08 AC-06). */}
-      <div className="hidden gap-4 lg:grid lg:grid-cols-3">
+      {/* The case column is the widest: it carries the assisted view (summary, history, oversight). */}
+      <div className="hidden items-start gap-4 lg:grid lg:grid-cols-[15rem_minmax(0,1fr)_14rem] xl:grid-cols-[18rem_minmax(0,1fr)_17rem]">
         {inbox}
         {detailPanel}
         {auditPanel}
@@ -293,59 +301,46 @@ function CaseDetail({
   const needsReason = actions.some((a) => a.needsReason);
   const canApprove = actions.some((a) => a.approval);
   const label = (a: ConsoleAction) => (confirming === a.action ? "Confirm approval (supervised mode)" : a.label);
+  // The assisted view (spec 08, spec 18 T5/T5b): read again after every action, like the case itself.
+  const summary = useQuery(() => consoleApi.getSummary(c.id), [c.id]);
+  const context = useQuery(() => consoleApi.getContext(c.id), [c.id]);
+  const auditor = useQuery(() => consoleApi.getAudit(c.id), [c.id]);
+  const path = {
+    verification: c.events.some((e) => e.status === "verification" || e.type.includes("verification")),
+    review: c.events.some((e) => e.status === "review" || e.type.includes("review")),
+  };
+  const proposal = h.copilot_proposal as CopilotProposalShape | undefined;
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="flex flex-wrap items-center gap-2">
-          <span className="font-mono">{c.id}</span> <ZoneBadge zone={c.zone} /> <StatusBadge status={status} />
-        </CardTitle>
-        <CardDescription>{c.customerName}</CardDescription>
+        <CaseHeader
+          id={c.id}
+          customerName={c.customerName}
+          zone={c.zone}
+          priority={c.priority}
+          status={status}
+          path={path}
+          sla={<SlaLight sla={slaOf(c)} />}
+        />
       </CardHeader>
       <CardContent className="space-y-4 text-sm">
-        <section aria-label="Handoff card" className="space-y-2">
-          <h3 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Handoff card</h3>
-          {c.handoffEmitted === false ? (
-            <p className="text-muted-foreground">The agent has not written the handoff card for this case yet.</p>
-          ) : null}
-          <p>
-            <b>Request:</b> {h.request || "—"}
-          </p>
-          <p>
-            <b>Deadline:</b> {formatDeadline(c.deadline)}
-            <span className="block text-xs text-muted-foreground">{h.deadline.deadline_source}</span>
-          </p>
-          {h.handoff_reason ? (
-            <p>
-              <b>Handoff reason:</b> {handoffReasonLabel(h.handoff_reason)}
-            </p>
-          ) : null}
-          <p>
-            <b>Verified facts:</b> {h.verified_facts.map((f) => f.fact).join("; ") || "—"}
-          </p>
-          <p>
-            <b>Actions:</b>{" "}
-            {h.actions.length
-              ? h.actions.map((a) => `${a.tool}: ${a.result}${a.verified ? " (verified ✓)" : ""}`).join("; ")
-              : "none taken"}
-          </p>
-          <p>
-            <b>Evidence:</b> {h.evidence.join("; ") || "—"}
-          </p>
-          <p>
-            <b>Open questions:</b> {h.open_questions.join("; ") || "—"}
-          </p>
-          {h.copilot_proposal ? (
-            <p>
-              <b>Copilot proposal:</b> {copilotActionLabel(h.copilot_proposal.action)} (a person decides)
-            </p>
-          ) : null}
-          <p className="text-xs text-muted-foreground">
-            {h.score === null || h.score === undefined ? "Score del banco: sin dato" : `Score del banco: ${h.score}`}
-            {h.trace_id ? ` · trace ${h.trace_id}` : ""}
-          </p>
-        </section>
+        <AgentSummary query={summary} />
+
+        {proposal ? (
+          <CopilotProposal
+            caseId={c.id}
+            proposal={proposal}
+            offered={actions}
+            busy={busy}
+            confirming={confirming}
+            reason={reason}
+            onReason={onReason}
+            onRun={onRun}
+          />
+        ) : null}
 
         <section aria-label="Actions" className="space-y-2">
+          <h3 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Your decision</h3>
           {needsReason ? (
             <label className="block text-xs">
               Reason (recorded with your user)
@@ -365,8 +360,58 @@ function CaseDetail({
               </Button>
             ))}
           </div>
+          {actions.length === 0 ? <p className="text-xs text-muted-foreground">No action is open for this status.</p> : null}
           {supervised && canApprove ? <p className="text-xs text-muted-foreground">Supervised mode is on: approvals need a second click.</p> : null}
           {message ? <ErrorState title="Action refused" message={message} /> : null}
+        </section>
+
+        <CustomerHistory query={context} />
+
+        {/* The auditor's facts first, then the advisory opinion (spec 18 AC-09). */}
+        <AuditChecklist query={auditor} />
+        <SecondOpinionPanel caseId={c.id} />
+
+        <section aria-label="Handoff card" className="space-y-2">
+          <h3 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Handoff card</h3>
+          {c.handoffEmitted === false ? (
+            <p className="text-muted-foreground">The agent has not written the handoff card for this case yet.</p>
+          ) : null}
+          <p>
+            <b>Request:</b> {h.request || "—"}
+          </p>
+          <p>
+            <b>Deadline:</b> {formatDeadline(c.deadline)}
+            <span className="block text-xs text-muted-foreground">{plain(h.deadline.deadline_source)}</span>
+          </p>
+          {h.handoff_reason ? (
+            <p>
+              <b>Handoff reason:</b> {handoffReasonLabel(h.handoff_reason)}
+            </p>
+          ) : null}
+          <p>
+            <b>Verified facts:</b> {h.verified_facts.map((f) => plain(f.fact)).join("; ") || "—"}
+          </p>
+          <p>
+            <b>Actions:</b>{" "}
+            {h.actions.length
+              ? h.actions.map((a) => `${a.tool.replace(/_/g, " ")}: ${a.result}${a.verified ? " (verified ✓)" : ""}`).join("; ")
+              : "none taken"}
+          </p>
+          <p>
+            <b>Evidence:</b> {h.evidence.map(plain).join("; ") || "—"}
+          </p>
+          <p>
+            <b>Open questions:</b> {h.open_questions.map(plain).join("; ") || "—"}
+          </p>
+          {h.copilot_proposal ? (
+            <p>
+              <b>Copilot proposal:</b> {copilotActionLabel(h.copilot_proposal.action)} (a person decides)
+            </p>
+          ) : null}
+          <p className="text-xs text-muted-foreground">
+            {h.score === null || h.score === undefined ? "Score del banco: sin dato" : `Score del banco: ${h.score}`}
+            {h.trace_id ? ` · trace ${h.trace_id}` : ""}
+          </p>
         </section>
 
         <section aria-label="Timeline">
