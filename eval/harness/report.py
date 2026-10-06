@@ -90,9 +90,12 @@ def _arms(records: list[dict[str, Any]]) -> dict[str, list[dict[str, Any]]]:
             for arm in dict.fromkeys(record["arm"] for record in records)}
 
 
-def meta(records: list[dict[str, Any]], cases: Path, started_at: str, protocol: Path = PROTOCOL) -> dict[str, Any]:
+def meta(records: list[dict[str, Any]], cases: Path, started_at: str, protocol: Path = PROTOCOL,
+         guard: Optional[dict[str, Any]] = None) -> dict[str, Any]:
+    """`protocol` is the seal status and hash; a one-time run passes the dict of seal_guard.check_seal instead (its
+    status, sha256, tag, commits and checked inputs), which also reaches the web summary."""
     return {"label": "[simulated]", "harness_git_sha": git_sha(), "cases_file": cases.name,
-            "cases_sha256": sha256_of(cases), "protocol": protocol_seal(protocol), "started_at": started_at,
+            "cases_sha256": sha256_of(cases), "protocol": guard or protocol_seal(protocol), "started_at": started_at,
             "ended_at": now(), "runs": len(records),
             "failed_runs": sum(1 for record in records if record["status"] == "failed"),
             "arms": {arm: _run_meta(mine) for arm, mine in _arms(records).items()}}

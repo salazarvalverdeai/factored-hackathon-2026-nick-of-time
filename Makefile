@@ -6,7 +6,7 @@ PYTHON ?= python3
 PY := .venv/bin/python
 SOURCE ?= s3
 
-.PHONY: setup deps pipeline fixture report test lint hooks check-bedrock check-telegram check-resend check-jev check-all telegram-profile env-pull gold-pull labels-pull eval eval-stub eval-local classifier classifier-test
+.PHONY: setup deps pipeline fixture report test lint hooks check-bedrock check-telegram check-resend check-jev check-all telegram-profile env-pull gold-pull labels-pull eval eval-stub eval-local classifier classifier-test eval-heldout
 
 setup: deps pipeline fixture report
 
@@ -86,6 +86,14 @@ EVAL_CASES ?=
 
 eval: $(PY)
 	PYTHONPATH=packages $(PY) -m eval.harness run --set dev --arms $(EVAL_ARMS) --runs $(EVAL_RUNS) --api $(EVAL_API) $(if $(EVAL_CASES),--cases $(EVAL_CASES),)
+
+# Spec 10 T7: the held-out agent run, ONCE, after the seal, on the stack of `make eval-local` with the real models.
+# Pinned to the protocol (S0,S1,S2 x 4). Before it claims the run (eval/harness/seal_guard.py) it checks the seal and the
+# held-out sha256, prints the projected cost and runs a preflight on one dev case per arm (api health, replay with
+# DEMO_TODAY, each arm's provider and model); then it writes eval/results/<date>-heldout/ and
+# apps/web/public/data/evaluation_summary.json. Never run it to tune anything (ADR 0007).
+eval-heldout: $(PY)
+	PYTHONPATH=packages $(PY) -m eval.harness run --set heldout --arms S0,S1,S2 --runs 4 --api $(EVAL_API)
 
 # The real stack for `make eval` (spec 10 T6, eval/README.md "Local real stack"): the store-backed api with the eval
 # hooks (:8000) and the real MCP server (:8001) over one in-memory store, and the real graph under `langgraph dev`
