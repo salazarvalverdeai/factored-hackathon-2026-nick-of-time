@@ -1,30 +1,33 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import { ArchitectureView } from "@/components/agent/architecture-view";
+import { DetailTrigger } from "@/components/agent/detail-trigger";
 import { GraphView } from "@/components/agent/graph-view";
+import { GuardrailList, ModelGrid, Rich, ToolGroups, ZoneDiagram } from "@/components/agent/reference-visuals";
 import { PageShell } from "@/components/page-shell";
 import { AGENT_REFERENCE } from "@/lib/agent-reference";
-import { AGENT_UI } from "@/lib/agent-strings";
+import { AGENT_UI, fill } from "@/lib/agent-strings";
 import {
   CONSTITUTION,
   DIAGRAM,
   INVENTORY,
   NODE_INFO,
   REPO_URL,
-  codeSpans,
   nextOf,
   ruleHasMore,
   ruleSummary,
   rulesCiting,
-  zoneRange,
   type GraphNode,
 } from "@/lib/agent";
 
-// /agent (spec 04 AC-08, spec 02 T6): the architecture, the graph, the policy ids, the tools, the guardrails and the
-// models. Every row comes from lib/agent-reference.ts, generated from the repo's sources by scripts/sync-agent.mjs.
+// /agent (spec 04 AC-08, spec 02 T6): the architecture, the graph, the policies, the tools, the guardrails and the
+// models, each as a visual with one plain line; the tables stay behind "View as table" and the details open in the
+// shared side panel. Every view comes from lib/agent-reference.ts, generated from the repo's sources by
+// scripts/sync-agent.mjs, so the same drift tests bind the visuals and the tables.
 export const metadata: Metadata = { title: "Agent" };
 
 const { policies, tools, graph, sources } = AGENT_REFERENCE;
+const P = AGENT_UI.page;
 const branchLabel = (from: string, to: string) => graph.branches.find((b) => b.from === from && b.to === to)?.label;
 const TH = "border-b py-2 pr-4 align-bottom font-normal";
 const TD = "border-b py-2 pr-4 align-top";
@@ -38,18 +41,6 @@ const SECTIONS = [
   ["models", "Models"],
 ] as const;
 
-function Rich({ text }: { text: string }) {
-  return codeSpans(text).map((part, i) =>
-    part.code ? (
-      <code key={i} className="font-mono text-[0.92em]">
-        {part.text}
-      </code>
-    ) : (
-      <span key={i}>{part.text}</span>
-    ),
-  );
-}
-
 function Mono({ children }: { children: ReactNode }) {
   return <span className="whitespace-nowrap font-mono">{children}</span>;
 }
@@ -62,44 +53,62 @@ function Source({ path }: { path: string }) {
   );
 }
 
-function Section({ id, title, note, children }: { id: string; title: string; note: ReactNode; children: ReactNode }) {
+/** A section: its title, one plain line, a "Detail →" that opens the sources in the side panel, then the visual. */
+function Section({ id, title, line, detail, children }: { id: string; title: string; line: string; detail: ReactNode; children: ReactNode }) {
   return (
     <section id={id} aria-labelledby={`${id}-title`} className="min-w-0 scroll-mt-20 rounded-lg border bg-card p-4 text-card-foreground sm:p-5">
       <h2 id={`${id}-title`} className="text-base font-semibold">
         {title}
       </h2>
-      <p className="mt-0.5 text-sm text-muted-foreground">{note}</p>
+      <p className="mt-0.5 text-sm text-muted-foreground">
+        {line}{" "}
+        <DetailTrigger
+          className="whitespace-nowrap rounded-sm underline underline-offset-2 hover:text-foreground"
+          ariaLabel={`${title}: ${P.sources}`}
+          title={title}
+          description={P.sources}
+          label={P.detail}
+        >
+          <div className="grid gap-3 text-muted-foreground">{detail}</div>
+        </DetailTrigger>
+      </p>
       <div className="mt-4">{children}</div>
     </section>
   );
 }
 
-function Table({ label, head, rows }: { label: string; head: string[]; rows: ReactNode[][] }) {
+/** A table behind a disclosure, collapsed by default; the summary is keyboard reachable. */
+function AsTable({ label, head, rows }: { label: string; head: string[]; rows: ReactNode[][] }) {
   return (
-    <div className="overflow-x-auto">
-      <table aria-label={label} className="w-full min-w-[36rem] text-left text-xs">
-        <thead className="text-muted-foreground">
-          <tr>
-            {head.map((h) => (
-              <th key={h} scope="col" className={TH}>
-                {h}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((row, i) => (
-            <tr key={i}>
-              {row.map((cell, j) => (
-                <td key={j} className={TD}>
-                  {cell}
-                </td>
+    <details className="group mt-4">
+      <summary className="w-fit cursor-pointer rounded-sm text-sm text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring">
+        {P.viewAsTable} <span className="text-xs">({label})</span>
+      </summary>
+      <div className="mt-2 overflow-x-auto">
+        <table aria-label={label} className="w-full min-w-[36rem] text-left text-xs">
+          <thead className="text-muted-foreground">
+            <tr>
+              {head.map((h) => (
+                <th key={h} scope="col" className={TH}>
+                  {h}
+                </th>
               ))}
             </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+          </thead>
+          <tbody>
+            {rows.map((row, i) => (
+              <tr key={i}>
+                {row.map((cell, j) => (
+                  <td key={j} className={TD}>
+                    {cell}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </details>
   );
 }
 
@@ -120,18 +129,18 @@ function RuleText({ text }: { text: string }) {
   );
 }
 
+const Dash = () => <span className="text-muted-foreground">—</span>;
+
 export default function Page() {
   const start = nextOf("START").to;
+  const last = graph.edges.find((e) => (e.to as readonly string[]).includes("END"))?.from;
   return (
     <PageShell title="Agent" description="How a dispute turn runs: the graph, the policy that decides, the tools that act and the models.">
       <p className="text-lg font-semibold leading-snug tracking-tight sm:text-xl">
         <span className="text-primary">{CONSTITUTION.split(",")[0]},</span>
         {CONSTITUTION.slice(CONSTITUTION.indexOf(",") + 1)}
       </p>
-      <p className="mt-2 max-w-3xl text-sm text-muted-foreground">
-        The constitution of the system. Every table on this page is generated from the repository&apos;s code and contracts by{" "}
-        <Source path="apps/web/scripts/sync-agent.mjs" />, and the web tests fail when it drifts from them.
-      </p>
+      <p className="mt-2 max-w-3xl text-sm text-muted-foreground">{P.lead}</p>
       <nav aria-label="On this page" className="mt-4 flex flex-wrap gap-1.5 text-sm">
         {SECTIONS.map(([id, label]) => (
           <a key={id} href={`#${id}`} className="rounded-md border px-2.5 py-1 text-muted-foreground hover:bg-accent hover:text-foreground">
@@ -144,12 +153,17 @@ export default function Page() {
         <Section
           id="architecture"
           title="Architecture"
-          note={
+          line={P.lines.architecture}
+          detail={
             <>
-              Agent on LangGraph Platform, customer tools as an MCP server, case state in Postgres. Services from{" "}
-              <Source path="docs/infrastructure.md" /> and <Source path="infra/compose.yml" />; the static diagram is{" "}
-              <Source path={DIAGRAM.source} />, as shown in the README. Where a diagram and the tables below differ, the tables
-              are current.
+              <p>
+                Services from <Source path="docs/infrastructure.md" />, <Source path="infra/compose.yml" /> and{" "}
+                <Source path="infra/caddy/Caddyfile" />; the drawing&apos;s data is <Source path="apps/web/lib/agent-architecture.ts" />.
+              </p>
+              <p>
+                The static diagram is <Source path={DIAGRAM.source} />, as shown in the README. Where a diagram and the tables differ, the
+                tables are current.
+              </p>
             </>
           }
         >
@@ -165,101 +179,100 @@ export default function Page() {
         <Section
           id="graph"
           title={`Graph ${graph.name}`}
-          note={
+          line={fill(P.lines.graph, { nodes: graph.nodes.length })}
+          detail={
             <>
-              {graph.nodes.length} nodes; the run starts at <Mono>{start.join(", ")}</Mono> and ends after{" "}
-              <Mono>{graph.edges.find((e) => (e.to as readonly string[]).includes("END"))?.from}</Mono>. A branch follows the policy engine&apos;s
-              result, a tool read or the understood input, never the LLM&apos;s text; each label is read from the
-              graph&apos;s routers. Source: <Source path={sources.graph} />.
+              <p>
+                The run starts at <Mono>{start.join(", ")}</Mono> and ends after <Mono>{last}</Mono>. Each branch label is read from the
+                graph&apos;s routers. Source: <Source path={sources.graph} />.
+              </p>
+              <p>
+                Generated by <Source path="apps/web/scripts/sync-agent.mjs" />; the web tests fail when it drifts from the graph.
+              </p>
             </>
           }
         >
           <GraphView />
-          <h3 className="mt-6 text-sm font-semibold">Table view</h3>
-          <p className="mt-0.5 text-xs text-muted-foreground">The same nodes and edges; a branch shows what decides it.</p>
-          <div className="mt-2">
-            <Table
-              label="Graph nodes"
-              head={["#", "Node", "What it does", "Next"]}
-              rows={graph.nodes.map((node, i) => {
-                const next = nextOf(node);
-                return [
-                  <span key="n" className="tabular-nums text-muted-foreground">
-                    {i + 1}
-                  </span>,
-                  <Mono key="id">{node}</Mono>,
-                  NODE_INFO[node as GraphNode],
-                  <span key="next" className="font-mono">
-                    {next.conditional ? <span className="font-sans text-muted-foreground">one of </span> : null}
-                    {next.to.map((to, j) => {
-                      const label = branchLabel(node, to);
-                      return (
-                        <span key={to}>
-                          {j ? " · " : ""}
-                          {to}
-                          {label ? <span className="text-muted-foreground"> ({label})</span> : null}
-                        </span>
-                      );
-                    })}
-                  </span>,
-                ];
-              })}
-            />
-          </div>
+          <AsTable
+            label="Graph nodes"
+            head={["#", "Node", "What it does", "Next"]}
+            rows={graph.nodes.map((node, i) => {
+              const next = nextOf(node);
+              return [
+                <span key="n" className="tabular-nums text-muted-foreground">
+                  {i + 1}
+                </span>,
+                <Mono key="id">{node}</Mono>,
+                NODE_INFO[node as GraphNode],
+                <span key="next" className="font-mono">
+                  {next.conditional ? <span className="font-sans text-muted-foreground">one of </span> : null}
+                  {next.to.map((to, j) => {
+                    const label = branchLabel(node, to);
+                    return (
+                      <span key={to}>
+                        {j ? " · " : ""}
+                        {to}
+                        {label ? <span className="text-muted-foreground"> ({label})</span> : null}
+                      </span>
+                    );
+                  })}
+                </span>,
+              ];
+            })}
+          />
         </Section>
 
         <Section
           id="policies"
           title="Policies"
-          note={
+          line={P.lines.policies}
+          detail={
             <>
-              <Source path={sources.policies} /> version {policies.version}, <Mono>default: {policies.default}</Mono>. Every
-              decision cites one of these {policies.rules.length} ids; the LLM never reads or edits the file.
+              <p>
+                <Source path={sources.policies} /> version {policies.version}, <Mono>default: {policies.default}</Mono>. Every decision cites one
+                of its {policies.rules.length} policy ids; the LLM never reads or edits the file.
+              </p>
+              <p>The zone thresholds come from the EDA [data]; the amount gate tiers are provisional [assumption].</p>
             </>
           }
         >
-          <h3 className="text-sm font-medium">Zones from the bank&apos;s fraud score</h3>
-          <ul className="mt-2 flex flex-wrap gap-2 text-xs">
-            {policies.zones.map((zone) => (
-              <li key={zone.name} className="rounded-md border px-2.5 py-1.5">
-                <span className="font-medium">{zone.name}</span> <span className="text-muted-foreground">score {zoneRange(zone)}</span>
-              </li>
-            ))}
-            <li className="self-center font-mono text-muted-foreground">[data] thresholds from the EDA, policies.yaml zones</li>
-          </ul>
-          <h3 className="mt-5 text-sm font-medium">Policy ids</h3>
-          <div className="mt-2">
-            <Table
-              label="Policy ids"
-              head={["Policy id", "What it decides", "Guardrail"]}
-              rows={policies.rules.map((rule) => [
-                <Mono key="id">{rule.id}</Mono>,
-                <RuleText key="text" text={rule.text} />,
-                rule.guardrail ? <Mono key="g">{rule.guardrail}</Mono> : <span className="text-muted-foreground">—</span>,
-              ])}
-            />
-          </div>
+          <ZoneDiagram />
+          <AsTable
+            label="Policy ids"
+            head={["Policy id", "What it decides", "Guardrail"]}
+            rows={policies.rules.map((rule) => [
+              <Mono key="id">{rule.id}</Mono>,
+              <RuleText key="text" text={rule.text} />,
+              rule.guardrail ? <Mono key="g">{rule.guardrail}</Mono> : <Dash key="g" />,
+            ])}
+          />
         </Section>
 
         <Section
           id="tools"
           title="Customer tools"
-          note={
+          line={fill(P.lines.tools, { count: tools.length })}
+          detail={
             <>
-              The {tools.length} tools of the FastMCP server, the only way the agent reaches data. Each takes the session, never a
-              customer id, and a write is reported as verified only after its read. Sources: <Source path={sources.tools} /> and{" "}
-              <Source path={sources.toolPurposes} /> §6.3.
+              <p>
+                The tools of the FastMCP server. Each takes the session, never a customer id; writes take an idempotency key and are reported
+                as verified only after their read.
+              </p>
+              <p>
+                Sources: <Source path={sources.tools} /> and <Source path={sources.toolPurposes} /> §6.3.
+              </p>
             </>
           }
         >
-          <Table
+          <ToolGroups />
+          <AsTable
             label="Customer tools"
             head={["Tool", "Kind", "Purpose", "Verified with"]}
             rows={tools.map((tool) => [
               <Mono key="name">{tool.name}</Mono>,
               KIND[tool.kind],
               <Rich key="purpose" text={tool.purpose} />,
-              tool.verifiedWith ? <Mono key="v">{tool.verifiedWith}</Mono> : <span className="text-muted-foreground">—</span>,
+              tool.verifiedWith ? <Mono key="v">{tool.verifiedWith}</Mono> : <Dash key="v" />,
             ])}
           />
         </Section>
@@ -267,14 +280,15 @@ export default function Page() {
         <Section
           id="guardrails"
           title="Guardrails"
-          note={
-            <>
-              {policies.guardrails.length} guardrails, each in code with a case in the evaluation set; every deny cites its id.
-              Source: <Source path={`${sources.policies}`} /> <Mono>guardrails</Mono>.
-            </>
+          line={fill(P.lines.guardrails, { count: policies.guardrails.length })}
+          detail={
+            <p>
+              Every deny cites its guardrail id. Source: <Source path={sources.policies} /> <Mono>guardrails</Mono>.
+            </p>
           }
         >
-          <Table
+          <GuardrailList />
+          <AsTable
             label="Guardrails"
             head={["Id", "Layer", "Guardrail", "How", "Cited by"]}
             rows={policies.guardrails.map((g) => {
@@ -293,9 +307,7 @@ export default function Page() {
                     {cited.join(" · ")}
                   </span>
                 ) : (
-                  <span key="c" className="text-muted-foreground">
-                    —
-                  </span>
+                  <Dash key="c" />
                 ),
               ];
             })}
@@ -305,14 +317,22 @@ export default function Page() {
         <Section
           id="models"
           title="Models and decision engines"
-          note={
+          line={P.lines.models}
+          detail={
             <>
-              Everything that decides, scores or advises (ADR 0021). A run with no arm is S0, with no LLM call; the S1 and S2
-              ids are the defaults in <Source path={sources.config} />.
+              <p>
+                The model inventory of ADR 0021. A run with no arm is S0, with no LLM call; the S1 and S2 ids are the defaults in{" "}
+                <Source path={sources.config} />.
+              </p>
+              <p>
+                The active score provider is <Mono>{policies.scoring.provider}</Mono>. A score from a source that cannot place a zone sends the
+                case to a person.
+              </p>
             </>
           }
         >
-          <Table
+          <ModelGrid />
+          <AsTable
             label="Model inventory"
             head={["Engine", "Kind", "Version", "Role", "Source"]}
             rows={INVENTORY.map((row) => [
@@ -329,25 +349,18 @@ export default function Page() {
               </span>,
             ])}
           />
-          <h3 className="mt-5 text-sm font-medium">Score providers</h3>
-          <p className="mt-0.5 text-xs text-muted-foreground">
-            The active provider is <Mono>{policies.scoring.provider}</Mono>. A score from a source that cannot place a zone sends the
-            case to a person.
-          </p>
-          <div className="mt-2">
-            <Table
-              label="Score providers"
-              head={["Provider", "Version", "Can place a zone", "Note"]}
-              rows={policies.scoring.providers.map((p) => [
-                <Mono key="n">{p.name}</Mono>,
-                <Mono key="v">{p.version}</Mono>,
-                p.decidesZone ? "yes" : "no, zone human",
-                <span key="note" className="text-muted-foreground">
-                  {p.note}
-                </span>,
-              ])}
-            />
-          </div>
+          <AsTable
+            label="Score providers"
+            head={["Provider", "Version", "Can place a zone", "Note"]}
+            rows={policies.scoring.providers.map((p) => [
+              <Mono key="n">{p.name}</Mono>,
+              <Mono key="v">{p.version}</Mono>,
+              p.decidesZone ? "yes" : "no, zone human",
+              <span key="note" className="text-muted-foreground">
+                {p.note}
+              </span>,
+            ])}
+          />
         </Section>
       </div>
     </PageShell>
