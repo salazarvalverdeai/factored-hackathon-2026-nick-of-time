@@ -60,11 +60,15 @@ export function pending(file: (typeof RESULT_FILES)[number], exists: boolean): P
 }
 
 /** spec 12 AC-05: anything but the sealed held-out is a development run and says so above the figures. */
-export function developmentNotice(data: Pick<EvaluationData, "set" | "protocol">): string | null {
-  const reasons = [
+export function developmentReasons(data: Pick<EvaluationData, "set" | "protocol">): string[] {
+  return [
     data.set !== "heldout" ? `it ran on the "${data.set}" set, not the held-out` : null,
     data.protocol?.status !== "SEALED" ? `the evaluation protocol is ${data.protocol?.status ?? "UNSEALED"}` : null,
-  ].filter(Boolean);
+  ].filter((r): r is string => r !== null);
+}
+
+export function developmentNotice(data: Pick<EvaluationData, "set" | "protocol">): string | null {
+  const reasons = developmentReasons(data);
   return reasons.length ? `Development run, not the final result: ${reasons.join(" and ")}.` : null;
 }
 
@@ -280,4 +284,27 @@ export function limitations(files: ResultFiles): string[] {
     out.push("The customers and transactions come from a synthetic dataset and the runs are simulated, so the results show how the system behaves, not how it would perform at a real bank.");
   }
   return out;
+}
+
+/** The chip each section of a development run carries beside its title (AC-05). */
+export const DEVELOPMENT_CHIP = "development run";
+
+/** spec 12 AC-05: the result files that are not the sealed held-out, each with its reasons, in page order. */
+export function developmentRuns(files: ResultFiles): { file: string; reasons: string[] }[] {
+  const [summary, benchmark, classifier, fraud] = RESULT_FILES.map((f) => f.file);
+  const found: [string, string[]][] = [
+    [summary, files.summary ? developmentReasons(files.summary.data) : []],
+    ...([[benchmark, files.benchmark], [classifier, files.classifier], [fraud, files.fraud]] as const).map(
+      ([file, f]): [string, string[]] => [file, f ? developmentReasons({ set: "heldout", protocol: f.data.protocol as EvaluationData["protocol"] }) : []],
+    ),
+  ];
+  return found.filter(([, reasons]) => reasons.length).map(([file, reasons]) => ({ file, reasons }));
+}
+
+/** spec 12 AC-05: one notice at the top of the page that names every development-run file, or null. */
+export function pageNotice(files: ResultFiles): string | null {
+  const runs = developmentRuns(files);
+  return runs.length
+    ? `Development run, not the final result: ${runs.map((r) => `${r.file} (${r.reasons.join(" and ")})`).join("; ")}. The sections marked "${DEVELOPMENT_CHIP}" come from these files.`
+    : null;
 }

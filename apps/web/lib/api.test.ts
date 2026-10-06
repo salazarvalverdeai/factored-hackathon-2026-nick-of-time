@@ -131,7 +131,7 @@ test("spec 07 AC-02: blocking and opening the case returns the receipt with the 
   const reply = await api.chat("No reconozco un cargo de 4,200 pesos");
   assert.ok(reply.receipt);
   assert.match(reply.receipt.case_id, /^NOT-\d{4}$/);
-  assert.equal(reply.receipt.deadline.creditDeadline, "2026-06-05");
+  assert.equal(reply.receipt.deadline.creditDeadline, "2026-06-03");
   assert.match(reply.receipt.deadline.deadlineSource, /Banxico/);
   assert.equal(reply.receipt.what_ai_did, MESSAGES.receipt.what_ai_did_blocked.es); // text from contracts/messages.yaml
   assert.equal(reply.receipt.what_a_person_does, MESSAGES.receipt.what_a_person_does.es);
@@ -355,7 +355,7 @@ test("spec 13 AC-05: a call request returns the event id and the expected contac
   const { api, caseId } = await openAnaCase();
   const result = await api.requestCall(caseId);
   assert.match(result.event_id, /^NOT-\d{4}-E\d+$/);
-  assert.equal(result.expected_contact_by, "2026-06-04"); // Wed 2026-06-03 + 1 business day
+  assert.equal(result.expected_contact_by, "2026-06-02"); // Mon 2026-06-01 + 1 business day
 });
 
 test("spec 07 AC-03: what the customer chat shows never mentions the score or the zone", async () => {

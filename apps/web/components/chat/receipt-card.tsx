@@ -8,6 +8,7 @@ import Link from "next/link";
 import { Source, Sources, SourcesContent, SourcesTrigger } from "@/components/ai-elements/sources";
 import { DEMO_TODAY, daysBetween } from "@/lib/mock/store";
 import { MESSAGES } from "@/lib/mock/messages";
+import { demoDateLabel, withoutWallClock } from "@/lib/demo-date";
 import { customerText, formatDate, formatTimestamp, localizeTimes } from "@/lib/chat-stream";
 import type { Language, Receipt } from "@/lib/types";
 
@@ -37,13 +38,16 @@ function daysLeft(date: string, sent: number | null | undefined): number | null 
 }
 
 /** A receipt fact the card does not already show: deadline lines (with their raw URL) are shown as structured rows. */
-function extraFacts(receipt: Receipt): string[] {
+function extraFacts(receipt: Receipt, replay: boolean): string[] {
   const lang = receipt.language;
   const heads = [MESSAGES.receipt.credit_deadline, MESSAGES.receipt.ruling_deadline].map((m) => head(m, lang));
-  return (receipt.facts ?? []).filter((f) => !/https?:\/\//.test(f) && !heads.some((h) => f.startsWith(h)) && f !== receipt.card_blocked);
+  const facts = (receipt.facts ?? []).map((f) => (replay ? withoutWallClock(f) : f));
+  return facts.filter((f) => !/https?:\/\//.test(f) && !heads.some((h) => f.startsWith(h)) && f !== receipt.card_blocked);
 }
 
-export function ReceiptCard({ receipt, country }: { receipt: Receipt; country?: string }) {
+/** `demoDate` is the replay "today" (YYYY-MM-DD) for replay sessions, null for live ones. */
+export function ReceiptCard({ receipt, country, demoDate = null }: { receipt: Receipt; country?: string; demoDate?: string | null }) {
+  const replay = Boolean(demoDate);
   const lang = receipt.language;
   const zoneCountry = receipt.deadline.country || country;
   const rows = [
@@ -64,18 +68,22 @@ export function ReceiptCard({ receipt, country }: { receipt: Receipt; country?: 
             <span className="inline-flex items-center rounded-full border border-brand-teal/50 bg-brand-teal/10 px-2 py-0.5 font-medium text-teal-700 dark:text-teal-300">
               ✓ {COPY.verified[lang]}
             </span>
-            <span>
-              {COPY.issued[lang]} {formatTimestamp(receipt.issued_at, lang, zoneCountry)}
-            </span>
+            {demoDate ? (
+              <span data-slot="demo-date">{demoDateLabel(demoDate, lang)}</span>
+            ) : (
+              <span>
+                {COPY.issued[lang]} {formatTimestamp(receipt.issued_at, lang, zoneCountry)}
+              </span>
+            )}
           </p>
         </div>
       </header>
 
       <div className="mt-3 space-y-3">
         {receipt.card_blocked ? <p>{customerText(localizeTimes(receipt.card_blocked, lang, zoneCountry))}</p> : null}
-        {extraFacts(receipt).length ? (
+        {extraFacts(receipt, replay).length ? (
           <ul className="list-disc space-y-1 pl-5">
-            {extraFacts(receipt).map((f) => (
+            {extraFacts(receipt, replay).map((f) => (
               <li key={f}>{customerText(localizeTimes(f, lang, zoneCountry))}</li>
             ))}
           </ul>
@@ -104,7 +112,7 @@ export function ReceiptCard({ receipt, country }: { receipt: Receipt; country?: 
             <ul className="mt-1 space-y-1 text-xs">
               {receipt.actions.map((a) => (
                 <li key={`${a.label}-${a.verification_id ?? a.state}`}>
-                  {customerText(a.label)}: {STATE[a.state]?.[lang] ?? a.state.replaceAll("_", " ")}
+                  {customerText(replay ? withoutWallClock(a.label) : a.label)}: {STATE[a.state]?.[lang] ?? a.state.replaceAll("_", " ")}
                   {a.verification_id ? <span className="font-mono text-muted-foreground"> · {a.verification_id}</span> : null}
                 </li>
               ))}

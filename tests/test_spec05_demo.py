@@ -111,7 +111,7 @@ def test_ac_15_the_api_lists_only_scenarios_gold_serves_with_the_gold_name_and_f
     ({"scenario": "SCN-MX-1"}, 201), ({"scenario": "auto", "country": "MX"}, 201), ({}, 201),
     ({"scenario": "SCN-MX-1", "country": "AR"}, 404), ({"scenario": "SCN-XX-9"}, 404),
     ({"scenario": "auto", "country": "CO"}, 404), ({"scenario": "SCN-MX-1", "language": None}, 422),
-    ({"scenario": "SCN-MX-1", "customer_id": "CLI-D5US5Q686CIL"}, 422)])
+    ({"scenario": "SCN-MX-1", "customer_id": "CLI-CH2VHQO8WJHX"}, 422)])
 def test_ac_16_the_scenario_decides_the_customer_and_the_client_never_names_one(gold, body, status):
     app, store = app_for(gold)
     r = TestClient(app).post("/api/sessions", json={"language": "pt", **body})

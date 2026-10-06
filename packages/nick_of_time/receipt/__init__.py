@@ -42,6 +42,8 @@ ROWS: dict[str, tuple[str, ...]] = {
     "greet": ("report_unrecognized", "report_duplicate", "check_case"),
     "ask_details": ("show_recent", "dont_remember_amount", "talk_to_person"),
     "ask_options": ("none_of_these", "show_recent", "talk_to_person"),            # candidates shown as cards
+    # D-085: the latest charges listed as cards (no amount, date or merchant); showing them again would repeat them
+    "ask_recent": ("none_of_these", "talk_to_person"),
     # D-071: one charge the customer named, intent below τ: the chips state what happened with it (AC-35)
     "ask_intent": ("intent_unrecognized", "intent_wrongful", "talk_to_person"),
     "confirm": ("confirm_yes", "confirm_no", "talk_to_person"),

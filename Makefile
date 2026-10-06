@@ -30,8 +30,19 @@ report:
 ops:
 	PYTHONPATH=.:packages $(PY) -m data.ops run --source sample
 
+# Spec 14 §11: Bank today [data] and real card charges replayed through S0 [simulated] → apps/web/public/data/ops_kpis.json
+# (committed) and queries/ops/asis_monthly.csv. Needs the real gold (GOLD_PATH or data/gold); offline, no LLM.
+.PHONY: ops-replay
+ops-replay:
+	PYTHONPATH=.:packages $(PY) -m data.ops replay
+
 test:
 	$(PY) -m pytest -q
+
+# Regenerate docs/decisions/graph.md and graph.json from the ADR and spec headers.
+.PHONY: docs-graph
+docs-graph: $(PY)
+	$(PY) scripts/docs/decision_graph.py
 
 # Same pinned ruff as CI (ruff.toml); installs into the venv on first use.
 lint:

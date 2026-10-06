@@ -186,8 +186,64 @@ export interface AuditEntry {
 }
 
 export interface CustomerSession {
+  /** The mock's picked customer. A live demo session has none here: the api chose the customer server-side (D-068). */
   customerId: string;
   expiresAt: number; // epoch ms
+  /** Live demo: what the start screen knew (the typed name or the scenario's customer name), the session language and mode. */
+  displayName?: string;
+  language?: Language;
+  mode?: "live" | "replay";
+}
+
+/** One scenario card of `GET /api/demo/scenarios` (spec 05 AC-15): no customer id, score or zone. */
+export interface Scenario {
+  scenario_id: string;
+  title: string;
+  country: string;
+  language: Language;
+  segment: string;
+  customer_name: string | null;
+  cases: string[];
+  tags: string[];
+}
+
+export interface DemoStart {
+  /** Optional, at most 40 characters; the api refuses a name that is not a plain name (422). */
+  displayName?: string;
+  language: Language;
+  country?: "MX" | "CO" | "AR";
+  /** A `scenario_id`, or "auto" to be assigned one. */
+  scenario: string;
+  /** "live" only for demo type C (the visitor registers a test charge, dated today); omitted, the api's default (replay). */
+  mode?: "live";
+  /** The picked scenario's `customer_name` (gold's first name): the web greets with it when no name is typed. Never sent. */
+  customerName?: string;
+}
+
+/** `GET /api/sessions/{id}/recent-transactions` (spec 05 AC-17): the customer's latest card charges, no score or label. */
+export interface RecentTransaction {
+  transaction_id: string;
+  date: string; // YYYY-MM-DD
+  amount: number;
+  currency: string;
+  merchant: string | null;
+  last4: string | null;
+  /** A live demo run's test charge [simulated] (spec 05 AC-19). */
+  synthetic: boolean;
+  /** Only on the answer of a test charge: always "[simulated]". */
+  label?: "[simulated]";
+}
+
+export type PersonaCharacter = "aggressive" | "passive" | "terse" | "verbose" | "confused" | "code_switching";
+
+/** `POST /api/demo/persona` (spec 05 AC-20): a suggested first message. A draft for the composer, never sent on its own. */
+export interface PersonaDraft {
+  message: string;
+  source: "llm" | "template";
+  language: Language;
+  character: PersonaCharacter;
+  transaction_id: string;
+  synthetic: boolean;
 }
 
 export interface AnalystSession {
