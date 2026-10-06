@@ -8,7 +8,7 @@ import { pt } from "../messages/pt.ts";
 
 export const LOCALES = ["es", "pt", "en"] as const;
 export type Locale = (typeof LOCALES)[number];
-export const DEFAULT_LOCALE: Locale = "es";
+export const DEFAULT_LOCALE: Locale = "en";
 /** The cookie the header selector writes and the root layout reads (one year, path /, SameSite=Lax). */
 export const LOCALE_COOKIE = "not_locale";
 export const LOCALE_MAX_AGE = 60 * 60 * 24 * 365;
@@ -36,7 +36,7 @@ export function isLocale(v: unknown): v is Locale {
   return typeof v === "string" && (LOCALES as readonly string[]).includes(v);
 }
 
-/** A cookie value as a locale; anything else is the default (ES). */
+/** A cookie value as a locale; anything else is the default (EN). */
 export function parseLocale(v: string | null | undefined): Locale {
   return isLocale(v) ? v : DEFAULT_LOCALE;
 }
