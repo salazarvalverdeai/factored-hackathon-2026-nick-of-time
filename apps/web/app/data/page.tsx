@@ -5,7 +5,8 @@ import Link from "next/link";
 import { PageShell } from "@/components/page-shell";
 import { PipelineDiagram } from "@/components/pipeline-diagram";
 import { TableView } from "@/app/analytics/charts";
-import { GOLD_CONSUMERS, OPS_STEPS, datasetLimits, medallionSteps, repoUrl } from "@/lib/pipelines";
+import { DetailButton } from "@/components/detail-button";
+import { DATA_CARDS, GOLD_CONSUMERS, OPS_STEPS, datasetLimits, medallionSteps, type Detail } from "@/lib/pipelines";
 import quality from "@/public/data/data_quality.json";
 
 // /data (spec 12 AC-03): the medallion, the gold rules, the checks with counts, the manifest versions, the
@@ -16,10 +17,8 @@ const megabytes = (bytes: number | null) => (bytes === null ? "—" : `${(bytes 
 const TH = "border-b py-1.5 pr-4 font-normal";
 const TD = "border-b py-1.5 pr-4";
 
-const LINK = "whitespace-nowrap rounded-sm underline underline-offset-2 outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring";
-
-/** The shared card: a title, one or two plain lines and "Detail →" to the markdown that defines it. */
-function Section({ title, note, detail, chip, children }: { title: string; note: ReactNode; detail: string; chip?: string; children: ReactNode }) {
+/** The shared card: a title, one or two plain lines and "Detail →", which opens the side panel. */
+function Section({ title, note, detail, chip, children }: { title: string; note: ReactNode; detail: Detail; chip?: string; children: ReactNode }) {
   return (
     <section aria-label={title} className="rounded-lg border bg-card p-5 text-card-foreground">
       <h2 className="text-base font-semibold">
@@ -27,10 +26,7 @@ function Section({ title, note, detail, chip, children }: { title: string; note:
         {chip ? <span className="ml-2 rounded-full border px-2 py-0.5 align-middle text-xs font-normal text-muted-foreground">{chip}</span> : null}
       </h2>
       <p className="mt-0.5 text-sm text-muted-foreground">
-        {note}{" "}
-        <a className={LINK} href={detail}>
-          Detail →
-        </a>
+        {note} <DetailButton title={title} detail={detail} />
       </p>
       <div className="mt-4">{children}</div>
     </section>
@@ -117,7 +113,7 @@ export default function Page() {
         <Section
           title="Medallion pipeline"
           note="From the bank's CSV files to the read-only tables the system uses. Hover a layer, or reach it with the Tab key, to see its tables."
-          detail={repoUrl("docs/adr/0004-medallion-pipeline-on-duckdb.md")}
+          detail={DATA_CARDS.medallion}
         >
           <PipelineDiagram label="Medallion pipeline" steps={medallionSteps(quality.data)} outputs={GOLD_CONSUMERS} />
           <TableView
@@ -126,7 +122,7 @@ export default function Page() {
           />
         </Section>
 
-        <Section title="Versions" note="What this page was built from: one run of the pipeline on one source delivery." detail={repoUrl("data/quality_report.md")}>
+        <Section title="Versions" note="What this page was built from: one run of the pipeline on one source delivery." detail={DATA_CARDS.versions}>
           <dl className="grid grid-cols-2 gap-x-6 gap-y-3 text-sm sm:grid-cols-3 lg:grid-cols-6">
             {facts.map(([name, value]) => (
               <div key={name} className="min-w-0">
@@ -140,7 +136,7 @@ export default function Page() {
         <Section
           title="Gold contract rules"
           note="Checked on every run before gold is published; if one fails, gold is not replaced."
-          detail={repoUrl("contracts/gold_contract.md", "verifiable-rules-every-run")}
+          detail={DATA_CARDS.rules}
         >
           <Table
             head={["Rule", "Condition", "Value on this run", "Result"]}
@@ -151,7 +147,7 @@ export default function Page() {
         <Section
           title={`Quality checks: ${flagged.length} of ${checks.length} found rows`}
           note="Rows affected over the rows the check applies to, and what the pipeline does with them."
-          detail={repoUrl("data/quality_report.md", "3-checks-with-counts")}
+          detail={DATA_CARDS.checks}
         >
           <Table head={["Check", "Table", "What it looks for", "Rows affected", "Action"]} rows={flagged.map(checkRow)} />
           <details className="mt-4">
@@ -168,7 +164,7 @@ export default function Page() {
           <Section
             title="Late arrivals and schema change"
             note={`Shown with a ${late_arrival.label}: the real dataset has no late arrivals or schema changes, so two labeled deliveries go through the same pipeline code.`}
-            detail={repoUrl("data/fixtures/late_arrival/README.md")}
+            detail={DATA_CARDS.late}
           >
             <ul className="space-y-1.5 text-sm">
               <li>
@@ -214,7 +210,7 @@ export default function Page() {
           title="Operational lakehouse"
           chip={ops ? `ops manifest v${ops.version}` : "Pending"}
           note="The system's own case records go through the same three layers, to measure it day by day."
-          detail={repoUrl("specs/14-ops-lakehouse.md")}
+          detail={DATA_CARDS.ops}
         >
           <PipelineDiagram label="Operational lakehouse" steps={OPS_STEPS} />
           <ul className="mt-4 space-y-1.5 text-sm">
@@ -234,7 +230,7 @@ export default function Page() {
         </Section>
 
         {complaint_link && limits.length ? (
-          <Section title="Dataset limitations" note="What the data cannot tell us, measured on gold." detail={repoUrl("queries/README.md", "data-dataset-limits")}>
+          <Section title="Dataset limitations" note="What the data cannot tell us, measured on gold." detail={DATA_CARDS.limits}>
             <ul className="list-disc space-y-1.5 pl-5 text-sm">
               {limits.map((text) => (
                 <li key={text}>{text}</li>

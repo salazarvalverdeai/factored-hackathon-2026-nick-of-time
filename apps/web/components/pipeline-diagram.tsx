@@ -2,8 +2,9 @@
 
 // Shared "how it's built" flow of /data, /evaluation and /analytics (spec 12 AC-07, AC-09). Numbered steps run left
 // to right from lg and top to bottom below it, so 390 px never scrolls sideways. Every step takes keyboard focus and
-// shows its detail in the same tooltip as the charts; "Detail →" opens the markdown that defines it.
+// shows its detail in the same tooltip as the charts; "Detail →" opens the side panel with its method, source and spec.
 import { FOCUS, TipBody, useTip } from "@/app/analytics/charts";
+import { DetailButton } from "@/components/detail-button";
 import type { CSSProperties } from "react";
 import type { PipelineStep } from "@/lib/pipelines";
 
@@ -28,9 +29,7 @@ function Node({ step, n, bind, small = false }: { step: PipelineStep; n?: number
           {line}
         </p>
       ))}
-      <a href={step.href} className={`mt-1 inline-block rounded-sm text-xs underline underline-offset-2 hover:text-foreground ${FOCUS}`}>
-        Detail →
-      </a>
+      <DetailButton title={step.title} detail={step.detail} className="mt-1 inline-block text-xs" />
     </div>
   );
 }

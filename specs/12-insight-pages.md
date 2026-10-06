@@ -145,7 +145,8 @@ Implementation goes in `feat/12-…` branches once this spec is approved.
 - [x] T9 — readability of `/evaluation`: charts for every headline and per-arm comparison, plain explanations with
       "Detail" links, the Limitations block · covers AC-11 · [T] `apps/web/lib/evaluation.test.ts`
 - [x] T10 — `/data` finished: medallion diagram on the shared `components/pipeline-diagram.tsx`, the cards with
-      "Detail" links, the operational lakehouse card and the dataset limitations · covers AC-03, AC-07, AC-09, AC-11 ·
+      "Detail →" opening the shared side panel (method, source, label, spec), the operational lakehouse card and the
+      dataset limitations · covers AC-03, AC-07, AC-09, AC-11 ·
       [T] `apps/web/lib/pipelines.test.ts`, `tests/test_spec12_data_quality.py`
 - [ ] T6 — operational KPIs on `/analytics` · covers AC-02 · needs spec 14
 - [ ] T7 — screenshots on the public URL, both themes and 390 px · covers AC-01, AC-03, AC-09 (2026-10-05:
