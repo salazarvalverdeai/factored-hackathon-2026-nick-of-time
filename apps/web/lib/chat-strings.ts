@@ -73,7 +73,7 @@ export const CHAT_STRINGS = {
   } as Bi,
   stepStatus: { es: "Estado", pt: "Situação" } as Bi,
   stepResult: { es: "Resultado", pt: "Resultado" } as Bi,
-  // The live graph beside the chat (spec 07 AC-28): the constitution in one line, and each node in plain words.
+  // The live graph beside the chat (spec 07 AC-31): the constitution in one line, and each node in plain words.
   graphToggle: { es: "Ver cómo trabaja", pt: "Ver como funciona" } as Bi,
   graphHide: { es: "Ocultar cómo trabaja", pt: "Ocultar como funciona" } as Bi,
   graphTitle: { es: "Cómo trabaja el asistente", pt: "Como o assistente trabalha" } as Bi,

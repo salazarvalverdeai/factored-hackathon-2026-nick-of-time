@@ -258,7 +258,7 @@ function Conversation({ onExpired }: { onExpired: () => void }) {
   const nextId = useRef(0);
   const turnNo = useRef(0); // "Nuevo caso" bumps it: a reply of an older thread is dropped
   const speak = readAloud.speak;
-  // The live graph (spec 07 AC-28): closed by default; it follows the frames as the customer sees them.
+  // The live graph (spec 07 AC-31): closed by default; it follows the frames as the customer sees them.
   const [graphRun, setGraphRun] = useState<GraphRun>(EMPTY_RUN);
   const [graphOpen, setGraphOpen] = useState(false);
 

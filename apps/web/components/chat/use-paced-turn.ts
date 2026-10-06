@@ -28,7 +28,7 @@ export interface PacedTurnOptions<R> {
   finalText: (reply: R) => string;
   /** The whole turn has been shown: it becomes a message. */
   onComplete: (reply: R, view: { tools: ToolEvent[]; progress: string[] }) => void;
-  /** Each frame as it is shown, after its dwell (the live graph follows the steps the customer sees, AC-28). */
+  /** Each frame as it is shown, after its dwell (the live graph follows the steps the customer sees, AC-31). */
   onFrame?: (frame: TurnFrame<R>) => void;
 }
 

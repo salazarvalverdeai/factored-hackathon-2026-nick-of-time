@@ -1,6 +1,6 @@
 "use client";
 
-// The live graph beside /chat (spec 07 AC-28): the dispute_intake drawing of /agent (components/agent/graph-view.tsx),
+// The live graph beside /chat (spec 07 AC-31): the dispute_intake drawing of /agent (components/agent/graph-view.tsx),
 // with the node the agent is on marked as the turn runs and the nodes it passed standing out. Closed by default so the
 // conversation keeps its width: on wide screens a slim rail at the right edge opens a floating panel that does not block
 // the chat; on narrow screens a header button opens it as a sheet (the shared detail panel). The run comes from

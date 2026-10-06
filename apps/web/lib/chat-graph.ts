@@ -1,4 +1,4 @@
-// The live graph beside /chat (spec 07 AC-28): which node of dispute_intake the agent is on while a turn runs, folded
+// The live graph beside /chat (spec 07 AC-31): which node of dispute_intake the agent is on while a turn runs, folded
 // from the same stream frames the chat shows (spec 01 §6.4.1). The node ids come from lib/agent-reference.ts (synced
 // from apps/agent/agent/intake.py); the event → node wiring below mirrors where intake.py emits each progress key and
 // tool event. Pure and tested offline (lib/chat-graph.test.ts): the drawing (components/agent/graph-view.tsx) only

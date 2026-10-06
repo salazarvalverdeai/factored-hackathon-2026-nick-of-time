@@ -1,4 +1,4 @@
-// Offline checks for the live graph beside /chat (spec 07 AC-28): the stream → node mapping uses only nodes of
+// Offline checks for the live graph beside /chat (spec 07 AC-31): the stream → node mapping uses only nodes of
 // lib/agent-reference.ts and covers every progress key and tool event intake.py emits; a scripted turn moves the
 // current node and the path along the graph's edges; reduced motion leaves the rail still. Run with `npm test`.
 import assert from "node:assert/strict";
@@ -30,7 +30,7 @@ const EDGES = new Set(graph.edges.flatMap((e) => e.to.map((to) => `${e.from}->${
 const fold = (frames: GraphFrame[], from: GraphRun = startRun()) => frames.reduce(applyFrame, from);
 const tool = (step: string, status: "running" | "done" | "failed"): GraphFrame => ({ kind: "tool", event: { step, status } });
 
-test("spec 07 AC-28: every mapped node id exists in agent-reference, and START/END are the drawing's own", () => {
+test("spec 07 AC-31: every mapped node id exists in agent-reference, and START/END are the drawing's own", () => {
   const known = new Set<string>(["START", ...graph.nodes, "END"]);
   assert.deepEqual([...GRAPH_NODES].sort(), [...known].sort());
   for (const [key, node] of Object.entries(PROGRESS_NODE)) assert.ok(known.has(node), `progress ${key} → unknown node ${node}`);
@@ -38,7 +38,7 @@ test("spec 07 AC-28: every mapped node id exists in agent-reference, and START/E
   for (const id of known) assert.ok(CHAT_STRINGS.graphNodes[id]?.es && CHAT_STRINGS.graphNodes[id]?.pt, `${id} has no ES/PT words`);
 });
 
-test("spec 07 AC-28: every progress key and tool event intake.py emits is mapped to the node that emits it", () => {
+test("spec 07 AC-31: every progress key and tool event intake.py emits is mapped to the node that emits it", () => {
   const writing = [...INTAKE.matchAll(/WRITING = \{([^}]*)\}/g)].flatMap((m) => [...m[1].matchAll(/: "([a-z_]+)"/g)].map((x) => x[1]));
   const keys = [...INTAKE.matchAll(/progress\([^,()]+(?:\([^)]*\))?[^,]*, "([a-z_]+)"\)/g)].map((m) => m[1]);
   assert.ok(keys.length >= 6 && writing.length === 2, "intake.py still streams progress keys");
@@ -55,7 +55,7 @@ test("spec 07 AC-28: every progress key and tool event intake.py emits is mapped
   assert.equal(nodeOfTool({ step: "get_case", status: "running" }, "route"), "status");
 });
 
-test("spec 07 AC-28: a scripted dispute turn moves the current node and the path along the graph's edges", () => {
+test("spec 07 AC-31: a scripted dispute turn moves the current node and the path along the graph's edges", () => {
   const seen: (string | null)[] = [];
   let run = startRun();
   assert.deepEqual(run, { active: "identity", path: ["START", "identity"] });
@@ -100,7 +100,7 @@ test("spec 07 AC-28: a scripted dispute turn moves the current node and the path
   assert.equal(graphHighlight(done.active, done.path).current, null);
 });
 
-test("spec 07 AC-28: the mock stream (tools only, no progress) and the other paths still walk real edges", () => {
+test("spec 07 AC-31: the mock stream (tools only, no progress) and the other paths still walk real edges", () => {
   const mock = fold([tool("search_transaction", "running"), tool("search_transaction", "done"), tool("evaluate_policy", "done"), { kind: "text" }, { kind: "reply" }]);
   assert.deepEqual(mock.path, ["START", "identity", "greet", "understand", "route", "retrieve", "decide", "respond"]);
   const status = fold([{ kind: "progress", step: "checking_status" }, tool("get_case", "running"), tool("get_case", "done"), { kind: "reply" }]);
@@ -112,7 +112,7 @@ test("spec 07 AC-28: the mock stream (tools only, no progress) and the other pat
   assert.deepEqual(refused.path.slice(-2), ["respond", "END"]);
 });
 
-test("spec 07 AC-28: the run only moves forward, ignores unknown steps, and resets cleanly", () => {
+test("spec 07 AC-31: the run only moves forward, ignores unknown steps, and resets cleanly", () => {
   const run = fold([{ kind: "progress", step: "searching" }, { kind: "progress", step: "reading_account" }, { kind: "progress", step: "not_a_step" }, tool("unknown_tool", "running")]);
   assert.equal(run.active, "retrieve", "a passed node or an unknown event never moves the run back");
   assert.equal(advance(run, "nope"), run);
@@ -123,7 +123,7 @@ test("spec 07 AC-28: the run only moves forward, ignores unknown steps, and rese
   assert.deepEqual(finishRun(EMPTY_RUN), EMPTY_RUN);
 });
 
-test("spec 07 AC-27, AC-28: the rail moves only through the shared motion kit, opacity only, and not under reduced motion", () => {
+test("spec 07 AC-27, AC-31: the rail moves only through the shared motion kit, opacity only, and not under reduced motion", () => {
   const src = read("../components/chat/live-graph.tsx");
   assert.doesNotMatch(src, /from "motion\/react"/);
   assert.match(src, /import \{ Reveal \} from "@\/components\/motion"/);
