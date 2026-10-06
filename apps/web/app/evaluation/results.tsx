@@ -10,6 +10,7 @@ import { CountText, Reveal, Stagger } from "@/components/motion";
 import { staggerDelay } from "@/lib/motion";
 import {
   armModel,
+  headlineExplanation,
   METRICS,
   METRIC_MEANING,
   d070View,
@@ -22,6 +23,7 @@ import {
   type EvaluationArm,
   type EvaluationData,
   type Insight,
+  type Rate,
 } from "@/lib/evaluation";
 
 // Arm colors in fixed order, checked with the palette validator on the light and dark card surfaces (violet and teal
@@ -50,8 +52,9 @@ function Legend({ arms }: { arms: EvaluationArm[] }) {
 }
 
 /** One arm: safe automated resolution as the big figure, the other rates and the cost in a quieter row under it. */
-function Headline({ arm, index }: { arm: EvaluationArm; index: number }) {
+function Headline({ arm, index, secondary }: { arm: EvaluationArm; index: number; secondary?: Rate }) {
   const main = rateParts(arm.overall.safe_automated_resolution);
+  const second = secondary && secondary.value !== null ? rateParts(secondary) : null;
   const small: [string, string, string][] = [
     ...SECONDARY.map((key): [string, string, string] => {
       const parts = rateParts(arm.overall[key]);
@@ -67,8 +70,10 @@ function Headline({ arm, index }: { arm: EvaluationArm; index: number }) {
         {arm.arm}
         <span className="font-normal text-muted-foreground">{armModel(arm.run_meta) ?? "rules and templates, no LLM"}</span>
       </h3>
-      <div className="mt-4">
-        <BigFigure value={main.value} label="[simulated]" caption={<>{label("safe_automated_resolution")} · {main.count} · 95% CI {main.interval}</>} />
+      <p className="mt-4 text-sm font-medium">{label("safe_automated_resolution")}</p>
+      <div className="mt-1 flex flex-wrap gap-x-8 gap-y-3">
+        <BigFigure value={main.value} label="[simulated]" caption={<>{second ? "Official · sealed rules · " : ""}{main.count} · 95% CI {main.interval}</>} />
+        {second ? <BigFigure value={second.value} label="[simulated]" caption={<>With D-070 · {second.count} · 95% CI {second.interval}</>} /> : null}
       </div>
       <dl className="mt-5 grid grid-cols-2 gap-x-6 gap-y-4 border-t pt-4 sm:grid-cols-4">
         {small.map(([name, value, note]) => (
@@ -263,9 +268,13 @@ export function EvaluationResults({ file }: { file: Insight<EvaluationData> }) {
         Agent evaluation
         <DevChip show={developmentNotice(data) !== null} />
       </h2>
+      {(() => {
+        const why = headlineExplanation(data.arms.map((a) => ({ official: a.overall.safe_automated_resolution, secondary: data.scores_d070?.arms?.[a.arm]?.secondary?.safe_automated_resolution })));
+        return why ? <p data-slot="headline-why" className="max-w-3xl text-sm text-muted-foreground">{why}</p> : null;
+      })()}
       <Stagger className="grid gap-4 lg:grid-cols-2" count={data.arms.length}>
         {data.arms.map((arm, i) => (
-          <Headline key={arm.arm} arm={arm} index={i} />
+          <Headline key={arm.arm} arm={arm} index={i} secondary={data.scores_d070?.arms?.[arm.arm]?.secondary?.safe_automated_resolution} />
         ))}
       </Stagger>
       {d070View(data) && <HeldoutScores view={d070View(data)!} />}

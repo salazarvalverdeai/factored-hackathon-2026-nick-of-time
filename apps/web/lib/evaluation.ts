@@ -470,3 +470,14 @@ export function armModel(meta: { model_graph?: string | null; model_fast?: strin
   const id = meta?.model_graph ?? meta?.model_fast ?? null;
   return id ? id.replace(/^(us|eu|apac)\.anthropic\./, "").replace(/-\d{8}-v\d+:\d+$/, "") : null;
 }
+
+/** One plain line above the arm headlines when the held-out carries a secondary score (ADR 0031): why the official
+ * safe automated resolution reads what it reads. Numbers come from the file; "on every arm" only when all arms agree. */
+export function headlineExplanation(pairs: { official: Rate; secondary?: Rate }[]): string | null {
+  const both = pairs.filter((p) => p.secondary && p.secondary.value !== null);
+  if (!both.length) return null;
+  const same = (k: "official" | "secondary") => new Set(both.map((p) => `${p[k]!.numerator}/${p[k]!.denominator}`)).size === 1;
+  const o = both[0].official, s2 = both[0].secondary!;
+  const nums = same("official") && same("secondary") ? ` on every arm: ${o.numerator} of ${o.denominator} official, ${s2.numerator} of ${s2.denominator} with D-070` : "";
+  return `The sealed cases predate the rule that a person reviews every case (D-070), so a verified block that is also handed to an analyst counts as a miss in the official score; both scores are shown${nums} (ADR 0031).`;
+}

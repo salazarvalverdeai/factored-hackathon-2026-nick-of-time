@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import test from "node:test";
 import { dataDir } from "./data-dir.ts";
-import { armModel, classifierRunNote, DEVELOPMENT_CHIP, GENERATOR_FLAG, developmentRuns, pageNotice, METRICS, METRIC_MEANING, RULES_REVIEW_SENTENCE, DETAILS, detailUrl, headingSlug, limitations, RESULT_FILES, costQualityPoints, developmentNotice, generatorFlag, interval, pending, protocolNotice, rateParts, rateText, scoreText, d070View, D070_SENTENCE, chosenReason, hasDevRuns, scatterLabels } from "./evaluation.ts";
+import { armModel, headlineExplanation, classifierRunNote, DEVELOPMENT_CHIP, GENERATOR_FLAG, developmentRuns, pageNotice, METRICS, METRIC_MEANING, RULES_REVIEW_SENTENCE, DETAILS, detailUrl, headingSlug, limitations, RESULT_FILES, costQualityPoints, developmentNotice, generatorFlag, interval, pending, protocolNotice, rateParts, rateText, scoreText, d070View, D070_SENTENCE, chosenReason, hasDevRuns, scatterLabels } from "./evaluation.ts";
 import type { BenchmarkData, ClassifierData, EvaluationData, FraudData, Insight, Rate } from "./evaluation.ts";
 
 const SAMPLE = JSON.parse(
@@ -353,4 +353,18 @@ test("spec 12 AC-01: each arm names the model it used, the fast model included (
   assert.equal(armModel({ model_graph: null, model_fast: null, provider: "none" }), null);
   const real = JSON.parse(readFileSync(new URL("../public/data/evaluation_summary.json", import.meta.url), "utf-8")).data as EvaluationData;
   for (const arm of real.arms) if (arm.run_meta.provider && arm.run_meta.provider !== "none") assert.ok(armModel(arm.run_meta), `${arm.arm} names its model`);
+});
+
+test("spec 12 AC-11: one line above the headlines explains an official 0 with the secondary score, from the real file", () => {
+  const real = JSON.parse(readFileSync(new URL("../public/data/evaluation_summary.json", import.meta.url), "utf-8")).data as EvaluationData;
+  const why = headlineExplanation(real.arms.map((a) => ({ official: a.overall.safe_automated_resolution, secondary: real.scores_d070?.arms?.[a.arm]?.secondary?.safe_automated_resolution })));
+  if (real.scores_d070) {
+    assert.ok(why && why.includes("ADR 0031") && why.includes("D-070"));
+    const a = real.arms[0];
+    const s2 = real.scores_d070.arms[a.arm].secondary.safe_automated_resolution;
+    assert.ok(why.includes(`${s2.numerator} of ${s2.denominator} with D-070`));
+  }
+  const r = (n: number) => ({ value: n / 2, numerator: n, denominator: 2, ci_low: 0, ci_high: 1 });
+  assert.equal(headlineExplanation([{ official: r(1) }]), null);
+  assert.ok(!headlineExplanation([{ official: r(0), secondary: r(1) }, { official: r(0), secondary: r(2) }])!.includes("on every arm"));
 });
