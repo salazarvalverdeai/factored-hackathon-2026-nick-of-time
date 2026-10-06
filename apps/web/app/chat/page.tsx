@@ -349,9 +349,9 @@ function Conversation({ onExpired }: { onExpired: () => void }) {
               {CHAT_STRINGS.expire}
             </Button>
           ) : null}
-          <Button size="sm" variant="ghost" onClick={() => api.logoutCustomer()} className="text-muted-foreground" aria-label={CHAT_STRINGS.signOut} title={CHAT_STRINGS.signOut}>
+          <Button size="sm" variant="ghost" onClick={() => api.logoutCustomer()} className="text-muted-foreground" aria-label={CHAT_STRINGS.signOut[lang]} title={CHAT_STRINGS.signOut[lang]}>
             <LogOutIcon aria-hidden className="size-3.5" />
-            <span className="hidden sm:inline">{CHAT_STRINGS.signOut}</span>
+            <span className="hidden sm:inline">{CHAT_STRINGS.signOut[lang]}</span>
           </Button>
         </ChatHeader>
 

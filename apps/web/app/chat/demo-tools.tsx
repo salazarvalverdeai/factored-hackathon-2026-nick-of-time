@@ -6,6 +6,7 @@
 // plain words, spec 07 AC-14), and a persona
 // answer is a draft in the composer, never sent on its own.
 import { useState } from "react";
+import { CHAT_STRINGS } from "@/lib/chat-strings";
 import { ErrorState, LoadingState } from "@/components/states";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -40,18 +41,18 @@ export function DemoTools({
     <div className="space-y-3">
       <Card>
         <CardHeader>
-          <CardTitle className="text-sm">Pick a charge to dispute</CardTitle>
-          <CardDescription>Your recent card charges. A chip sends a message that names the charge; you can also just type.</CardDescription>
+          <CardTitle className="text-sm">{CHAT_STRINGS.pickTitle[lang]}</CardTitle>
+          <CardDescription>{CHAT_STRINGS.pickDescription[lang]}</CardDescription>
         </CardHeader>
         <CardContent>
-          {txs.status === "loading" ? <LoadingState label="Loading your charges…" /> : null}
-          {txs.status === "error" ? <ErrorState title="Cannot load your charges" message={txs.error.message} /> : null}
-          {txs.status === "ok" && txs.data.length === 0 ? <p className="text-sm text-muted-foreground">No recent charges.</p> : null}
+          {txs.status === "loading" ? <LoadingState label={CHAT_STRINGS.loadingCharges[lang]} /> : null}
+          {txs.status === "error" ? <ErrorState title={CHAT_STRINGS.cannotLoadCharges[lang]} message={txs.error.message} /> : null}
+          {txs.status === "ok" && txs.data.length === 0 ? <p className="text-sm text-muted-foreground">{CHAT_STRINGS.noCharges[lang]}</p> : null}
           {txs.status === "ok" && txs.data.length > 0 ? <ChargeChips txs={txs.data} lang={lang} disabled={disabled} chosen={chosen} onChoose={onChoose} onSend={onSend} /> : null}
         </CardContent>
       </Card>
-      {mode === "live" ? <TestCharge /> : null}
-      <Personas chosen={chosen} disabled={disabled} onDraft={onDraft} />
+      {mode === "live" ? <TestCharge lang={lang} /> : null}
+      <Personas lang={lang} chosen={chosen} disabled={disabled} onDraft={onDraft} />
     </div>
   );
 }
@@ -87,7 +88,7 @@ function ChargeChips({
             }}
             className="h-auto whitespace-normal py-1 text-left aria-pressed:border-foreground"
           >
-            {chipLabel(tx)}
+            {chipLabel(tx, CHAT_STRINGS.testChargeTag[lang])}
             {several && tx.last4 ? ` · ····${tx.last4}` : ""}
           </Button>
         </li>
@@ -97,7 +98,7 @@ function ChargeChips({
 }
 
 /** Demo type C: a charge the visitor makes up, so the agent has something recent to dispute. Always called a test charge. */
-function TestCharge() {
+function TestCharge({ lang }: { lang: Language }) {
   const [amount, setAmount] = useState("");
   const [merchant, setMerchant] = useState("");
   const [busy, setBusy] = useState(false);
@@ -115,13 +116,13 @@ function TestCharge() {
     setDone(null);
     try {
       const charge = await api.registerTestCharge(parsed, merchant.trim());
-      setDone(`Test charge registered: ${charge.amount.toFixed(2)} ${charge.currency} at ${charge.merchant}.`);
+      setDone(CHAT_STRINGS.registered[lang](charge.amount.toFixed(2), charge.currency, charge.merchant ?? ""));
       setAmount("");
       setMerchant("");
     } catch (err) {
       if (err instanceof ApiError && err.status === 403) setHidden(true);
-      else if (err instanceof ApiError && err.status === 429) setError("One test charge per minute (three per session).");
-      else setError(err instanceof ApiError ? err.message : "unexpected error"); // a 422 shows the api's message
+      else if (err instanceof ApiError && err.status === 429) setError(CHAT_STRINGS.rateLimited[lang]);
+      else setError(err instanceof ApiError ? err.message : CHAT_STRINGS.unexpectedError[lang]); // a 422 shows the api's message
     } finally {
       setBusy(false);
     }
@@ -130,20 +131,20 @@ function TestCharge() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-sm">Register a test charge</CardTitle>
-        <CardDescription>Amount in your customer&apos;s currency and a store name. It shows first in the list above.</CardDescription>
+        <CardTitle className="text-sm">{CHAT_STRINGS.testTitle[lang]}</CardTitle>
+        <CardDescription>{CHAT_STRINGS.testDescription[lang]}</CardDescription>
       </CardHeader>
       <CardContent>
         <form onSubmit={submit} className="space-y-2">
           <div className="flex flex-wrap gap-2">
-            <Input value={amount} onChange={(e) => setAmount(e.target.value)} inputMode="decimal" placeholder="Amount, e.g. 1250.50" aria-label="Test charge amount" className="w-40" required />
-            <Input value={merchant} onChange={(e) => setMerchant(e.target.value)} maxLength={60} placeholder="Store name" aria-label="Test charge merchant" className="min-w-40 flex-1" required />
+            <Input value={amount} onChange={(e) => setAmount(e.target.value)} inputMode="decimal" placeholder={CHAT_STRINGS.amountPlaceholder[lang]} aria-label={CHAT_STRINGS.amountLabel[lang]} className="w-40" required />
+            <Input value={merchant} onChange={(e) => setMerchant(e.target.value)} maxLength={60} placeholder={CHAT_STRINGS.merchantPlaceholder[lang]} aria-label={CHAT_STRINGS.merchantLabel[lang]} className="min-w-40 flex-1" required />
           </div>
           <Button type="submit" size="sm" disabled={busy || parsed === null || !merchant.trim()}>
-            Register
+            {CHAT_STRINGS.register[lang]}
           </Button>
           {done ? <p role="status" className="text-xs text-muted-foreground">{done}</p> : null}
-          {error ? <ErrorState title="Not registered" message={error} /> : null}
+          {error ? <ErrorState title={CHAT_STRINGS.notRegistered[lang]} message={error} /> : null}
         </form>
       </CardContent>
     </Card>
@@ -151,7 +152,7 @@ function TestCharge() {
 }
 
 /** Demo type D: the answer goes into the composer as an editable draft, labeled by where it came from. */
-function Personas({ chosen, disabled, onDraft }: { chosen: string | null; disabled: boolean; onDraft: (draft: PersonaDraft) => void }) {
+function Personas({ lang, chosen, disabled, onDraft }: { lang: Language; chosen: string | null; disabled: boolean; onDraft: (draft: PersonaDraft) => void }) {
   const [busy, setBusy] = useState<PersonaCharacter | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -161,7 +162,7 @@ function Personas({ chosen, disabled, onDraft }: { chosen: string | null; disabl
     try {
       onDraft(await api.suggestPersona(character, chosen ?? undefined));
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : "unexpected error");
+      setError(e instanceof ApiError ? e.message : CHAT_STRINGS.unexpectedError[lang]);
     } finally {
       setBusy(null);
     }
@@ -170,20 +171,20 @@ function Personas({ chosen, disabled, onDraft }: { chosen: string | null; disabl
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-sm">Try a type of customer</CardTitle>
-        <CardDescription>Suggests a first message in that character&apos;s voice. You edit it and send it yourself.</CardDescription>
+        <CardTitle className="text-sm">{CHAT_STRINGS.personasTitle[lang]}</CardTitle>
+        <CardDescription>{CHAT_STRINGS.personasDescription[lang]}</CardDescription>
       </CardHeader>
       <CardContent className="space-y-2">
         <ul className="flex flex-wrap gap-2">
           {PERSONAS.map((p) => (
             <li key={p.id}>
               <Button size="xs" variant="outline" disabled={disabled || busy !== null} onClick={() => pick(p.id)}>
-                {busy === p.id ? "…" : p.label}
+                {busy === p.id ? "…" : CHAT_STRINGS.personas[p.id][lang]}
               </Button>
             </li>
           ))}
         </ul>
-        {error ? <ErrorState title="No suggestion" message={error} /> : null}
+        {error ? <ErrorState title={CHAT_STRINGS.noSuggestion[lang]} message={error} /> : null}
       </CardContent>
     </Card>
   );

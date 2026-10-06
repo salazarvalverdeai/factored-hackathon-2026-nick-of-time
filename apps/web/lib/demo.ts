@@ -72,8 +72,8 @@ export function chipMessage(tx: RecentTransaction, lang: Language, multipleCards
 }
 
 /** The chip's visible label: short; a test charge says so in plain words, never a bracket label (spec 07 AC-14). */
-export function chipLabel(tx: RecentTransaction): string {
-  return `${tx.date} · ${tx.amount.toFixed(2)} ${tx.currency}${tx.merchant ? ` · ${tx.merchant}` : ""}${tx.synthetic ? " · test charge" : ""}`;
+export function chipLabel(tx: RecentTransaction, testTag = "test charge"): string {
+  return `${tx.date} · ${tx.amount.toFixed(2)} ${tx.currency}${tx.merchant ? ` · ${tx.merchant}` : ""}${tx.synthetic ? ` · ${testTag}` : ""}`;
 }
 
 /** Does the customer have more than one card among these charges? */
