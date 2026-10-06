@@ -22,6 +22,8 @@ from jsonschema import ValidationError, validate
 LADDER = ("tool", "any", "auto")
 DEFAULT_TOOL = "record_output"
 TOOL_DESCRIPTION = "Record the output."   # the one tool description every provider sends (D-011)
+TRANSCRIBE_PROMPT = ("Transcribe this audio word for word, in the language spoken (Spanish or Portuguese). Do not "
+                     "translate, answer or comment: reply with the transcript only.")
 
 
 class LLMError(RuntimeError):
@@ -139,6 +141,30 @@ class LLMClient:
                     self._check_tool_input(result, schema)
                 return result
         raise ToolChoiceUnsupported("; ".join(rejected))
+
+    def _transcribe(self, audio: bytes, fmt: str, prompt: str, max_tokens: int,
+                    temperature: float | None) -> dict[str, Any]:
+        """Speech to text (D-072): the same raw dict as `_call`. Providers without audio input raise
+        ProviderUnavailable, so the voice route answers 'type instead'."""
+        raise ProviderUnavailable(f"{self.provider} has no audio input")
+
+    def transcribe(self, audio: bytes, fmt: str, *, max_tokens: int = 400) -> LLMResult:
+        """The transcript of a short clip (`fmt` is a Bedrock AudioBlock format: webm, ogg, wav). Same temperature
+        rule as `complete` (0 first, provider default if rejected); the audio is never kept by the client."""
+        t0 = time.perf_counter()
+        while True:
+            try:
+                raw = self._transcribe(audio, fmt, TRANSCRIBE_PROMPT, max_tokens, self.temperature)
+                break
+            except TemperatureUnsupported:
+                if self.temperature is None:
+                    raise
+                self.temperature = None
+        return LLMResult(text=raw["text"].strip(), tool_input=None, stop_reason=raw["stop_reason"],
+                         tokens_in=raw["tokens_in"], tokens_out=raw["tokens_out"],
+                         cost_usd=cost_usd(self.prices, raw["tokens_in"], raw["tokens_out"]), provider=self.provider,
+                         model=self.model, mode=None, temperature=self.temperature,
+                         latency_ms=round((time.perf_counter() - t0) * 1000))
 
     def stream(self, system: str, user: str, on_text, *, max_tokens: int = 512) -> LLMResult:
         """Free text, handed to `on_text` in pieces as the provider writes it (spec 04 §4.6 writer, ADR 0030); returns
