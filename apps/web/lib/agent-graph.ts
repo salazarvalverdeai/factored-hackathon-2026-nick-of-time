@@ -3,6 +3,7 @@
 // time, so the page needs no layout library. This file only joins them with the one-liners of lib/agent.ts.
 import { AGENT_REFERENCE } from "./agent-reference.ts";
 import { NODE_INFO, type GraphNode } from "./agent.ts";
+import { highlightOf, revealSchedule, type Highlight } from "./agent-motion.ts";
 
 const { graph } = AGENT_REFERENCE;
 
@@ -67,4 +68,15 @@ export function linksOf(id: string): { out: GraphEdge[]; in: GraphEdge[] } {
 export function ariaLabelOf(id: string): string {
   const out = linksOf(id).out.map((e) => (e.label ? `${e.to} when ${e.label}` : e.to));
   return `${id}: ${infoOf(id)}${out.length ? ` Next: ${out.join("; ")}.` : ""}`;
+}
+
+/** The drawing's reveal (lib/agent-motion.ts): nodes in topological order, each edge after its source, labels last. */
+export const GRAPH_REVEAL = revealSchedule(
+  GRAPH_VIEW.nodes.map((n) => n.id),
+  GRAPH_VIEW.edges,
+);
+
+/** What a run highlights on the drawing: the node it is on and the path it took (graph-view's activeNode and path). */
+export function graphHighlight(activeNode?: string | null, path?: readonly string[] | null): Highlight {
+  return highlightOf({ activeNode, path }, GRAPH_VIEW.nodes.map((n) => n.id), GRAPH_VIEW.edges);
 }
