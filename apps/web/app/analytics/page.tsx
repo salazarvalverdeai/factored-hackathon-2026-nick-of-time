@@ -1,4 +1,6 @@
 import { PageShell } from "@/components/page-shell";
+import { PipelineDiagram } from "@/components/pipeline-diagram";
+import { ANALYTICS_STEPS } from "@/lib/pipelines";
 import pitch from "@/public/data/pitch_numbers.json";
 import { PitchCharts, type PitchNumbers } from "./charts";
 
@@ -14,6 +16,12 @@ export default function Page() {
       <p className="mt-4 font-mono text-xs text-muted-foreground">
         {pitch.source} · generated {pitch.generated_at.slice(0, 10)} at {pitch.git_sha}
       </p>
+      {/* spec 12: where the problem numbers come from. A block of its own at the end of the page. */}
+      <section aria-label="How it's built" className="mt-4 rounded-lg border bg-card p-5 text-card-foreground">
+        <h2 className="text-base font-semibold">How it&apos;s built</h2>
+        <p className="mt-0.5 mb-4 text-sm text-muted-foreground">Where the problem numbers above come from: every figure is a committed query output, never typed.</p>
+        <PipelineDiagram label="How the problem numbers are built" steps={ANALYTICS_STEPS} />
+      </section>
     </PageShell>
   );
 }

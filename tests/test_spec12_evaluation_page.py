@@ -29,7 +29,8 @@ def test_ac_05_development_notice_has_node_tests_including_a_missing_protocol():
     """AC-05: the notice shows unless the run is the sealed held-out; a missing protocol counts as unsealed."""
     titles = _titles_citing("AC-05")
     assert len(titles) >= 2 and any("without a protocol" in t for t in titles)
-    assert "protocol?.status" in LIB_TS and "development-notice" in RESULTS_TSX
+    page = (WEB / "app/evaluation/page.tsx").read_text(encoding="utf-8")
+    assert "protocol?.status" in LIB_TS and "development-notice" in page and "<DevChip" in RESULTS_TSX
 
 
 def test_ac_06_rates_show_numerator_denominator_and_interval():

@@ -3,7 +3,7 @@
 // /evaluation content for evaluation_summary.json (spec 12 §7.3, parts 1 to 4). Nothing is computed here: every
 // number is the harness's. Every rate shows its numerator, denominator and interval on hover, on keyboard focus and
 // in the table view (AC-06, AC-07).
-import { Explain, IntervalBar } from "./explain";
+import { DevChip, Explain, IntervalBar } from "./explain";
 import { FOCUS, Swatch, TableView, TipBody, useTip } from "@/app/analytics/charts";
 import {
   METRICS,
@@ -215,14 +215,12 @@ function Breakdown({ arms }: { arms: EvaluationArm[] }) {
 
 export function EvaluationResults({ file }: { file: Insight<EvaluationData> }) {
   const data = file.data;
-  const notice = developmentNotice(data);
   return (
     <div className={`space-y-4 ${PALETTE}`}>
-      {notice ? (
-        <p role="note" data-slot="development-notice" className="rounded-lg border border-border bg-muted px-4 py-3 text-sm font-medium text-foreground">
-          {notice}
-        </p>
-      ) : null}
+      <h2 className="text-base font-semibold">
+        Agent evaluation <span className="font-mono text-xs font-normal text-muted-foreground">{data.label}</span>
+        <DevChip show={developmentNotice(data) !== null} />
+      </h2>
       <RunHeader data={data} />
       {data.arms.map((arm, i) => (
         <Headline key={arm.arm} arm={arm} index={i} />

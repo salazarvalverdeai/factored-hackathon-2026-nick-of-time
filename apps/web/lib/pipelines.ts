@@ -93,6 +93,56 @@ export const OPS_STEPS: PipelineStep[] = [
     detail: { method: "Daily KPIs by mode, and the analyst's decision per case as a label. Evaluation runs are left out.", source: "data/ops/gold.py → ops_kpis.json", label: "[simulated]", spec: repoUrl(SPEC14, "73-gold--dataopsgold") } },
 ];
 
+const SPEC10 = "specs/10-eval-harness.md";
+const SIM = "[simulated]" as const;
+/** spec 12 AC-11: how an /evaluation figure is made, each step's panel linked to its spec section. */
+export const EVALUATION_STEPS: PipelineStep[] = [
+  { title: "Case files", tone: "source", lines: ["Scripted cases (spec 09); the held-out file's hash is sealed before the run."],
+    tip: [["Files", "eval/cases/dev.jsonl, heldout.jsonl"], ["Hash", "eval/heldout.sha256"]],
+    detail: { method: "Each case holds the customer's scripted messages and the expected outcome derived by the policy engine. The held-out file's sha256 is written into the protocol before it runs, so it cannot change after.", source: "eval/cases/heldout.jsonl · eval/heldout.sha256", label: SIM, spec: repoUrl("specs/09-demo-eval-data.md", "77-seal") } },
+  { title: "Seed", tone: "layer", lines: ["Each run starts a replay session with the case's customer and card."],
+    tip: [["Call", "POST /api/eval/seed"], ["Mode", "replay only"]],
+    detail: { method: "The harness asks the api to seed a session with the case's customer and state. A session that is not in replay mode stops the run.", source: "eval/harness/client.py", label: SIM, spec: repoUrl(SPEC10, "4-functional-requirements") } },
+  { title: "Graph turns", tone: "layer", lines: ["Each scripted message is one turn of the real agent."],
+    tip: [["Runs", "4 per case and arm"], ["Customer side", "scripted, no simulated user"]],
+    detail: { method: "Each scripted message is sent as one turn of the deployed graph; a scripted chip press sends the chip's action. There is no simulated user.", source: "eval/harness/client.py", label: SIM, spec: repoUrl("specs/01-integration-contract.md", "64-graph-io-appsagent-langgraph-platform") } },
+  { title: "FinalState", tone: "layer", lines: ["The system's state after the last turn, never the reply text."],
+    tip: [["Call", "GET /api/eval/final-state"], ["Holds", "decision, card, case, receipt"]],
+    detail: { method: "After the last turn the harness reads the system's state back: decision, card status, case, receipt and notifications. The reply text is never scored.", source: "GET /api/eval/final-state", label: SIM, spec: repoUrl(SPEC10, "6-api-contract-io") } },
+  { title: "Compare with expected", tone: "layer", lines: ["Field by field, plus audit checks A5 and A6."],
+    tip: [["A5", "status told = status read"], ["A6", "no other customer's data"]],
+    detail: { method: "A run passes when every expected field matches. The auditor's A5 (coherence) and A6 (privacy) checks run on the same state; A6 counts as unsafe.", source: "eval/harness/compare.py", label: SIM, spec: repoUrl(SPEC10, "41-metric-definitions") } },
+  { title: "Metrics", tone: "layer", lines: ["Every rate with its count and a 95% Wilson interval."],
+    tip: [["Files", "runs.jsonl, summary.csv, meta.json"], ["Small cells", "fewer than 5 cases flagged"]],
+    detail: { method: "Each rate keeps its numerator and denominator with a 95% Wilson interval, per arm and per language, type and segment.", source: "eval/harness/metrics.py", label: SIM, spec: repoUrl(SPEC10, "71-run-output--out") } },
+  { title: "evaluation_summary.json", tone: "output", lines: ["The one file this page reads for the agent."],
+    tip: [["Written by", "the harness, on the held-out run"], ["Envelope", "generated_at, git_sha, source"]],
+    detail: { method: "The harness writes the summary the page reads, with the case-file hash and the protocol status.", source: "eval/harness/report.py", label: SIM, spec: repoUrl(SPEC10, "72-appswebpublicdataevaluation_summaryjson") } },
+  { title: "This page", tone: "output", lines: ["Displays the file; it computes nothing."],
+    tip: [["Shows", "rates, intervals, n per cell"], ["Not sealed", "marked development run"]],
+    detail: { method: "The page reads the file when it is built and only displays it. A file that is not the sealed held-out is marked as a development run.", source: "apps/web/app/evaluation/page.tsx", label: SIM, spec: repoUrl("specs/12-insight-pages.md", "73-what-each-page-shows") } },
+];
+
+export const EVALUATION_OTHER_FILES =
+  "The other three files come from their own commands under the same protocol: classifier.json from eval/classifier (spec 11), benchmark.json from eval/bench (spec 15) and fraud_benchmark.json from scripts/ml/fraud_report.py (spec 17).";
+
+const PITCH = repoUrl("queries/README.md", "pitch-verification-of-the-pitch-numbers");
+/** Where the problem numbers of /analytics come from. */
+export const ANALYTICS_STEPS: PipelineStep[] = [
+  { title: "Full dataset", tone: "source", lines: ["The bank's complaints, contacts and transactions, every month."],
+    tip: [["Why not gold", "gold keeps 12 months"], ["Views", "the EDA's cleaned tables"]],
+    detail: { method: "The problem numbers need every month of the dataset, so they run on the EDA's cleaned views of the full dataset, not on the 12-month gold.", source: "docs/eda/queries/", label: "[data]", spec: PITCH } },
+  { title: "queries/pitch/*.sql", tone: "layer", lines: ["One query per number, its CSV output committed beside it."],
+    tip: [["Queries", "p01 to p08"], ["Output", "pNN_*.csv"]],
+    detail: { method: "One versioned query per number; its output is committed as a CSV next to it.", source: "queries/pitch/pNN_*.sql", label: "[data]", spec: PITCH } },
+  { title: "pitch_numbers.json", tone: "output", lines: ["Built from the CSVs only; a test fails if it drifts."],
+    tip: [["Written by", "queries/pitch/export_web.py"], ["Drift test", "tests/test_spec12_pitch_numbers.py"]],
+    detail: { method: "A script reads only the committed CSVs and writes the file the page reads. A test rebuilds it and fails if it differs.", source: "queries/pitch/export_web.py", label: "[data]", spec: repoUrl("specs/12-insight-pages.md", "71-files-each-page-reads") } },
+  { title: "Charts", tone: "output", lines: ["The charts above display the file; they compute nothing."],
+    tip: [["Detail", "on hover and on Tab"], ["Table", "under each chart"]],
+    detail: { method: "The charts display the file. Every value shows its detail on hover and on keyboard focus, with a table view.", source: "apps/web/app/analytics/charts.tsx", label: "[data]", spec: repoUrl("specs/12-insight-pages.md", "73-what-each-page-shows") } },
+];
+
 /** The "Detail →" of each /data card. */
 export const DATA_CARDS = {
   medallion: { method: "The diagram reads the layer counts written by the last pipeline run; the page computes nothing.", source: RUN, label: "[data]", spec: repoUrl("docs/adr/0004-medallion-pipeline-on-duckdb.md") },

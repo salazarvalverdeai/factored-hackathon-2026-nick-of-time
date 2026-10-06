@@ -100,9 +100,14 @@ denominator: the committed output of `queries/data/d01_complaint_transaction_lin
   of headline figures per arm: safe automated resolution, unsafe outcomes, pass^4, p95 latency, cost per case;
   (3) S0 against S1 against S2 on each metric of spec 10 §4.1, with intervals; (4) the breakdown by language × type ×
   segment as a table with n, small cells flagged; (5) the benchmark cost-quality chart; (6) the classifier table per
-  arm and language; (7) the fraud model against the bank's score.
+  arm and language; (7) the fraud model against the bank's score; (8) "How it's built": the harness flow drawn with the shared
+  diagram (case files, seed, graph turns, FinalState, compare with A5/A6, Wilson metrics, `evaluation_summary.json`,
+  the page), each step with its "Detail" link, and one line on who writes the other three files. The development
+  notice of AC-05 is said once at the top, naming each development-run file; each of their sections carries a
+  "development run" chip beside its title.
 - **`/analytics`** — the four charts of PR #72 (share of complaints, complaint contacts against the bank, precision
-  and recall by score threshold, labeled frauds by zone) and, when spec 14 delivers, the operational KPIs per day.
+  and recall by score threshold, labeled frauds by zone) and, when spec 14 delivers, the operational KPIs per day; at the end, "How it's built":
+  full dataset → `queries/pitch/*.sql` → `pitch_numbers.json` → charts, with the same diagram.
 - **`/data`** — the medallion drawn as a flow (source CSV files → bronze → silver → gold → what reads gold), each
   layer focusable with its tables and rows in a tooltip and a table view; the gold rules, the checks with counts, the
   manifest versions and the late-arrival result; the operational lakehouse of spec 14 ("Pending" until
@@ -148,6 +153,9 @@ Implementation goes in `feat/12-…` branches once this spec is approved.
       "Detail →" opening the shared side panel (method, source, label, spec), the operational lakehouse card and the
       dataset limitations · covers AC-03, AC-07, AC-09, AC-11 ·
       [T] `apps/web/lib/pipelines.test.ts`, `tests/test_spec12_data_quality.py`
+- [x] T11 — "How it's built" on `/evaluation` and `/analytics`; one development notice per page with a chip per
+      section; classifier table split (F1 per intent apart) with a scroll shadow · covers AC-05, AC-09, AC-11 · [T]
+      `apps/web/lib/pipelines.test.ts`, `apps/web/lib/evaluation.test.ts`
 - [ ] T6 — operational KPIs on `/analytics` · covers AC-02 · needs spec 14
 - [ ] T7 — screenshots on the public URL, both themes and 390 px · covers AC-01, AC-03, AC-09 (2026-10-05:
       `docs/assets/screenshots/spec12/` by `scripts/web/insight_screenshots.py` — the three pages at 1280 and 390 px in

@@ -3,11 +3,11 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import { REPO_BLOB } from "./evaluation.ts";
-import { DATA_CARDS, GOLD_CONSUMERS, OPS_STEPS, datasetLimits, medallionSteps, type Detail, type PipelineStep } from "./pipelines.ts";
+import { ANALYTICS_STEPS, DATA_CARDS, EVALUATION_OTHER_FILES, EVALUATION_STEPS, GOLD_CONSUMERS, OPS_STEPS, datasetLimits, medallionSteps, type Detail, type PipelineStep } from "./pipelines.ts";
 
 const read = (f: string) => readFileSync(new URL(`../${f}`, import.meta.url), "utf-8");
 const QUALITY = JSON.parse(read("public/data/data_quality.json"));
-const ALL: PipelineStep[] = [...medallionSteps(QUALITY.data), ...GOLD_CONSUMERS, ...OPS_STEPS];
+const ALL: PipelineStep[] = [...medallionSteps(QUALITY.data), ...GOLD_CONSUMERS, ...OPS_STEPS, ...EVALUATION_STEPS, ...ANALYTICS_STEPS];
 const LABEL = /\[(data|external|assumption|simulated|projected)\]/;
 
 test("spec 12 AC-03: the medallion shows source, bronze, silver and gold with the real tables and rows of data_quality.json", () => {
@@ -78,4 +78,20 @@ test("spec 12 AC-03, AC-11: every Detail of /data and of the diagrams opens a pa
   assert.match(read("components/pipeline-diagram.tsx"), /<DetailButton title=\{step\.title\} detail=\{step\.detail\}/);
   const page = read("app/data/page.tsx");
   assert.equal((page.match(/detail=\{DATA_CARDS\.\w+\}/g) ?? []).length, Object.keys(DATA_CARDS).length);
+});
+
+test("spec 12 AC-11: /evaluation and /analytics say how their figures are built with the same diagram, each step's panel linked to its spec", () => {
+  assert.deepEqual(EVALUATION_STEPS.map((s) => s.title), [
+    "Case files", "Seed", "Graph turns", "FinalState", "Compare with expected", "Metrics", "evaluation_summary.json", "This page",
+  ]);
+  assert.match(EVALUATION_STEPS[0].detail.spec, /09-demo-eval-data\.md#77-seal$/);
+  assert.match(EVALUATION_STEPS[4].lines[0], /A5 and A6/);
+  assert.match(EVALUATION_STEPS[5].lines[0], /Wilson/);
+  for (const file of ["classifier.json", "benchmark.json", "fraud_benchmark.json"]) assert.ok(EVALUATION_OTHER_FILES.includes(file));
+  assert.deepEqual(ANALYTICS_STEPS.map((s) => s.title), ["Full dataset", "queries/pitch/*.sql", "pitch_numbers.json", "Charts"]);
+  const evaluation = read("app/evaluation/page.tsx"), analytics = read("app/analytics/page.tsx");
+  assert.match(evaluation, /<PipelineDiagram label="How the agent evaluation is built" steps=\{EVALUATION_STEPS\}/);
+  assert.match(evaluation, /href="\/agent"/); // the architecture lives on /agent, not here
+  const end = analytics.slice(analytics.indexOf("{pitch.git_sha}")); // the new block sits after the page's last line
+  assert.match(end, /<PipelineDiagram label="How the problem numbers are built" steps=\{ANALYTICS_STEPS\}/);
 });
