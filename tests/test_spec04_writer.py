@@ -305,6 +305,13 @@ def test_ac_37_the_prompt_asks_for_whole_blocks_no_markdown_and_carries_es_and_p
     assert "Tu caso K-000001" in wording.SYSTEM and "Seu caso K-000001" in wording.SYSTEM
 
 
+def test_ac_37_d_086_the_prompt_sets_tu_in_every_spanish_country_and_voce_in_portuguese():
+    """D-086 (lead, 2026-10-06): one register per language, whatever the customer's country."""
+    prompt = wording.SYSTEM
+    assert "with tú in every country, MX, CO and AR alike, never vos or usted" in prompt
+    assert "Brazilian Portuguese with você" in prompt
+
+
 def test_ac_37_on_the_graph_the_cards_spare_the_text_the_verification_ids_and_the_writer_sees_them_named():
     def concise(payload):
         out = []

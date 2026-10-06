@@ -303,7 +303,8 @@ It receives the turn's facts as delimited data (never `policies.yaml`, never the
 the reply text and the chip choice. Notifications (Telegram, e-mail) stay templates.
 
 Style (ES and PT, the session language; `docs/brand/BRAND.md` voice: calm and precise):
-- warm, second person (`tú` / `você`), the customer's first name from `get_customer_profile`;
+- warm, second person (`tú` / `você`), the customer's first name from `get_customer_profile`; Spanish uses `tú` in
+  every country (MX, CO, AR: no voseo, no `usted`) and Portuguese uses `você` (D-086, lead, 2026-10-06);
 - 2–3 short sentences; a list only for a plan or options; one question at a time;
 - say what happened, what happens next and when (the deadline and its source come as a card, the text names it);
 - an action is told only in its state: in progress, requested, verified or not confirmed (constitution #4);
