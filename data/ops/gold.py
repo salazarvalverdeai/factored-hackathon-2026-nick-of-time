@@ -54,10 +54,13 @@ def _rate(num: str, den: str, name: str) -> list[pl.Expr]:
             pl.when(pl.col(den) > 0).then(pl.col(num) / pl.col(den)).alias(name)]
 
 
-def ops_kpis(silver: dict[str, pl.DataFrame], scope: pl.Expr = OPERATION) -> pl.DataFrame:
-    """One row per day × mode over the cases, calls and denials whose `run_id` is in `scope` (operation by default)."""
+def ops_kpis(silver: dict[str, pl.DataFrame], scope: pl.Expr = OPERATION, by: str = "mode") -> pl.DataFrame:
+    """One row per day × `by` (the mode by default) over the cases, calls and denials whose `run_id` is in `scope`
+    (operation by default). The lifecycle check (A7) always runs per mode and run, whatever `by` groups."""
     cases = silver["cases"].filter(scope)
     unsafe = unsafe_cases(cases, silver["case_events"])
+    if by != "mode":                                                # the Live series: one group across both modes
+        cases = cases.drop("mode").rename({by: "mode"})
     day = cases.select("case_id", pl.col("opened_on").alias("day"), "mode")
     calls = silver["llm_calls"].filter(scope).join(day, on="case_id")
     denials = silver["policy_denials"].filter(scope).join(day, on="case_id")

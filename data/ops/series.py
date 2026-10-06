@@ -1,6 +1,7 @@
 """The three series of ops_kpis.json (spec 14 §7.4 and §11): Bank today `[data]`, With Nick of Time `[simulated]` and
-Live, over 2026-01..2026-05, per month and a 5-month total. Live (T5, `live`) is the public app's live-mode traffic
-per day since its first case, read from Postgres by `make ops-live`; pending while there is none.
+Live, over 2026-01..2026-05, per month and a 5-month total. Live (T5, key `live`, named "Public demo traffic") is
+the deployed app's public demo traffic in both modes, per day since its first case, read from Postgres by
+`make ops-live`; pending while there is none (the lead's reading of 2026-10-06, spec 14 §8).
 
 Only two pairs are side by side (`COMPARE`): the lead's goal metric, the bank's FCR against the system's complete
 intake at first contact (spec 10 §4.1 `complete_intake_rate`), which measure different things and say so; and the
@@ -19,6 +20,7 @@ import duckdb
 import polars as pl
 
 from data.ops import gold
+from nick_of_time.policy.clock import DEMO_TODAY
 
 ROOT = Path(__file__).resolve().parents[2]
 ASIS_SQL = ROOT / "queries" / "ops" / "asis_monthly.sql"
@@ -26,8 +28,10 @@ FCR_CSV = ROOT / "queries" / "pitch" / "p02_fcr_complaint_vs_bank.csv"
 WINDOW = ["2026-01", "2026-05"]
 COMPARE = [{"bank_today": "first_contact_resolution", "replay": "complete_intake"},
            {"bank_today": "days_to_receipt", "replay": "days_to_receipt"}]
-LIVE = {"key": "live", "name": "Live", "status": "pending", "message": "Pending: no live traffic yet",
-        "reason": "spec 14 T5 (the Postgres source) has not run on live traffic"}
+LIVE = {"key": "live", "name": "Public demo traffic", "status": "pending",
+        "message": "Pending: no public demo traffic yet",
+        "reason": "spec 14 T5 (the Postgres source) has not run on the deployed app's demo traffic"}
+MODES = ("live", "replay")
 
 
 def rate(num: int, den: int, **extra: Any) -> dict[str, Any]:
@@ -152,46 +156,73 @@ def build(tables: dict[str, pl.DataFrame], contacts: Optional[pl.DataFrame], asi
             "bank_today": None if asis_frame is None else bank_today(asis_frame), "replay": sim, "live": LIVE}
 
 
+def _mode_row(r: Optional[dict[str, Any]], cases: pl.DataFrame) -> dict[str, Any]:
+    """One mode of the Live total: its cases, rates and unsafe outcomes over the window (zeros when it has none)."""
+    if r is None:
+        empty = {"value": None, "numerator": 0, "denominator": 0}
+        return {"cases": 0, "receipt_rate": empty, "escalation_rate": empty, "automated_rate": empty,
+                "unsafe_outcomes": 0, "demo_sessions": 0, "synthetic_charges": 0}
+    return {"cases": r["cases"], "receipt_rate": gold.rate(r, "receipt_rate"),
+            "escalation_rate": gold.rate(r, "escalation_rate"), "automated_rate": gold.rate(r, "automated_rate"),
+            "unsafe_outcomes": r["unsafe_outcomes"], "demo_sessions": cases["run_id"].drop_nulls().n_unique(),
+            "synthetic_charges": int(cases["synthetic"].sum())}
+
+
 def live(silver: dict[str, pl.DataFrame], as_of: Optional[str]) -> dict[str, Any]:
-    """T5: the Live series from the silver rows of one Postgres snapshot. It counts mode `live` cases of operation
-    and of the public demo sessions (`demo-` runs, ADR 0026), never an evaluation run (AC-07), per day since the
-    first one, with the definitions of `ops_kpis`. Live-mode charges are synthetic (ADR 0020), so the series is
-    `[simulated]` demo traffic, not the bank's operation; `LIVE` (pending) while there is no such case. Counts and
-    rates only: no id, name or text (AC-08)."""
-    cases = silver["cases"].filter(gold.DEMO_TRAFFIC & (pl.col("mode") == "live"))
+    """T5: the Live series, "Public demo traffic", from the silver rows of one Postgres snapshot (the lead's reading
+    of 2026-10-06, spec 14 §8). It counts the cases of the public demo sessions (`demo-` runs, ADR 0026) and of
+    operation (`run_id` null) in both modes, never an evaluation run (AC-07), per day since the first one, with the
+    definitions of `ops_kpis` and a breakdown by mode. The day is the UTC date the case row was written: a
+    replay-mode case's own date is always the demo date (ADR 0020). Replay-mode demos run over the historical gold
+    state and live-mode charges are synthetic, so the series is `[simulated]` demo traffic, not the bank's operation;
+    `LIVE` (pending) while there is no such case. Counts and rates only: no id, name or text (AC-08)."""
+    cases = silver["cases"].filter(gold.DEMO_TRAFFIC)
     if cases.height == 0:
         return LIVE
-    scoped = {**silver, "cases": cases}
-    first, last = cases["opened_on"].min(), cases["opened_on"].max()
-    kpis = gold.ops_kpis(scoped, gold.DEMO_TRAFFIC)
+    dated = cases.with_columns(pl.col("created_at").dt.date().alias("opened_on"), pl.lit("public").alias("_all"))
+    first, last = dated["opened_on"].min(), dated["opened_on"].max()
+    scoped = {**silver, "cases": dated}
+    kpis = gold.ops_kpis(scoped, gold.DEMO_TRAFFIC, by="_all")
     # the whole window as one day: the same definitions, and the p95 over every call of the window
-    total = gold.ops_kpis({**scoped, "cases": cases.with_columns(pl.lit(first).alias("opened_on"))},
-                          gold.DEMO_TRAFFIC).row(0, named=True)
+    window = {**silver, "cases": dated.with_columns(pl.lit(first).alias("opened_on"))}
+    total = gold.ops_kpis(window, gold.DEMO_TRAFFIC, by="_all").row(0, named=True)
+    per_mode = {r["mode"]: r for r in gold.ops_kpis(window, gold.DEMO_TRAFFIC).iter_rows(named=True)}
+    daily = {(r["opened_on"], r["mode"]): r["len"]
+             for r in dated.group_by("opened_on", "mode").len().iter_rows(named=True)}
     feedback = gold.feedback_cases(scoped, gold.DEMO_TRAFFIC)
     demo = cases["run_id"].drop_nulls()
-    return {"key": "live", "name": "Live", "status": "ready", "label": "[simulated]",
-            "message": f"Live demo traffic on the public app since {first.isoformat()}",
-            "reason": "Visitors of the public app in live mode, whose charges are synthetic (ADR 0020): every figure "
-                      "is [simulated], not the bank's operation. Evaluation runs are left out.",
-            "source": "make ops-live: the spec 14 job over one read-only Postgres snapshot (mode live, operation and "
-                      "demo sessions; evaluation runs left out)",
+    demo_date = DEMO_TODAY.isoformat()
+    return {"key": "live", "name": "Public demo traffic", "status": "ready", "label": "[simulated]",
+            "message": f"Public demo traffic on the deployed app since {first.isoformat()}",
+            "reason": f"Replay-mode demos run over the historical gold state with the fixed demo date {demo_date}, and "
+                      "live-mode charges are synthetic (ADR 0020), so every figure is [simulated], not the bank's "
+                      "operation. Evaluation runs never count.",
+            "source": "make ops-live: the spec 14 job over one read-only Postgres snapshot (public demo sessions and "
+                      "operation, both modes; evaluation runs left out)",
             "window": [first.isoformat(), last.isoformat()], "as_of": as_of,
-            "days": [{**gold.day_row(r), "automated_rate": gold.rate(r, "automated_rate")}
-                     for r in kpis.filter(pl.col("mode") == "live").iter_rows(named=True)],
+            "days": [{**gold.day_row(r), "automated_rate": gold.rate(r, "automated_rate"),
+                      "cases_by_mode": {m: daily.get((r["day"], m), 0) for m in MODES}}
+                     for r in kpis.iter_rows(named=True)],
             "total": {**gold.day_row(total), "day": "total", "automated_rate": gold.rate(total, "automated_rate"),
                       "cost_usd": total["cost_usd"], "demo_sessions": demo.n_unique(),
                       "cases_without_demo_session": cases.height - demo.len(),
-                      "synthetic_charges": int(cases["synthetic"].sum())},
+                      "synthetic_charges": int(cases["synthetic"].sum()),
+                      "by_mode": {m: _mode_row(per_mode.get(m), cases.filter(pl.col("mode") == m)) for m in MODES}},
             "feedback": {"decided": feedback.height, "agreed": int(feedback["agreed"].sum())},
             "notes": {
-                "cases": "Cases opened in live mode on the public app, by the day they opened: the public demo "
-                         "sessions (each isolated in its own run) and any production session. Evaluation runs never "
-                         "count. A handful of demo cases a day is an illustration, not a measurement.",
+                "cases": "Cases opened on the deployed app by its public demo sessions (each isolated in its own run) "
+                         "and by any production session, in both modes. Evaluation runs never count. A handful of "
+                         "demo cases a day is an illustration, not a measurement.",
+                "day": f"The UTC date the case was written. A replay-mode case's own date is always the demo date "
+                       f"{demo_date}, so it is not used.",
+                "by_mode": f"Replay mode runs over the dataset's historical state with the fixed demo date {demo_date}; "
+                           "live mode uses today's date and synthetic charges, which gold does not hold (ADR 0020).",
                 "receipt_rate": "Cases with a receipt that carries its legal deadline, over cases.",
                 "escalation_rate": "Cases handed to an analyst (a handoff), over cases. Charges with a medium or low "
                                    "bank score always go to a person, by design.",
                 "automated_rate": "Cases with a verified block and no handoff, over cases: the safe automated path.",
-                "unsafe_outcomes": "Cases with a critical lifecycle finding of the auditor (A7), checked per session.",
+                "unsafe_outcomes": "Cases with a critical lifecycle finding of the auditor (A7), checked per mode and "
+                                   "session.",
                 "cost_per_case": "Model cost of the calls reached through a case, over cases.",
                 "latency_p95_ms": "p95 of single model calls, not of a whole turn [assumption].",
                 "synthetic_charges": "Cases on a visitor's synthetic charge, which gold does not hold (ADR 0020).",

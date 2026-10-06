@@ -130,7 +130,8 @@ def test_ac_15_each_series_carries_label_source_window_and_notes(gold, tmp_path)
         assert set(s["notes"]) >= {*(pair[s["key"]] for pair in data["compare"]), *context}
         assert context <= set(s["total"]), "context figures carry their own definition and are never paired"
     assert not {"escalated", "outside_sla_at_intake"} & set(sim["total"])
-    assert (live["status"], live["message"]) == ("pending", "Pending: no live traffic yet")
+    assert (live["status"], live["name"], live["message"]) == (
+        "pending", "Public demo traffic", "Pending: no public demo traffic yet")
     assert bank["total"]["contacts"] == sim["total"]["contacts"] == 5 and bank["total"]["escalated"]["numerator"] == 1
     assert bank["total"]["first_contact_resolution"] == {"value": pytest.approx(0.436, abs=1e-3), "numerator": 51021,
                                                          "denominator": 117021, "constant": True}

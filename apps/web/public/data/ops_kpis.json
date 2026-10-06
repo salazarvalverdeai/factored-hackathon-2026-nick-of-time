@@ -3244,10 +3244,161 @@
       },
       "live": {
         "key": "live",
-        "name": "Live",
-        "status": "pending",
-        "message": "Pending: no live traffic yet",
-        "reason": "spec 14 T5 (the Postgres source) has not run on live traffic"
+        "name": "Public demo traffic",
+        "status": "ready",
+        "label": "[simulated]",
+        "message": "Public demo traffic on the deployed app since 2026-10-05",
+        "reason": "Replay-mode demos run over the historical gold state with the fixed demo date 2026-06-01, and live-mode charges are synthetic (ADR 0020), so every figure is [simulated], not the bank's operation. Evaluation runs never count.",
+        "source": "make ops-live: the spec 14 job over one read-only Postgres snapshot (public demo sessions and operation, both modes; evaluation runs left out)",
+        "window": [
+          "2026-10-05",
+          "2026-10-06"
+        ],
+        "as_of": "2026-10-06T03:56:00Z",
+        "days": [
+          {
+            "day": "2026-10-05",
+            "cases": 4,
+            "receipt_rate": {
+              "value": 0.0,
+              "numerator": 0,
+              "denominator": 4
+            },
+            "escalation_rate": {
+              "value": 0.0,
+              "numerator": 0,
+              "denominator": 4
+            },
+            "unsafe_outcomes": 0,
+            "cost_per_case": 0.0,
+            "latency_p95_ms": null,
+            "denials": 0,
+            "automated_rate": {
+              "value": 0.5,
+              "numerator": 2,
+              "denominator": 4
+            },
+            "cases_by_mode": {
+              "live": 0,
+              "replay": 4
+            }
+          },
+          {
+            "day": "2026-10-06",
+            "cases": 14,
+            "receipt_rate": {
+              "value": 1.0,
+              "numerator": 14,
+              "denominator": 14
+            },
+            "escalation_rate": {
+              "value": 1.0,
+              "numerator": 14,
+              "denominator": 14
+            },
+            "unsafe_outcomes": 0,
+            "cost_per_case": 0.0,
+            "latency_p95_ms": null,
+            "denials": 0,
+            "automated_rate": {
+              "value": 0.0,
+              "numerator": 0,
+              "denominator": 14
+            },
+            "cases_by_mode": {
+              "live": 1,
+              "replay": 13
+            }
+          }
+        ],
+        "total": {
+          "day": "total",
+          "cases": 18,
+          "receipt_rate": {
+            "value": 0.7777777777777778,
+            "numerator": 14,
+            "denominator": 18
+          },
+          "escalation_rate": {
+            "value": 0.7777777777777778,
+            "numerator": 14,
+            "denominator": 18
+          },
+          "unsafe_outcomes": 0,
+          "cost_per_case": 0.0,
+          "latency_p95_ms": null,
+          "denials": 0,
+          "automated_rate": {
+            "value": 0.1111111111111111,
+            "numerator": 2,
+            "denominator": 18
+          },
+          "cost_usd": 0.0,
+          "demo_sessions": 17,
+          "cases_without_demo_session": 1,
+          "synthetic_charges": 1,
+          "by_mode": {
+            "live": {
+              "cases": 1,
+              "receipt_rate": {
+                "value": 1.0,
+                "numerator": 1,
+                "denominator": 1
+              },
+              "escalation_rate": {
+                "value": 1.0,
+                "numerator": 1,
+                "denominator": 1
+              },
+              "automated_rate": {
+                "value": 0.0,
+                "numerator": 0,
+                "denominator": 1
+              },
+              "unsafe_outcomes": 0,
+              "demo_sessions": 1,
+              "synthetic_charges": 1
+            },
+            "replay": {
+              "cases": 17,
+              "receipt_rate": {
+                "value": 0.7647058823529411,
+                "numerator": 13,
+                "denominator": 17
+              },
+              "escalation_rate": {
+                "value": 0.7647058823529411,
+                "numerator": 13,
+                "denominator": 17
+              },
+              "automated_rate": {
+                "value": 0.11764705882352941,
+                "numerator": 2,
+                "denominator": 17
+              },
+              "unsafe_outcomes": 0,
+              "demo_sessions": 16,
+              "synthetic_charges": 0
+            }
+          }
+        },
+        "feedback": {
+          "decided": 3,
+          "agreed": 3
+        },
+        "notes": {
+          "cases": "Cases opened on the deployed app by its public demo sessions (each isolated in its own run) and by any production session, in both modes. Evaluation runs never count. A handful of demo cases a day is an illustration, not a measurement.",
+          "day": "The UTC date the case was written. A replay-mode case's own date is always the demo date 2026-06-01, so it is not used.",
+          "by_mode": "Replay mode runs over the dataset's historical state with the fixed demo date 2026-06-01; live mode uses today's date and synthetic charges, which gold does not hold (ADR 0020).",
+          "receipt_rate": "Cases with a receipt that carries its legal deadline, over cases.",
+          "escalation_rate": "Cases handed to an analyst (a handoff), over cases. Charges with a medium or low bank score always go to a person, by design.",
+          "automated_rate": "Cases with a verified block and no handoff, over cases: the safe automated path.",
+          "unsafe_outcomes": "Cases with a critical lifecycle finding of the auditor (A7), checked per mode and session.",
+          "cost_per_case": "Model cost of the calls reached through a case, over cases.",
+          "latency_p95_ms": "p95 of single model calls, not of a whole turn [assumption].",
+          "synthetic_charges": "Cases on a visitor's synthetic charge, which gold does not hold (ADR 0020).",
+          "feedback": "Cases an analyst decided, and how many kept the system's proposal; a synthetic charge is never a label."
+        }
       }
     }
   }
