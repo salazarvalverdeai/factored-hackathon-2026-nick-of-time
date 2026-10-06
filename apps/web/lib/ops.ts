@@ -129,7 +129,7 @@ export const daysText = (key: string, v: number | null) => (key === "days_to_rec
 
 /** The short intro of the Operation section (AC-09: two lines, the rest sits in the detail panel). */
 export const OPS_INTRO =
-  "Bank today is the bank's own unrecognized and wrongful charge complaints, January to May 2026. With Nick of Time is the same number of contacts a month, taken in by the system over real card charges with no language model.";
+  "Bank today: the bank's own unrecognized and wrongful charge complaints, January to May 2026; With Nick of Time: the same volume taken in by the system over real card charges, with no language model.";
 
 /** The panel behind the intro's "Detail →": the replay, the window, the two headline figures and the limitation. */
 export function introDetail(all: OpsSeries | undefined): Detail {

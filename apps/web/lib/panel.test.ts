@@ -53,8 +53,9 @@ test("spec 12 AC-10: the arm is the one running the benchmark's chosen model; ot
 test("spec 12 AC-10: the panel carries the three labels and no placeholder result file is committed", () => {
   const src = readFileSync(new URL("../app/evaluation/panel.tsx", import.meta.url), "utf-8");
   for (const label of ["[data]", "[simulated]", "[projected]"]) assert.ok(src.includes(label), label);
-  assert.match(src, /n = \{state\.n\} runs/);
+  assert.match(src, /n = \$\{state\.n\} runs/); // in the "Contacts avoided" detail panel
   assert.match(src, /upper-bound/);
+  assert.match(src, /"results pending"/); // AC-10: the WITH US figure reads "results pending", with no number
   assert.match(src, /full synthetic dataset/);
   assert.doesNotMatch(src, /\[data\] \{source\}/, "the source already carries its label");
   const summaryUrl = new URL("../public/data/evaluation_summary.json", import.meta.url);

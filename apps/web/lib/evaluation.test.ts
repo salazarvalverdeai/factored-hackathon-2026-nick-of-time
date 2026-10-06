@@ -215,6 +215,7 @@ test("spec 12 AC-11: limitations are plain sentences, with no bracket labels, on
   assert.match(all.join(" "), /run once/);
   assert.match(all.join(" "), /synthetic dataset/);
   assert.match(all.join(" "), /written by the team with AI assistance/);
+  for (const text of all) assert.ok(text.length <= 120, `one line per item: ${text}`); // the lead: one line per limitation
   assert.match(all.join(" "), /one model family per split/);
   assert.match(all.join(" "), /benchmark scores the models/);
   for (const text of all) assert.doesNotMatch(text, /\[(simulated|data|projected|assumption)\]/);
@@ -243,8 +244,11 @@ test("spec 12 AC-04, AC-05, AC-06, AC-07, AC-11: the new charts keep the empty s
   assert.equal((sections.match(/detail="(benchmark|classifier|fraud)"/g) ?? []).length, 3); // AC-11
   assert.match(results, /detail="harness"/);
   assert.match(page, /href="\/agent"/); // the architecture lives on /agent
-  const intro = page.slice(page.indexOf('<p className="mb-4'), page.indexOf('<div className="space-y-4">'));
-  const prose = panel.replace(/<th[^]*?<\/th>/g, "").replace(/Contacts avoided[^]*?<\/p>/, "");
+  const intro = page.slice(page.indexOf('<p className="mb-6'), page.indexOf('<div className="space-y-6">'));
+  assert.ok(intro.length > 0 && intro.split(/(?<=[.:;])\s/).length <= 3, "the intro is one line");
+  // labels sit beside figures (a figure's label prop, a table head) or in the projection line, never in prose
+  const prose = panel.replace(/label=\{?[^}\n]*?\[(data|simulated|projected)\][^}\n]*?\}?(?=\s)/g, "").replace(/head=\{\[[^]*?\]\}/g, "")
+    .replace(/Contacts avoided[^]*?<\/p>/, "");
   for (const text of [intro, prose]) assert.doesNotMatch(text, /\[(simulated|data|projected)\]/); // AC-11: labels go on figures, not in prose
 });
 
