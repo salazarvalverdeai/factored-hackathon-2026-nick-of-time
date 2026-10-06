@@ -54,6 +54,14 @@ comment). AC-04 onward are added by this spec. Evidence: [T] test · [C] command
   automatic block-and-case runs, n shown; applied to all complaints as an upper-bound illustration; no money
   figure). While `evaluation_summary.json` does not exist or its run is not the sealed held-out (AC-05), the WITH US
   column shall read "results pending" with no number and no projection. · [T] `apps/web/lib/panel.test.ts`
+- **AC-11** — Each chart of `/evaluation` shall carry one or two plain lines on what it means and a "Detail" link to the
+  markdown that defines it (spec 10 §4.1, spec 11 §4.1, spec 15 §4.4, spec 17 §4.4, `eval/PROTOCOL.md`); the headline
+  rates and the per-arm comparisons (harness, whole system, classifier macro-F1 per arm and language, fraud PR-AUC)
+  shall be charts with their 95% interval, not text alone; and a "Limitations" block in plain sentences, without
+  bracket labels, shall cover only the result files that exist: few cases and wide intervals, classifier sentences written by models (ADR 0025) and agent cases written by the team
+  with AI assistance, each only where it applies, the classifier test split decided by fixed rules without independent review when `test_review` is
+  `rules-v1` (ADR 0028), the held-out run once, and simulated results on a synthetic dataset. Bracket labels stay on
+  figures. The architecture is not drawn here; the page links to `/agent`. · [T] `apps/web/lib/evaluation.test.ts`
 
 ## 7. Data model touched
 Reads only static files under `apps/web/public/data/`; creates `data_quality.json` and the page files under
@@ -129,6 +137,8 @@ Implementation goes in `feat/12-…` branches once this spec is approved.
       `tests/test_spec12_data_quality.py`; [U] comes with T7)
 - [x] T8 — as-is vs with Nick of Time panel on `/evaluation` · covers AC-10 · [T] `apps/web/lib/panel.test.ts`
       (sealed sample under `app/evaluation/__fixtures__/`)
+- [x] T9 — readability of `/evaluation`: charts for every headline and per-arm comparison, plain explanations with
+      "Detail" links, the Limitations block · covers AC-11 · [T] `apps/web/lib/evaluation.test.ts`
 - [ ] T6 — operational KPIs on `/analytics` · covers AC-02 · needs spec 14
 - [ ] T7 — screenshots on the public URL, both themes and 390 px · covers AC-01, AC-03, AC-09 (2026-10-05:
       `docs/assets/screenshots/spec12/` by `scripts/web/insight_screenshots.py` — the three pages at 1280 and 390 px in

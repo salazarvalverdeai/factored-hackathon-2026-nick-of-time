@@ -322,6 +322,8 @@ def check_transition(current: str, to: Optional[str], *, analyst_action: Optiona
         if sources is not None and current not in sources:
             raise StoreError(f"{analyst_action} starts only from {' or '.join(sorted(sources))}")
         targets = ANALYST_TARGETS.get(analyst_action, KEEP)
+        if analyst_action == "take" and to is None and current in targets:
+            return                          # taking a case already in review or verification assigns it, status kept
         if to not in targets:
             moves = "keeps the status" if targets == KEEP else f"moves a case only to {' or '.join(sorted(targets))}"
             raise StoreError(f"{analyst_action} {moves}")

@@ -15,9 +15,18 @@ class FakeClient(LLMClient):
         super().__init__(model, **kw)
         self.script, self.calls = (None if script is None else list(script)), []
 
+    def _transcribe(self, audio, fmt, prompt, max_tokens, temperature):
+        """A scripted str is the transcript; the clip's size is recorded, never its bytes (D-072)."""
+        self.calls.append({"audio_bytes": len(audio), "format": fmt, "user": prompt, "max_tokens": max_tokens})
+        raw = self._next(prompt)
+        return {**raw, "tokens_in": len(audio) // 100 + len(prompt) // 4}
+
     def _call(self, system, user, schema, tool_name, max_tokens, mode, temperature):
         self.calls.append({"system": system, "user": user, "schema": schema, "tool_name": tool_name,
                            "max_tokens": max_tokens, "mode": mode, "temperature": temperature})
+        return self._next(system + user)
+
+    def _next(self, sent: str) -> dict:
         if self.script is None:
             raise ProviderUnavailable("FakeClient has no script (LLM_PROVIDER unset)")
         if not self.script:
@@ -27,4 +36,4 @@ class FakeClient(LLMClient):
             raise item
         text, tool = (item, None) if isinstance(item, str) else ("", item)
         return {"text": text, "tool_input": tool, "stop_reason": "tool_use" if tool else "end_turn",
-                "tokens_in": len(system + user) // 4, "tokens_out": len(text or str(tool)) // 4}
+                "tokens_in": len(sent) // 4, "tokens_out": len(text or str(tool)) // 4}

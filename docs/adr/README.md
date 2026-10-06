@@ -4,6 +4,8 @@ One file per load-bearing decision, written from [`_template.md`](_template.md).
 deleted: a new ADR supersedes them. How and when to write one: [`CONTRIBUTING.md`](../../CONTRIBUTING.md#4-architecture-decision-records).
 *If it is not in the log, it was not decided.*
 
+The whole log as one picture, from the problem to the evidence: [decisions graph](../decisions/graph.md) (generated from these headers; regenerate with `make docs-graph`).
+
 | ADR | Decision | Status | Date |
 |---|---|---|---|
 | [0001](0001-record-decisions-and-work-spec-driven.md) | Record decisions as ADRs and build features from specs | Accepted | 2026-10-03 |
@@ -30,8 +32,9 @@ deleted: a new ADR supersedes them. How and when to write one: [`CONTRIBUTING.md
 | [0022](0022-fraud-labels-for-model-training.md) | Fraud labels may train our fraud model, by time window, and never reach the runtime | Accepted | 2026-10-04 |
 | [0023](0023-mx-provisional-credit-90-days.md) | MX provisional credit by business day 2 for unrecognized-charge claims within 90 calendar days (debit and credit); the 48 h window is for theft or loss only; AR promises the 10-business-day resolution only (amends 0019, 0020) | Accepted | 2026-10-04 |
 | [0024](0024-high-zone-call-request-defers-block.md) | A call request in the high zone defers the card block to the analyst | Accepted | 2026-10-04 |
-| [0025](0025-classifier-set-authored-by-distinct-model-families.md) | The classifier set is written by three model families, one per split (Llama 3.3 train, Gemma 3 validation, DeepSeek V3.2 test), none of them Claude, with every line reviewed by a person (replaces spec 09 Q3/Q7) | Accepted | 2026-10-05 |
+| [0025](0025-classifier-set-authored-by-distinct-model-families.md) | The classifier set is written by three model families, one per split (Llama 3.3 train, Gemma 3 validation, DeepSeek V3.2 test), none of them Claude, with every line reviewed by a person (replaces spec 09 Q3/Q7) | Accepted · amended by [0028](0028-test-split-decided-by-fixed-rules-without-independent-reviewer.md) | 2026-10-05 |
 | [0026](0026-demo-sessions-isolated-by-run-id.md) | Public demo sessions: a scenario picks the customer server-side and each session runs under its own `demo-…` run_id | Accepted | 2026-10-05 |
 | [0027](0027-model-selection.md) | Model selection per LLM task by the pre-registered lean rule (draft: development numbers on validation only) | Proposed | 2026-10-05 |
 | [0028](0028-test-split-decided-by-fixed-rules-without-independent-reviewer.md) | The classifier test split is decided by fixed rules (`rules-v1`) when no independent person can review it before the seal (amends 0025) | Accepted | 2026-10-05 |
+| [0029](0029-voice-input-voxtral-stt-browser-tts.md) | Voice: Bedrock Voxtral speech-to-text on the api and the browser's text-to-speech (no Nova Sonic: us-east-1 only) | Accepted | 2026-10-05 |
 | [0030](0030-llm-writer-and-live-stream-events.md) | An LLM writer words chat replies with every line grounded, and the stream shows each tool call live (switchable; amends the spec 04 `word` gate) | Accepted | 2026-10-05 |
