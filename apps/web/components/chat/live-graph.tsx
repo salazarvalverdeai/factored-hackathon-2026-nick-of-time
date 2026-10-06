@@ -4,16 +4,16 @@
 // with the node the agent is on marked as the turn runs and the nodes it passed standing out. Closed by default so the
 // conversation keeps its width: on wide screens a slim rail at the right edge opens a floating panel that does not block
 // the chat; on narrow screens a header button opens it as a sheet (the shared detail panel). The run comes from
-// lib/chat-graph.ts; motion only through ./motion, and none under reduced motion.
+// lib/chat-graph.ts; its one entrance is the shared motion kit's opacity-only Reveal, still under reduced motion.
 import { WorkflowIcon, XIcon } from "lucide-react";
 import { useId, useRef, useSyncExternalStore, type KeyboardEvent } from "react";
 import { GraphView } from "@/components/agent/graph-view";
+import { Reveal } from "@/components/motion";
 import { DetailPanel } from "@/components/detail-panel";
 import { Button } from "@/components/ui/button";
-import { RAIL_ENTER, type GraphRun } from "@/lib/chat-graph";
+import type { GraphRun } from "@/lib/chat-graph";
 import { CHAT_STRINGS as S } from "@/lib/chat-strings";
 import type { Language } from "@/lib/types";
-import { Reveal } from "./motion";
 
 const WIDE = "(min-width: 64rem)"; // Tailwind `lg`
 
@@ -111,7 +111,7 @@ export function LiveGraph({ lang, run, open, onOpenChange }: { lang: Language; r
         </button>
       ) : (
         <Reveal
-          kind={RAIL_ENTER}
+          fade
           id={id}
           role="complementary"
           aria-labelledby={titleId}

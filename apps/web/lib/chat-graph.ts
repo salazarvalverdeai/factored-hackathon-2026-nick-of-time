@@ -4,7 +4,6 @@
 // tool event. Pure and tested offline (lib/chat-graph.test.ts): the drawing (components/agent/graph-view.tsx) only
 // receives `activeNode` and `path`.
 import { AGENT_REFERENCE } from "./agent-reference.ts";
-import type { EnterKind } from "./chat-motion.ts";
 
 const { graph } = AGENT_REFERENCE;
 
@@ -141,6 +140,3 @@ export function finishRun(run: GraphRun): GraphRun {
 export function stopRun(run: GraphRun): GraphRun {
   return { active: null, path: run.path };
 }
-
-/** The rail's entrance through the chat motion adapter: a 150 ms fade, nothing at all under reduced motion (AC-27). */
-export const RAIL_ENTER: EnterKind = "fade";

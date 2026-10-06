@@ -6,13 +6,11 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import { AGENT_REFERENCE } from "./agent-reference.ts";
 import { graphHighlight } from "./agent-graph.ts";
-import { enter } from "./chat-motion.ts";
 import { CHAT_STRINGS } from "./chat-strings.ts";
 import {
   EMPTY_RUN,
   GRAPH_NODES,
   PROGRESS_NODE,
-  RAIL_ENTER,
   TOOL_NODE,
   type GraphFrame,
   type GraphRun,
@@ -125,13 +123,15 @@ test("spec 07 AC-28: the run only moves forward, ignores unknown steps, and rese
   assert.deepEqual(finishRun(EMPTY_RUN), EMPTY_RUN);
 });
 
-test("spec 07 AC-27, AC-28: the rail moves only through the chat motion adapter, and not at all under reduced motion", () => {
-  assert.deepEqual(enter(RAIL_ENTER, { reduce: true }), {}, "reduced motion: no animated props");
-  const moving = enter(RAIL_ENTER, { reduce: false });
-  assert.ok(moving.transition && moving.transition.duration <= 0.3, "calm and short");
+test("spec 07 AC-27, AC-28: the rail moves only through the shared motion kit, opacity only, and not under reduced motion", () => {
   const src = read("../components/chat/live-graph.tsx");
   assert.doesNotMatch(src, /from "motion\/react"/);
-  assert.match(src, /from "\.\/motion"/);
+  assert.match(src, /import \{ Reveal \} from "@\/components\/motion"/);
+  assert.match(src, /<Reveal\s+fade/, "the panel only fades in (no rise on a fixed panel)");
+  // The kit renders its final state under reduced motion: its CSS only plays under no-preference, and each part reads
+  // useReducedMotion() (components/motion/README.md).
+  assert.match(read("../components/motion/motion.css"), /prefers-reduced-motion: no-preference/);
+  assert.match(read("../components/motion/motion-group.tsx"), /useReducedMotion\(\)/);
   assert.match(src, /<GraphView fit reveal=\{false\}/, "the chat draws the graph final, without the reveal");
   assert.match(src, /aria-expanded/, "the toggles say whether the graph is open");
   // Fit mode: no sideways scroll in a 390 px sheet; the drawing's transitions stop under reduced motion.
