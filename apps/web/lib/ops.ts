@@ -36,7 +36,8 @@ export const DETAIL = {
 };
 
 /** What the shared detail panel shows for a chart or a note (plan §14): method, source query, window, label, link. */
-export type Detail = { title: string; description: string; method: string[]; source: string; window: string; label: string; href: string };
+export type Detail = { title: string; description: string; method: string[]; source: string; window: string; label: string; href: string;
+  /** A second link under the method (for example the dataset limitation). */ extra?: { label: string; href: string } };
 
 const METHOD: Record<SeriesKey, string> = {
   bank_today: "The bank's own unrecognized and wrongful charge complaints, chosen with the rules of the pitch query " +
@@ -121,6 +122,28 @@ const int = (n: number) => n.toLocaleString("en-US");
 export const pct = (v: number | null, digits = 1) => (v === null ? "no value" : `${(v * 100).toFixed(v > 0 && v < 0.001 ? 2 : digits)}%`);
 export const days = (v: number | null) => (v === null ? "no value" : `${v.toFixed(1)} d`);
 
+/** The receipt is given in the first conversation: a median of 0 days reads "Same contact", not "0.0 d" (AC-07). */
+export const SAME_CONTACT = "Same contact";
+export const SAME_CONTACT_NOTE = "the receipt with its legal deadline is given in the first conversation";
+export const daysText = (key: string, v: number | null) => (key === "days_to_receipt" && v === 0 ? SAME_CONTACT : days(v));
+
+/** The short intro of the Operation section (AC-09: two lines, the rest sits in the detail panel). */
+export const OPS_INTRO =
+  "Bank today is the bank's own unrecognized and wrongful charge complaints, January to May 2026. With Nick of Time is the same number of contacts a month, taken in by the system over real card charges with no language model.";
+
+/** The panel behind the intro's "Detail →": the replay, the window, the two headline figures and the limitation. */
+export function introDetail(all: OpsSeries | undefined): Detail {
+  return {
+    title: "How the Operation figures are made", description: "Bank today and With Nick of Time",
+    method: [METHOD.replay,
+             "The two headline figures measure different things. The bank's first contact resolution means the complaint was resolved in the first call. Ours means complete intake: a case on the right charge, its legal deadline and the evidence handed to a person, who then decides.",
+             "Ours is an upper bound, because the message names the charge exactly as the statement shows it, while real customers misremember amounts and dates. The simulation does not model the final resolution time, which a person decides.",
+             "The window starts in January 2026 because the repository has verified bank holiday calendars for 2026 only; without them no legal deadline is computed."],
+    source: SOURCE.replay, window: all ? windowText(all.window) : "", label: "[simulated]", href: DETAIL.method,
+    extra: { label: "Why the bank's complaints are not replayed →", href: DETAIL.limitation },
+  };
+}
+
 function point(kind: Metric["kind"], key: string, m: Month): Point {
   if (kind === "rate") {
     const r = m[key] as Rate;
@@ -128,8 +151,8 @@ function point(kind: Metric["kind"], key: string, m: Month): Point {
     return { month: m.month, value: r.value, detail: r.constant ? [...detail, ["Per month", "same period value"]] : detail };
   }
   const d = m[key] as Days | undefined;
-  const detail: [string, string][] = [["Median", days(d?.p50 ?? null)], ["n", int(d?.n ?? 0)]];
-  if (d?.mean !== undefined) detail.splice(1, 0, ["Mean", days(d.mean)]);
+  const detail: [string, string][] = [["Median", daysText(key, d?.p50 ?? null)], ["n", int(d?.n ?? 0)]];
+  if (d?.mean !== undefined) detail.splice(1, 0, ["Mean", daysText(key, d.mean)]);
   if (d?.missing !== undefined) detail.push(["Without a value", int(d.missing)]);
   return { month: m.month, value: d?.p50 ?? null, detail };
 }

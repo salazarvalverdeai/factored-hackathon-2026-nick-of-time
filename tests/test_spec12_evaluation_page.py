@@ -59,7 +59,8 @@ def test_ac_11_explanations_detail_links_and_limitations_exist():
     """AC-11: node tests cite it; Explain, Limitations and the Detail links are in the code and the specs they point to exist."""
     assert len(_titles_citing("AC-11")) >= 3
     explain = _read("app/evaluation/explain.tsx")
-    assert "export function Explain" in explain and "export function Limitations" in explain and "Detail" in explain
+    assert "export function Explain" in explain and "export function Limitations" in explain and "<DetailButton" in explain
+    assert "<a href" not in explain, "Detail opens the shared panel, never a plain link (AC-11)"
     page = _read("app/evaluation/page.tsx")
     assert "<Limitations" in page and "limitations(" in page and 'href="/agent"' in page
     sections = _read("app/evaluation/sections.tsx")

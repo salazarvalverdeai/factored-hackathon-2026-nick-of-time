@@ -1,19 +1,16 @@
-// Small shared parts of /evaluation (spec 12 AC-11): a plain explanation with its "Detail" link, the limitations block,
+// Small shared parts of /evaluation (spec 12 AC-11): a plain explanation with its "Detail →" button (opens the shared side panel), the limitations block,
 // and one interval row that every chart of the page reuses. Plain SVG-free markup, no dependency.
 import type { ReactNode } from "react";
-import { DEVELOPMENT_CHIP, detailUrl, type DETAILS } from "@/lib/evaluation";
-
-// Same ring as the charts (a client module's constant cannot be read from here on the server).
-const FOCUS = "outline-none focus-visible:ring-2 focus-visible:ring-ring";
+import { DetailButton } from "@/components/detail-button";
+import { DETAILS, DEVELOPMENT_CHIP, detailUrl } from "@/lib/evaluation";
 
 /** One or two plain lines on what a chart means, and a link to the markdown that defines it. */
 export function Explain({ children, detail, className = "" }: { children: ReactNode; detail: keyof typeof DETAILS; className?: string }) {
+  const d = DETAILS[detail];
   return (
     <p data-slot="explain" className={`text-sm text-muted-foreground ${className}`}>
       {children}{" "}
-      <a href={detailUrl(detail)} className={`whitespace-nowrap rounded-sm underline underline-offset-2 hover:text-foreground ${FOCUS}`}>
-        Detail →
-      </a>
+      <DetailButton title={d.title} detail={{ meaning: d.meaning, method: d.method, source: d.source, label: d.label, spec: detailUrl(detail) }} />
     </p>
   );
 }

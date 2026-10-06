@@ -251,3 +251,26 @@ test("spec 12 AC-05: one page notice names every development-run file and why; a
   assert.deepEqual(developmentRuns({ ...final, fraud: FRAUD }).map((r) => r.file), ["fraud_benchmark.json"]);
   assert.equal(pageNotice({ summary: null, benchmark: null, classifier: null, fraud: null }), null);
 });
+
+test("spec 12 AC-11: every 'Detail →' on /evaluation opens the shared panel, none is a plain anchor", () => {
+  const dir = new URL("../app/evaluation/", import.meta.url);
+  for (const file of ["explain.tsx", "page.tsx", "results.tsx", "sections.tsx", "panel.tsx"]) {
+    const src = readFileSync(new URL(file, dir), "utf-8");
+    assert.doesNotMatch(src, /<a\b[^>]*>\s*Detail →/, `${file}: Detail opens the panel, never a plain link`);
+  }
+  const explain = readFileSync(new URL("explain.tsx", dir), "utf-8");
+  assert.match(explain, /<DetailButton title=\{d\.title\} detail=\{\{ meaning: d\.meaning, method: d\.method, source: d\.source, label: d\.label, spec: detailUrl\(detail\) \}\}/);
+  const button = readFileSync(new URL("../components/detail-button.tsx", import.meta.url), "utf-8");
+  assert.match(button, /What it means/);
+  assert.match(button, /Read the spec →/);
+  for (const key of Object.keys(DETAILS) as (keyof typeof DETAILS)[]) {
+    const d = DETAILS[key];
+    for (const text of [d.meaning, d.method]) {
+      const sentences = text.split(/(?<=\.)\s+/).filter(Boolean);
+      assert.ok(sentences.length >= 1 && sentences.length <= 3, `${key}: ${sentences.length} sentences`);
+      assert.doesNotMatch(text, /\[(simulated|data|projected|assumption|external)\]/, `${key}: the label sits in its own field`);
+    }
+    assert.match(d.label, /^\[(data|simulated)\]/, key);
+    assert.ok(d.source.length > 0, key);
+  }
+});
