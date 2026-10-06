@@ -43,8 +43,11 @@ const CANDIDATES = ["audio/webm;codecs=opus", "audio/ogg;codecs=opus"] as const;
 /** The first recording format the browser supports, in the spec's order, or "wav" for the in-page encoder, or null
  *  when there is no way to record. */
 export function pickMime(isTypeSupported: ((t: string) => boolean) | null, canUseAudioContext: boolean): string | null {
+  // Bedrock Voxtral accepts WAV only: a webm or ogg opus clip answers 503 (checked on the public URL, 2026-10-05), so
+  // the in-page 16 kHz WAV encoder comes first and opus is the last resort.
+  if (canUseAudioContext) return "wav";
   if (isTypeSupported) for (const t of CANDIDATES) if (isTypeSupported(t)) return t;
-  return canUseAudioContext ? "wav" : null;
+  return null;
 }
 
 /** The Content-Type for the POST body: the container only, as the api reads it. */
@@ -107,7 +110,12 @@ export function encodeWav16k(chunks: Float32Array[], inputRate: number): Uint8Ar
 export interface VoiceLike {
   lang: string;
   localService: boolean;
+  name?: string;
 }
+
+// macOS ships novelty voices for every language (Eddy, Flo, Grandma, Rocko…); they read a bank reply as a joke.
+const NOVELTY = /\b(eddy|flo|grandma|grandpa|reed|rocko|sandy|shelley|albert|bad news|bahh|bells|boing|bubbles|cellos|good news|jester|organ|superstar|trinoids|whisper|wobble|zarvox|fred|junior|kathy|ralph)\b/i;
+const NATURAL = /(enhanced|premium|natural|neural|siri|paulina|m[oó]nica|luciana|juan|felipe|francisca)/i;
 
 /** es-MX else any es-*; pt-BR else any pt-*. A local voice beats a network one (the reply text would leave the
  *  device to a speech service otherwise); null when there is none. */
@@ -116,10 +124,11 @@ export function pickVoice<T extends VoiceLike>(voices: readonly T[], lang: Lang)
   const rank = (v: T) => {
     const l = v.lang.toLowerCase().replace("_", "-");
     const fit = l === exact ? 0 : l.startsWith(lang) ? 1 : 9;
-    return fit + (v.localService ? 0 : 2);
+    const quality = NOVELTY.test(v.name ?? "") ? 5 : NATURAL.test(v.name ?? "") ? -0.5 : 0;
+    return fit + (v.localService ? 0 : 2) + quality;
   };
   const best = [...voices].sort((a, b) => rank(a) - rank(b))[0];
-  return best && rank(best) < 9 ? best : null;
+  return best && rank(best) < 9 && !NOVELTY.test(best.name ?? "") ? best : null;
 }
 
 /** The text a reply is read as: the reply only (never chips, ids or the trace); markdown marks are dropped. */
