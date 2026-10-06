@@ -7,8 +7,10 @@ import { COPILOT_ACTION_LABELS } from "./handoff-labels.ts";
 import type { CaseStatus } from "./types.ts";
 
 const titleCase = (v: string) => v.replace(/[_-]+/g, " ").trim().replace(/^./, (c) => c.toUpperCase());
+/** An unknown identifier (`some_value`) reads as words; free text from the api (it has spaces, dates…) stays as it is. */
+const fallback = (v: string) => (/^[a-z][a-z0-9_]*$/i.test(v) ? titleCase(v) : v);
 const labelOf = (table: Record<string, string>) => (v: string | null | undefined) =>
-  v ? (table[v] ?? titleCase(v)) : "—";
+  v ? (table[v] ?? fallback(v)) : "—";
 
 /** Removes the figure labels (`[simulated]`, `[data]`…) from texts the operational screens show (spec 08, 13). */
 export const plain = (text: string): string =>
@@ -36,8 +38,26 @@ export const AUDIT_CHECK_LABELS: Record<string, string> = {
 export const auditCheckLabel = (c: Pick<AuditCheck, "id" | "name">) => AUDIT_CHECK_LABELS[c.id] ?? titleCase(c.name || c.id);
 
 export const AUDIT_STATE_LABELS = { passed: "Passed", finding: "Finding", na: "Not applicable" } as const;
-export const auditState = (c: Pick<AuditCheck, "passed">): keyof typeof AUDIT_STATE_LABELS =>
-  c.passed === true ? "passed" : c.passed === false ? "finding" : "na";
+/** The short word shown next to a check; screen readers get AUDIT_STATE_LABELS. */
+export const AUDIT_STATE_SHORT = { passed: "Passed", finding: "Finding", na: "n/a" } as const;
+/** The api's `status` wins; `not_applicable` (A4, A5 in the console: they need the agent trace) is never a failure. */
+export const auditState = (c: Pick<AuditCheck, "passed" | "status">): keyof typeof AUDIT_STATE_LABELS => {
+  if (c.status === "not_applicable") return "na";
+  if (c.status === "finding") return "finding";
+  if (c.status === "passed") return "passed";
+  return c.passed === true ? "passed" : c.passed === false ? "finding" : "na";
+};
+
+/** Why there is no second opinion (`X-No-Opinion-Reason`), as one calm line (spec 18 AC-11). */
+export const NO_OPINION_REASON_LABELS: Record<string, string> = {
+  no_handoff: "Not available: the agent has not written the handoff card yet",
+  budget: "Not available: daily budget reached",
+  timeout: "Not available: the judge did not answer in time",
+  error: "Not available: the judge's answer could not be used",
+  unavailable: "Not available: the judge model is not configured",
+};
+export const noOpinionReasonLabel = (v: string | null | undefined) =>
+  (v && NO_OPINION_REASON_LABELS[v]) || NO_OPINION_REASON_LABELS.error;
 
 export const OUTCOME_LABELS: Record<string, string> = {
   block_and_verify: "Block the card and verify",
@@ -45,6 +65,7 @@ export const OUTCOME_LABELS: Record<string, string> = {
   human_review: "A person reviews the case",
   credit_approved: "Provisional credit approved",
   approve_credit: "Provisional credit approved",
+  approve_block: "Card block approved",
   resolved: "Resolved by a person",
   closed_without_action: "Closed without action",
   close_without_action: "Closed without action",
@@ -138,6 +159,11 @@ export function formatDay(iso: string): string {
 }
 
 /** "4,200.00 MXN": the currency code stays visible, so no symbol is ambiguous across countries. */
+/** A transaction's merchant, or a plain word when the bank's record has none. */
+export const merchantLabel = (m: string | null | undefined) => (m && m.trim() ? m : "Unknown merchant");
+/** "•••• 4417", or "—" when the card is not known. */
+export const cardLabel = (last4: string | null | undefined) => (last4 ? `•••• ${last4}` : "—");
+
 export function formatAmount(amount: number, currency: string): string {
   return `${amount.toLocaleString("es-MX", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${currency}`;
 }

@@ -17,7 +17,9 @@ export function ConversationTranscript({ query }: { query: Query<CaseConversatio
   return (
     <Conversation className="h-[28rem] min-h-0 rounded-xl border bg-background" aria-label="Conversation with the customer (read-only)">
       <ConversationContent className="gap-4 p-3 sm:p-4">
-        {threads.length === 0 ? (
+        {query.data.unavailable ? (
+          <ConversationEmptyState title="Conversation not available right now" description="The agent's threads cannot be read at the moment. Try again later." />
+        ) : threads.length === 0 ? (
           <ConversationEmptyState title="No conversation on record" description="The customer has not chatted with the agent about this case." />
         ) : (
           threads.map((t) => (

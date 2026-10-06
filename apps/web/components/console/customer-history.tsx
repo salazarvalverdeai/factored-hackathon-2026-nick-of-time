@@ -13,11 +13,13 @@ import type { CaseContext, ContextTransaction } from "@/lib/console-api";
 import {
   callStatusLabel,
   cardStatusLabel,
+  cardLabel,
   caseStatusLabel,
   channelLabel,
   deliveryLabel,
   formatAmount,
   formatDay,
+  merchantLabel,
   notificationEventLabel,
   outcomeLabel,
   productLabel,
@@ -66,7 +68,7 @@ export function CustomerHistory({ query }: { query: Query<CaseContext> }) {
             </HistoryCard>
             <HistoryCard title={TITLES.cards} count={query.data.cards.length} onDetail={() => setOpen("cards")} empty="No cards on record">
               {query.data.cards.slice(0, PREVIEW).map((c) => (
-                <Row key={c.last4 + c.product} left={`•••• ${c.last4}`} right={cardStatusLabel(c.status)}>
+                <Row key={`${c.last4}-${c.product}`} left={cardLabel(c.last4)} right={cardStatusLabel(c.status)}>
                   {productLabel(c.product)}
                 </Row>
               ))}
@@ -154,12 +156,12 @@ function TxRow({ t }: { t: ContextTransaction }) {
       <span className="flex items-baseline justify-between gap-2">
         <span className="min-w-0 truncate">
           {t.disputed ? <Badge className="mr-1 bg-brand-amber/20 text-foreground">Disputed</Badge> : null}
-          {t.merchant}
+          {merchantLabel(t.merchant)}
         </span>
         <span className="shrink-0 font-mono text-xs tabular-nums">{formatAmount(t.amount, t.currency)}</span>
       </span>
       <span className="block text-xs text-muted-foreground">
-        {formatDay(t.date)} · •••• {t.last4}
+        {formatDay(t.date)} · {cardLabel(t.last4)}
       </span>
     </li>
   );
@@ -192,8 +194,8 @@ function SectionDetail({ section, data }: { section: Section; data: CaseContext 
       return (
         <div className="space-y-4">
           {data.cards.map((c) => (
-            <DetailFields key={c.last4 + c.product}>
-              <DetailField label="Card">•••• {c.last4}</DetailField>
+            <DetailFields key={`${c.last4}-${c.product}`}>
+              <DetailField label="Card">{cardLabel(c.last4)}</DetailField>
               <DetailField label="Product">{productLabel(c.product)}</DetailField>
               <DetailField label="Status">{cardStatusLabel(c.status)}</DetailField>
             </DetailFields>

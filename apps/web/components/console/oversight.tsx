@@ -11,7 +11,16 @@ import { ErrorState, LoadingState } from "@/components/states";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { type AuditResult, type SecondOpinion, consoleApi } from "@/lib/console-api";
-import { AUDIT_STATE_LABELS, auditCheckLabel, auditState, outcomeLabel, plain, verdictLabel } from "@/lib/console-view";
+import {
+  AUDIT_STATE_LABELS,
+  AUDIT_STATE_SHORT,
+  auditCheckLabel,
+  auditState,
+  noOpinionReasonLabel,
+  outcomeLabel,
+  plain,
+  verdictLabel,
+} from "@/lib/console-view";
 import { formatDateTime } from "@/lib/handoff-labels";
 import { type Query, useQuery } from "@/lib/use-query";
 import { ApiError } from "@/lib/api";
@@ -83,7 +92,7 @@ export function AuditChecklist({ query }: { query: Query<AuditResult> }) {
                         {c.detail ? <span className="block text-xs text-muted-foreground">{plain(c.detail)}</span> : null}
                       </span>
                       <span className="ml-auto shrink-0 text-xs text-muted-foreground" aria-hidden>
-                        {AUDIT_STATE_LABELS[s]}
+                        {AUDIT_STATE_SHORT[s]}
                       </span>
                     </li>
                   );
@@ -97,7 +106,11 @@ export function AuditChecklist({ query }: { query: Query<AuditResult> }) {
   );
 }
 
-type Asked = { status: "idle" } | { status: "asking" } | { status: "done"; opinion: SecondOpinion | null } | { status: "error"; message: string };
+type Asked =
+  | { status: "idle" }
+  | { status: "asking" }
+  | { status: "done"; opinion: SecondOpinion | null; reason: string | null }
+  | { status: "error"; message: string };
 
 export function SecondOpinionPanel({ caseId }: { caseId: string }) {
   // An opinion already issued for this case (the api runs the judge when a case enters review).
@@ -108,8 +121,8 @@ export function SecondOpinionPanel({ caseId }: { caseId: string }) {
   async function ask() {
     setAsked({ caseId, state: { status: "asking" } });
     try {
-      const opinion = await consoleApi.requestSecondOpinion(caseId);
-      setAsked({ caseId, state: { status: "done", opinion } });
+      const { opinion, reason } = await consoleApi.requestSecondOpinion(caseId);
+      setAsked({ caseId, state: { status: "done", opinion, reason } });
     } catch (err) {
       setAsked({ caseId, state: { status: "error", message: err instanceof ApiError ? err.message : "Something went wrong." } });
     }
@@ -138,9 +151,10 @@ export function SecondOpinionPanel({ caseId }: { caseId: string }) {
         ) : opinion ? (
           <OpinionBody o={opinion} />
         ) : state.status === "done" ? (
-          <p className="text-sm text-muted-foreground" data-slot="no-opinion">
-            {NO_OPINION}. The judge did not answer in time or within its budget; nothing else changed.
-          </p>
+          <div className="space-y-0.5 text-sm" data-slot="no-opinion" data-reason={state.reason ?? "error"}>
+            <p className="font-medium">{NO_OPINION}</p>
+            <p className="text-muted-foreground">{noOpinionReasonLabel(state.reason)}. Nothing else changed.</p>
+          </div>
         ) : null}
       </div>
     </section>
