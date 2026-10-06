@@ -244,6 +244,10 @@ charge's bank score is in the high zone and the amount tier does not need a pers
 ### 11.4 Dataset limitation: complaints cannot be replayed as they are
 The first version of this replay ran the 8,129 W3 complaints of 2025-06..2026-05 themselves. The dataset does not
 link a complaint to a transaction: only 1,597 of those complainants (19.6%) have any approved or pending card charge
-in the 30 days before the complaint, and no claimed amount matches one within the ±2% the search allows. The engine
-asked in 90% of the contacts, which says nothing about the system and everything about the data. So the replay uses
-real card charges with a written message (§11.2), and the bank series keeps the complaints only for its own figures.
+in the 30 days before the complaint, and almost no claimed amount matches one within the ±2% the search allows. The
+engine asked in 90% of the contacts, which says nothing about the system and everything about the data. So the replay
+uses real card charges with a written message (§11.2), and the bank series keeps the complaints only for its own
+figures. The versioned measure of this limitation, shown on `/data`, is `queries/data/d01_complaint_transaction_link.sql`
+`[data]`: over 2025-07..2026-05 (so the 30-day look-back stays inside gold), 22.1% of W3 complainants have a card
+transaction in the 30 days before the complaint (21.5% for other complaints), and 2 of 579 claimed amounts (0.3%)
+match one within ±2% in the same currency. The counts above are this replay's own first run, over its 12-month window.
