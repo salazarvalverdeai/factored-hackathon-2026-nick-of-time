@@ -10,7 +10,10 @@ import { BigFigure, DevChip, Explain, Footer, IntervalBar } from "./explain";
 import { CountText, MotionGroup, Reveal } from "@/components/motion";
 import { fitStep, part, staggerDelay } from "@/lib/motion";
 import { classifierRunNote, sealedRunNote,
+  chosenReason,
   costQualityPoints,
+  hasDevRuns,
+  scatterLabels,
   dollars,
   GENERATOR_FLAG,
   generatorFlag,
@@ -125,6 +128,9 @@ export function BenchmarkSection({ file }: { file: Insight<BenchmarkData> }) {
   const front = points.filter((p) => p.pareto).sort((a, b) => a.cost - b.cost);
   const chosen = data.model_map.understand?.chosen;
   const pick = points.find((p) => p.chosen);
+  const reason = chosenReason(data);
+  const dev = hasDevRuns(data);
+  const labels = scatterLabels(points, data.model_map.understand?.best_measured, x, y);
   return (
     <Section title="Model benchmark: cost against quality" file={file} data="benchmark.json" detail="benchmark"
       figure={pick ? <BigFigure value={score(pick.quality)} label="[simulated]" caption={`macro-F1 of ${pick.arm}, the chosen model, ${language.toUpperCase()} · ${dollars(pick.cost)} per 1,000 messages`} /> : null}
@@ -138,10 +144,11 @@ export function BenchmarkSection({ file }: { file: Insight<BenchmarkData> }) {
             scoreText(a.macro_f1?.[language], a.macro_f1_ci?.[language]), rateText(a.dispute_recall), rateText(a.human_request_recall), rateText(a.slot_accuracy),
             milliseconds(a.p95_ms), dollars(a.cost_per_1000_usd), yes(a.pareto), yes(a.meets_bar), yes(a.gate.production_pass), generatorFlag(a) ?? "—"])}
         />
-        <Table title="Whole system on the dev cases, as a table" head={["Arm", "Safe automated resolution", "Unsafe outcomes", "Receipt with its deadline", "Status told = status read", "p95 per turn", "Cost per case"]}
+        {dev ? <Table title="Whole system on the dev cases, as a table" head={["Arm", "Safe automated resolution", "Unsafe outcomes", "Receipt with its deadline", "Status told = status read", "p95 per turn", "Cost per case"]}
           rows={data.b2.arms.map((a) => [a.arm, rateText(a.safe_automated_resolution as Rate), rateText(a.unsafe_outcomes as Rate), rateText(a.receipt_rate as Rate),
-            rateText(a.coherence_rate as Rate), milliseconds(a.p95_ms as number | null), dollars(a.cost_per_case_usd)])} />
+            rateText(a.coherence_rate as Rate), milliseconds(a.p95_ms as number | null), dollars(a.cost_per_case_usd)])} /> : null}
       </>}>
+      {reason ? <p data-slot="chosen-reason" className="mb-3 max-w-3xl text-sm text-muted-foreground">{reason}</p> : null}
       <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
         {languages.map((l) => (
           <button key={l} type="button" aria-pressed={l === language} onClick={() => setLanguage(l)}
@@ -184,13 +191,16 @@ export function BenchmarkSection({ file }: { file: Insight<BenchmarkData> }) {
                         ["Dispute recall", rateText(a.dispute_recall)]]}
                       note={`[simulated] ${a.price.label} price ${a.price.date}${generatorFlag(a) ? ` · ${GENERATOR_FLAG}` : ""}`} />,
                   )} />
-                <text x={x(p.cost) + 10} y={y(p.quality) - 9} fontSize={10} fill="currentColor">{p.arm}{generatorFlag(a) ? " *" : ""}</text>
+                {labels.has(p.arm) ? (
+                  <text x={labels.get(p.arm)!.x} y={labels.get(p.arm)!.y} fontSize={10} fill="currentColor">{p.arm}{generatorFlag(a) ? " *" : ""}</text>
+                ) : null}
               </g>
             );
           })}
           </MotionGroup>
         </svg>
       )}
+      {dev ? (<>
       <h3 className="mt-6 text-sm font-semibold">Whole system on the dev cases <span className="font-normal text-muted-foreground">({data.b2.set}, {data.b2.cases} cases x {data.b2.runs_per_case} runs)</span></h3>
       {[["safe_automated_resolution", "Safe automated resolution", "higher is better"], ["unsafe_outcomes", "Unsafe outcomes", "lower is better"]].map(([key, name, good]) => (
         <div key={key} className="mt-3">
@@ -205,6 +215,7 @@ export function BenchmarkSection({ file }: { file: Insight<BenchmarkData> }) {
           })} />
         </div>
       ))}
+      </>) : null}
       {node}
     </Section>
   );

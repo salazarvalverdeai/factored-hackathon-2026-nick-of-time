@@ -9,6 +9,7 @@ import { FOCUS, Swatch, TableView, TipBody, useTip } from "@/app/analytics/chart
 import { CountText, Reveal, Stagger } from "@/components/motion";
 import { staggerDelay } from "@/lib/motion";
 import {
+  armModel,
   METRICS,
   METRIC_MEANING,
   d070View,
@@ -41,7 +42,7 @@ function Legend({ arms }: { arms: EvaluationArm[] }) {
         <li key={arm.arm} className="inline-flex items-center gap-1.5">
           <Swatch color={armColor(i)} />
           <span className="text-foreground">{arm.arm}</span>
-          {arm.run_meta.model_graph ? <span>· {arm.run_meta.model_graph}</span> : <span>· no LLM</span>}
+          {armModel(arm.run_meta) ? <span>· {armModel(arm.run_meta)}</span> : <span>· no LLM</span>}
         </li>
       ))}
     </ul>
@@ -64,7 +65,7 @@ function Headline({ arm, index }: { arm: EvaluationArm; index: number }) {
       <h3 className="flex items-center gap-2 text-sm font-semibold">
         <Swatch color={armColor(index)} />
         {arm.arm}
-        <span className="font-normal text-muted-foreground">{arm.run_meta.model_graph ?? "rules and templates, no LLM"}</span>
+        <span className="font-normal text-muted-foreground">{armModel(arm.run_meta) ?? "rules and templates, no LLM"}</span>
       </h3>
       <div className="mt-4">
         <BigFigure value={main.value} label="[simulated]" caption={<>{label("safe_automated_resolution")} · {main.count} · 95% CI {main.interval}</>} />
