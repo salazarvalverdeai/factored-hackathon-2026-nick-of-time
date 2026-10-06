@@ -265,6 +265,22 @@
       "theme": "Platform and identity"
     },
     {
+      "id": "adr-0030",
+      "layer": "decision",
+      "label": "0030 An LLM writer words chat replies, and the stream shows each tool call live",
+      "status": "Accepted",
+      "file": "docs/adr/0030-llm-writer-and-live-stream-events.md",
+      "theme": "Other"
+    },
+    {
+      "id": "adr-0031",
+      "layer": "decision",
+      "label": "0031 Held-out scored under the sealed rules and, secondarily, under D-070",
+      "status": "Accepted",
+      "file": "docs/adr/0031-heldout-scored-under-sealed-rules-and-d070.md",
+      "theme": "Other"
+    },
+    {
       "id": "spec-01",
       "layer": "spec",
       "label": "Spec 01 Integration contract + stubs",
@@ -365,7 +381,7 @@
       "id": "spec-10",
       "layer": "spec",
       "label": "Spec 10 Evaluation harness",
-      "status": "In progress",
+      "status": "Implemented",
       "file": "specs/10-eval-harness.md",
       "components": [
         "eval/harness/"
@@ -385,7 +401,7 @@
       "id": "spec-12",
       "layer": "spec",
       "label": "Spec 12 Insight pages: `/evaluation`, `/analytics`, `/data`",
-      "status": "In progress",
+      "status": "Implemented",
       "file": "specs/12-insight-pages.md",
       "components": [
         "apps/web/app/evaluation/",
@@ -1639,6 +1655,54 @@
       "to": "spec-07"
     },
     {
+      "from": "adr-0030",
+      "kind": "implemented_by",
+      "source": "adr-header",
+      "to": "spec-01"
+    },
+    {
+      "from": "adr-0030",
+      "kind": "implemented_by",
+      "source": "adr-header",
+      "to": "spec-04"
+    },
+    {
+      "from": "adr-0030",
+      "kind": "implemented_by",
+      "source": "adr-header",
+      "to": "spec-05"
+    },
+    {
+      "from": "adr-0030",
+      "kind": "implemented_by",
+      "source": "adr-header",
+      "to": "spec-07"
+    },
+    {
+      "from": "adr-0030",
+      "kind": "implemented_by",
+      "source": "adr-header",
+      "to": "spec-15"
+    },
+    {
+      "from": "adr-0031",
+      "kind": "implemented_by",
+      "source": "adr-header",
+      "to": "spec-04"
+    },
+    {
+      "from": "adr-0031",
+      "kind": "implemented_by",
+      "source": "adr-header",
+      "to": "spec-09"
+    },
+    {
+      "from": "adr-0031",
+      "kind": "implemented_by",
+      "source": "both-headers",
+      "to": "spec-10"
+    },
+    {
       "from": "P1",
       "kind": "motivates",
       "source": "extra",
@@ -1973,6 +2037,42 @@
       "kind": "related",
       "source": "adr-header",
       "to": "adr-0017"
+    },
+    {
+      "from": "adr-0030",
+      "kind": "related",
+      "source": "adr-header",
+      "to": "adr-0009"
+    },
+    {
+      "from": "adr-0030",
+      "kind": "related",
+      "source": "adr-header",
+      "to": "adr-0016"
+    },
+    {
+      "from": "adr-0030",
+      "kind": "related",
+      "source": "adr-header",
+      "to": "adr-0027"
+    },
+    {
+      "from": "adr-0031",
+      "kind": "related",
+      "source": "adr-header",
+      "to": "adr-0007"
+    },
+    {
+      "from": "adr-0031",
+      "kind": "related",
+      "source": "adr-header",
+      "to": "adr-0015"
+    },
+    {
+      "from": "adr-0031",
+      "kind": "related",
+      "source": "adr-header",
+      "to": "adr-0021"
     },
     {
       "from": "adr-0020",
