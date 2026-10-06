@@ -10,10 +10,11 @@ from pathlib import Path
 import polars as pl
 import pytest
 
-from data.ops import bronze, replay, series
+from data.ops import bronze, replay, sample, series
 from data.ops.run import run
 from nick_of_time import ids
 from nick_of_time.store import NewCase
+from nick_of_time.store.memory import MemoryStore
 
 NOW = dt.datetime(2026, 10, 5, 12, tzinfo=dt.UTC)
 C = {"MX1": ("CLI-MX0000000001", "México"), "CO": ("CLI-CO0000000001", "Colombia"),
@@ -63,16 +64,17 @@ def gold(tmp_path: Path):
     os.chmod(labels, 0o600)
 
 
-def simulate(gold: Path):
-    return replay.run(gold, series.quota(series.asis(gold)))
+def simulate(gold: Path, merchant: bool = True):
+    return replay.run(gold, series.quota(series.asis(gold)), merchant=merchant)
 
 
-def job(gold: Path, out: Path, store=None, contacts=None) -> dict:
+def job(gold: Path, out: Path, store=None, contacts=None, web: Path | None = None) -> dict:
     if store is None:
         store, contacts = simulate(gold)
-    run(bronze.from_memory(store), gold_path=gold, out=out, web=out / "ops_kpis.json", now=NOW, contacts=contacts,
-        asis=series.asis(gold))
-    return json.loads((out / "ops_kpis.json").read_text())["data"]
+    web = web or out / "ops_kpis.json"
+    run(bronze.from_memory(store), gold_path=gold, out=out, web=web, now=NOW, contacts=contacts,
+        asis=series.asis(gold), variant=simulate(gold, merchant=False)[1])
+    return json.loads(web.read_text())["data"]
 
 
 def test_ac_12_the_replay_is_deterministic(gold, tmp_path):
@@ -83,7 +85,7 @@ def test_ac_12_the_replay_is_deterministic(gold, tmp_path):
         assert pl.read_parquet(tmp_path / "a/gold" / f"{name}.parquet").equals(
             pl.read_parquet(tmp_path / "b/gold" / f"{name}.parquet"))
     total = first["series"]["replay"]["total"]
-    assert (total["contacts"], total["cases_opened"], total["escalated"]["numerator"]) == (5, 3, 2)
+    assert (total["contacts"], total["cases_opened"], total["handed_to_analyst"]["numerator"]) == (5, 3, 2)
     assert total["complete_intake"] == {"value": 0.6, "numerator": 3, "denominator": 5}
     assert total["safe_automated_resolution"] == {"value": 1.0, "numerator": 1, "denominator": 1}
 
@@ -120,15 +122,23 @@ def test_ac_15_each_series_carries_label_source_window_and_notes(gold, tmp_path)
     data = job(gold, tmp_path)["series"]
     bank, sim, live = data["bank_today"], data["replay"], data["live"]
     assert (bank["label"], sim["label"]) == ("[data]", "[simulated]") and data["window"] == ["2026-01", "2026-05"]
-    for s, headline in ((bank, "first_contact_resolution"), (sim, "complete_intake")):
-        assert s["source"] and s["window"] == data["window"] and set(s["notes"]) >= {
-            headline, "days_to_receipt", "escalated", "outside_sla_at_intake"}
+    assert data["compare"] == [{"bank_today": "first_contact_resolution", "replay": "complete_intake"},
+                               {"bank_today": "days_to_receipt", "replay": "days_to_receipt"}]
+    for s, context in ((bank, {"escalated", "outside_sla_at_intake", "resolution_days"}),
+                       (sim, {"handed_to_analyst", "opened_without_deadline", "safe_automated_resolution"})):
+        assert s["source"] and s["window"] == data["window"]
+        assert set(s["notes"]) >= {*(pair[s["key"]] for pair in data["compare"]), *context}
+        assert context <= set(s["total"]), "context figures carry their own definition and are never paired"
+    assert not {"escalated", "outside_sla_at_intake"} & set(sim["total"])
     assert (live["status"], live["message"]) == ("pending", "Pending: no live traffic yet")
     assert bank["total"]["contacts"] == sim["total"]["contacts"] == 5 and bank["total"]["escalated"]["numerator"] == 1
     assert bank["total"]["first_contact_resolution"] == {"value": pytest.approx(0.436, abs=1e-3), "numerator": 51021,
                                                          "denominator": 117021, "constant": True}
     assert "resolution_days" in bank["total"] and "resolution_days" not in sim["total"]
     assert "not the bank's resolved-at-first-contact" in sim["notes"]["complete_intake"]
+    assert "upper bound" in sim["notes"]["complete_intake"]
+    sens = sim["sensitivity"]
+    assert sens["named"]["complete_intake"]["numerator"] == 3 and sens["amount_and_date"]["asked"]["denominator"] == 5
     assert [m["month"] for m in bank["months"]] == ["2026-02", "2026-03", "2026-04", "2026-05"]
 
 
@@ -141,3 +151,17 @@ def test_ac_16_an_eval_row_never_counts(gold, tmp_path):
                               run_id="eval-dev:S0:1", trace_id="T-eval"), actor="agent", action_id=ids.new_id("action"))
     total = job(gold, tmp_path, store, contacts)["series"]["replay"]["total"]
     assert total["cases_opened"] == 3 and total["contacts"] == 5
+
+
+def test_ac_17_the_export_does_not_depend_on_local_state(gold, tmp_path):
+    """AC-17: two runs write byte-identical files, also when one output folder holds an earlier run (which moves its
+    manifest version); the export names no manifest version."""
+    store, contacts = simulate(gold)
+    stale = tmp_path / "stale"
+    run(bronze.from_memory(sample.seed(MemoryStore(), sample.gold_transactions(gold))), gold_path=gold, out=stale,
+        now=NOW)
+    job(gold, stale, store, contacts, web=tmp_path / "a.json")
+    job(gold, tmp_path / "clean", store, contacts, web=tmp_path / "b.json")
+    assert json.loads((stale / "manifest.json").read_text())["version"] == 2
+    assert (tmp_path / "a.json").read_bytes() == (tmp_path / "b.json").read_bytes()
+    assert "manifest v" not in json.loads((tmp_path / "a.json").read_text())["source"]

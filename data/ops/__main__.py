@@ -11,11 +11,13 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import shutil
 from pathlib import Path
 
-from data.ops.run import OPS_DIR, ROOT, run
+from data.ops.run import OPS_DIR, ROOT, commit_time, run
 
 WEB = ROOT / "apps" / "web" / "public" / "data" / "ops_kpis.json"
+REPLAY_DIR = OPS_DIR / "replay"                              # the replay's own layers, rebuilt from scratch each run
 
 
 def main() -> None:
@@ -52,8 +54,11 @@ def replay(args: argparse.Namespace) -> None:
     asis = series.asis(args.gold)
     asis.write_csv(series.ASIS_SQL.with_suffix(".csv"))
     store, contacts = rp.run(args.gold, series.quota(asis), limit=args.limit)
+    variant = rp.run(args.gold, series.quota(asis), limit=args.limit, merchant=False)[1]     # sensitivity, §11.3
     simulated = time.perf_counter() - start
-    manifest = run(bronze.from_memory(store), gold_path=args.gold, web=args.web, contacts=contacts, asis=asis)
+    shutil.rmtree(REPLAY_DIR, ignore_errors=True)            # a clean output: nothing carried from an earlier run
+    manifest = run(bronze.from_memory(store), gold_path=args.gold, out=REPLAY_DIR, web=args.web, now=commit_time(),
+                   contacts=contacts, asis=asis, variant=variant)
     print(json.dumps({"contacts": contacts.height, "outcomes": dict(contacts["outcome"].value_counts().iter_rows()),
                       "rows": {t: m["rows"] for t, m in manifest["tables"].items()},
                       "source_rows": {t: s["rows"] for t, s in manifest["source"]["tables"].items()},

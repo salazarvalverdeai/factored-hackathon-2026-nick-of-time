@@ -1,7 +1,7 @@
 {
-  "generated_at": "2026-10-06T00:29:14Z",
-  "git_sha": "e1306a9",
-  "source": "make ops-replay — Bank today [data] and the card-charge replay [simulated], memory store, ops manifest v2",
+  "generated_at": "2026-10-06T00:34:53Z",
+  "git_sha": "41ff2e7",
+  "source": "make ops-replay — Bank today [data] and the card-charge replay [simulated], memory store",
   "data": {
     "label": "[simulated]",
     "mode": "replay",
@@ -2734,6 +2734,16 @@
         "2026-01",
         "2026-05"
       ],
+      "compare": [
+        {
+          "bank_today": "first_contact_resolution",
+          "replay": "complete_intake"
+        },
+        {
+          "bank_today": "days_to_receipt",
+          "replay": "days_to_receipt"
+        }
+      ],
       "bank_today": {
         "key": "bank_today",
         "name": "Bank today",
@@ -2928,8 +2938,8 @@
         "notes": {
           "first_contact_resolution": "The bank's FCR means a complaint contact resolved at first contact. It is the 'Queja' call-center value over the whole dataset (43.6%); the contacts table is not in this repo's gold, so the same value repeats each month.",
           "days_to_receipt": "First response date minus creation date, in days: the closest proxy the dataset has, since it records no receipt or legal deadline. Complaints with no first response are left out.",
-          "escalated": "Complaints with status Escalated at the dataset's snapshot.",
-          "outside_sla_at_intake": "The dataset's own sla_breached flag, counted by intake month.",
+          "escalated": "Complaints whose status is Escalated at the dataset's snapshot: moved up a level inside the bank. Context only; the system has no such status.",
+          "outside_sla_at_intake": "The dataset's own sla_breached flag, by intake month. The dataset does not say which SLA it measures. Context only.",
           "resolution_days": "Bank only: a person decides the final resolution, so it is not simulated."
         }
       },
@@ -2958,12 +2968,12 @@
               "n": 695,
               "missing": 0
             },
-            "escalated": {
+            "handed_to_analyst": {
               "value": 1.0,
               "numerator": 695,
               "denominator": 695
             },
-            "outside_sla_at_intake": {
+            "opened_without_deadline": {
               "value": 0.0,
               "numerator": 0,
               "denominator": 695
@@ -3000,12 +3010,12 @@
               "n": 612,
               "missing": 3
             },
-            "escalated": {
+            "handed_to_analyst": {
               "value": 0.9934959349593496,
               "numerator": 611,
               "denominator": 615
             },
-            "outside_sla_at_intake": {
+            "opened_without_deadline": {
               "value": 0.0,
               "numerator": 0,
               "denominator": 612
@@ -3042,12 +3052,12 @@
               "n": 721,
               "missing": 2
             },
-            "escalated": {
+            "handed_to_analyst": {
               "value": 0.9972337482710927,
               "numerator": 721,
               "denominator": 723
             },
-            "outside_sla_at_intake": {
+            "opened_without_deadline": {
               "value": 0.0,
               "numerator": 0,
               "denominator": 721
@@ -3084,12 +3094,12 @@
               "n": 679,
               "missing": 1
             },
-            "escalated": {
+            "handed_to_analyst": {
               "value": 0.9970588235294118,
               "numerator": 678,
               "denominator": 680
             },
-            "outside_sla_at_intake": {
+            "opened_without_deadline": {
               "value": 0.0,
               "numerator": 0,
               "denominator": 679
@@ -3126,12 +3136,12 @@
               "n": 691,
               "missing": 0
             },
-            "escalated": {
+            "handed_to_analyst": {
               "value": 1.0,
               "numerator": 691,
               "denominator": 691
             },
-            "outside_sla_at_intake": {
+            "opened_without_deadline": {
               "value": 0.0,
               "numerator": 0,
               "denominator": 691
@@ -3169,12 +3179,12 @@
             "n": 3398,
             "missing": 6
           },
-          "escalated": {
+          "handed_to_analyst": {
             "value": 0.9976498237367802,
             "numerator": 3396,
             "denominator": 3404
           },
-          "outside_sla_at_intake": {
+          "opened_without_deadline": {
             "value": 0.0,
             "numerator": 0,
             "denominator": 3398
@@ -3197,12 +3207,39 @@
           "confirmations_assumed": 0
         },
         "notes": {
-          "complete_intake": "Complete intake means a case open on the charge the customer named, in the expected queue, with a receipt that carries its legal deadline, all in the first contact; a person then decides. It is not the bank's resolved-at-first-contact.",
+          "complete_intake": "Complete intake means a case open on the charge the customer named, in the expected queue, with a receipt that carries its legal deadline, all in the first contact; a person then decides. It is not the bank's resolved-at-first-contact. It is an upper bound: the message names the charge exactly as the statement shows it, and real customers misremember amounts and dates.",
           "days_to_receipt": "0 days: the receipt with its legal deadline comes in the same conversation. Contacts that end with a question have no receipt yet and are left out.",
-          "escalated": "Cases handed to a person at intake (medium or human zone), over all contacts. Most charges carry a low bank score, so a person decides them by design.",
-          "outside_sla_at_intake": "Cases opened at first contact with no legal deadline, over cases opened.",
+          "handed_to_analyst": "Cases handed to an analyst at first contact with the evidence and the legal deadline, over all contacts. Charges with a medium or low bank score always go to a person, who decides the block or the credit: by design, not a failure.",
+          "opened_without_deadline": "Cases opened at first contact with no legal deadline, over cases opened.",
           "safe_automated_resolution": "High-zone charges the system blocked and verified with no person, over the contacts whose charge is in the high zone. Few charges are, so it is a small secondary figure, not the value claim.",
           "asked": "The engine asks when the search finds several candidate charges, or none; the replay ends the contact there."
+        },
+        "sensitivity": {
+          "variant": "the message names the amount and the date, no merchant",
+          "named": {
+            "complete_intake": {
+              "value": 0.9982373678025852,
+              "numerator": 3398,
+              "denominator": 3404
+            },
+            "asked": {
+              "value": 0.0017626321974148062,
+              "numerator": 6,
+              "denominator": 3404
+            }
+          },
+          "amount_and_date": {
+            "complete_intake": {
+              "value": 0.9979435957696827,
+              "numerator": 3397,
+              "denominator": 3404
+            },
+            "asked": {
+              "value": 0.002056404230317274,
+              "numerator": 7,
+              "denominator": 3404
+            }
+          }
         }
       },
       "live": {

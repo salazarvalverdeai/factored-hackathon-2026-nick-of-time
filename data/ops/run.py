@@ -25,6 +25,15 @@ def sha256(frame: pl.DataFrame) -> str:
     return hashlib.sha256(frame.write_csv().encode()).hexdigest()
 
 
+def commit_time() -> dt.datetime:
+    """The HEAD commit time (UTC): the replay's `generated_at`, so two runs on one commit write the same bytes."""
+    try:
+        out = subprocess.run(["git", "log", "-1", "--format=%cI"], cwd=ROOT, capture_output=True, text=True, check=True)
+        return dt.datetime.fromisoformat(out.stdout.strip()).astimezone(dt.UTC)
+    except (OSError, subprocess.CalledProcessError, ValueError):
+        return dt.datetime(2026, 6, 1, tzinfo=dt.UTC)
+
+
 def git_sha() -> str:
     try:
         return subprocess.run(["git", "rev-parse", "--short", "HEAD"], cwd=ROOT, capture_output=True, text=True,
@@ -35,9 +44,10 @@ def git_sha() -> str:
 
 def run(snapshot: bronze.Snapshot, *, gold_path: Path, out: Path = OPS_DIR, web: Optional[Path] = None,
         mode: str = "replay", now: Optional[dt.datetime] = None, contacts: Optional[pl.DataFrame] = None,
-        asis: Optional[pl.DataFrame] = None) -> dict[str, Any]:
+        asis: Optional[pl.DataFrame] = None, variant: Optional[pl.DataFrame] = None) -> dict[str, Any]:
     """Run the job on one snapshot; returns the manifest. `web` is where ops_kpis.json goes (AC-09). `contacts` (one
-    outcome row per replayed complaint) becomes gold `replay_contacts`; with `asis` the export carries the series."""
+    outcome row per replayed contact) becomes gold `replay_contacts`; with `asis` the export carries the series, and
+    `variant` (the same contacts with no merchant in the message) its sensitivity figure."""
     now = now or dt.datetime.now(dt.UTC)
     stamp = now.isoformat(timespec="seconds")
     sources = bronze.build(snapshot, out / "bronze", now)
@@ -73,19 +83,19 @@ def run(snapshot: bronze.Snapshot, *, gold_path: Path, out: Path = OPS_DIR, web:
                 "previous": None if previous is None else {"version": previous["version"], "run_at": previous["run_at"]}}
     path.write_text(json.dumps(manifest, indent=2, ensure_ascii=False) + "\n")
     if web is not None:
-        export(tables, web, mode=mode, source=snapshot.source, version=version, now=now,
-               series=series.build(tables, contacts, asis) if asis is not None or contacts is not None else None)
+        built = series.build(tables, contacts, asis, variant) if asis is not None or contacts is not None else None
+        export(tables, web, mode=mode, source=snapshot.source, now=now, series=built)
     return manifest
 
 
-def export(tables: dict[str, pl.DataFrame], path: Path, *, mode: str, source: str, version: int,
-           now: dt.datetime, series: Optional[dict[str, Any]] = None) -> None:
+def export(tables: dict[str, pl.DataFrame], path: Path, *, mode: str, source: str, now: dt.datetime,
+           series: Optional[dict[str, Any]] = None) -> None:
     """ops_kpis.json with the spec 01 §6.2 envelope (AC-09): `days` and `feedback` are `[simulated]`; `series` (§11)
-    carries each series' own label, source, window and notes."""
+    carries each series' own label, source, window and notes. Nothing in it depends on local state (AC-17): no
+    manifest version, and `now` is the caller's (the replay passes the commit time)."""
     payload = {"generated_at": now.strftime("%Y-%m-%dT%H:%M:%SZ"), "git_sha": git_sha(),
-               "source": (f"make ops-replay — Bank today [data] and the card-charge replay [simulated], {source} store, ops "
-                          f"manifest v{version}" if series else
-                          f"data/ops job [simulated] — {source} store, ops manifest v{version}"),
+               "source": (f"make ops-replay — Bank today [data] and the card-charge replay [simulated], {source} store"
+                          if series else f"data/ops job [simulated] — {source} store"),
                "data": {**gold.summary(tables, mode), **({"series": series} if series else {})}}
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")

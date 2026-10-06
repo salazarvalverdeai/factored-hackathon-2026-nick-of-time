@@ -57,6 +57,9 @@ definition of 2026-10-04 (issue comment). Evidence: [T] test · [C] command · [
 - **AC-15 [P1]** — `ops_kpis.json` shall carry the series Bank today `[data]`, With Nick of Time `[simulated]` and
   Live (pending until T5), each with its label, source, window and method notes (§7.4, §11). · [T]
 - **AC-16 [P1]** — A row written by an evaluation run (`run_id` set) shall never be counted in the replay series. · [T]
+- **AC-17 [P1]** — Two runs of `make ops-replay` on the same commit and gold shall write byte-identical
+  `ops_kpis.json` files: the export carries no manifest version or other local state, and the replay rebuilds its
+  layers in a clean `data/ops/replay/`. · [T]
 
 ## 7. Data model touched
 Reads the operational tables of spec 01 §6.5 (read-only, through `nick_of_time.store`) and `data/gold/` v1. Writes
@@ -118,15 +121,18 @@ per table, source row counts, checks with counts. The version goes up only when 
 "numerator": 0, "denominator": 0}, "escalation_rate": {…}, "unsafe_outcomes": 0, "cost_per_case": 0.0,
 "latency_p95_ms": 0, "denials": 0}], "feedback": {"decided": 0, "agreed": 0}}`.
 
-Amended (§11): `make ops-replay` adds `data.series = {window, bank_today, replay, live}`. `bank_today` and `replay`
-each hold `key`, `name`, `label`, `source`, `window` (`["2026-01", "2026-05"]`), `notes` (one sentence per metric),
-`months` and `total` (same fields, `month: "total"`). A month carries `contacts`, `days_to_receipt`
-`{p50, mean, n, missing}` and the rates `{value, numerator, denominator}` `escalated` and `outside_sla_at_intake`. The
-headline pair is the bank's `first_contact_resolution` (with `constant: true`) against the replay's
-`complete_intake`. The bank adds `resolution_days` `{p50, n}`; the replay adds `cases_opened`,
-`safe_automated_resolution`, `asked_several`, `asked_none` (rates) and `confirmations_assumed`. `live` is
-`{key, name, status: "pending", message, reason}` until T5. `days` and `feedback` keep their meaning: here they are
-the replay's, `[simulated]`.
+Amended (§11): `make ops-replay` adds `data.series = {window, compare, bank_today, replay, live}`. `compare` lists
+the only pairs shown side by side: `{bank_today: first_contact_resolution, replay: complete_intake}` and
+`{bank_today: days_to_receipt, replay: days_to_receipt}`. `bank_today` and `replay` each hold `key`, `name`, `label`,
+`source`, `window` (`["2026-01", "2026-05"]`), `notes` (one sentence per metric), `months` and `total` (same fields,
+`month: "total"`). A month carries `contacts`, `days_to_receipt` `{p50, mean, n, missing}` and rates
+`{value, numerator, denominator}`. Bank: `first_contact_resolution` (with `constant: true`), and as context
+`escalated`, `outside_sla_at_intake` and `resolution_days` `{p50, n}`. Replay: `complete_intake`, and as context
+`handed_to_analyst`, `opened_without_deadline`, `safe_automated_resolution`, `asked_several`, `asked_none`,
+`cases_opened` and `confirmations_assumed`; plus `sensitivity` `{variant, named, amount_and_date}`, each with
+`complete_intake` and `asked`. `live` is `{key, name, status: "pending", message, reason}` until T5. `days` and
+`feedback` keep their meaning: here they are the replay's, `[simulated]`. `generated_at` is the HEAD commit time
+(AC-17).
 
 ## 8. Assumptions and open questions (gate 1 — to close in this PR)
 - **Q1 (@gianzk) — source.** Is reading through `nick_of_time.store` right, or do you prefer a read-only Postgres role
@@ -166,7 +172,7 @@ Implementation goes in `feat/14-…` branches once this spec is approved, after 
 - [x] T4 — `ops_kpis.json` export · covers AC-09 · the sample source writes it to `data/ops/` only; shape fixture in
       `apps/web/app/analytics/__fixtures__/ops_kpis.json`
 - [x] T8 — Bank today and the replay over the dataset, `make ops-replay`, the committed export · covers AC-12 to
-      AC-16 · `queries/ops/asis_monthly.sql`, `queries/ops/replay_sample.sql`, `data/ops/replay.py`,
+      AC-17 · `queries/ops/asis_monthly.sql`, `queries/ops/replay_sample.sql`, `data/ops/replay.py`,
       `data/ops/series.py`, [T]
       `tests/test_spec14_replay.py`
 - [ ] T5 — run against Postgres (after spec 05 is deployed); schedule documented · covers AC-01
@@ -211,9 +217,15 @@ resolution time is not simulated: a person decides it, so it is shown for the ba
 |---|---|---|
 | Headline | FCR 43.6%, resolved at first contact (period value) | complete intake (spec 10 §4.1 `complete_intake_rate`): a case on the reported charge, the expected queue status and a receipt with its legal deadline, all at first contact ÷ contacts |
 | Time to a receipt with a legal deadline | first response − creation, days (closest proxy) | 0 days when a case opens with a deadline at first contact |
-| Escalations to a person | status `Escalated` ÷ complaints | `handoff_emitted` at intake ÷ contacts |
-| Outside SLA at intake | the dataset's `sla_breached` ÷ complaints | cases opened with no legal deadline ÷ cases opened |
-| Secondary | — | safe automated resolution: high-zone charges blocked and verified with no person, on the reported charge ÷ contacts whose charge is in the high zone |
+
+Only those two rows are compared. Every other figure is context of its own series, with its own definition, and is
+never drawn next to the other series' figure:
+- Bank: escalated (status `Escalated` ÷ complaints: moved up a level inside the bank); outside SLA (the dataset's
+  `sla_breached` ÷ complaints, an SLA the dataset does not name); days to the final resolution.
+- System: handed to an analyst with evidence and a legal deadline (a handoff with complete intake ÷ contacts; charges
+  with a medium or low bank score always go to a person, who decides the block or the credit); opened without a legal
+  deadline (÷ cases opened); safe automated resolution (high-zone charges blocked and verified with no person, on the
+  reported charge ÷ contacts whose charge is in the high zone).
 
 The expected queue status comes from the policy file, as spec 09 derives expected states: `verification` when the
 charge's bank score is in the high zone and the amount tier does not need a person, `review` otherwise.
@@ -223,7 +235,8 @@ charge's bank score is in the high zone and the amount tier does not need a pers
   `clock.today` to DEMO_TODAY, so the read handlers run with their `utc_now` hook at that instant; cases are stored
   with mode `replay`.
 - The message names the charge exactly as the customer's statement shows it. Complete intake is therefore an upper
-  bound on how often a customer's own words identify the charge; real customers misremember amounts and dates.
+  bound on how often a customer's own words identify the charge; real customers misremember amounts and dates. A
+  sensitivity run on the same contacts names only the amount and the date, with no merchant (`sensitivity`).
 - A zone medium confirmation is answered yes. Option cards for several charges are not answered: the replay does not
   pick a charge for the customer.
 - Escalated and `sla_breached` are the dataset's own fields at its snapshot; neither says which SLA it measures.

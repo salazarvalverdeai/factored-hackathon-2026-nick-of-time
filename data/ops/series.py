@@ -1,10 +1,12 @@
 """The three series of ops_kpis.json (spec 14 §7.4 and §11): Bank today `[data]`, With Nick of Time `[simulated]` and
 Live (pending until T5), over 2026-01..2026-05, per month and a 5-month total.
 
-The headline pair is the lead's goal metric: the bank's FCR (resolved at first contact) against the system's complete
-intake at first contact (spec 10 §4.1 `complete_intake_rate`: a case on the reported charge, the expected queue
-status, a receipt with its legal deadline). Both also carry `days_to_receipt`, `escalated` and
-`outside_sla_at_intake`; `resolution_days` exists for the bank only, since a person decides it (not simulated).
+Only two pairs are side by side (`COMPARE`): the lead's goal metric, the bank's FCR against the system's complete
+intake at first contact (spec 10 §4.1 `complete_intake_rate`), which measure different things and say so; and the
+days to a receipt with a legal deadline (the bank's through a proxy). Every other figure is context of its own series,
+with its own definition: the bank's `escalated`, `outside_sla_at_intake` and `resolution_days` (a person decides the
+final resolution: not simulated); the system's `handed_to_analyst`, `opened_without_deadline`,
+`safe_automated_resolution` and the no-merchant `sensitivity`.
 """
 from __future__ import annotations
 
@@ -19,6 +21,8 @@ ROOT = Path(__file__).resolve().parents[2]
 ASIS_SQL = ROOT / "queries" / "ops" / "asis_monthly.sql"
 FCR_CSV = ROOT / "queries" / "pitch" / "p02_fcr_complaint_vs_bank.csv"
 WINDOW = ["2026-01", "2026-05"]
+COMPARE = [{"bank_today": "first_contact_resolution", "replay": "complete_intake"},
+           {"bank_today": "days_to_receipt", "replay": "days_to_receipt"}]
 LIVE = {"key": "live", "name": "Live", "status": "pending", "message": "Pending: no live traffic yet",
         "reason": "spec 14 T5 (the Postgres source) has not run on live traffic"}
 
@@ -68,18 +72,20 @@ def bank_today(frame: pl.DataFrame) -> dict[str, Any]:
                 "days_to_receipt": "First response date minus creation date, in days: the closest proxy the dataset "
                                    "has, since it records no receipt or legal deadline. Complaints with no first "
                                    "response are left out.",
-                "escalated": "Complaints with status Escalated at the dataset's snapshot.",
-                "outside_sla_at_intake": "The dataset's own sla_breached flag, counted by intake month.",
+                "escalated": "Complaints whose status is Escalated at the dataset's snapshot: moved up a level "
+                             "inside the bank. Context only; the system has no such status.",
+                "outside_sla_at_intake": "The dataset's own sla_breached flag, by intake month. The dataset does not "
+                                         "say which SLA it measures. Context only.",
                 "resolution_days": "Bank only: a person decides the final resolution, so it is not simulated."}}
 
 
 def replay(tables: dict[str, pl.DataFrame], contacts: pl.DataFrame) -> dict[str, Any]:
     kpis = (tables["ops_kpis"].filter(pl.col("mode") == "replay")
             .with_columns(pl.col("day").dt.strftime("%Y-%m").alias("month")))
-    cases = kpis.group_by("month").agg(pl.col("cases").sum(), pl.col("receipt_rate_numerator").sum().alias("dated"),
-                                       pl.col("escalation_rate_numerator").sum().alias("handoffs"))
+    cases = kpis.group_by("month").agg(pl.col("cases").sum(), pl.col("receipt_rate_numerator").sum().alias("dated"))
     seen = contacts.group_by("month").agg(
         pl.len().alias("contacts"), pl.col("complete_intake").sum().alias("complete"),
+        ((pl.col("outcome") == "handoff") & pl.col("complete_intake")).sum().alias("handed"),
         pl.col("expected_block").sum().alias("expected_block"),
         (pl.col("expected_block") & (pl.col("outcome") == "automated") & pl.col("complete_intake")).sum()
         .alias("automated"),
@@ -94,7 +100,7 @@ def replay(tables: dict[str, pl.DataFrame], contacts: pl.DataFrame) -> dict[str,
                 "complete_intake": rate(r["complete"], n),
                 "days_to_receipt": {"p50": 0.0 if r["dated"] else None, "mean": 0.0 if r["dated"] else None,
                                     "n": r["dated"], "missing": n - r["dated"]},
-                "escalated": rate(r["handoffs"], n), "outside_sla_at_intake": rate(opened - r["dated"], opened),
+                "handed_to_analyst": rate(r["handed"], n), "opened_without_deadline": rate(opened - r["dated"], opened),
                 "safe_automated_resolution": rate(r["automated"], r["expected_block"]),
                 "asked_several": rate(r["asked_several"], n), "asked_none": rate(r["asked_none"], n),
                 "confirmations_assumed": r["confirmed"]}
@@ -106,12 +112,16 @@ def replay(tables: dict[str, pl.DataFrame], contacts: pl.DataFrame) -> dict[str,
             "notes": {
                 "complete_intake": "Complete intake means a case open on the charge the customer named, in the "
                                    "expected queue, with a receipt that carries its legal deadline, all in the first "
-                                   "contact; a person then decides. It is not the bank's resolved-at-first-contact.",
+                                   "contact; a person then decides. It is not the bank's resolved-at-first-contact. "
+                                   "It is an upper bound: the message names the charge exactly as the statement "
+                                   "shows it, and real customers misremember amounts and dates.",
                 "days_to_receipt": "0 days: the receipt with its legal deadline comes in the same conversation. "
                                    "Contacts that end with a question have no receipt yet and are left out.",
-                "escalated": "Cases handed to a person at intake (medium or human zone), over all contacts. Most "
-                             "charges carry a low bank score, so a person decides them by design.",
-                "outside_sla_at_intake": "Cases opened at first contact with no legal deadline, over cases opened.",
+                "handed_to_analyst": "Cases handed to an analyst at first contact with the evidence and the legal "
+                                     "deadline, over all contacts. Charges with a medium or low bank score always go "
+                                     "to a person, who decides the block or the credit: by design, not a failure.",
+                "opened_without_deadline": "Cases opened at first contact with no legal deadline, over cases "
+                                           "opened.",
                 "safe_automated_resolution": "High-zone charges the system blocked and verified with no person, over "
                                              "the contacts whose charge is in the high zone. Few charges are, so it is "
                                              "a small secondary figure, not the value claim.",
@@ -119,7 +129,21 @@ def replay(tables: dict[str, pl.DataFrame], contacts: pl.DataFrame) -> dict[str,
                          "ends the contact there."}}
 
 
-def build(tables: dict[str, pl.DataFrame], contacts: Optional[pl.DataFrame],
-          asis_frame: Optional[pl.DataFrame]) -> dict[str, Any]:
-    return {"window": WINDOW, "bank_today": None if asis_frame is None else bank_today(asis_frame),
-            "replay": None if contacts is None else replay(tables, contacts), "live": LIVE}
+def sensitivity(base: pl.DataFrame, variant: pl.DataFrame) -> dict[str, Any]:
+    """The same contacts with a message that names only the amount and the date (no merchant)."""
+    def figures(frame: pl.DataFrame) -> dict[str, Any]:
+        n = frame.height
+        return {"complete_intake": rate(int(frame["complete_intake"].sum()), n),
+                "asked": rate(int(frame["outcome"].str.starts_with("asked").sum()), n)}
+
+    return {"variant": "the message names the amount and the date, no merchant", "named": figures(base),
+            "amount_and_date": figures(variant)}
+
+
+def build(tables: dict[str, pl.DataFrame], contacts: Optional[pl.DataFrame], asis_frame: Optional[pl.DataFrame],
+          variant: Optional[pl.DataFrame] = None) -> dict[str, Any]:
+    sim = None if contacts is None else replay(tables, contacts)
+    if sim is not None and variant is not None:
+        sim["sensitivity"] = sensitivity(contacts, variant)
+    return {"window": WINDOW, "compare": COMPARE,
+            "bank_today": None if asis_frame is None else bank_today(asis_frame), "replay": sim, "live": LIVE}

@@ -61,10 +61,11 @@ def sample(gold: Path, quota: dict[str, int]) -> pl.DataFrame:
                      on="customer_id", how="left")
 
 
-def message(row: dict[str, Any]) -> str:
-    """The customer names the charge as their statement shows it; half the contacts read as a wrongful charge."""
-    day = row["charged_on"]
-    said = f"de {row['amount']:.2f} {row['currency']}" + (f" en {row['merchant_name']}" if row["merchant_name"] else "")
+def message(row: dict[str, Any], merchant: bool = True) -> str:
+    """The customer names the charge as their statement shows it; half the contacts read as a wrongful charge.
+    `merchant=False` is the sensitivity variant: amount and date only."""
+    day, shop = row["charged_on"], row["merchant_name"] if merchant else None
+    said = f"de {row['amount']:.2f} {row['currency']}" + (f" en {shop}" if shop else "")
     when = f"del {day.day} de {MONTHS[day.month - 1]} de {day.year}"
     if int(hashlib.md5(row["transaction_id"].encode()).hexdigest(), 16) % 2:
         return f"Hola, me cobraron de más: el cargo {said} {when} es un cobro indebido."
@@ -72,8 +73,8 @@ def message(row: dict[str, Any]) -> str:
 
 
 class Replay:
-    def __init__(self, gold: Path, store: MemoryStore, now: list[dt.datetime]):
-        self.store, self.now, self.nlu = store, now, NLU()
+    def __init__(self, gold: Path, store: MemoryStore, now: list[dt.datetime], merchant: bool = True):
+        self.store, self.now, self.nlu, self.merchant = store, now, NLU(), merchant
         self.policies = load_policies()
         self.engine = PolicyEngine(self.policies)
         self.gold = Gold(gold)
@@ -97,7 +98,7 @@ class Replay:
     def contact(self, n: int, row: dict[str, Any]) -> dict[str, Any]:
         today, customer = row["contact_on"], row["customer_id"]
         self.now[0] = dt.datetime.combine(today, dt.time(12), ZoneInfo(TZ.get(row["country"], "UTC"))).astimezone(dt.UTC)
-        read = self.nlu.parse(message(row), "es", today=today)
+        read = self.nlu.parse(message(row, self.merchant), "es", today=today)
         slots = read.slots
         query = {"amount": float(slots.amount) if slots.amount else None, "currency": slots.currency,
                  "approx_date": slots.date, "merchant": slots.merchant}
@@ -169,11 +170,12 @@ class Replay:
                            payload={"receipt": {"receipt_id": ids.new_id("receipt"), "deadline": deadline}})
 
 
-def run(gold: Path, quota: dict[str, int], limit: Optional[int] = None) -> tuple[MemoryStore, pl.DataFrame]:
+def run(gold: Path, quota: dict[str, int], limit: Optional[int] = None,
+        merchant: bool = True) -> tuple[MemoryStore, pl.DataFrame]:
     """The store holding the replay's writes and one outcome row per contact (no id, name or text)."""
     now = [dt.datetime(2026, 1, 1, tzinfo=dt.UTC)]
     store = MemoryStore(now=lambda: now[0])
-    replay, rows = Replay(gold, store, now), sample(gold, quota)
+    replay, rows = Replay(gold, store, now, merchant), sample(gold, quota)
     rows = rows if limit is None else rows.head(limit)
     outcomes = [replay.contact(n, row) for n, row in enumerate(rows.iter_rows(named=True), 1)]
     schema = {"month": pl.Utf8, "country": pl.Utf8, "candidates": pl.Int64, "zone": pl.Utf8, "confirmed": pl.Boolean,
