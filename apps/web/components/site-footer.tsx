@@ -1,11 +1,13 @@
 import Link from "next/link";
+import { getT } from "@/lib/i18n-server";
 
 export const REPO_URL = "https://github.com/salazarvalverdeai/factored-hackathon-2026-nick-of-time";
 export const LABELS = ["[data]", "[external]", "[assumption]", "[simulated]", "[projected]"] as const;
 export const TEAM = ["Freddy", "GianMarco", "Diego"] as const;
 
 /** Site footer (spec 16): team, event, repo, and the label legend. Labels are explained on /evaluation. */
-export function SiteFooter() {
+export async function SiteFooter() {
+  const { t } = await getT();
   return (
     <footer className="mx-auto w-full max-w-7xl border-t px-4 py-6 text-xs text-muted-foreground">
       <p>
@@ -15,14 +17,14 @@ export function SiteFooter() {
         </a>
       </p>
       <p className="mt-2 break-words">
-        Figure labels:{" "}
+        {t("shell.footer.figureLabels")}{" "}
         {LABELS.map((l) => (
           <span key={l} className="mr-2 inline-block font-mono">
             {l}
           </span>
         ))}
         <Link href="/evaluation" className="underline underline-offset-2 hover:text-foreground">
-          what they mean
+          {t("shell.footer.whatTheyMean")}
         </Link>
       </p>
     </footer>
