@@ -2,7 +2,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import { METRICS, POSITIONS, chartDetail, limitationDetail, opsState, tableRows, type OpsSeries } from "./ops.ts";
+import { METRICS, OPS_INTRO, POSITIONS, SAME_CONTACT, SAME_CONTACT_NOTE, chartDetail, daysText, introDetail, limitationDetail, opsState, tableRows, type OpsSeries } from "./ops.ts";
 
 const read = (p: string) => JSON.parse(readFileSync(new URL(p, import.meta.url), "utf-8"));
 const FILE = read("../public/data/ops_kpis.json") as { source: string; data: { series: OpsSeries } };
@@ -41,7 +41,8 @@ test("spec 12 AC-02: the headline pairs the bank's FCR with complete intake, and
   assert.match(intake.note, /upper bound: the message names the charge exactly/);
   assert.deepEqual(intake.secondary.map((x) => x.title), ["Safe automated resolution", "If the message names only the amount and the date"]);
   assert.equal(fcr.secondary.length, 0);
-  assert.match(SRC, /The two headline figures measure different things/);
+  assert.match(introDetail(SERIES).method.join(" "), /The two headline figures measure different things/);
+  assert.match(introDetail(SERIES).method.join(" "), /upper bound/);
 });
 
 test("spec 12 AC-02: only the data's compare pairs are side by side; every other figure is context of one series", () => {
@@ -92,7 +93,7 @@ test("spec 12 AC-07: every bar answers hover and keyboard focus, every chart has
   assert.match(SRC, /<TableView/);
   assert.match(SRC, /Detail →/);
   assert.match(SRC, /href="\/agent"/, "the system links to /agent, no diagram here");
-  assert.match(SRC, /does not\s+model the final resolution time,\s+which a person decides/);
+  assert.match(introDetail(SERIES).method.join(" "), /does not model the final resolution time, which a person decides/);
   assert.doesNotMatch(SRC, /\[(data|simulated|projected)\]\s*[a-z]/i, "labels sit on figures, not in prose");
 });
 
@@ -111,4 +112,39 @@ test("spec 12 AC-07: 'Detail →' opens the shared detail panel with method, sou
   assert.match(SRC, /Read spec 14 §11 →/);
   assert.match(SRC, /<DetailField label="Source query" mono>/);
   assert.doesNotMatch(SRC, /<a href=\{[^}]*\}[^>]*>\s*Detail →/, "Detail opens the panel, never a plain link");
+});
+
+test("spec 12 AC-09: the Operation intro is at most two sentences and its detail panel holds the method and the limitation link", () => {
+  assert.ok(OPS_INTRO.split(/(?<=\.)\s+/).length <= 2, "two lines at most");
+  assert.match(SRC, /OPS_INTRO[^]*?setDetail\(introDetail\(all\)\)[^]*?Detail →/);
+  const d = introDetail(SERIES);
+  assert.match(d.method.join(" "), /real approved card charges/i);
+  assert.match(d.method.join(" "), /holiday calendars for 2026 only/);
+  assert.equal(d.window, "January 2026 to May 2026 (2026-01 to 2026-05)");
+  assert.match(d.extra?.href ?? "", /specs\/14-ops-lakehouse\.md#114-dataset-limitation/);
+  assert.match(SRC, /detail\.extra/);
+});
+
+test("spec 12 AC-07: a receipt in the first conversation reads 'Same contact', never '0.0 d'", () => {
+  assert.equal(daysText("days_to_receipt", 0), SAME_CONTACT);
+  assert.equal(daysText("days_to_receipt", 2.4), "2.4 d");
+  assert.equal(daysText("resolution_days", 0), "0.0 d", "only the receipt metric is rewritten");
+  const sim = opsState(FILE, "replay");
+  if (sim.kind !== "ready") return assert.fail("replay is ready");
+  const receipt = sim.charts.find((c) => c.metric.id === "days_to_receipt")!;
+  if (receipt.total.value === 0) assert.equal(receipt.total.detail[0][1], SAME_CONTACT);
+  assert.match(SAME_CONTACT_NOTE, /legal deadline is given in the first conversation/);
+  assert.match(SRC, /SAME_CONTACT_NOTE/);
+});
+
+test("spec 12 AC-09: '✓ pass' on /data has a lighter teal in dark (4.5:1 on the card)", () => {
+  const page = readFileSync(new URL("../app/data/page.tsx", import.meta.url), "utf-8");
+  assert.match(page, /text-brand-teal dark:text-teal-300/);
+  const lum = (hex: string) => {
+    const c = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255).map((v) => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4));
+    return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
+  };
+  const ratio = (a: string, b: string) => (Math.max(lum(a), lum(b)) + 0.05) / (Math.min(lum(a), lum(b)) + 0.05);
+  assert.ok(ratio("#5eead4", "#111827") >= 4.5, "teal-300 on the dark card");
+  assert.ok(ratio("#0f766e", "#111827") < 4.5, "the light teal is the one that failed");
 });

@@ -8,13 +8,13 @@ import type { KeyboardEvent } from "react";
 import { DetailField, DetailFields, DetailPanel } from "@/components/detail-panel";
 import { EmptyState } from "@/components/states";
 import {
-  POSITIONS, chartDetail, days, limitationDetail, opsState, pct, pendingDetail, tableRows,
+  OPS_INTRO, POSITIONS, SAME_CONTACT, SAME_CONTACT_NOTE, chartDetail, daysText, introDetail, opsState, pct, pendingDetail, tableRows,
   type Chart, type Detail, type OpsSeries, type Position,
 } from "@/lib/ops";
 import { FOCUS, PALETTE, TableView, TipBody, useTip } from "./charts";
 
 const COLOR: Record<string, string> = { bank_today: "var(--series-1)", replay: "var(--series-2)" };
-const fmt = (chart: Chart, v: number | null) => (chart.metric.kind === "rate" ? pct(v) : days(v));
+const fmt = (chart: Chart, v: number | null) => (chart.metric.kind === "rate" ? pct(v) : daysText(chart.metric.id, v));
 const monthName = (m: string) =>
   new Date(`${m}-15T00:00:00Z`).toLocaleDateString("en-US", { month: "short", year: "numeric", timeZone: "UTC" });
 
@@ -72,6 +72,9 @@ function MetricChart({ chart, color, other, tag, onDetail }: {
         <span className="text-3xl font-semibold tracking-tight tabular-nums">{fmt(chart, chart.total.value)}</span>
         <span className="font-mono text-xs text-muted-foreground">{chart.label}</span>
       </p>
+      {chart.metric.id === "days_to_receipt" && fmt(chart, chart.total.value) === SAME_CONTACT ? (
+        <p className="text-sm">{SAME_CONTACT_NOTE}</p>
+      ) : null}
       <p className="text-xs text-muted-foreground">
         {months}
         {other ? ` · other series: ${other.text} ` : ""}
@@ -132,32 +135,16 @@ export function Operations({ file }: { file: { data?: { series?: OpsSeries } } |
       <h2 id="ops-title" className="text-lg font-semibold">
         Operation
       </h2>
-      <div className="mt-1 max-w-3xl space-y-2 text-sm text-muted-foreground">
-        <p>
-          Bank today shows the bank&apos;s own unrecognized and wrongful charge complaints from January to May 2026. With
-          Nick of Time shows the same number of contacts each month taken in by{" "}
-          <Link href="/agent" className={LINK}>
-            the system
-          </Link>
-          : real card charges from the dataset, each reported by a customer in a written message that names the amount,
-          the date and the merchant, and run through the rules engine with no language model.
-        </p>
-        <p>
-          The two headline figures measure different things. The bank&apos;s first contact resolution means the complaint
-          was resolved in the first call. Ours means complete intake: a case on the right charge, its legal deadline and
-          the evidence handed to a person, who then decides. Ours is an upper bound, because the message names the charge
-          exactly as the statement shows it, while real customers misremember amounts and dates. The simulation does not
-          model the final resolution time, which a person decides.
-        </p>
-        <p>
-          The window starts in January 2026 because the repository has verified bank holiday calendars for 2026 only;
-          without them no legal deadline is computed. The bank&apos;s complaints could not be replayed as they are: the
-          dataset does not link a complaint to the charge it is about.{" "}
-          <button type="button" onClick={() => setDetail(limitationDetail(all))} className={`${LINK} rounded-sm`}>
-            Detail →
-          </button>
-        </p>
-      </div>
+      <p className="mt-1 max-w-3xl text-sm text-muted-foreground">
+        {OPS_INTRO.split("the system")[0]}
+        <Link href="/agent" className={LINK}>
+          the system
+        </Link>
+        {OPS_INTRO.split("the system")[1]}{" "}
+        <button type="button" onClick={() => setDetail(introDetail(all))} className={`${LINK} rounded-sm`}>
+          Detail →
+        </button>
+      </p>
       <div className="mt-4">
         <Switch value={position} onChange={setPosition} />
       </div>
@@ -212,9 +199,16 @@ export function Operations({ file }: { file: { data?: { series?: OpsSeries } } |
         title={detail?.title ?? ""}
         description={detail?.description}
         footer={detail ? (
-          <a href={detail.href} className={LINK}>
-            Read spec 14 §11 →
-          </a>
+          <span className="flex flex-col gap-1">
+            <a href={detail.href} className={LINK}>
+              Read spec 14 §11 →
+            </a>
+            {detail.extra ? (
+              <a href={detail.extra.href} className={LINK}>
+                {detail.extra.label}
+              </a>
+            ) : null}
+          </span>
         ) : null}
       >
         {detail ? (

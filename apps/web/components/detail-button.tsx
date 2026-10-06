@@ -26,7 +26,8 @@ export function DetailButton({ title, detail, className = "" }: { title: string;
         }
       >
         <DetailFields>
-          <DetailField label="Method">{detail.method}</DetailField>
+          {detail.meaning ? <DetailField label="What it means">{detail.meaning}</DetailField> : null}
+          <DetailField label="How it is computed">{detail.method}</DetailField>
           <DetailField label="Source" mono>
             {detail.source}
           </DetailField>

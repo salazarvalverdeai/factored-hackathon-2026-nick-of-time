@@ -65,7 +65,7 @@ function Table({ head, rows }: { head: string[]; rows: ReactNode[][] }) {
 
 function Result({ ok }: { ok: boolean }) {
   return (
-    <span className={`whitespace-nowrap font-medium ${ok ? "text-brand-teal" : "text-destructive"}`}>{ok ? "✓ pass" : "✕ fail"}</span>
+    <span className={`whitespace-nowrap font-medium ${ok ? "text-brand-teal dark:text-teal-300" : "text-destructive"}`}>{ok ? "✓ pass" : "✕ fail"}</span>
   );
 }
 
