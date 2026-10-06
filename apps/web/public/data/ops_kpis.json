@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-10-06T00:34:53Z",
-  "git_sha": "41ff2e7",
+  "generated_at": "2026-10-06T00:51:21Z",
+  "git_sha": "8225f76",
   "source": "make ops-replay — Bank today [data] and the card-charge replay [simulated], memory store",
   "data": {
     "label": "[simulated]",
