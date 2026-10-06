@@ -68,8 +68,8 @@ test("spec 08 AC-08: the count is the api's (nearest of credit and ruling); the 
   assert.equal(legalDeadline({ creditDeadline: "2026-07-20", rulingDeadline: "2026-06-10" }), "2026-06-10");
   assert.equal(slaOf(bc({ deadline: dl({ creditDeadline: null, rulingDeadline: "2026-10-20", daysLeft: 11 }) })).level, "green");
   // mock: no daysLeft at all → counted from DEMO_TODAY, never from the system clock
-  assert.equal(daysLeftOf({ creditDeadline: "2026-06-05", rulingDeadline: undefined, daysLeft: undefined }), 2);
-  assert.equal(DEMO_TODAY, "2026-06-03");
+  assert.equal(daysLeftOf({ creditDeadline: "2026-06-05", rulingDeadline: undefined, daysLeft: undefined }), 4);
+  assert.equal(DEMO_TODAY, "2026-06-01");
   // live row whose detail could not be read: a deadline exists but no count → not a guess
   assert.equal(slaOf(bc({ deadline: dl({ daysLeft: null }) })).level, "unknown");
 });

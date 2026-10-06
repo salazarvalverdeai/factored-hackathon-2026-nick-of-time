@@ -1,5 +1,6 @@
 // Pure helpers of the /chat page (spec 07 AC-07): one greeting, with the same name the picker and the agent use.
 import { MESSAGES } from "./mock/messages.ts";
+import type { Language } from "./types.ts";
 
 /**
  * The name the web greets with: the picker label without its "(country · product)" tag. The api builds that label
@@ -7,6 +8,15 @@ import { MESSAGES } from "./mock/messages.ts";
  */
 export function greetingName(displayName: string | undefined): string {
   return (displayName ?? "").replace(/\s*\([^)]*\)\s*$/, "").trim();
+}
+
+/**
+ * The web's first greeting line (greet.hello of contracts/messages.yaml). With no name ("assign me one" with nothing
+ * typed) it drops the name and its comma instead of greeting a placeholder: "Hola. Soy…", never "Hola, you".
+ */
+export function helloLine(lang: Language, name: string): string {
+  const template = MESSAGES.greet.hello[lang];
+  return name.trim() ? template.replace("{first_name}", name.trim()) : template.replace(", {first_name}", "");
 }
 
 const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
