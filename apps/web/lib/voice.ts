@@ -1,4 +1,4 @@
-// Voice helpers for the customer chat (spec 07 AC-07, §8 D-072, ADR 0027). Pure functions: the recorder and the
+// Voice helpers for the customer chat (spec 07 AC-10, §8 D-072, ADR 0029). Pure functions: the recorder and the
 // speech toggle in app/chat/voice.tsx use them, and lib/voice.test.ts covers them without a browser.
 
 export type Lang = "es" | "pt";
@@ -8,7 +8,7 @@ export const MAX_CLIP_SECONDS = 30;
  *  silence, so we never send one. [assumption] */
 export const NOISE_FLOOR = 0.02;
 
-/** Calm copy shown in the page; the api's 413/415 messages are developer strings and are not shown to customers. */
+/** Calm copy of the page: the fallback when an api error carries no message of its own (the api's 413/415/503 are calm ES/PT). */
 export const VOICE_COPY = {
   es: {
     hold: "Mantén para hablar",
@@ -20,8 +20,8 @@ export const VOICE_COPY = {
     denied: "No tenemos permiso para usar el micrófono. Actívalo en la configuración del navegador o escribe tu mensaje.",
     offline: "No pudimos conectar. Escribe tu mensaje.",
     draft: "Revisa lo que escuchamos, corrígelo si hace falta y envíalo.",
-    mute: "Leer respuestas en voz alta",
-    unmute: "No leer respuestas en voz alta",
+    readAloud: "Leer respuestas en voz alta",
+    online: "usa una voz en línea",
   },
   pt: {
     hold: "Segure para falar",
@@ -33,8 +33,8 @@ export const VOICE_COPY = {
     denied: "Não temos permissão para usar o microfone. Ative nas configurações do navegador ou escreva sua mensagem.",
     offline: "Não conseguimos conectar. Escreva sua mensagem.",
     draft: "Confira o que ouvimos, corrija se precisar e envie.",
-    mute: "Ler respostas em voz alta",
-    unmute: "Não ler respostas em voz alta",
+    readAloud: "Ler respostas em voz alta",
+    online: "usa uma voz on-line",
   },
 } as const;
 
@@ -127,10 +127,19 @@ export function speakable(text: string): string {
   return text.replace(/[*_`#>]/g, "").replace(/\s+/g, " ").trim();
 }
 
-/** Which calm message an api error becomes. 413 and 415 get local copy; 503 passes the api's own calm message. */
+/** True when the only voice for the language is an online one: the reply text would leave the device, so the toggle
+ *  says so and read-aloud stays off until the customer turns it on (spec 07 §8.4). */
+export function onlineVoiceOnly<T extends VoiceLike>(voices: readonly T[], lang: Lang): boolean {
+  const voice = pickVoice(voices, lang);
+  return voice !== null && !voice.localService;
+}
+
+/** Which calm message an api error becomes (spec 07 AC-10): the api's own ES/PT message for 413, 415 and 503; the
+ *  local copy only when that message is empty, or for any other failure. */
 export function voiceErrorMessage(status: number, apiMessage: string, lang: Lang): string {
+  const own = apiMessage.trim();
+  if ((status === 413 || status === 415 || status === 503) && own) return own;
   if (status === 413) return VOICE_COPY[lang].tooLong;
   if (status === 415) return VOICE_COPY[lang].badFormat;
-  if (status === 503 && apiMessage) return apiMessage;
   return VOICE_COPY[lang].offline;
 }

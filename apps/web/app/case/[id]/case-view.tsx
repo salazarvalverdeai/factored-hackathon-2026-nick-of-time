@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input, Textarea } from "@/components/ui/input";
 import { ApiError, api } from "@/lib/api";
+import { channelLinksOffered } from "@/lib/demo";
 import { MESSAGES, fill } from "@/lib/mock/messages";
 import { DEMO_TODAY, statusLabel } from "@/lib/mock/store";
 import type { Language, NotificationEntry } from "@/lib/types";
@@ -167,6 +168,12 @@ export function CaseView({ id }: { id: string }) {
             </CardContent>
           </Card>
 
+          {/* spec 07 §8, spec 05 AC-16: no Telegram or e-mail in a demo session (the link routes answer 403). */}
+          {!channelLinksOffered(api.mode) ? (
+            <p className="rounded-lg border p-3 text-sm text-muted-foreground">
+              Telegram and e-mail are off in the demo. This page and the notifications above show every update.
+            </p>
+          ) : (
           <Card>
             <CardHeader>
               <CardTitle>Get updates</CardTitle>
@@ -225,6 +232,7 @@ export function CaseView({ id }: { id: string }) {
               </div>
             </CardContent>
           </Card>
+          )}
         </aside>
       </div>
     </PageShell>

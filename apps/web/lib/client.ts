@@ -49,9 +49,9 @@ export interface ApiClient {
   listRecentTransactions: (limit?: number) => Promise<RecentTransaction[]>;
   /** Live only, demo type C: one test charge [simulated] on the session's own run. */
   registerTestCharge: (amount: number, merchant: string) => Promise<RecentTransaction>;
-  /** Live only, demo type D: a suggested first message for the composer. */
-  /** Voice (spec 07 AC-07): the clip is the raw POST body; the text is a draft for the composer, never sent on its own. */
+  /** Voice (spec 07 AC-10): the clip is the raw POST body; the text is a draft for the composer, never sent on its own. */
   transcribe: (clip: Blob, contentType: string) => Promise<{ text: string; language: string }>;
+  /** Live only, demo type D: a suggested first message for the composer. */
   suggestPersona: (character: PersonaCharacter, transactionId?: string) => Promise<PersonaDraft>;
   verifyOtp: (otp: string) => Promise<CustomerSession>;
   logoutCustomer: () => Promise<void>;

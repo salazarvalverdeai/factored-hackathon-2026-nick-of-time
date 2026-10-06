@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { contentTypeOf, encodeWav16k, isSilent, pickMime, pickVoice, rms, speakable, voiceErrorMessage, VOICE_COPY } from "./voice.ts";
+import { contentTypeOf, encodeWav16k, isSilent, onlineVoiceOnly, pickMime, pickVoice, rms, speakable, voiceErrorMessage, VOICE_COPY } from "./voice.ts";
 
-test("spec 07 AC-07: recording format order is webm/opus, ogg/opus, then in-page WAV", () => {
-  assert.equal(pickMime((t) => true, true), "audio/webm;codecs=opus");
+test("spec 07 AC-10: recording format order is webm/opus, ogg/opus, then in-page WAV", () => {
+  assert.equal(pickMime(() => true, true), "audio/webm;codecs=opus");
   assert.equal(pickMime((t) => t.startsWith("audio/ogg"), true), "audio/ogg;codecs=opus");
   assert.equal(pickMime(() => false, true), "wav");
   assert.equal(pickMime(null, true), "wav");
@@ -52,9 +52,22 @@ test("spec 07 §8 D-072: only the reply text is read", () => {
   assert.equal(speakable("**Listo**: bloqueamos\n tu tarjeta."), "Listo: bloqueamos tu tarjeta.");
 });
 
-test("spec 07 AC-07: 413 and 415 show calm local copy, 503 the api's message, anything else a generic one", () => {
-  assert.equal(voiceErrorMessage(413, "Audio over 1 bytes", "es"), VOICE_COPY.es.tooLong);
-  assert.equal(voiceErrorMessage(415, "Send audio/webm", "pt"), VOICE_COPY.pt.badFormat);
+test("spec 07 AC-10: a 413, 415 or 503 shows the api's calm message; local copy only when it has none", () => {
+  const tooLong = "Tu audio es muy largo. Graba hasta 30 segundos o escríbenos tu mensaje.";
+  const unreadable = "Não conseguimos ler esse áudio. Grave de novo ou escreva sua mensagem.";
+  assert.equal(voiceErrorMessage(413, tooLong, "es"), tooLong);
+  assert.equal(voiceErrorMessage(415, unreadable, "pt"), unreadable);
   assert.equal(voiceErrorMessage(503, "Ahora no podemos escuchar tu audio.", "es"), "Ahora no podemos escuchar tu audio.");
+  assert.equal(voiceErrorMessage(413, "", "es"), VOICE_COPY.es.tooLong);
+  assert.equal(voiceErrorMessage(415, " ", "pt"), VOICE_COPY.pt.badFormat);
   assert.equal(voiceErrorMessage(0, "", "pt"), VOICE_COPY.pt.offline);
+});
+
+test("spec 07 §8.4: the toggle notes an online voice only when no local voice exists for the language", () => {
+  const local = { lang: "es-MX", localService: true };
+  const online = { lang: "es-ES", localService: false };
+  assert.equal(onlineVoiceOnly([local, online], "es"), false);
+  assert.equal(onlineVoiceOnly([online], "es"), true);
+  assert.equal(onlineVoiceOnly([online], "pt"), false, "no voice at all is not an online voice");
+  assert.equal(onlineVoiceOnly([], "pt"), false);
 });

@@ -213,6 +213,10 @@ export interface DemoStart {
   country?: "MX" | "CO" | "AR";
   /** A `scenario_id`, or "auto" to be assigned one. */
   scenario: string;
+  /** "live" only for demo type C (the visitor registers a test charge, dated today); omitted, the api's default (replay). */
+  mode?: "live";
+  /** The picked scenario's `customer_name` (gold's first name): the web greets with it when no name is typed. Never sent. */
+  customerName?: string;
 }
 
 /** `GET /api/sessions/{id}/recent-transactions` (spec 05 AC-17): the customer's latest card charges, no score or label. */

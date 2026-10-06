@@ -2,7 +2,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import { agentGreeted, greetingName, showWebGreeting } from "./chat-view.ts";
+import { agentGreeted, greetingName, helloLine, showWebGreeting } from "./chat-view.ts";
 import { MESSAGES, fill } from "./mock/messages.ts";
 
 const DEMO = JSON.parse(readFileSync(new URL("../../../eval/demo/customers.json", import.meta.url), "utf8")) as { display_name: string }[];
@@ -13,6 +13,14 @@ test("spec 07 AC-07: the web greets with the whole first name of the picker labe
   assert.equal(greetingName("Verónica"), "Verónica");
   assert.equal(greetingName(undefined), "");
   for (const c of DEMO) assert.ok(!greetingName(c.display_name).includes("("), c.display_name);
+});
+
+test("spec 07 AC-07: the web greets with the name it has, and with no name drops it (never 'Hola, you')", () => {
+  assert.equal(helloLine("es", "Ana"), fill(MESSAGES.greet.hello, "es", { first_name: "Ana" }));
+  assert.equal(helloLine("pt", " Bruno "), fill(MESSAGES.greet.hello, "pt", { first_name: "Bruno" }));
+  assert.match(helloLine("es", ""), /^Hola\. Soy /);
+  assert.match(helloLine("pt", "  "), /^Olá\. Sou /);
+  for (const lang of ["es", "pt"] as const) assert.ok(!/\{first_name\}|,\s*\.|\byou\b/.test(helloLine(lang, "")));
 });
 
 test("spec 07 AC-07: the agent's greeting of contracts/messages.yaml is recognized in ES and PT", () => {

@@ -14,6 +14,31 @@ export const PERSONAS: { id: PersonaCharacter; label: string }[] = [
 ];
 
 /**
+ * The customer-facing copy of the identity step (lead decision 5, 2026-10-05): plain sentences, no bracket tags.
+ * The intro says once that the customers are synthetic examples; the OTP line says where a real code would come from.
+ */
+export const VERIFY_COPY = {
+  es: {
+    intro: "Demo con datos sintéticos del hackathon: elige un cliente de ejemplo.",
+    who: "1 · ¿Quién eres?",
+    code: (otp: string) => `Tu código es ${otp}. En un banco real llegaría por SMS.`,
+  },
+  pt: {
+    intro: "Demo com dados sintéticos do hackathon: escolha um cliente de exemplo.",
+    who: "1 · Quem é você?",
+    code: (otp: string) => `Seu código é ${otp}. Em um banco real, chegaria por SMS.`,
+  },
+} as const;
+
+/**
+ * Telegram and e-mail are off in a demo session (spec 07 §8, spec 05 AC-16: the link routes answer 403). Every session
+ * of the live api is a demo run (ADR 0026), so the case page offers the channel links only on the mock.
+ */
+export function channelLinksOffered(apiMode: "mock" | "live"): boolean {
+  return apiMode === "mock";
+}
+
+/**
  * A hint before the request, never the rule: the api checks the name (spec 05 AC-14) and its 422 message is what is shown.
  * Returns null when the name looks fine (or is empty: the field is optional), else why it will be refused.
  */

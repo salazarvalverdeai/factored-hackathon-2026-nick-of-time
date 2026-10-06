@@ -13,7 +13,7 @@ import type { Language, Scenario } from "@/lib/types";
 
 const AUTO = "auto";
 
-function Toggle({ pressed, onClick, children }: { pressed: boolean; onClick: () => void; children: React.ReactNode }) {
+export function Toggle({ pressed, onClick, children }: { pressed: boolean; onClick: () => void; children: React.ReactNode }) {
   return (
     <button
       type="button"
@@ -26,9 +26,24 @@ function Toggle({ pressed, onClick, children }: { pressed: boolean; onClick: () 
   );
 }
 
-export function DemoStart({ onStarted }: { onStarted: (otp: string) => void }) {
+export function DemoStart({
+  title,
+  onLanguage,
+  onStarted,
+}: {
+  title: string;
+  /** The chosen language, so the page can write its own copy in it. */
+  onLanguage: (language: Language) => void;
+  onStarted: (otp: string) => void;
+}) {
   const [name, setName] = useState("");
-  const [language, setLanguage] = useState<Language | null>(null);
+  const [language, setLanguageState] = useState<Language | null>(null);
+  // Demo type C needs a live session (today's date); the dataset scenarios keep the api's default, replay (#188).
+  const [testCharge, setTestCharge] = useState(false);
+  const setLanguage = (l: Language) => {
+    setLanguageState(l);
+    onLanguage(l);
+  };
   const [country, setCountry] = useState<(typeof COUNTRIES)[number] | null>(null);
   const [scenarios, setScenarios] = useState<Scenario[] | null>(null);
   const [scenario, setScenario] = useState<string | null>(null);
@@ -63,7 +78,18 @@ export function DemoStart({ onStarted }: { onStarted: (otp: string) => void }) {
     setBusy(true);
     setError(null);
     try {
-      onStarted(await api.startDemoSession({ displayName: nameToSend(name), language, country: country ?? undefined, scenario }));
+      // The greeting uses the typed name, else the scenario's gold name; "assign me one" has none (spec 07 AC-07).
+      const customerName = scenario === AUTO ? undefined : (scenarios?.find((s) => s.scenario_id === scenario)?.customer_name ?? undefined);
+      onStarted(
+        await api.startDemoSession({
+          displayName: nameToSend(name),
+          language,
+          country: country ?? undefined,
+          scenario,
+          customerName,
+          ...(testCharge ? { mode: "live" as const } : {}),
+        }),
+      );
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "unexpected error"); // a 422 shows the api's own message
     } finally {
@@ -74,10 +100,8 @@ export function DemoStart({ onStarted }: { onStarted: (otp: string) => void }) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>1 · Start a demo [simulated]</CardTitle>
-        <CardDescription>
-          Pick a language and a scenario. The customer is simulated and chosen for you: you never type a customer id.
-        </CardDescription>
+        <CardTitle>{title}</CardTitle>
+        <CardDescription>Pick a language and a scenario. The customer is chosen for you: you never type a customer id.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         <label className="block text-sm">
@@ -154,6 +178,23 @@ export function DemoStart({ onStarted }: { onStarted: (otp: string) => void }) {
               </button>
             </div>
           ) : null}
+        </fieldset>
+
+        <fieldset className="space-y-1">
+          <legend className="text-sm">What to dispute</legend>
+          <div className="flex flex-wrap gap-2">
+            <Toggle pressed={!testCharge} onClick={() => setTestCharge(false)}>
+              A charge from the scenario
+            </Toggle>
+            <Toggle pressed={testCharge} onClick={() => setTestCharge(true)}>
+              A test charge I register
+            </Toggle>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            {testCharge
+              ? "The session runs on today's date and lets you register up to three test charges to dispute."
+              : "The session runs on the frozen demo date, with the scenario's own recent charges."}
+          </p>
         </fieldset>
 
         <Button disabled={!language || !scenario || Boolean(hint) || busy} onClick={start}>

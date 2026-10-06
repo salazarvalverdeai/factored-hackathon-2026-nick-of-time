@@ -10,13 +10,14 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { ApiError, api } from "@/lib/api";
-import { greetingName, showWebGreeting } from "@/lib/chat-view";
+import { greetingName, helloLine, showWebGreeting } from "@/lib/chat-view";
+import { VERIFY_COPY } from "@/lib/demo";
 import { formatDeadline } from "@/lib/format";
-import { MESSAGES, fill } from "@/lib/mock/messages";
-import type { AgentReply, DemoCustomer, PersonaDraft, Receipt, Suggestion, TurnAction } from "@/lib/types";
+import { MESSAGES } from "@/lib/mock/messages";
+import type { AgentReply, DemoCustomer, Language, PersonaDraft, Receipt, Suggestion, TurnAction } from "@/lib/types";
 import { useMounted, useSession } from "@/lib/use-query";
 import { VOICE_COPY } from "@/lib/voice";
-import { DemoStart } from "./demo-start";
+import { DemoStart, Toggle } from "./demo-start";
 import { DemoTools } from "./demo-tools";
 import { MicButton, ReadAloudToggle, useReadAloud } from "./voice";
 
@@ -94,6 +95,17 @@ function Verify({ expired, onVerified }: { expired: boolean; onVerified: () => v
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const customers = useDemoCustomers();
+  // Live mode starts by scenario (D-068) and keeps the example-customer picker one press away (D-084 (a), spec 07 AC-01).
+  const [path, setPath] = useState<"scenario" | "picker">(api.mode === "live" ? "scenario" : "picker");
+  const [scenarioLang, setScenarioLang] = useState<Language>("es");
+  const picked = customers?.find((c) => c.customer_id === customerId);
+  const lang: Language = path === "scenario" ? scenarioLang : (picked?.language ?? "es");
+  const copy = VERIFY_COPY[lang];
+  const restart = () => {
+    setOtp(null);
+    setCode("");
+    setError(null);
+  };
 
   async function wrap(action: () => Promise<void>) {
     setBusy(true);
@@ -112,8 +124,34 @@ function Verify({ expired, onVerified }: { expired: boolean; onVerified: () => v
       {expired ? (
         <ErrorState title="Your session expired" message="Sessions last 15 minutes. Verify again to continue; your cases are kept." />
       ) : null}
+      {/* Lead decision 5: one plain line says the data is synthetic; no bracket tags on customer screens. */}
+      <p className="text-sm text-muted-foreground">{copy.intro}</p>
       {api.mode === "live" ? (
+        <div className="flex flex-wrap gap-2" role="group" aria-label="How to start">
+          <Toggle
+            pressed={path === "scenario"}
+            onClick={() => {
+              setPath("scenario");
+              restart();
+            }}
+          >
+            Start by scenario
+          </Toggle>
+          <Toggle
+            pressed={path === "picker"}
+            onClick={() => {
+              setPath("picker");
+              restart();
+            }}
+          >
+            Pick an example customer
+          </Toggle>
+        </div>
+      ) : null}
+      {path === "scenario" ? (
         <DemoStart
+          title={copy.who}
+          onLanguage={setScenarioLang}
           onStarted={(code) => {
             setOtp(code);
             setCode("");
@@ -123,8 +161,8 @@ function Verify({ expired, onVerified }: { expired: boolean; onVerified: () => v
       ) : (
       <Card>
         <CardHeader>
-          <CardTitle>1 · Who are you? [simulated]</CardTitle>
-          <CardDescription>Pick a demo customer. An id alone does not prove identity, so a one-time code follows.</CardDescription>
+          <CardTitle>{copy.who}</CardTitle>
+          <CardDescription>Pick an example customer. An id alone does not prove identity, so a one-time code follows.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-2">
           {customers === null ? <LoadingState label="Loading demo customers…" /> : null}
@@ -163,9 +201,7 @@ function Verify({ expired, onVerified }: { expired: boolean; onVerified: () => v
         <Card>
           <CardHeader>
             <CardTitle>2 · Enter the code</CardTitle>
-            <CardDescription>
-              Demo only [simulated]: your code is <b className="font-mono text-foreground">{otp}</b>. In production it goes to the customer&apos;s phone.
-            </CardDescription>
+            <CardDescription className="font-medium text-foreground">{copy.code(otp)}</CardDescription>
           </CardHeader>
           <CardContent>
             <form
@@ -197,9 +233,10 @@ function Verify({ expired, onVerified }: { expired: boolean; onVerified: () => v
 function Conversation({ onExpired }: { onExpired: () => void }) {
   const { customerSession } = useSession();
   const customer = useDemoCustomers()?.find((c) => c.customer_id === customerSession?.customerId);
-  // A live demo session has no picked customer: the name is what the visitor typed, else the agent greets by gold's name.
+  // A scenario session has no picked customer: the name is the typed one, else the scenario's gold name, else none
+  // ("assign me one"); the agent then greets with gold's name (spec 07 AC-07). Never a placeholder such as "you".
   const lang = customer?.language ?? customerSession?.language ?? "es";
-  const speaker = customer?.display_name ?? customerSession?.displayName ?? "you";
+  const speaker = greetingName(customer?.display_name ?? customerSession?.displayName);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
@@ -245,11 +282,16 @@ function Conversation({ onExpired }: { onExpired: () => void }) {
       <section aria-label="Conversation" className="min-w-0 space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
           <span>
-            Talking as <b>{speaker}</b> · session until{" "}
+            {speaker ? (
+              <>
+                Talking as <b>{speaker}</b> ·{" "}
+              </>
+            ) : null}
+            Session until{" "}
             {customerSession ? new Date(customerSession.expiresAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "—"}
           </span>
           <span className="flex gap-2">
-            {voiceOn && readAloud.supported ? <ReadAloudToggle lang={lang} on={readAloud.on} onToggle={readAloud.toggle} /> : null}
+            {voiceOn && readAloud.supported ? <ReadAloudToggle lang={lang} on={readAloud.on} online={readAloud.online} onToggle={readAloud.toggle} /> : null}
             {api.mode === "mock" ? (
               <Button size="xs" variant="outline" onClick={() => api.expireCustomerSession()}>
                 Expire session (demo)
@@ -265,7 +307,7 @@ function Conversation({ onExpired }: { onExpired: () => void }) {
           {showWebGreeting(messages) ? (
             <div className="space-y-1 text-sm text-muted-foreground">
               {/* spec 04 AC-15, spec 07 AC-07: one greeting, gone once the agent greets; texts from contracts/messages.yaml */}
-              <p>{fill(MESSAGES.greet.hello, lang, { first_name: greetingName(customer?.display_name ?? customerSession?.displayName) })}</p>
+              <p>{helloLine(lang, speaker)}</p>
               <p>{MESSAGES.greet.capability_1[lang]}</p>
               <p>{MESSAGES.greet.capability_2[lang]}</p>
               <p>{MESSAGES.greet.capability_3[lang]}</p>

@@ -403,11 +403,11 @@ export function createLiveApi(options: LiveOptions = {}): ApiClient {
 
     async requestOtp(customerId) {
       const picked = (await demoCustomers()).find((c) => c.customer_id === customerId);
-      const out = await json<{ session_id: string; otp_demo: string }>("/api/sessions", {
+      const out = await json<{ session_id: string; otp_demo: string; mode?: "live" | "replay" }>("/api/sessions", {
         method: "POST",
         body: { customer_id: customerId },
       });
-      pending = { sessionId: out.session_id, customerId, language: picked?.language ?? "es" };
+      pending = { sessionId: out.session_id, customerId, language: picked?.language ?? "es", ...(out.mode ? { mode: out.mode } : {}) };
       return out.otp_demo;
     },
 
@@ -421,9 +421,12 @@ export function createLiveApi(options: LiveOptions = {}): ApiClient {
           language: start.language,
           ...(start.country ? { country: start.country } : {}),
           scenario: start.scenario,
+          ...(start.mode === "live" ? { mode: "live" } : {}),
         },
       });
-      pending = { sessionId: out.session_id, customerId: "", language: start.language, displayName: name || undefined, mode: out.mode };
+      // The web greets with the typed name, else the scenario's gold name; "assign me one" has none (spec 07 AC-07).
+      const greet = name || start.customerName?.trim() || undefined;
+      pending = { sessionId: out.session_id, customerId: "", language: start.language, displayName: greet, mode: out.mode };
       return out.otp_demo;
     },
 
