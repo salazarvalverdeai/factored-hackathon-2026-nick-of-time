@@ -10,6 +10,7 @@ import pytest
 
 from eval.harness import Api, HarnessError, labels, metrics, report, run_set, write_outputs
 from eval.harness.__main__ import main
+from tests.one_time_guard import isolate
 from tests.test_spec10_harness import AMBIGUOUS, BLOCK, EXAMPLES, FAULT, api_with, final_for, record
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -24,6 +25,13 @@ SEALED = """# Evaluation protocol
 - Sealed by: Diego
 <!-- SEAL:END -->
 """
+
+
+@pytest.fixture(autouse=True)
+def _one_time_isolation(monkeypatch, tmp_path):
+    """Every test here runs against a throwaway root; opening the real held-out or labels, or claiming or checking
+    the seal in the real repository, fails the test (tests/one_time_guard.py)."""
+    return isolate(monkeypatch, tmp_path)
 
 
 def with_meta(case: dict) -> dict:
@@ -68,15 +76,13 @@ def test_ac_07_heldout_is_refused_until_the_protocol_is_sealed_and_the_hash_matc
 
 
 def test_ac_07_the_command_refuses_the_heldout_before_calling_the_system(tmp_path, capsys, monkeypatch):
-    """AC-07: with the protocol unsealed, `run --set heldout` stops with an error and seeds nothing."""
-    protocol = tmp_path / "PROTOCOL.md"
-    protocol.write_text(SEALED.format(status="UNSEALED", sha="pending"), encoding="utf-8")
-    monkeypatch.setattr(report.check_heldout, "__defaults__", (protocol, tmp_path / "heldout.sha256"))
+    """AC-07: without the seal (here no tag protocol-v1), `run --set heldout` stops with an error and seeds nothing."""
+    from eval.harness import heldout
+    monkeypatch.setattr(heldout, "ROOT", tmp_path)
     seen: list = []
-    code = main(["run", "--set", "heldout", "--arms", "S1", "--cases", str(EXAMPLE_FILE), "--out",
-                 str(tmp_path / "run")], api=api_with(seen=seen))
-    assert code == 2 and not seen and not (tmp_path / "run").exists()
-    assert "harness stopped: the held-out is not available" in capsys.readouterr().err
+    code = main(["run", "--set", "heldout", "--arms", "S0,S1,S2", "--runs", "4"], api=api_with(seen=seen))
+    assert code == 2 and not seen and not (tmp_path / "eval/results").exists()
+    assert "harness stopped: tag protocol-v1 does not exist" in capsys.readouterr().err
 
 
 def test_ac_11_run_writes_the_web_summary_in_the_contract_shape(tmp_path, monkeypatch):
@@ -173,9 +179,7 @@ def test_ac_07_run_set_itself_refuses_heldout_cases_before_the_seal(tmp_path, mo
     """AC-07 (FR-06): spec 15 calls run_set directly, so the guard runs there too and seeds nothing when refused."""
     seen: list = []
     heldout = [{**case, "set": "heldout"} for case in EXAMPLES]
-    with pytest.raises(HarnessError, match="UNSEALED, not SEALED|differ from the sealed file"):   # repo protocol
-        run_set(heldout, ["S1"], runs=1, api=api_with(seen=seen))
-    sealed_heldout(tmp_path, monkeypatch, status="UNSEALED")
+    sealed_heldout(tmp_path, monkeypatch, status="UNSEALED")   # never the repo's held-out: it is sealed now
     with pytest.raises(HarnessError, match="UNSEALED, not SEALED"):
         run_set(heldout[:1], ["S1"], runs=1, api=api_with(seen=seen))
     assert not seen

@@ -93,13 +93,14 @@ def load_data(gold: str | Path, labels_path: str | Path) -> tuple[pl.DataFrame, 
     return assemble(tx, split, labels), fs.split_hash(split)
 
 
-def assemble(tx: pl.DataFrame, split: pl.DataFrame, labels: pl.DataFrame) -> pl.DataFrame:
+def assemble(tx: pl.DataFrame, split: pl.DataFrame, labels: pl.DataFrame,
+             allowed: frozenset = fs.LABEL_WINDOWS) -> pl.DataFrame:
     feats = ff.build_features(tx)
     extra = tx.select("transaction_id", BANK, "customer_segment", "customer_country",
                       pl.col("transaction_date").dt.strftime("%Y-%m").alias("month"))
     df = (feats.join(split, on="transaction_id").join(labels.select("transaction_id", "is_fraud"), on="transaction_id")
           .join(extra, on="transaction_id"))
-    if not set(df["split_window"].unique()) <= fs.LABEL_WINDOWS:
+    if not set(df["split_window"].unique()) <= allowed:
         raise fs.LabelAccessError("a test-window row reached the screen")
     return df
 
