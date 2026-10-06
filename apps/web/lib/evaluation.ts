@@ -151,11 +151,21 @@ export type ClassifierArm = {
   same_family_as_generator?: boolean | null;
   by_language: Record<string, ClassifierLanguage>;
 };
+/** One line on the sealed test run: its label (ADR 0028) and, when no arm clears the floors, that the chosen arm is kept. */
+export function classifierRunNote(d: Pick<ClassifierData, "run" | "test_review" | "chosen_arm" | "arms" | "protocol">): string | null {
+  if (d.run !== "test") return null;
+  const parts = [d.protocol?.status === "SEALED" ? "Sealed test result" : "Test result"];
+  if (d.test_review === "rules-v1") parts.push("test split decided by fixed rules (rules-v1), not by a person");
+  if (d.chosen_arm && d.arms.length > 0 && d.arms.every((a) => a.meets_floors === false)) parts.push(`no arm meets the floors; ${d.chosen_arm} kept`);
+  return parts.join(" · ") + ".";
+}
 export type ClassifierData = {
   label: string;
   protocol: Protocol;
   /** ADR 0028: `rules-v1` when the test split was decided by fixed rules, `human` when a person reviewed it. */
   test_review?: string | null;
+  /** `test` for the one-time sealed run on the test split. */
+  run?: string | null;
   test_split: { sentences: Record<string, number | null>; injection_rows: number | null };
   tau: number | null;
   chosen_arm: string | null;

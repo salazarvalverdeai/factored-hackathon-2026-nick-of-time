@@ -6,7 +6,7 @@
 import { useState, type CSSProperties, type ReactNode } from "react";
 import { FOCUS, Swatch, TableView, TipBody, useTip } from "@/app/analytics/charts";
 import { DevChip, Explain, IntervalBar } from "./explain";
-import {
+import { classifierRunNote,
   costQualityPoints,
   dollars,
   GENERATOR_FLAG,
@@ -210,6 +210,7 @@ export function ClassifierSection({ file }: { file: Insight<ClassifierData> }) {
   return (
     <Section title="Intent classifier" file={file} data="classifier.json" detail="classifier"
       hint={`Does the system read what the customer wants? Macro-F1 is the average score over the intents, from 0 (always wrong) to 1 (always right), per arm and language, with its 95% bootstrap interval. Frozen test split: ${sentences} sentences, ${data.test_split.injection_rows ?? "—"} injection rows apart. Confidence threshold tau ${score(data.tau)}.`}>
+      {classifierRunNote(data) && <p className="mt-3 text-sm font-medium" data-slot="classifier-run-note">{classifierRunNote(data)}</p>}
       {languages.map((lang) => (
         <div key={lang} className="mt-4">
           <h3 className="text-sm font-semibold">Macro-F1, {lang.toUpperCase()}</h3>
