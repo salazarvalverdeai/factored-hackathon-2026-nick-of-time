@@ -73,10 +73,11 @@ export function useReadAloud(lang: Lang) {
 export function ReadAloudToggle({ lang, on, online, onToggle }: { lang: Lang; on: boolean; online: boolean; onToggle: () => void }) {
   const copy = VOICE_COPY[lang];
   return (
-    <Button type="button" size="xs" variant="outline" aria-pressed={on} onClick={onToggle}>
+    <Button type="button" size="xs" variant="outline" aria-pressed={on} onClick={onToggle} aria-label={copy.readAloud} title={copy.readAloud}>
       {on ? <Volume2 aria-hidden /> : <VolumeX aria-hidden />}
-      {copy.readAloud}
-      {online ? <span className="text-muted-foreground">({copy.online})</span> : null}
+      {/* One fixed label (aria-label); the words show from sm up so the chat header fits 390 px. */}
+      <span aria-hidden className="hidden sm:inline">{copy.readAloud}</span>
+      {online ? <span className="hidden text-muted-foreground sm:inline">({copy.online})</span> : null}
     </Button>
   );
 }
@@ -87,11 +88,16 @@ export function MicButton({
   disabled,
   onRecordStart,
   onTranscript,
+  compact = false,
+  onNote,
 }: {
   lang: Lang;
   disabled: boolean;
   onRecordStart: () => void;
   onTranscript: (text: string) => void;
+  /** An icon-only button for the composer (spec 07 AC-24); its notes go to `onNote` instead of under the button. */
+  compact?: boolean;
+  onNote?: (note: string | null) => void;
 }) {
   const copy = VOICE_COPY[lang];
   const [phase, setPhase] = useState<Phase>("idle");
@@ -103,6 +109,7 @@ export function MicButton({
   // While the permission prompt is open `phase` is still idle: these refs stop a second start and remember a release.
   const starting = useRef(false);
   const stopAsked = useRef(false);
+  useEffect(() => onNote?.(note), [note, onNote]);
 
   // release the microphone when the chat goes away
   useEffect(
@@ -222,7 +229,9 @@ export function MicButton({
     <>
       <Button
         type="button"
-        variant={recording ? "default" : "outline"}
+        variant={recording ? "default" : compact ? "ghost" : "outline"}
+        size={compact ? "icon-sm" : "default"}
+        className={[compact ? "rounded-full" : "", recording ? "motion-safe:animate-pulse" : ""].join(" ").trim() || undefined}
         disabled={disabled || phase === "sending"}
         aria-pressed={recording}
         aria-label={copy.hold}
@@ -254,12 +263,12 @@ export function MicButton({
         }}
       >
         <Mic aria-hidden />
-        <span className="sr-only sm:not-sr-only">{recording ? copy.recording : phase === "sending" ? copy.transcribing : copy.hold}</span>
+        <span className={compact ? "sr-only" : "sr-only sm:not-sr-only"}>{recording ? copy.recording : phase === "sending" ? copy.transcribing : copy.hold}</span>
       </Button>
       <span role="status" aria-live="polite" className="sr-only">
         {recording ? copy.recording : phase === "sending" ? copy.transcribing : (note ?? "")}
       </span>
-      {note ? <p className="basis-full text-xs text-muted-foreground">{note}</p> : null}
+      {note && !onNote ? <p className="basis-full text-xs text-muted-foreground">{note}</p> : null}
     </>
   );
 }
