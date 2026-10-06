@@ -175,6 +175,19 @@ def test_ac_02_status_is_the_last_event_and_earlier_rows_never_change(env):
 
 
 # ---------- AC-03 ----------
+def test_ac_03_take_on_a_case_already_in_review_keeps_the_status_and_records_the_analyst(env):
+    """Spec 05 AC-03: `take` assigns the case; on a case the agent already handed off (review) it keeps the status
+    instead of failing, records the analyst and sends no status notice (found on the public URL, 2026-10-05)."""
+    case_id = env.case()
+    env.store.change_status(case_id, "review", on=dt.date(2026, 6, 1), actor="agent", trace_id="t")
+    out = env.action(case_id, "take", "k-take", reason=None, sub="ana-1")
+    assert out.status_code == 200, out.text
+    assert out.json()["previous_status"] == out.json()["new_status"] == "review"
+    assert out.json()["notification_id"] is None
+    assert env.store.events(case_id)[-1].actor == "analyst:ana-1"
+    assert env.action(case_id, "resolve", "k-res", reason="Reembolso emitido", sub="ana-1").json()["new_status"] == "resolved"
+
+
 def test_ac_03_a_valid_action_changes_status_records_actor_and_reason_and_notifies(env):
     case_id = env.case()
     env.login()

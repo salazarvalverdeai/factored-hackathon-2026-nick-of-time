@@ -360,7 +360,7 @@ def test_ac_01_a_status_change_needs_a_business_date_before_writing(on):
     ("resolved", lambda s, c: s.change_status(c, "closed", on=ON, actor="agent", trace_id="t"), "close_case closes"),
     # an analyst action and its statuses are tied (ANALYST_SOURCES, ANALYST_TARGETS; D-034)
     ("review", lambda s, c: act(s, c, "take", "resolved"), "take moves a case only to review or verification"),
-    ("review", lambda s, c: act(s, c, "take", None), "take moves"),
+    ("new", lambda s, c: act(s, c, "take", None), "take moves"),            # a new case must move; in review it is kept
     ("resolved", lambda s, c: act(s, c, "take", "review"), "take starts only from new or review or verification"),
     ("resolved", lambda s, c: act(s, c, "close_case", "review"), "close_case moves a case only to closed"),
     ("resolved", lambda s, c: act(s, c, "close_case", None), "close_case moves"),
