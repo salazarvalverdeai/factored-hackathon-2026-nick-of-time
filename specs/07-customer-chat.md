@@ -56,6 +56,22 @@ AC-01 to AC-05 are copied from issue #9 with the same numbers. None is dropped o
   spoken with the browser's `speechSynthesis` in the session language. A 413, 415 or 503 shall show the api's calm
   message and keep typing available; with no microphone, no permission or no `speechSynthesis`, the chat works as
   today. · [U] · [T] (to add with the web work)
+- AC-11 — While a turn runs, the chat shall show each `tool` event of spec 01 §6.4.1 as a checklist row in its state
+  (running, done, failed) with the cards built from tool results (charge, verdict, deadline, case) and each action's
+  state; a call with no result when the turn ends shall show as failed, and an action shall show as verified only with
+  a `V-` id (constitution #4). · [T] `lib/chat-stream.test.ts` ("spec 07 AC-11: …")
+- AC-12 — When `text` chunks arrive (writer `llm`), the chat shall render the reply as it is written, as safe markdown
+  (no raw HTML, no half-written mark), and shall replace it with `turn.reply` when the turn ends. · [T] ("spec 07
+  AC-12: …")
+- AC-13 — The chips under the last reply shall be pills, at most three, and shall always include "talk to a person"
+  (spec 04 AC-20, AC-39). · [T] ("spec 07 AC-13: …")
+- AC-14 — A customer screen of the chat shall show no bracket label (`[simulated]`, `[data]`…) and no raw URL: a
+  source is a named link; times and dates are in the session language (es-MX, pt-BR, 24 h) in the zone of the case's
+  country, never from the system clock; beside a receipt, the reply shall not repeat its deadlines or sources, and the
+  trace rows lead with a plain name, not a node key. · [T] ("spec 07 AC-14: …")
+- AC-15 — A step, a card or "how I decided" shall open the shared right panel (`components/detail-panel.tsx`): a modal
+  sheet that Escape closes, that keeps and then returns focus, that fits 390 px; motion stays off under
+  `prefers-reduced-motion`. · [U]
 
 ## 8. Assumptions and open questions
 - Assumption `[assumption]`: the scripted agent in `lib/mock/agent.ts` stands in for the LangGraph graph; refusal,
@@ -128,6 +144,10 @@ AC-01 to AC-05 are copied from issue #9 with the same numbers. None is dropped o
   filled on live turns with named guardrails · covers AC-07 to AC-09 · done when: the tests citing them pass
 - [ ] Task 7 — voice (D-072, the contract in §8): mic, push-to-talk, draft, read-aloud and mute · covers AC-10 · done
   when: a visitor speaks a claim in ES and in PT on the public URL and hears the reply
+- [x] Task 8 — agentic chat, stage 1 (ADR 0030, plan of 2026-10-05): AI Elements (`conversation`, `suggestion`,
+  `sources`, `task`, restyled to BRAND.md) with live tool steps, cards, streaming markdown, the receipt with its
+  verified seal and named sources, chips as pills and the shared right panel; a mock stream in the exact §6.4.1 shapes
+  (`lib/mock/stream.ts`) so it works with no backend · covers AC-11 to AC-15 · done when: the tests citing them pass
 
 **Closing checklist** (last PR): every AC has a passing test or check that cites it · status → Implemented · ADR for
 any decision taken · lessons added to `CLAUDE.md`.

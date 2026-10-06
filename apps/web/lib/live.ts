@@ -6,6 +6,7 @@
 //    verifies it (spec 05 AC-07). The token lives in sessionStorage for this tab only.
 //  - The agent: `POST /api/agent/threads` and the SSE `runs/stream`; the LangSmith key never reaches the browser (AC-05).
 // Nothing here invents data: a call that fails answers an ApiError the page shows (UNAVAILABLE, DENY, RATE_LIMITED…).
+import { EMPTY_STREAM, type TurnStream, applyTool, parseTextChunk, parseToolEvent, settleTools } from "./chat-stream.ts";
 import type { ApiClient, ChatContext } from "./client.ts";
 import { MESSAGES, fill } from "./mock/messages.ts";
 import { ApiError } from "./mock/store.ts";
@@ -65,7 +66,17 @@ interface WireReceipt {
   issued_at: string;
   verified_facts: { fact: string }[];
   actions: { label: string; state: string; verification_id?: string | null }[];
-  deadline: { country: string; product: string; credit_deadline?: string | null; ruling_deadline?: string | null; deadline_source: string; source_url: string; verified_on: string } | null;
+  deadline: {
+    country: string;
+    product: string;
+    credit_deadline?: string | null;
+    ruling_deadline?: string | null;
+    deadline_source: string;
+    /** The customer's name of the source in the session language (DLANG), when the api sends it. */
+    deadline_source_label?: string | null;
+    source_url: string;
+    verified_on: string;
+  } | null;
   what_ai_did: string;
   what_a_person_does: string;
 }
@@ -167,6 +178,7 @@ export function replyFromTurn(turn: WireTurn, streamed: WireProgress[] = []): Ag
     deny: denied || undefined,
     awaitingConfirmation: turn.decision === "confirm",
     receipt: turn.receipt ? receiptFrom(turn.receipt) : undefined,
+    ...(turn.plan?.length ? { plan: turn.plan } : {}),
   };
 }
 
@@ -197,6 +209,17 @@ function receiptFrom(r: WireReceipt): Receipt {
     case_url: `/case/${encodeURIComponent(r.case_id)}`, // our own path, never a host the api sent
     facts: r.verified_facts.map((f) => f.fact),
     actions: r.actions.map((a) => ({ label: a.label, state: a.state, ...(a.verification_id ? { verification_id: a.verification_id } : {}) })),
+    // The card names the source and links it; the raw URL is never shown (design pass 1).
+    ...(d
+      ? {
+          source: {
+            label: d.deadline_source_label || d.deadline_source,
+            url: /^https:\/\//.test(d.source_url ?? "") ? d.source_url : null,
+            verified_on: d.verified_on || null,
+          },
+          ruling_deadline: d.ruling_deadline ?? null,
+        }
+      : {}),
   };
 }
 
@@ -418,6 +441,7 @@ export function createLiveApi(options: LiveOptions = {}): ApiClient {
       if (!res.body) throw new ApiError("UNAVAILABLE", 502, "The agent sent no answer.");
       let turn: WireTurn | null = null;
       const streamed: WireProgress[] = [];
+      let stream: TurnStream = EMPTY_STREAM;
       for await (const { event, data } of readSse(res.body)) {
         if (event === "progress") {
           const p = data as WireProgress;
@@ -425,12 +449,23 @@ export function createLiveApi(options: LiveOptions = {}): ApiClient {
             streamed.push(p);
             ctx.onProgress?.({ step: p.step, label: p.label });
           }
+        } else if (event === "tool") {
+          // spec 01 §6.4.1: a chunk that does not follow the contract is dropped, never shown.
+          const t = parseToolEvent(data);
+          if (t) {
+            stream = applyTool(stream, t);
+            ctx.onTool?.(t);
+          }
+        } else if (event === "text") {
+          const c = parseTextChunk(data);
+          if (c) ctx.onText?.(c);
         } else if (event === "turn") {
           turn = data as WireTurn;
         }
       }
       if (!turn) throw new ApiError("UNAVAILABLE", 502, "The agent did not finish the turn.");
-      return replyFromTurn(turn, streamed);
+      // The streamed text is replaced by turn.reply (spec 01 §6.4.1): the final reply holds only released lines.
+      return { ...replyFromTurn(turn, streamed), ...(stream.tools.length ? { tools: settleTools(stream.tools) } : {}) };
     },
 
     // cases

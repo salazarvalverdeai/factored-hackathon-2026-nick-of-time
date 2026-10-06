@@ -1,5 +1,6 @@
 // The surface the pages use (spec 16 AC-03). Two implementations answer it: the mock (lib/api.ts, over lib/mock/store.ts)
 // and the live one (lib/live.ts, over the spec 05 api). A page never knows which one it is talking to.
+import type { TextChunk, ToolEvent } from "./chat-stream.ts";
 import type {
   AgentReply,
   AnalystSession,
@@ -24,6 +25,10 @@ export interface ChatContext {
   action?: TurnAction;
   /** Live: one label per step of the run, as the agent works (spec 04 AC-17). */
   onProgress?: (item: ProgressLabel) => void;
+  /** Each tool call as it starts and ends, with its cards (spec 01 §6.4.1). The mock plays the same events. */
+  onTool?: (event: ToolEvent) => void;
+  /** Each chunk of the reply being written (writer `llm` only; spec 01 AC-10). */
+  onText?: (chunk: TextChunk) => void;
 }
 
 export interface ApiClient {
