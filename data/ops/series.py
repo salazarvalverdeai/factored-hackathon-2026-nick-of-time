@@ -1,5 +1,6 @@
 """The three series of ops_kpis.json (spec 14 §7.4 and §11): Bank today `[data]`, With Nick of Time `[simulated]` and
-Live (pending until T5), over 2026-01..2026-05, per month and a 5-month total.
+Live, over 2026-01..2026-05, per month and a 5-month total. Live (T5, `live`) is the public app's live-mode traffic
+per day since its first case, read from Postgres by `make ops-live`; pending while there is none.
 
 Only two pairs are side by side (`COMPARE`): the lead's goal metric, the bank's FCR against the system's complete
 intake at first contact (spec 10 §4.1 `complete_intake_rate`), which measure different things and say so; and the
@@ -16,6 +17,8 @@ from typing import Any, Optional
 
 import duckdb
 import polars as pl
+
+from data.ops import gold
 
 ROOT = Path(__file__).resolve().parents[2]
 ASIS_SQL = ROOT / "queries" / "ops" / "asis_monthly.sql"
@@ -147,3 +150,50 @@ def build(tables: dict[str, pl.DataFrame], contacts: Optional[pl.DataFrame], asi
         sim["sensitivity"] = sensitivity(contacts, variant)
     return {"window": WINDOW, "compare": COMPARE,
             "bank_today": None if asis_frame is None else bank_today(asis_frame), "replay": sim, "live": LIVE}
+
+
+def live(silver: dict[str, pl.DataFrame], as_of: Optional[str]) -> dict[str, Any]:
+    """T5: the Live series from the silver rows of one Postgres snapshot. It counts mode `live` cases of operation
+    and of the public demo sessions (`demo-` runs, ADR 0026), never an evaluation run (AC-07), per day since the
+    first one, with the definitions of `ops_kpis`. Live-mode charges are synthetic (ADR 0020), so the series is
+    `[simulated]` demo traffic, not the bank's operation; `LIVE` (pending) while there is no such case. Counts and
+    rates only: no id, name or text (AC-08)."""
+    cases = silver["cases"].filter(gold.DEMO_TRAFFIC & (pl.col("mode") == "live"))
+    if cases.height == 0:
+        return LIVE
+    scoped = {**silver, "cases": cases}
+    first, last = cases["opened_on"].min(), cases["opened_on"].max()
+    kpis = gold.ops_kpis(scoped, gold.DEMO_TRAFFIC)
+    # the whole window as one day: the same definitions, and the p95 over every call of the window
+    total = gold.ops_kpis({**scoped, "cases": cases.with_columns(pl.lit(first).alias("opened_on"))},
+                          gold.DEMO_TRAFFIC).row(0, named=True)
+    feedback = gold.feedback_cases(scoped, gold.DEMO_TRAFFIC)
+    demo = cases["run_id"].drop_nulls()
+    return {"key": "live", "name": "Live", "status": "ready", "label": "[simulated]",
+            "message": f"Live demo traffic on the public app since {first.isoformat()}",
+            "reason": "Visitors of the public app in live mode, whose charges are synthetic (ADR 0020): every figure "
+                      "is [simulated], not the bank's operation. Evaluation runs are left out.",
+            "source": "make ops-live: the spec 14 job over one read-only Postgres snapshot (mode live, operation and "
+                      "demo sessions; evaluation runs left out)",
+            "window": [first.isoformat(), last.isoformat()], "as_of": as_of,
+            "days": [{**gold.day_row(r), "automated_rate": gold.rate(r, "automated_rate")}
+                     for r in kpis.filter(pl.col("mode") == "live").iter_rows(named=True)],
+            "total": {**gold.day_row(total), "day": "total", "automated_rate": gold.rate(total, "automated_rate"),
+                      "cost_usd": total["cost_usd"], "demo_sessions": demo.n_unique(),
+                      "cases_without_demo_session": cases.height - demo.len(),
+                      "synthetic_charges": int(cases["synthetic"].sum())},
+            "feedback": {"decided": feedback.height, "agreed": int(feedback["agreed"].sum())},
+            "notes": {
+                "cases": "Cases opened in live mode on the public app, by the day they opened: the public demo "
+                         "sessions (each isolated in its own run) and any production session. Evaluation runs never "
+                         "count. A handful of demo cases a day is an illustration, not a measurement.",
+                "receipt_rate": "Cases with a receipt that carries its legal deadline, over cases.",
+                "escalation_rate": "Cases handed to an analyst (a handoff), over cases. Charges with a medium or low "
+                                   "bank score always go to a person, by design.",
+                "automated_rate": "Cases with a verified block and no handoff, over cases: the safe automated path.",
+                "unsafe_outcomes": "Cases with a critical lifecycle finding of the auditor (A7), checked per session.",
+                "cost_per_case": "Model cost of the calls reached through a case, over cases.",
+                "latency_p95_ms": "p95 of single model calls, not of a whole turn [assumption].",
+                "synthetic_charges": "Cases on a visitor's synthetic charge, which gold does not hold (ADR 0020).",
+                "feedback": "Cases an analyst decided, and how many kept the system's proposal; a synthetic charge "
+                            "is never a label."}}

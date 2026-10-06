@@ -25,7 +25,7 @@ fixture:
 report:
 	$(PY) -m data.pipeline report
 
-# Spec 14: operational lakehouse on a seeded in-memory store (T5 adds the Postgres source). GOLD_PATH overrides data/gold.
+# Spec 14: operational lakehouse on a seeded in-memory store (`make ops-live` reads Postgres). GOLD_PATH overrides data/gold.
 .PHONY: ops
 ops:
 	PYTHONPATH=.:packages $(PY) -m data.ops run --source sample
@@ -35,6 +35,12 @@ ops:
 .PHONY: ops-replay
 ops-replay:
 	PYTHONPATH=.:packages $(PY) -m data.ops replay
+
+# Spec 14 T5: one read-only snapshot of Postgres → data/ops/live/ → only the Live series of the committed ops_kpis.json.
+# DSN=... or DATABASE_URL in the environment (never in the repo; `@` keeps it off the echo); run after `make ops-replay`.
+.PHONY: ops-live
+ops-live:
+	@$(if $(DSN),DATABASE_URL='$(DSN)') PYTHONPATH=.:packages $(PY) -m data.ops run --source postgres
 
 test:
 	$(PY) -m pytest -q

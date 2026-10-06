@@ -19,6 +19,7 @@ data/ops/gold/
 data/ops/manifest.json
 data/ops/ops_kpis.json
 data/ops/replay/
+data/ops/live/
 *.parquet
 *.duckdb
 *.duckdb.wal
