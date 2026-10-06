@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import test from "node:test";
 import { dataDir } from "./data-dir.ts";
-import { classifierRunNote, DEVELOPMENT_CHIP, GENERATOR_FLAG, developmentRuns, pageNotice, METRICS, METRIC_MEANING, RULES_REVIEW_SENTENCE, DETAILS, detailUrl, headingSlug, limitations, RESULT_FILES, costQualityPoints, developmentNotice, generatorFlag, interval, pending, protocolNotice, rateParts, rateText, scoreText, d070View, D070_SENTENCE } from "./evaluation.ts";
+import { armModel, classifierRunNote, DEVELOPMENT_CHIP, GENERATOR_FLAG, developmentRuns, pageNotice, METRICS, METRIC_MEANING, RULES_REVIEW_SENTENCE, DETAILS, detailUrl, headingSlug, limitations, RESULT_FILES, costQualityPoints, developmentNotice, generatorFlag, interval, pending, protocolNotice, rateParts, rateText, scoreText, d070View, D070_SENTENCE, chosenReason, hasDevRuns, scatterLabels } from "./evaluation.ts";
 import type { BenchmarkData, ClassifierData, EvaluationData, FraudData, Insight, Rate } from "./evaluation.ts";
 
 const SAMPLE = JSON.parse(
@@ -322,4 +322,35 @@ test("spec 12 / spec 10 AC-15: the held-out shows the official and the D-070 sco
 test("spec 12 / spec 10 AC-15: without scores_d070 the page renders as before", () => {
   assert.equal(d070View({ arms: SAMPLE.data.arms }), null);
   assert.equal(d070View({ arms: [], scores_d070: undefined }), null);
+});
+
+test("spec 12 AC-11: the chosen benchmark model always comes with its reason, read from the file", () => {
+  const real = JSON.parse(readFileSync(new URL("../public/data/benchmark.json", import.meta.url), "utf-8")).data as BenchmarkData;
+  const reason = chosenReason(real);
+  assert.ok(reason && reason.includes(real.model_map.understand.chosen!), "the chosen model is named with its reason");
+  if (/fails rule 1/.test(real.model_map.understand.chosen_by ?? "")) assert.match(reason!, /No model met every hard limit/);
+  assert.equal(chosenReason({ model_map: {}, b1: { arms: [] } } as never), null);
+  const lean = chosenReason({ model_map: { understand: { chosen: "haiku", cheapest_meeting_bar: "haiku", best_measured: "x" } }, b1: { arms: [] } } as never);
+  assert.match(lean!, /lean rule/);
+});
+
+test("spec 12 AC-06: the dev-case block is hidden when the file has no dev runs, and scatter labels do not overlap", () => {
+  assert.equal(hasDevRuns({ b2: { set: "dev", cases: 0, runs_per_case: 0, arms: [] } } as never), false);
+  const empty = { safe_automated_resolution: { value: null, numerator: 0, denominator: 0, ci_low: null, ci_high: null } };
+  assert.equal(hasDevRuns({ b2: { set: "dev", cases: 20, runs_per_case: 4, arms: [{ arm: "S1", ...empty }] } } as never), false);
+  const pts = [0, 1, 2, 3, 4].map((i) => ({ arm: `m${i}`, cost: 0.01 * i, quality: 0.9, pareto: i < 3, chosen: i === 4 }));
+  const labels = scatterLabels(pts, "m3", (c) => c * 1000, () => 100);
+  assert.deepEqual([...labels.keys()].sort(), ["m0", "m1", "m2", "m3", "m4"]);
+  const placed = [...labels.values()];
+  for (let i = 0; i < placed.length; i++) for (let j = i + 1; j < placed.length; j++)
+    assert.ok(Math.abs(placed[i].x - placed[j].x) >= 70 || Math.abs(placed[i].y - placed[j].y) >= 11);
+  assert.equal(scatterLabels([{ arm: "a", cost: 1, quality: 0.5, pareto: false, chosen: false }, { arm: "b", cost: 2, quality: 0.4, pareto: false, chosen: false }], null, (c) => c, (q) => q).has("b"), false);
+});
+
+test("spec 12 AC-01: each arm names the model it used, the fast model included (S1 runs Haiku with no graph model)", () => {
+  assert.equal(armModel({ model_graph: null, model_fast: "us.anthropic.claude-haiku-4-5-20251001-v1:0", provider: "bedrock" }), "claude-haiku-4-5");
+  assert.equal(armModel({ model_graph: "us.anthropic.claude-sonnet-4-6", model_fast: null }), "claude-sonnet-4-6");
+  assert.equal(armModel({ model_graph: null, model_fast: null, provider: "none" }), null);
+  const real = JSON.parse(readFileSync(new URL("../public/data/evaluation_summary.json", import.meta.url), "utf-8")).data as EvaluationData;
+  for (const arm of real.arms) if (arm.run_meta.provider && arm.run_meta.provider !== "none") assert.ok(armModel(arm.run_meta), `${arm.arm} names its model`);
 });

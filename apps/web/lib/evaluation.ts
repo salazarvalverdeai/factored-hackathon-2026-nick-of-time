@@ -11,7 +11,7 @@ export type Rate = {
 
 export type EvaluationArm = {
   arm: string;
-  run_meta: { git_sha?: string; model_graph?: string | null; prompt_hash?: string | null; policies_version?: number };
+  run_meta: { git_sha?: string; model_graph?: string | null; model_fast?: string | null; provider?: string | null; prompt_hash?: string | null; policies_version?: number };
   overall: Record<string, Rate>;
   cells: { language: string; type: string; segment: string; n_cases: number; small?: boolean; metrics: Record<string, Rate> }[];
   latency_ms: { p50: number | null; p95: number | null };
@@ -136,7 +136,7 @@ export type BenchmarkData = {
   run_date: string;
   b1: { arms: BenchmarkArm[] };
   b2: { set: string; cases: number; runs_per_case: number; arms: ({ arm: string; cost_per_case_usd: number | null } & Record<string, Rate | string | number | null>)[] };
-  model_map: Record<string, { best_measured?: string; cheapest_meeting_bar?: string; chosen?: string }>;
+  model_map: Record<string, { best_measured?: string | null; cheapest_meeting_bar?: string | null; chosen?: string; chosen_by?: string }>;
 };
 
 export type ClassifierLanguage = {
@@ -408,10 +408,65 @@ export function d070View(data: Pick<EvaluationData, "scores_d070" | "arms">): D0
       label: label(key),
       rows: arms.map((arm) => ({
         arm,
-        model: ARM_MODEL_NOTE[arm] ?? data.arms.find((a) => a.arm === arm)?.run_meta.model_graph ?? "",
+        model: ARM_MODEL_NOTE[arm] ?? armModel(data.arms.find((a) => a.arm === arm)?.run_meta) ?? "",
         official: b.arms[arm].official[key],
         secondary: b.arms[arm].secondary[key],
       })),
     })),
   };
+}
+
+/** Why the benchmark chose its `understand` model, in one plain sentence built only from benchmark.json: the jury must
+ * never read "chosen model b0_rules, macro-F1 0.58" without the reason (spec 15 §4.4, PROTOCOL §2.3). */
+export function chosenReason(data: Pick<BenchmarkData, "model_map" | "b1">): string | null {
+  const u = data.model_map?.understand;
+  if (!u?.chosen) return null;
+  const best = u.best_measured ? data.b1.arms.find((a) => a.arm === u.best_measured) : undefined;
+  const f1 = best?.macro_f1
+    ? Object.entries(best.macro_f1).filter(([, v]) => v !== null).map(([l, v]) => `${l.toUpperCase()} ${(v as number).toFixed(3)}`).join(", ")
+    : "";
+  const bestPart = best && best.arm !== u.chosen ? ` The best measured model, ${best.arm}${f1 ? ` (macro-F1 ${f1})` : ""}, is shown for comparison.` : "";
+  const pending = /D-077 pending/.test(u.chosen_by ?? "") ? " This fallback is not yet written in the protocol (decision D-077 pending)." : "";
+  if (/fails rule 1/.test(u.chosen_by ?? "")) {
+    return `No model met every hard limit fixed before the test (macro-F1 at least 0.90 and dispute and person-request recall at least 0.95 in each language, p95 at most 1.5 s), so the pre-registered rule keeps the rules engine, ${u.chosen}.${bestPart}${pending}`;
+  }
+  if (u.cheapest_meeting_bar) {
+    return `Chosen by the pre-registered lean rule: the cheapest model not significantly worse than the best measured one.${bestPart}${pending}`;
+  }
+  return null;
+}
+
+/** Whether the file carries any whole-system dev-case figure; without one the block is hidden instead of empty rows. */
+export function hasDevRuns(data: Pick<BenchmarkData, "b2">): boolean {
+  return (data.b2?.arms ?? []).some((a) =>
+    ["safe_automated_resolution", "unsafe_outcomes"].some((k) => {
+      const r = a[k] as Rate | undefined;
+      return !!r && r.value !== null && r.denominator > 0;
+    }));
+}
+
+/** Which scatter dots get a name: the Pareto front, the chosen and the best measured model and the cheapest one; the
+ * rest are named on hover and focus. Labels then step down when they would overlap (an 11 px line, 70 px wide). */
+export function scatterLabels<P extends { arm: string; cost: number; quality: number; pareto: boolean; chosen: boolean }>(
+  points: P[], best: string | null | undefined, x: (c: number) => number, y: (q: number) => number,
+): Map<string, { x: number; y: number }> {
+  const cheapest = points.reduce<P | undefined>((m, p) => (!m || p.cost < m.cost ? p : m), undefined);
+  const named = points.filter((p) => p.pareto || p.chosen || p.arm === best || p === cheapest)
+    .sort((a, b) => y(a.quality) - y(b.quality));
+  const placed: { x: number; y: number }[] = [];
+  const out = new Map<string, { x: number; y: number }>();
+  for (const p of named) {
+    const at = { x: x(p.cost) + 10, y: y(p.quality) - 9 };
+    for (let i = 0; i < 6 && placed.some((q) => Math.abs(q.x - at.x) < 70 && Math.abs(q.y - at.y) < 11); i++) at.y += 11;
+    placed.push(at);
+    out.set(p.arm, at);
+  }
+  return out;
+}
+
+/** The model an arm used, from its run_meta: the graph model, else the fast (understand) model, else none. S1 runs
+ * Haiku as its fast model with no graph model, so reading model_graph alone wrongly said "no LLM". */
+export function armModel(meta: { model_graph?: string | null; model_fast?: string | null; provider?: string | null } | undefined): string | null {
+  const id = meta?.model_graph ?? meta?.model_fast ?? null;
+  return id ? id.replace(/^(us|eu|apac)\.anthropic\./, "").replace(/-\d{8}-v\d+:\d+$/, "") : null;
 }
