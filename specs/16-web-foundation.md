@@ -37,6 +37,15 @@ AC-01 to AC-05 are copied from issue #18 with the same numbers. None is dropped 
   components to use, how to fetch data, style rules (including the brand kit) and an example page. · [D]
 - AC-05 — A new page built from the template (`app/_template`) shall pass lint and build in CI. · [C] `npm run lint &&
   npm test && npm run build` in the `web` job of `.github/workflows/ci.yml`
+- AC-06 — The site header shall offer a language selector with Spanish, Portuguese and English (default Spanish). When the
+  user picks a language, the system shall show the interface of the landing, chat chrome, console, case, agent, login,
+  header and footer pages, and the labels and headings of `/analytics`, `/evaluation` and `/data`, in that language, keep
+  the choice in a cookie, set `<html lang>` from the server's first response, and format dates and numbers for es-MX,
+  pt-BR or en-US on a 24 h clock. The selector shall be reachable and operable by keyboard, carry an accessible name and
+  announce the current language. Figures, their labels and sources, and the agent's conversation, receipts and
+  notifications (Spanish or Portuguese only, spec 04) shall not change with it. · [T] `apps/web/lib/i18n.test.ts` ("spec 16
+  AC-06: …": every key in every language, placeholders kept, cookie parsing, per-locale dates and numbers) and
+  `apps/web/lib/landing.test.ts` (the home page's figures stay the doc's in every language)
 
 ## 8. Assumptions and open questions
 - Assumption `[assumption]`: until spec 05 ships, the mock store is the only data source; `lib/types.ts` follows the
@@ -62,6 +71,7 @@ AC-01 to AC-05 are copied from issue #18 with the same numbers. None is dropped 
 - [x] Task 3 — `lib/api.ts` with `lib/mock/` and tests · covers AC-03 · done when: `npm test` passes
 - [x] Task 4 — `apps/web/README.md` standard · covers AC-04 · done when: the 5-step "add a page" works from the template
 - [x] Task 5 — wire live mode on the spec 05 API · covers AC-03 · done when: the same pages run with `NEXT_PUBLIC_API_MODE=live` (checked by hand against a local api: chat, case page, call request, analyst sign-in, take; the public URL run belongs to spec 05 Task 7)
+- [x] Task 6 — ES · PT · EN interface (lead decision 2026-10-06) · covers AC-06 · done when: the selector switches every page in scope, `npm test` checks the dictionaries, and the header shows a menu button below 1024 px so 390 px clips nothing
 
 **Closing checklist** (last PR): every AC has a passing test or check that cites it · status → Implemented · ADR for
 any decision taken · lessons added to `CLAUDE.md`.

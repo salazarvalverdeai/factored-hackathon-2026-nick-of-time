@@ -15,7 +15,7 @@ from fastapi.testclient import TestClient
 from app.platform import HttpPlatform
 from nick_of_time.contracts import CONTRACTS_DIR, ProgressItem, TurnResult
 from tests.test_spec04_decide import server
-from tests.test_spec04_graph import Chat, intake
+from tests.test_spec04_graph import Chat, fake_budget, intake
 from tests.test_spec05_api import HTTPS, env  # noqa: F401 — the api fixture
 
 EV_0001 = "No reconozco un cargo de 1250 USD en TIENDA X"        # MX, debit, score 72 (high), replay
@@ -40,7 +40,8 @@ def stream(chat: Chat, text: str, language) -> list[tuple[str, dict]]:
     async def run():
         return [(mode, chunk) async for mode, chunk in chat.graph.astream(payload, chat.config,
                                                                         stream_mode=["custom", "values"])]
-    return asyncio.run(run())
+    with fake_budget():
+        return asyncio.run(run())
 
 
 def progress(chunks) -> list[ProgressItem]:

@@ -5,16 +5,17 @@
 import { CircleCheck, CircleDashed, Clock, Info, OctagonAlert, TriangleAlert, UserRound } from "lucide-react";
 import { useId, type ReactNode } from "react";
 import { StatusBadge } from "@/components/badges";
+import { useLocale, useT } from "@/components/i18n-provider";
 import { EmptyState } from "@/components/states";
 import {
   AT_RISK_DAYS,
   type BoardCase,
   type ClosedRow,
-  DEFINITIONS,
   type DeadlineOutcome,
   type Sla,
   type SlaLevel,
   closedRows,
+  definitions,
   formatDuration,
   kpis,
 } from "@/lib/console-metrics";
@@ -25,11 +26,12 @@ const PILL = "inline-flex w-fit shrink-0 items-center gap-1 rounded-4xl px-2 py-
 /** A definition that opens on hover and on keyboard focus; screen readers get it as the button's description. */
 export function InfoTip({ label, children }: { label: string; children: ReactNode }) {
   const id = useId();
+  const t = useT();
   return (
     <span className="group relative inline-flex">
       <button
         type="button"
-        aria-label={`Definition: ${label}`}
+        aria-label={t("console.board.definitionOf", { label })}
         aria-describedby={id}
         className="rounded-full text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
       >
@@ -81,48 +83,56 @@ function Kpi({ title, value, detail, definition }: { title: string; value: strin
 
 /** Open cases, deadlines at risk and the median time to verification (spec 08 AC-07). */
 export function KpiStrip({ board }: { board: BoardCase[] }) {
+  const t = useT();
+  const { locale } = useLocale();
   const k = kpis(board);
+  const defs = definitions(locale);
   return (
-    <section aria-label="Key figures" className="mb-4 space-y-1">
+    <section aria-label={t("console.board.kpiAria")} className="mb-4 space-y-1">
       <div className="grid gap-3 sm:grid-cols-3">
         <Kpi
-          title="Open cases"
+          title={t("console.board.open")}
           value={String(k.open)}
-          detail={`${k.openWithoutDeadline} without a legal deadline · a person decides`}
-          definition={DEFINITIONS.open}
+          detail={t("console.board.openDetail", { n: k.openWithoutDeadline })}
+          definition={defs.open}
         />
         <Kpi
-          title="Deadlines at risk"
+          title={t("console.board.atRisk")}
           value={String(k.atRisk)}
-          detail={`of ${k.open} open · ${AT_RISK_DAYS} days or less, or past`}
-          definition={DEFINITIONS.atRisk}
+          detail={t("console.board.atRiskDetail", { open: k.open, days: AT_RISK_DAYS })}
+          definition={defs.atRisk}
         />
         <Kpi
-          title="Time to verification"
-          value={formatDuration(k.medianToVerificationMs)}
-          detail={k.verifiedCases ? `median of ${k.verifiedCases} verified case${k.verifiedCases === 1 ? "" : "s"}` : "no verified action yet"}
-          definition={DEFINITIONS.toVerification}
+          title={t("console.board.toVerification")}
+          value={formatDuration(k.medianToVerificationMs, locale)}
+          detail={
+            k.verifiedCases
+              ? t(k.verifiedCases === 1 ? "console.board.medianOf.one" : "console.board.medianOf.other", { n: k.verifiedCases })
+              : t("console.board.noVerified")
+          }
+          definition={defs.toVerification}
         />
       </div>
-      <p className="text-xs text-muted-foreground">{DEFINITIONS.label}</p>
+      <p className="text-xs text-muted-foreground">{defs.label}</p>
     </section>
   );
 }
 
-const MET: Record<DeadlineOutcome, { label: string; icon: typeof Clock; className: string }> = {
-  met: { label: "Deadline met", icon: CircleCheck, className: "bg-brand-teal/15 text-teal-700 dark:text-teal-300" },
-  missed: { label: "Deadline missed", icon: OctagonAlert, className: "bg-red-500/15 text-red-700 dark:text-red-400" },
-  none: { label: "No legal deadline", icon: UserRound, className: "bg-muted text-muted-foreground" },
-  unknown: { label: "Deadline not measurable", icon: CircleDashed, className: "bg-muted text-muted-foreground" },
+const MET: Record<DeadlineOutcome, { icon: typeof Clock; className: string }> = {
+  met: { icon: CircleCheck, className: "bg-brand-teal/15 text-teal-700 dark:text-teal-300" },
+  missed: { icon: OctagonAlert, className: "bg-red-500/15 text-red-700 dark:text-red-400" },
+  none: { icon: UserRound, className: "bg-muted text-muted-foreground" },
+  unknown: { icon: CircleDashed, className: "bg-muted text-muted-foreground" },
 };
 
 function DeadlineMet({ row }: { row: ClosedRow }) {
+  const t = useT();
   const m = MET[row.deadline];
   const Icon = m.icon;
   return (
     <span data-slot="deadline-met" data-outcome={row.deadline} className={cn(PILL, m.className)}>
       <Icon aria-hidden className="size-3.5" />
-      {m.label}
+      {t(`console.board.met.${row.deadline}`)}
       {row.legalDeadline && row.deadline !== "none" ? <span className="font-normal">· {row.legalDeadline}</span> : null}
     </span>
   );
@@ -138,10 +148,12 @@ export function ClosedList({
   activeId: string | null;
   onSelect: (id: string) => void;
 }) {
+  const t = useT();
+  const { locale } = useLocale();
   const rows = closedRows(board);
-  if (rows.length === 0) return <EmptyState title="No resolved or closed cases yet" />;
+  if (rows.length === 0) return <EmptyState title={t("console.board.closedEmpty")} />;
   return (
-    <ul className="space-y-1" aria-label="Resolved and closed cases">
+    <ul className="space-y-1" aria-label={t("console.board.closedAria")}>
       {rows.map((r) => (
         <li key={r.id}>
           <button
@@ -156,9 +168,11 @@ export function ClosedList({
             </span>
             <span className="block truncate">{r.customerName}</span>
             <span className="block text-xs text-muted-foreground">
-              {r.outcome}
-              {r.decidedBy ? ` · by ${r.decidedBy}` : ""} ·{" "}
-              {r.timeToCloseMs !== null ? `closed in ${formatDuration(r.timeToCloseMs)}` : "waiting for a person to close it"}
+              {t(`console.board.outcome.${r.outcome}`)}
+              {r.decidedBy ? ` · ${t("console.board.by", { name: r.decidedBy })}` : ""} ·{" "}
+              {r.timeToCloseMs !== null
+                ? t("console.board.closedIn", { duration: formatDuration(r.timeToCloseMs, locale) })
+                : t("console.board.waiting")}
             </span>
             <DeadlineMet row={r} />
           </button>

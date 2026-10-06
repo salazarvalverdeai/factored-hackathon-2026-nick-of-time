@@ -151,7 +151,7 @@
     <text x="910" y="562" fill="#1f2937">• /console with supervised mode</text>
     <text x="910" y="578" fill="#1f2937">• notify_customer: log (demo) →</text>
     <text x="910" y="594" fill="#1f2937">  telegram (provisional) → email</text>
-    <text x="910" y="610" fill="#6b7280">GianMarco · [optional ElevenLabs voice]</text>
+    <text x="910" y="610" fill="#6b7280">GianMarco · [voice: Voxtral STT + browser TTS, ADR 0029]</text>
   </g>
 
   <!-- Path to production row -->

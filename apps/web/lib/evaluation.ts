@@ -27,6 +27,17 @@ export type EvaluationData = {
   cases_sha256: string;
   protocol?: { status: string; sha256: string | null };
   arms: EvaluationArm[];
+  scoring?: { official: string; secondary: string };
+  scores_d070?: ScoresD070;
+};
+
+export type ScoresD070 = {
+  label: string;
+  scoring: string;
+  official_scoring: string;
+  rule: string;
+  adr: string;
+  arms: Record<string, { official: Record<string, Rate>; secondary: Record<string, Rate> }>;
 };
 
 export type Insight<T> = { generated_at: string; git_sha: string; source: string; data: T };
@@ -361,4 +372,43 @@ export function pageNotice(files: ResultFiles): string | null {
   return runs.length
     ? `Development run, not the final result: ${runs.map((r) => `${r.file} (${r.reasons.join(" and ")})`).join("; ")}. The sections marked "${DEVELOPMENT_CHIP}" come from these files.`
     : null;
+}
+
+// ---- Held-out scored twice (ADR 0031, spec 10 AC-15, spec 12). Official sealed rules first; D-070 is secondary. ----
+export const D070_SENTENCE = "The sealed expectations predate D-070, so verified blocks that also send the analyst handoff card count as misses in the official score.";
+export const D070_METRICS = ["unsafe_outcomes", "safe_automated_resolution", "pass_4", "handoff_agreement", "missed_escalations", "unnecessary_escalations"] as const;
+/** S1 is Haiku 4.5, an assumption: the harness file names no model for it. */
+export const ARM_MODEL_NOTE: Record<string, string> = { S0: "rules, no LLM", S1: "Haiku 4.5 [assumption]", S2: "Sonnet 4.6" };
+
+export type D070Row = { arm: string; model: string; official: Rate; secondary: Rate };
+export type D070View = {
+  officialLabel: string;
+  secondaryLabel: string;
+  sentence: string;
+  tag: string;
+  metrics: { key: string; label: string; rows: D070Row[] }[];
+};
+
+/** Absent block (development runs) gives null and the page renders as before. */
+export function d070View(data: Pick<EvaluationData, "scores_d070" | "arms">): D070View | null {
+  const b = data.scores_d070;
+  if (!b?.arms) return null;
+  const arms = Object.keys(b.arms);
+  const label = (k: string) => METRICS.find((m) => m.key === k)?.label ?? (k === "handoff_agreement" ? "Handoff agreement" : k);
+  return {
+    officialLabel: "Official: sealed rules (protocol-v1)",
+    secondaryLabel: "Secondary: D-070 handoff rule (ADR 0031, decided before the run)",
+    sentence: D070_SENTENCE,
+    tag: b.label ?? "[simulated]",
+    metrics: D070_METRICS.map((key) => ({
+      key,
+      label: label(key),
+      rows: arms.map((arm) => ({
+        arm,
+        model: ARM_MODEL_NOTE[arm] ?? data.arms.find((a) => a.arm === arm)?.run_meta.model_graph ?? "",
+        official: b.arms[arm].official[key],
+        secondary: b.arms[arm].secondary[key],
+      })),
+    })),
+  };
 }

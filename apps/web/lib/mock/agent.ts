@@ -37,6 +37,45 @@ const LOCAL: Record<Language, Record<"deny" | "askWhat" | "cancelled", string>> 
   },
 };
 
+// The mock's trace details in the conversation language: the trace panel is customer-visible and speaks one language
+// (spec 07 AC-03, spec 16 AC-06). `[simulated]` — the mock's own words, not the agent's.
+const TRACE_LOCAL = {
+  es: {
+    fired: "{g} se activó",
+    deny: "DENY: no se ejecutó nada",
+    noConfirm: "el cliente no confirmó",
+    unclear: "intención no clara",
+    dispute: "disputa · idioma {lang}",
+    confirmFirst: "confirmar primero con el cliente",
+    blockVerify: "bloquear la tarjeta y verificar",
+    handoff: "pasar a una persona",
+    accepted: "aceptado",
+    blockRead: "verificado ✓ (estado de la tarjeta releído)",
+    caseAccepted: "{id} aceptado",
+    caseRead: "verificado ✓ (caso releído)",
+    pending: "pendiente",
+  },
+  pt: {
+    fired: "{g} disparou",
+    deny: "DENY: nada foi executado",
+    noConfirm: "o cliente não confirmou",
+    unclear: "intenção não clara",
+    dispute: "contestação · idioma {lang}",
+    confirmFirst: "confirmar primeiro com o cliente",
+    blockVerify: "bloquear o cartão e verificar",
+    handoff: "passar para uma pessoa",
+    accepted: "aceito",
+    blockRead: "verificado ✓ (status do cartão relido)",
+    caseAccepted: "{id} aceito",
+    caseRead: "verificado ✓ (caso relido)",
+    pending: "pendente",
+  },
+} satisfies Record<Language, Record<string, string>>;
+
+function tr(lang: Language, key: keyof (typeof TRACE_LOCAL)["es"], vars: Record<string, string> = {}): string {
+  return TRACE_LOCAL[lang][key].replace(/\{(\w+)\}/g, (m, k: string) => vars[k] ?? m);
+}
+
 function chip(key: "confirm_yes" | "confirm_no" | "report_unrecognized" | "talk_to_person", lang: Language): Suggestion {
   const label = MESSAGES.suggest[key][lang];
   return { label, text: label };
@@ -48,8 +87,8 @@ function denied(lang: Language, guardrail: string): AgentReply {
     deny: true,
     guardrails: [guardrail],
     trace: [
-      { step: "guardrail", result: `${guardrail} fired`, kind: "guardrail" },
-      { step: "decision", result: "DENY: nothing was executed", kind: "deny" },
+      { step: "guardrail", result: tr(lang, "fired", { g: guardrail }), kind: "guardrail" },
+      { step: "decision", result: tr(lang, "deny"), kind: "deny" },
     ],
   };
 }
@@ -71,7 +110,7 @@ export function runAgentTurn(store: MockStore, text: string, ctx: AgentContext =
         text: LOCAL[lang].cancelled,
         guardrails: [],
         suggestions: [chip("report_unrecognized", lang), chip("talk_to_person", lang)],
-        trace: [{ step: "confirm", result: "customer did not confirm", kind: "ok" }],
+        trace: [{ step: "confirm", result: tr(lang, "noConfirm"), kind: "ok" }],
       };
     }
     request = ctx.pendingRequest;
@@ -80,7 +119,7 @@ export function runAgentTurn(store: MockStore, text: string, ctx: AgentContext =
       text: LOCAL[lang].askWhat,
       guardrails: [],
       suggestions: [chip("report_unrecognized", lang), chip("talk_to_person", lang)],
-      trace: [{ step: "understand", result: "intent=unclear", kind: "ok" }],
+      trace: [{ step: "understand", result: tr(lang, "unclear"), kind: "ok" }],
     };
   } else if (zone === "medium") {
     return {
@@ -97,8 +136,8 @@ export function runAgentTurn(store: MockStore, text: string, ctx: AgentContext =
       awaitingConfirmation: true,
       guardrails: [],
       trace: [
-        { step: "understand", result: `intent=dispute · language=${lang}`, kind: "ok" },
-        { step: "policy", result: "confirm with the customer first", kind: "ok" },
+        { step: "understand", result: tr(lang, "dispute", { lang }), kind: "ok" },
+        { step: "policy", result: tr(lang, "confirmFirst"), kind: "ok" },
       ],
     };
   }
@@ -106,23 +145,23 @@ export function runAgentTurn(store: MockStore, text: string, ctx: AgentContext =
   const blocks = zone !== "human";
   const opened = store.openCase(customer, zone, request);
   const trace: TraceStep[] = [
-    { step: "understand", result: `intent=dispute · language=${lang}`, kind: "ok" },
-    { step: "policy", result: blocks ? "block the card and verify" : "hand off to a person", kind: "ok" },
+    { step: "understand", result: tr(lang, "dispute", { lang }), kind: "ok" },
+    { step: "policy", result: tr(lang, blocks ? "blockVerify" : "handoff"), kind: "ok" },
   ];
   if (blocks) {
     trace.push(
-      { step: "block_card", result: "accepted", kind: "accepted" },
-      { step: "verify block_card", result: "verified ✓ (card status read back)", kind: "verified" },
+      { step: "block_card", result: tr(lang, "accepted"), kind: "accepted" },
+      { step: "verify block_card", result: tr(lang, "blockRead"), kind: "verified" },
     );
   }
   trace.push(
-    { step: "open_case", result: `${opened.id} accepted`, kind: "accepted" },
-    { step: "verify open_case", result: "verified ✓ (case read back)", kind: "verified" },
+    { step: "open_case", result: tr(lang, "caseAccepted", { id: opened.id }), kind: "accepted" },
+    { step: "verify open_case", result: tr(lang, "caseRead"), kind: "verified" },
     {
       step: "deadline",
       result: opened.deadline.creditDeadline
         ? `${opened.deadline.creditDeadline} · ${opened.deadline.deadlineSource}`
-        : `pending · ${opened.deadline.deadlineSource}`,
+        : `${tr(lang, "pending")} · ${opened.deadline.deadlineSource}`,
       kind: "ok",
     },
   );

@@ -13,7 +13,7 @@ from contracts.tools import ToolError
 from nick_of_time.contracts import ProgressItem, TurnResult
 from nick_of_time.events import TextChunk, ToolEvent
 from tests.test_spec04_decide import server
-from tests.test_spec04_graph import Chat
+from tests.test_spec04_graph import Chat, fake_budget
 
 EV_0001 = "No reconozco un cargo de 1250 USD en TIENDA X"        # MX, debit, score 72 (high), replay
 CALL = "Quiero hablar con una persona, " + EV_0001.lower()
@@ -28,7 +28,8 @@ def stream(chat: Chat, text: str, language: str = "es") -> tuple[list[tuple[str,
     async def run():
         return [(mode, chunk) async for mode, chunk in chat.graph.astream(payload, chat.config,
                                                                         stream_mode=["custom", "values"])]
-    chunks = asyncio.run(run())
+    with fake_budget():
+        chunks = asyncio.run(run())
     turn = TurnResult.model_validate({k: v for k, v in chunks[-1][1].items() if k in TurnResult.model_fields})
     return chunks, turn
 
