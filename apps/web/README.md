@@ -13,7 +13,7 @@ npm run lint && npm test && npm run build     # what CI runs
 | Route | Spec | State |
 |---|---|---|
 | `/` | 16 | home: lockup, the problem in numbers (labeled, linked), how it works, "Evaluate in 3 minutes"; hero visual and OG image slots for the lead |
-| `/chat` | 07 | demo customer + OTP, ES/PT chat with live tool steps and cards, streaming reply, verified receipt, trace, right detail panel; the mock plays the spec 01 §6.4.1 stream (`lib/mock/stream.ts`) |
+| `/chat` | 07 | demo customer + OTP, ES/PT chat on AI Elements: header bar with "Nuevo caso", inline "how I decided" that collapses, paced reveal, cards, verified receipt with the deadline hero and Copy, chips in the thread, composer with the mic, right detail panel with the technical trace; the mock plays the spec 01 §6.4.1 stream (`lib/mock/stream.ts`) |
 | `/case/[id]` | 13 | working on mock data: timeline, countdown, call request, notifications, Telegram/e-mail |
 | `/login`, `/console` | 08 | working on mock data: analyst login, KPI strip, inbox with SLA lights, Closed tab, handoff card, approve, audit, supervised mode |
 | `/evaluation`, `/analytics`, `/data` | 12 | shells, content owned by Diego |
@@ -38,7 +38,9 @@ npm run lint && npm test && npm run build     # what CI runs
 | Animated figure (sparingly) | `NumberTicker` (Magic UI): renders the final value without JavaScript, animates once below the fold, never with reduced motion | `components/ui/number-ticker.tsx` |
 | States | `LoadingState`, `EmptyState`, `ErrorState`, `DenyState` | `components/states.tsx` |
 | Right detail panel ("Detail →") | `DetailPanel`, `DetailFields`, `DetailField`: generic modal sheet, Escape closes, focus returns | `components/detail-panel.tsx` |
-| Chat building blocks | AI Elements (`conversation`, `suggestion`, `sources`, `task`), restyled to the brand | `components/ai-elements/` |
+| Chat building blocks | AI Elements (`conversation`, `message`, `chain-of-thought`, `tool`, `task`, `confirmation`, `inline-citation`, `prompt-input`, `suggestion`, `sources`, `shimmer`), installed with the shadcn CLI and lightly restyled to the brand | `components/ai-elements/` |
+| Chat motion | `Reveal`, `Stagger`, `DrawCheck`, `Collapse`, `useReducedMotionGuard`: the one adapter every chat animation goes through (reduced motion: nothing moves) | `components/chat/motion.tsx` |
+| Chat chrome text | ES/PT strings of the chat UI in one module | `lib/chat-strings.ts` |
 
 ## Fetching data
 Pages never import the mock store or call `fetch`. They read with `useQuery` (`lib/use-query.ts`) and `useSession`, and act

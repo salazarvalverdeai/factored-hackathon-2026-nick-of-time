@@ -1,0 +1,17 @@
+country,segment,n_customers,n_transactions
+AR,Basic,17924,176931
+AR,Plus,7441,73344
+AR,Premium,2979,28622
+AR,Student,1498,14657
+AR,all,29842,293554
+CO,Basic,27069,265693
+CO,Plus,11309,110740
+CO,Premium,4584,45070
+CO,Student,2289,22112
+CO,all,45251,443615
+MX,Basic,44763,442844
+MX,Plus,18797,186556
+MX,Premium,7644,74603
+MX,Student,3703,36551
+MX,all,74907,740554
+unknown,all,0,0

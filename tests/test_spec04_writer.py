@@ -190,3 +190,146 @@ def test_ac_37_bedrock_streams_each_delta_and_reports_the_billed_usage():
     assert pieces == ["[1] Hola", ", Ana.\n[chips] "] and result.text == "".join(pieces)
     assert (result.tokens_in, result.tokens_out, result.stop_reason) == (120, 9, "end_turn") and result.cost_usd > 0
     assert stub.request["modelId"] == SONNET and "toolConfig" not in stub.request
+
+
+# ---- the block gate (spec 01 AC-10, spec 04 AC-37/AC-40 follow-up: P0 found with real Sonnet 4.6 on demo turns) ----
+URL = "https://www.gob.mx/condusef/prensa/cargos-no-reconocidos?idiom=es"
+SOURCE = "Banxico, Circular 3/2012 (modificada por la Circular 14/2018)"
+FACTS = [{"transaction_id": "TRX-0001", "amount": 1366.10, "currency": "USD", "merchant": "TIENDA X"},
+         {"case_id": "K-845156", "verification_id": "V-273C5CAD141B", "read_at": "2026-06-01T15:04:11Z",
+          "credit_deadline": "2026-06-03", "deadline_source": SOURCE, "deadline_source_url": URL,
+          "verified_on": "2026-10-04"}]
+SHOWN = ["V-273C5CAD141B", "2026-06-01T15:04:11Z", SOURCE, URL, "2026-10-04"]     # what the turn's cards show
+TEMPLATE_ES = [
+    "Voy a hacer lo siguiente:",
+    "1. Abrir un caso con los datos de este cargo (TIENDA X, 1366.10 USD).",
+    "2. Verificar que el caso quedó registrado.",
+    "3. Mostrarte el plazo legal y su fuente.",
+    "Caso K-845156 abierto y verificado (verificación V-273C5CAD141B, 2026-06-01 15:04 UTC).",
+    f"Plazo legal del banco para pronunciarse sobre los fondos en disputa: 2026-06-03. Fuente: {SOURCE} ({URL}, "
+    "verificada el 2026-10-04)."]
+TEMPLATE_PT = [
+    "Caso K-845156 aberto e verificado (verificação V-273C5CAD141B, 2026-06-01 15:04 UTC).",
+    f"Prazo legal do banco para se pronunciar sobre os valores contestados: 2026-06-03. Fonte: {SOURCE} ({URL}, "
+    "verificada em 2026-10-04)."]
+# the raw Sonnet 4.6 output of the demo turn: the system prompt then asked for "any number, date or id in a line of
+# its own", so the model split its sentences and the line gate dropped the amount, the case id and the date
+RAW_ES = ("[1,2,3,4] Gerardo, esto es lo que hice por ti: abrí un caso con el cargo de\n**1366.10 USD**,\n"
+          "te muestro la fecha límite legal, y verifiqué que todo quedó registrado.\n\n"
+          "[5] El caso quedó abierto y verificado:\n- Caso: **K-845156**\n- Verificación: **V-273C5CAD141B**\n"
+          "- Fecha: 2026-06-01 15:04 UTC\n\n"
+          "[6] Por ley, el plazo del banco para pronunciarse sobre los fondos es el\n**2026-06-03**\n"
+          "(fuente: Banxico, Circular 3/2012).\n"
+          "[chips] check_case: Ver mi caso | talk_to_person: Hablar con una persona")
+FIGURES = ["1366.10", "K-845156", "2026-06-03"]
+
+
+def gate(template, shown=SHOWN):
+    sent: list[str] = []
+    return wording.Gate(template, FACTS, sent.append, shown=shown), sent
+
+
+def feed(g, raw: str, size: int = 7) -> None:
+    for i in range(0, len(raw), size):                       # token-sized deltas, as ConverseStream sends them
+        g.feed(raw[i:i + size])
+
+
+def test_spec01_ac_10_ac_37_a_block_split_across_lines_is_released_whole_and_keeps_every_fact():
+    g, sent = gate(TEMPLATE_ES)
+    feed(g, RAW_ES)
+    out = g.finish()
+    reply = "\n".join(out)
+    assert all(figure in reply for figure in FIGURES)                       # no fact of the template lost
+    assert ("Gerardo, esto es lo que hice por ti: abrí un caso con el cargo de 1366.10 USD, te muestro la fecha "
+            "límite legal, y verifiqué que todo quedó registrado.") in out
+    assert ("Por ley, el plazo del banco para pronunciarse sobre los fondos es el 2026-06-03 (fuente: Banxico, "
+            "Circular 3/2012).") in out
+    assert "**" not in reply and "**" not in "".join(sent)                  # markdown stripped
+    # the list items that only repeat a card (verification id, UTC time) are left out; the case id stays
+    assert "El caso quedó abierto y verificado:\n- Caso: K-845156" in out
+    assert not re.search(r"V-273C5CAD141B|UTC|https?://", reply)
+    assert g.dropped == 0 and g.chips == [("check_case", "Ver mi caso"), ("talk_to_person", "Hablar con una persona")]
+    assert "".join(sent) == reply                                           # the stream is the final reply
+
+
+def test_spec01_ac_10_digit_free_text_streams_before_its_block_completes_and_the_rest_waits_for_the_gate():
+    g, sent = gate(TEMPLATE_ES)
+    feed(g, "[1,2,3,4] Gerardo, esto es lo que hice por ti: abrí un caso con el cargo de")
+    assert "".join(sent) == "Gerardo, esto es lo que hice por ti: abrí un caso con el cargo de"
+    feed(g, "\n**1366.10 USD**,\nte muestro la fecha")
+    assert "".join(sent) == "Gerardo, esto es lo que hice por ti: abrí un caso con el cargo de"   # held: a digit
+    feed(g, " límite legal, y verifiqué que todo quedó registrado.\n\n[5] Tu")
+    assert "1366.10 USD, te muestro la fecha límite legal" in "".join(sent)                    # gated, released
+    assert "".join(sent).endswith("\nTu")                                                      # next block streams
+
+
+def test_spec01_ac_10_ac_37_a_pt_block_that_drops_the_case_id_gives_its_template_line_back():
+    g, _ = gate(TEMPLATE_PT)
+    feed(g, "[1] Pronto, Ana. Seu caso foi aberto e confirmado no sistema.\n"
+            "[2] Por lei, o banco tem até\n2026-06-03 para se pronunciar sobre os valores.\n[chips] x: y")
+    out = g.finish()
+    assert out == [TEMPLATE_PT[0], "Por lei, o banco tem até 2026-06-03 para se pronunciar sobre os valores."]
+    assert g.dropped == 1 and "K-845156" in "\n".join(out)                  # G-OUT-01, the fact came back
+
+
+def test_ac_37_an_ungrounded_figure_in_a_split_block_still_fails_and_its_template_lines_come_back():
+    g, _ = gate(TEMPLATE_ES)
+    feed(g, "[5] Tu caso\n**K-845157**\nquedó abierto.\n")
+    out = g.finish()
+    assert TEMPLATE_ES[4] in out and g.dropped == 1 and "K-845157" not in "\n".join(out)
+
+
+def test_ac_37_cards_carry_verification_ids_times_and_links_so_the_text_need_not_repeat_them():
+    good = ("[1] Listo, Gerardo. Tu caso K-845156 quedó abierto y confirmado en el sistema.\n"
+            "[2] Una persona del banco lo revisa y decide; por ley, el banco tiene hasta el 2026-06-03 para "
+            "pronunciarse sobre los fondos.\n")
+    g, _ = gate(TEMPLATE_ES[4:])
+    feed(g, good)
+    reply = "\n".join(g.finish())
+    assert g.dropped == 0 and len(g.out) == 2 and not re.search(r"V-\w+|UTC|https?://|2026-10-04", reply)
+    # with no card showing them, the verification id is a fact the text must keep: the template line comes back
+    g, _ = gate(TEMPLATE_ES[4:], shown=())
+    feed(g, good)
+    assert TEMPLATE_ES[4] in g.finish() and g.dropped >= 1
+
+
+def test_ac_37_markdown_emphasis_is_stripped_from_streamed_digit_free_text():
+    g, sent = gate(["Hola."])
+    feed(g, "[1] Hola, **Gerardo**, estoy __aquí__.", size=3)
+    assert g.finish() == ["Hola, Gerardo, estoy aquí."] and "".join(sent) == "Hola, Gerardo, estoy aquí."
+
+
+def test_ac_37_the_prompt_asks_for_whole_blocks_no_markdown_and_carries_es_and_pt_examples():
+    assert "line of its own" not in wording.SYSTEM and "never split across lines" in wording.SYSTEM
+    assert "no markdown" in wording.SYSTEM and "never list verification ids, UTC times or links" in wording.SYSTEM
+    assert "Tu caso K-000001" in wording.SYSTEM and "Seu caso K-000001" in wording.SYSTEM
+
+
+def test_ac_37_d_086_the_prompt_sets_tu_in_every_spanish_country_and_voce_in_portuguese():
+    """D-086 (lead, 2026-10-06): one register per language, whatever the customer's country."""
+    prompt = wording.SYSTEM
+    assert "with tú in every country, MX, CO and AR alike, never vos or usted" in prompt
+    assert "Brazilian Portuguese with você" in prompt
+
+
+def test_ac_37_on_the_graph_the_cards_spare_the_text_the_verification_ids_and_the_writer_sees_them_named():
+    def concise(payload):
+        out = []
+        for item in payload["lines"]:
+            n, text = item["n"], item["text"]
+            if case := re.match(r"Caso (K-\d+) abierto", text):
+                out.append(f"[{n}] Tu caso {case.group(1)} quedó abierto y confirmado.")
+            elif deadline := re.search(r"en disputa: (\d{4}-\d{2}-\d{2})\.", text):
+                out.append(f"[{n}] Por ley, el banco tiene hasta el\n**{deadline.group(1)}**\npara pronunciarse.")
+            elif last4 := re.match(r"Tarjeta terminada en (\d{4}): bloqueada", text):
+                out.append(f"[{n}] Tu tarjeta terminada en {last4.group(1)} quedó bloqueada y confirmada.")
+            else:
+                out.append(f"[{n}] {text}")
+        return "\n".join(out)
+    writer = Writer(concise)
+    chunks, turn = run(chat(writer), EV_0001)
+    assert json.loads(writer.calls[0]["user"])["cards"]                     # the writer is told what the cards show
+    assert "G-OUT-01" not in turn.guardrails_triggered
+    assert not re.search(r"V-\w+|UTC|https?://|\*\*", turn.reply)
+    assert re.search(r"Tu caso K-\d+ quedó abierto", turn.reply) and "hasta el 2026-06-03 para" in turn.reply
+    assert "".join(c.delta for c in texts(chunks)) == turn.reply

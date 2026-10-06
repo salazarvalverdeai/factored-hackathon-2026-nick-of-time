@@ -112,7 +112,8 @@ def test_ac_17_the_api_forwards_each_label_as_progress_then_exactly_one_turn(env
         thread = browser.post("/api/agent/threads").json()["thread_id"]
         run = browser.post(f"/api/agent/threads/{thread}/runs/stream", json={"input": {"messages": []}})
     assert run.status_code == 200
-    events = re.findall(r"event: (\w+)\ndata: (.*)\n\n", run.text)
+    # spec 01 §6.4.1: the run's `tool` events travel too (forwarding tested in test_spec01_stream_e2e.py)
+    events = [(e, d) for e, d in re.findall(r"event: (\w+)\ndata: (.*)\n\n", run.text) if e != "tool"]
     assert [e for e, _ in events] == ["progress"] * len(STEPS) + ["turn"]
     assert [json.loads(d)["label"] for _, d in events[:-1]] == [LABELS[step]["es"] for step in STEPS]
     assert json.loads(events[-1][1])["decision"] == "block_and_open_case"

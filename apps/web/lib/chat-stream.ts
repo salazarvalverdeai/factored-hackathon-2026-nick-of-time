@@ -318,6 +318,14 @@ export function formatTimestamp(iso: string, lang: Language, country?: string): 
   }).format(t);
 }
 
+/**
+ * A message's time as "19:03" (24 h) in the case's zone (spec 07 AC-25): when this browser sent or received it. Only the
+ * time of day: the date a customer sees is the demo date in replay, never this clock's.
+ */
+export function formatClock(ms: number, lang: Language, country?: string): string {
+  return new Intl.DateTimeFormat(LOCALE[lang], { hour: "2-digit", minute: "2-digit", hourCycle: "h23", timeZone: zoneFor(country, lang) }).format(ms);
+}
+
 /** A business date `YYYY-MM-DD` as "14 de octubre de 2026": a date, not an instant, so no zone shift. */
 export function formatDate(ymd: string, lang: Language): string {
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(ymd);
@@ -376,4 +384,62 @@ export function deadlineWords(kind: string, lang: Language): string {
     ruling: { es: "Plazo para resolver tu caso", pt: "Prazo para resolver seu caso" },
   };
   return words[kind]?.[lang] ?? (lang === "es" ? "Plazo legal" : "Prazo legal");
+}
+
+// --- inline citations: a figure in the reply → the tool that returned it -----------------------------------------
+
+/** The link target of a cited figure: `#cite-<tool call id>`; the markdown renderer turns it into an inline citation. */
+export const CITE_PREFIX = "#cite-";
+
+/** The tool call id of a cite target, or null for any other link. */
+export function citeTarget(href: string | undefined | null): string | null {
+  return href && href.startsWith(CITE_PREFIX) ? decodeURIComponent(href.slice(CITE_PREFIX.length)) : null;
+}
+
+const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+/** The ways a reply may write the figures a tool returned: ids as they are, amounts and dates as the session writes them. */
+function figuresOf(t: ToolEvent, lang: Language): string[] {
+  const out: string[] = [];
+  for (const c of t.cards) {
+    if (c.type === "charge") {
+      const plain = new Intl.NumberFormat(LOCALE[lang], { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(c.amount);
+      out.push(formatAmount(c.amount, c.currency, lang), `${c.currency} ${plain}`, plain);
+    } else if (c.type === "case") out.push(c.case_id);
+    else if (c.type === "action" && c.verification_id) out.push(c.verification_id);
+    else if (c.type === "deadline" && c.date) out.push(formatDate(c.date, lang), c.date);
+  }
+  return out.filter((f) => f.length >= 4);
+}
+
+/**
+ * Marks each figure of a finished reply that a tool of the turn returned as `[figure](#cite-<id>)`, the first time it
+ * appears, outside code and existing links (plan §3.3: every figure with its source). Figures no tool returned stay
+ * as they are: this only points at sources, it never adds a fact.
+ */
+export function citeFigures(text: string, tools: readonly ToolEvent[], lang: Language): string {
+  const owner = new Map<string, string>();
+  for (const t of tools) if (t.status === "done") for (const f of figuresOf(t, lang)) if (!owner.has(f)) owner.set(f, t.id);
+  if (owner.size === 0) return text;
+  const figures = [...owner.keys()].sort((a, b) => b.length - a.length);
+  const re = new RegExp(`(?<![\\w.,/-])(${figures.map(escapeRe).join("|")})(?![\\w/-]|[.,]\\d)`, "g");
+  const cited = new Set<string>();
+  // Leave code spans and links alone: split them out, cite only the plain parts.
+  return text
+    .split(/(`[^`\n]*`|\[[^\]\n]*\]\([^)\n]*\))/)
+    .map((part, i) =>
+      i % 2 === 1
+        ? part
+        : part.replace(re, (m) => {
+            if (cited.has(m)) return m;
+            cited.add(m);
+            return `[${m}](${CITE_PREFIX}${encodeURIComponent(owner.get(m)!)})`;
+          }),
+    )
+    .join("");
+}
+
+/** The chip shown filled: the first one that is not the person chip (the turn's main next step). */
+export function primaryChipIndex(chips: readonly Suggestion[], lang: Language): number {
+  return chips.findIndex((c) => !isPersonChip(c, lang));
 }

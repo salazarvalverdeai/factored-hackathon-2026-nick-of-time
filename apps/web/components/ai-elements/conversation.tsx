@@ -1,7 +1,8 @@
 "use client";
 
 // AI Elements `conversation` (registry.ai-sdk.dev/conversation.json). Local changes: no smooth scroll under
-// prefers-reduced-motion, and the log announces whole new messages only (a streaming reply is not read token by token).
+// prefers-reduced-motion, the log announces whole new messages only (a streaming reply is not read token by token),
+// and the scroll-to-bottom button fades in.
 
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -92,7 +93,7 @@ export const ConversationScrollButton = ({
     !isAtBottom && (
       <Button
         className={cn(
-          "absolute bottom-4 left-[50%] translate-x-[-50%] rounded-full",
+          "absolute bottom-4 left-[50%] translate-x-[-50%] rounded-full motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-200",
           className
         )}
         aria-label="Scroll to the latest message"

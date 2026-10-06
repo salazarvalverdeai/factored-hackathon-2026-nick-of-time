@@ -4,7 +4,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from data.pipeline.report import data_quality
+from data.pipeline.report import PROFILE_QUERIES, complaint_link, data_quality, profile
 from data.pipeline.run import run_fixture
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -16,7 +16,7 @@ def test_ac_03_committed_file_matches_the_gold_manifest():
     """AC-03: the committed file has the insight envelope and its versions, rules and gold rows are the manifest's."""
     assert list(COMMITTED) == ["generated_at", "git_sha", "source", "data"] and "[data]" in COMMITTED["source"]
     data = COMMITTED["data"]
-    assert set(data) == {"label", "layers", "gold_rules", "checks", "manifest", "late_arrival"}
+    assert set(data) == {"label", "layers", "gold_rules", "checks", "manifest", "late_arrival", "complaint_link", "profile"}
     assert (data["manifest"]["gold_version"], data["manifest"]["contract_version"], data["manifest"]["run_at"]) == (
         MANIFEST["version"], MANIFEST["contract"]["version"], MANIFEST["run_at"])
     assert [(r["id"], r["value"], r["ok"]) for r in data["gold_rules"]] == [
@@ -49,3 +49,65 @@ def test_ac_03_data_quality_is_built_from_a_pipeline_run(tmp_path):
     assert data["late_arrival"] == COMMITTED["data"]["late_arrival"]       # the fixture is deterministic
     assert data_quality(run, None)["late_arrival"] is None
     json.dumps(data)                                                       # plain JSON, nothing left to serialize
+
+
+def test_ac_03_dataset_limits_come_from_the_committed_query_output(tmp_path):
+    """AC-03: the dataset-limitation figures of /data are the committed output of queries/data, never typed."""
+    link = COMMITTED["data"]["complaint_link"]
+    assert link == complaint_link() and (ROOT / link["query"]).exists()
+    assert all(0 <= r["numerator"] <= r["denominator"] for r in link["rows"])
+    assert complaint_link(tmp_path / "missing.csv") is None
+
+
+PERSONAL = ("document_number", "first_name", "last_name", "date_of_birth", "email", "phone", "address", "postal_code",
+            "customer_id", "transaction_id", "complaint_id", "product_id", "description", "merchant_name")
+
+
+def _csv_header(query: str) -> list[str]:
+    return (ROOT / query.replace(".sql", ".csv")).read_text(encoding="utf-8").splitlines()[0].split(",")
+
+
+def test_ac_03_profile_blocks_equal_their_committed_csv():
+    """AC-03: each profile block of /data (d02..d06) is the committed output of its query, labeled [data]."""
+    block = COMMITTED["data"]["profile"]
+    assert list(block) == ["d02", "d03", "d04", "d05", "d06"] == list(PROFILE_QUERIES) and block == profile()
+    for key, query in PROFILE_QUERIES.items():
+        lines = (ROOT / query.replace(".sql", ".csv")).read_text(encoding="utf-8").splitlines()
+        assert block[key]["label"] == "[data]" and block[key]["query"] == query and (ROOT / query).exists()
+        assert len(block[key]["rows"]) == len(lines) - 1 > 0
+        assert list(block[key]["rows"][0]) == lines[0].split(",")
+    assert profile(ROOT / "missing") is None
+
+
+def test_ac_03_profile_has_no_personal_columns_or_ids():
+    """AC-03: the profile is aggregate only: no personal column and no id column in any output, no id-shaped value."""
+    for key, query in PROFILE_QUERIES.items():
+        assert not [c for c in _csv_header(query) if any(p in c for p in PERSONAL)], key
+        for row in COMMITTED["data"]["profile"][key]["rows"]:
+            assert not any(isinstance(v, str) and "@" in v for v in row.values()), key
+    names = {r["name"] for r in COMMITTED["data"]["profile"]["d06"]["rows"] if r["kind"] == "null"}
+    assert not names & {"document_number", "first_name", "last_name", "email", "mobile_phone", "address"}
+
+
+def test_ac_03_profile_figures_are_consistent():
+    """AC-03: statuses add up, bands add up to the card transactions, and the W3 share is the month's W3 over its total."""
+    block = COMMITTED["data"]["profile"]
+    for r in block["d02"]["rows"]:
+        assert r["n_approved"] + r["n_declined"] + r["n_pending"] + r["n_reversed"] == r["n_transactions"]
+        assert r["product_type"] in {"debit", "credit", "other"}
+    for r in block["d04"]["rows"]:
+        assert r["n_null"] + r["n_lt30"] + r["n_30_49"] + r["n_ge50"] == r["n_card_transactions"]
+    assert {r["country"] for r in block["d04"]["rows"]} == {"MX", "CO", "AR", "all"}
+    assert {r["country"] for r in block["d03"]["rows"]} >= {"MX", "CO", "AR"}
+    for r in block["d05"]["rows"]:
+        assert r["pct_w3_month"] == round(100 * r["n_w3_month"] / r["n_month"], 1)
+    assert all(0 <= r["numerator"] <= r["denominator"] for r in block["d06"]["rows"])
+
+
+def test_ac_03_queries_never_name_the_label_or_the_eval_folder():
+    """AC-03 / constitution 7: no query file under queries/data names is_fraud or gold_eval."""
+    files = sorted((ROOT / "queries/data").glob("*.sql")) + [ROOT / "queries/data/run.py"]
+    assert len(files) >= 7
+    for f in files:
+        text = f.read_text(encoding="utf-8").lower()
+        assert "is_fraud" not in text and "gold_eval" not in text, f.name

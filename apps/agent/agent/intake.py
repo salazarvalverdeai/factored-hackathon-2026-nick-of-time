@@ -24,7 +24,7 @@ import logging
 import os
 import re
 import uuid
-from datetime import timezone
+from datetime import date, timezone
 from typing import Annotated, Any, Optional, TypedDict
 
 from fastmcp import Client
@@ -44,6 +44,7 @@ from nick_of_time.ids import new_id
 from nick_of_time.llm import writer as wording
 from nick_of_time.receipt import build
 from nick_of_time.nlu import load_nlu
+from nick_of_time.nlu.rules import detect_language
 from nick_of_time.nlu.text import fold
 from nick_of_time.policy import DecisionInput, PolicyDecision, PolicyEngine
 
@@ -95,6 +96,9 @@ _THIRD = (r"(?:otr[oa]|outr[oa]) (?:cliente|persona|pessoa|usuari[oa]|titular)|c
           r"|(?:mi|minha|meu) (?:esposa|esposo|marido|mujer|hij[oa]|filh[oa]|madre|padre|mama|papa|mae|pai|herman[oa]"
           r"|irma|irmao|novi[oa]|namorad[oa]|pareja|amig[oa]|jefe|chefe|vecin[oa]|vizinh[oa])")
 CROSS_CUSTOMER = re.compile(rf"\b{_DATA}\b(?: \w+){{0,4}}? (?:de|del|da|do) (?:la |el |o |a )?(?:{_THIRD})\b")
+# D-085 (spec 04 AC-42): the fixed labels of these text chips, typed or pressed, in ES or PT and offered or not, ask
+# to see the latest charges: the graph searches with no slot and lists them as cards, with no classifier.
+RECENT_CHIPS = ("show_recent", "dont_remember_amount")
 
 
 class InputState(TypedDict, total=False):   # spec 01 §6.4, as the echo graph
@@ -130,12 +134,14 @@ class Internal(TypedDict, total=False):     # spec 04 §4.1 fields outside TurnR
     branch: str
     body: list[str]
     row: Optional[str]                      # §4.5 row of this turn's chips
-    language_last: Optional[str]            # the thread's language, kept when a request sends language null
+    language_last: Optional[str]            # the last turn's language (D-087), kept when a request sends language null
+    session_language: Optional[str]         # the session language the last turn saw (D-087: a toggle wins over language_last)
     answer: Optional[dict[str, Any]]        # this turn's answer to a confirm question or an option card (task 04b)
     candidates: list[dict[str, Any]]        # search_transaction's last candidates
     selected_transaction: Optional[dict[str, Any]]   # the one candidate, with product_type and last4 of its card
     customer_confirmed: Optional[bool]      # about selected_transaction; None whenever it changes
     unnamed: bool                           # the one candidate came from a search no slot narrowed (D-067)
+    listed: bool                            # this turn's search had no amount, date or merchant: the latest charges
     dispute_intent: Optional[str]           # the last dispute intent read: what a confirm or option answer goes on with
     score: Optional[dict[str, Any]]         # get_fraud_score of the selected transaction
     display: Optional[dict[str, Any]]       # convert_amount of it; None without a verified rate (AC-25)
@@ -159,7 +165,8 @@ State = TypedDict("State", {**InputState.__annotations__, **OutputState.__annota
 RESET = {"decision": None, "zone": None, "case_id": None, "actions": [], "denials": [], "guardrails_triggered": [],
          "body": [], "row": None, "route": None, "active_case": None, "greet_pending": False, "plan": [], "options": [],
          "answer": None, "decision_record": None, "path": [], "read_failed": None, "writes": {},
-         "unconfirmed": [], "readings": {}, "seen": None, "usage": [], "llm_notes": {}, "llm_alerts": []}
+         "unconfirmed": [], "readings": {}, "seen": None, "usage": [], "llm_notes": {}, "llm_alerts": [],
+         "listed": False}
 WRITING = {"open_case": "opening_case", "block_card": "blocking_card"}   # act's progress key per write (AC-17)
 
 
@@ -250,7 +257,9 @@ async def greet(state: State, config: RunnableConfig) -> dict[str, Any]:
     """First turn of a verified session: the first name comes from get_customer_profile (AC-15)."""
     if state.get("profile") or state["session_state"] != "verified":
         return {}
-    progress(state, "reading_account")
+    texts = [m.get("content", "") for m in state.get("messages") or [] if m.get("role", "user") == "user"]
+    said = texts[-1].strip() if texts and not state.get("action") else ""
+    progress({**state, "language": turn_language(state, said)}, "reading_account")     # D-087: the turn's language
     profile = await call(config, "get_customer_profile")
     if isinstance(profile, ToolError):
         return {}                           # no greeting without a name read from the tool; retried next turn
@@ -269,16 +278,16 @@ async def understand(state: State, config: RunnableConfig) -> dict[str, Any]:
 
 async def understood(state: State, config: RunnableConfig) -> dict[str, Any]:
     """The turn's understanding (see `understand`)."""
-    progress(state, "reading_message")      # before any LLM call: the first label comes within 1 s (§5)
     profile = state.get("profile") or {}
     day = today(state["mode"], profile.get("country"))
     texts = [m.get("content", "") for m in state.get("messages") or [] if m.get("role", "user") == "user"]
     text, action = (texts[-1].strip() if texts else ""), state.get("action") or {}
-    # [assumption] the thread's language: the request's, else the last turn's, else the first message's, else the
-    # profile's. A customer who switches language mid-thread uses the web's language toggle.
-    hint = state.get("language") or state.get("language_last")
-    language = hint or profile.get("language") or "es"
-    base = {"today": day.isoformat(), "language": language, "slots": {}, "injection_flagged": False,
+    language = turn_language(state, text if not action else "")
+    # before any LLM call: the first label comes within 1 s (§5), in the turn's language (D-087)
+    progress({**state, "language": language}, "reading_message")
+    hint = language
+    base = {"today": day.isoformat(), "language": language, "session_language": session_language(state), "slots": {},
+            "injection_flagged": False,
             "cross_customer": False, "other_language": False, "intent": None, "intent_confidence": None, "dispute_detected": False}
     # the dispute being clarified: the last turn's, else the last dispute read (D-071), else an unrecognized charge
     pending = (state.get("intent") if state.get("intent") in DISPUTES
@@ -302,11 +311,16 @@ async def understood(state: State, config: RunnableConfig) -> dict[str, Any]:
         answer = {"confirm": said}
         return {**base, "intent": "human_request" if call_confirmed(state, answer) else pending,
                 "intent_confidence": 1.0, "dispute_detected": True, "answer": answer}
+    if label := recent_label(text):         # D-085 (AC-42): list the latest charges, by rule, no classifier
+        return {**base, "language": hint or label, "intent": pending, "intent_confidence": 1.0,
+                "dispute_detected": True, "answer": {"recent": True}}
     reading = NLU.parse(text, hint, today=day)
     found = {"language": reading.language, "slots": reading.slots.model_dump(),
              "injection_flagged": reading.injection_flagged, "other_language": reading.other_language,
              "cross_customer": bool(CROSS_CUSTOMER.search(fold(text))) and not OWN_OR_DISPUTE.search(fold(text))}
-    chip = msg.offered_text_chip(text, state.get("suggestions") or [])
+    if found["other_language"]:             # G-IN-03 stays as it was: the session language, plus English once
+        found["language"] = base["language"] = session_language(state)
+    chip =msg.offered_text_chip(text, state.get("suggestions") or [])
     if chip:                                # typed label = pressed text chip: routed by the pending question (AC-33)
         intent = msg.TEXT_CHIP_INTENT[chip] or pending
         return {**base, **found, "intent": intent, "intent_confidence": 1.0, "dispute_detected": intent in DISPUTES,
@@ -323,6 +337,33 @@ async def understood(state: State, config: RunnableConfig) -> dict[str, Any]:
     out = {**base, **found, "intent": reading.intent, "intent_confidence": reading.confidence,
            "dispute_detected": reading.dispute_detected, **(heard or {}), **extra}
     return {**out, **kept(keep, out["slots"])}
+
+
+def session_language(state: State) -> str:
+    """The session's language: the request's (the api sends the session's, spec 01 §6.4), else the last turn's, else
+    the profile's. It stays the default and the language of notifications; the graph never rewrites it (D-087)."""
+    return (state.get("language") or state.get("language_last") or (state.get("profile") or {}).get("language")
+            or "es")
+
+
+def turn_language(state: State, text: str) -> str:
+    """D-087 (lead, 2026-10-06; spec 04 AC-43): the turn follows the language of the customer's last message when its
+    words tell ES from PT (`detect_language` with no hint, at least 2 words of one language and more than of the
+    other [assumption], so "ok" or a lone shared word never switches); a message they do not tell apart, or a chip
+    press with no text, keeps the last turn's language [assumption], else the session's. Another language is G-IN-03's (the session
+    language, set by the caller). A session language changed since the last turn (the web's toggle) wins over it."""
+    session = session_language(state)
+    last = state.get("language_last") if state.get("session_language") in (None, session) else None
+    return detect_language(text, None, default=last or session, min_words=2) if text else last or session
+
+
+def recent_label(text: str) -> Optional[str]:
+    """D-085 (AC-42): the language of the RECENT_CHIPS label that `text` equals (case, accents, spacing and end
+    punctuation ignored, as AC-33), or None."""
+    def same(said: str) -> str:
+        return " ".join(fold(said).strip(" ¿?¡!.").split())
+    return next((language for chip in RECENT_CHIPS for language in ("es", "pt")
+                 if same(text) == same(msg.text(f"suggest.{chip}", language))), None)
 
 
 def kept(keep: Optional[str], slots: dict[str, Any]) -> dict[str, Any]:
@@ -489,8 +530,8 @@ async def retrieve(state: State, config: RunnableConfig) -> dict[str, Any]:
         candidates = [c for c in state.get("candidates") or [] if c["transaction_id"] == answer["option"]]
     elif not state["dispute_detected"] and not any((state.get("slots") or {}).values()):
         candidates = []                     # [assumption] nothing reported ("hola" below τ): ask, search nothing
-    else:
-        slots = state.get("slots") or {}
+    else:                                   # D-085 (AC-42): a request for the latest charges searches with no slot
+        slots = {} if answer.get("recent") else state.get("slots") or {}
         query = {"amount": float(slots["amount"]) if slots.get("amount") else None, "currency": slots.get("currency"),
                  "approx_date": slots.get("date"), "merchant": slots.get("merchant")}
         progress(state, "searching")
@@ -505,7 +546,8 @@ async def retrieve(state: State, config: RunnableConfig) -> dict[str, Any]:
                        [charge_card(c) for c in candidates])
     fresh = {"path": path, "candidates": candidates, "selected_transaction": None, "customer_confirmed": None,
              "score": None, "display": None, "existing_case": None,
-             "unnamed": slots is not None and len(candidates) == 1 and not names(slots, candidates[0])}
+             "unnamed": slots is not None and len(candidates) == 1 and not names(slots, candidates[0]),
+             "listed": slots is not None and not any(slots.get(key) for key in ("amount", "date", "merchant"))}
     if len(candidates) != 1:
         return fresh
     trx = candidates[0]
@@ -781,13 +823,22 @@ def clarify(state: State) -> dict[str, Any]:
     it asks for the details. A charge the customer did not name is one card with the confirm chips (D-067). A declined
     confirm answers plan.declined and clears the selection (D-039). D-071: one charge the customer named, asked about
     because the intent is below τ, is one card with the ask_intent chips (AC-35); an unclear reply to the confirm
-    question keeps the charge and asks it again with the confirm chips (AC-36)."""
+    question keeps the charge and asks it again with the confirm chips (AC-36). D-085: a search with no amount, date or
+    merchant that found several charges lists the latest max_candidate_transactions of them as cards (the tool ranks
+    them most recent first), with the ask_recent row; a list the customer can pick from counts no clarification turn
+    (AC-42)."""
     candidates, language = state.get("candidates") or [], state["language"]
     declined = state.get("customer_confirmed") is False
     if not declined and (state.get("answer") or {}).get("keep") == "confirm" and state.get("selected_transaction"):
         return {"body": [msg.text("clarify.confirm_again", language)], "row": "confirm",
                 "clarification_turns": (state.get("clarification_turns") or 0) + 1,
                 "path": state["path"] + ["clarify"]}
+    listing = not declined and bool(state.get("listed")) and len(candidates) > 1
+    if listing:                             # only the cards shown can be picked (an option never shown finds none)
+        shown = candidates[:MAX_OPTIONS]
+        return {"body": [msg.text("clarify.pick_one", language)], "row": "ask_recent", "candidates": shown,
+                "options": [{"id": c["transaction_id"], "label": msg.option_label(c)} for c in shown],
+                "clarification_turns": state.get("clarification_turns") or 0, "path": state["path"] + ["clarify"]}
     shown = [] if declined or len(candidates) > MAX_OPTIONS else candidates
     # D-067: a charge the customer did not name is shown as a card and confirmed (confirm chips) before anything is done
     unnamed = bool(shown) and unconfirmed(state)
@@ -937,29 +988,57 @@ async def respond(state: State, config: RunnableConfig) -> dict[str, Any]:
 
 async def write_reply(state: State, config: RunnableConfig, lines: list[str], facts: list[Any],
                       row: str) -> wording.Worded:
-    """The §4.6 writer on the turn's gated template lines (AC-37): each released line leaves as a spec 01 §6.4.1 `text`
-    chunk; the chips it may pick are the row's allowed set (AC-39). Its spend counts toward the daily cap only, not the
-    conversation's S1 budget [assumption]; its usage row goes to `llm_calls` as every billed call (AC-14)."""
+    """The §4.6 writer on the turn's gated template lines (AC-37): each released text delta leaves as a spec 01 §6.4.1
+    `text` chunk; the chips it may pick are the row's allowed set (AC-39). Its spend counts toward the daily cap only,
+    not the conversation's S1 budget [assumption]; its usage row goes to `llm_calls` as every billed call (AC-14)."""
     language, case_id = state["language"], state.get("case_id")
     try:
         write = get_stream_writer()
     except RuntimeError:
         write = None
-    message_id, sent = f"{state['trace_id']}:reply", []
+    message_id = f"{state['trace_id']}:reply"
 
-    def emit(line: str) -> None:
+    def emit(delta: str) -> None:
         if write:
-            write(TextChunk(message_id=message_id, delta=("\n" if sent else "") + line).model_dump(mode="json"))
-        sent.append(line)
+            write(TextChunk(message_id=message_id, delta=delta).model_dump(mode="json"))
 
     allowed = msg.allowed(row, case_id)
     chips = [{"id": c, "label": msg.chip(c, language, case_id).label} for c in allowed]
     texts = [m.get("content", "") for m in state.get("messages") or [] if m.get("role", "user") == "user"]
+    cards, shown = on_cards(state)
     return await wording.word(
         config, lines, facts, language=language, first_name=(state.get("profile") or {}).get("first_name"),
         chips=chips, person=next((c for c in allowed if c in msg.PERSON), None), emit=emit,
-        score=(state.get("score") or {}).get("score"), transcript=texts,
+        score=(state.get("score") or {}).get("score"), transcript=texts, cards=cards, shown=shown,
         over_cap=lambda estimate: arms.over_day_cap(config, estimate))
+
+
+SHOWN_KEYS = frozenset({"verification_id", "read_at", "verified_at", "deadline_source", "deadline_source_label",
+                        "deadline_source_url", "source_url", "verified_on", "deadline_verified_on"})
+
+
+def on_cards(state: State) -> tuple[list[str], list[str]]:
+    """What the turn's cards (spec 01 §6.4.1 `tool` events, the receipt) show beside the writer's text: their names for
+    the writer, and the strings it need not repeat (verification ids and times, deadline sources, links, verified-on
+    dates). The case id and the deadline dates are not among them: the text states them once (spec 04 §4.6)."""
+    found: list[str] = []
+
+    def walk(node: Any) -> None:
+        if isinstance(node, dict):
+            for key, value in node.items():
+                if key in SHOWN_KEYS and isinstance(value, (str, date)):
+                    found.append(str(value))
+                else:
+                    walk(value)
+        elif isinstance(node, list):
+            for value in node:
+                walk(value)
+
+    walk([state.get("actions"), state.get("readings"), state.get("seen"), state.get("writes")])
+    names = (["charge"] * bool(state.get("selected_transaction")) + ["case id and status"] * bool(state.get("case_id"))
+             + ["action verification ids and times"] * any(wording.VERIFICATION.fullmatch(s) for s in found)
+             + ["deadlines with their legal source and link"] * any("://" in s for s in found))
+    return names, found
 
 
 def tool_facts(state: State) -> list[Any]:

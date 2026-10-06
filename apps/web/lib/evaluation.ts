@@ -60,11 +60,15 @@ export function pending(file: (typeof RESULT_FILES)[number], exists: boolean): P
 }
 
 /** spec 12 AC-05: anything but the sealed held-out is a development run and says so above the figures. */
-export function developmentNotice(data: Pick<EvaluationData, "set" | "protocol">): string | null {
-  const reasons = [
+export function developmentReasons(data: Pick<EvaluationData, "set" | "protocol">): string[] {
+  return [
     data.set !== "heldout" ? `it ran on the "${data.set}" set, not the held-out` : null,
     data.protocol?.status !== "SEALED" ? `the evaluation protocol is ${data.protocol?.status ?? "UNSEALED"}` : null,
-  ].filter(Boolean);
+  ].filter((r): r is string => r !== null);
+}
+
+export function developmentNotice(data: Pick<EvaluationData, "set" | "protocol">): string | null {
+  const reasons = developmentReasons(data);
   return reasons.length ? `Development run, not the final result: ${reasons.join(" and ")}.` : null;
 }
 
@@ -218,13 +222,51 @@ export const REPO_BLOB = "https://github.com/salazarvalverdeai/factored-hackatho
 export const headingSlug = (heading: string) =>
   heading.toLowerCase().replace(/[^\p{L}\p{N}\s-]/gu, "").trim().replace(/\s/g, "-");
 
-/** The markdown that defines each chart; `heading` is the section heading the link lands on. */
+/**
+ * The markdown that defines each chart; `heading` is the section heading the link lands on. The rest is what the
+ * side panel of "Detail →" shows: what the figure means, how it is computed, the file it comes from and its label.
+ */
 export const DETAILS = {
-  harness: { path: "specs/10-eval-harness.md", heading: "4.1 Metric definitions" },
-  classifier: { path: "specs/11-intent-classifier.md", heading: "4.1 Thresholds and test size (checked 2026-10-04)" },
-  benchmark: { path: "specs/15-model-benchmark.md", heading: "4.4 Lean rule (pre-registered per task; thresholds from spec 11 §4.1)" },
-  fraud: { path: "specs/17-fraud-model.md", heading: "4.4 Decision rule (pre-registered, lean)" },
-  protocol: { path: "eval/PROTOCOL.md", heading: null },
+  harness: {
+    path: "specs/10-eval-harness.md", heading: "4.1 Metric definitions",
+    title: "Agent evaluation: the rates",
+    meaning: "Each rate says how often the agent did the right thing on the evaluation cases. The band around it is the range the true rate probably sits in, so wide bands mean few cases.",
+    method: "Each rate is runs that pass over the runs it applies to (for example, safe automated resolution is runs that pass with no unsafe outcome over the cases that expect a block). The interval is the 95% Wilson interval.",
+    source: "evaluation_summary.json, written by eval/harness.py",
+    label: "[simulated]",
+  },
+  classifier: {
+    path: "specs/11-intent-classifier.md", heading: "4.1 Thresholds and test size (checked 2026-10-04)",
+    title: "Intent classifier: macro-F1",
+    meaning: "How well each arm tells what the customer wants, per language. 0 is always wrong and 1 is always right. With a small test split the band is wide, so close arms cannot be told apart.",
+    method: "Macro-F1 is the average of the F1 of each intent (equal weight), over the frozen test split. The interval is the 95% bootstrap interval, resampling the test sentences.",
+    source: "classifier.json, written by the intent classifier evaluation",
+    label: "[simulated]",
+  },
+  benchmark: {
+    path: "specs/15-model-benchmark.md", heading: "4.4 Lean rule (pre-registered per task; thresholds from spec 11 §4.1)",
+    title: "Model benchmark: cost against quality",
+    meaning: "Which model gives enough quality for the least money. Dots on the Pareto front are not beaten by any model that is both cheaper and better; the ringed one is the model the rule chose.",
+    method: "Quality is macro-F1 on the classifier test sentences; cost is USD per 1,000 messages from the list price and the tokens used. The lean rule keeps the arms not significantly worse than the best (paired McNemar, p at least 0.05) and picks the cheapest of them.",
+    source: "benchmark.json, written by the model benchmark",
+    label: "[simulated] · prices [external]",
+  },
+  fraud: {
+    path: "specs/17-fraud-model.md", heading: "4.4 Decision rule (pre-registered, lean)",
+    title: "Fraud model against the bank's score",
+    meaning: "Whether a model of ours ranks fraud better than the bank's own score. Higher PR-AUC means more of the top-ranked transactions are fraud.",
+    method: "PR-AUC is the area under the precision-recall curve on the test window, with the 95% bootstrap interval. An arm beats the bank's score when its PR-AUC is higher and the interval of the difference stays above zero, or when it catches enough frauds that have no bank score.",
+    source: "fraud_benchmark.json, written by the fraud model benchmark",
+    label: "[data]",
+  },
+  protocol: {
+    path: "eval/PROTOCOL.md", heading: null,
+    title: "Evaluation protocol",
+    meaning: "The rules fixed before the held-out run: what is measured and what counts as a pass.",
+    method: "The protocol is sealed with a hash before the held-out run; a run on anything else is a development run and says so.",
+    source: "eval/PROTOCOL.md",
+    label: "[simulated]",
+  },
 } as const;
 
 export function detailUrl(key: keyof typeof DETAILS): string {
@@ -280,4 +322,27 @@ export function limitations(files: ResultFiles): string[] {
     out.push("The customers and transactions come from a synthetic dataset and the runs are simulated, so the results show how the system behaves, not how it would perform at a real bank.");
   }
   return out;
+}
+
+/** The chip each section of a development run carries beside its title (AC-05). */
+export const DEVELOPMENT_CHIP = "development run";
+
+/** spec 12 AC-05: the result files that are not the sealed held-out, each with its reasons, in page order. */
+export function developmentRuns(files: ResultFiles): { file: string; reasons: string[] }[] {
+  const [summary, benchmark, classifier, fraud] = RESULT_FILES.map((f) => f.file);
+  const found: [string, string[]][] = [
+    [summary, files.summary ? developmentReasons(files.summary.data) : []],
+    ...([[benchmark, files.benchmark], [classifier, files.classifier], [fraud, files.fraud]] as const).map(
+      ([file, f]): [string, string[]] => [file, f ? developmentReasons({ set: "heldout", protocol: f.data.protocol as EvaluationData["protocol"] }) : []],
+    ),
+  ];
+  return found.filter(([, reasons]) => reasons.length).map(([file, reasons]) => ({ file, reasons }));
+}
+
+/** spec 12 AC-05: one notice at the top of the page that names every development-run file, or null. */
+export function pageNotice(files: ResultFiles): string | null {
+  const runs = developmentRuns(files);
+  return runs.length
+    ? `Development run, not the final result: ${runs.map((r) => `${r.file} (${r.reasons.join(" and ")})`).join("; ")}. The sections marked "${DEVELOPMENT_CHIP}" come from these files.`
+    : null;
 }

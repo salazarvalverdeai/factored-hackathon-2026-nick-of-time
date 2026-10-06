@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import datetime as dt
 import json
+import re
 import logging
 import uuid
 from concurrent.futures import ThreadPoolExecutor
@@ -180,7 +181,9 @@ def word_summary(client: Optional[llm.LLMClient], lines: list[str], facts: list[
         on_call(result)
     except Exception as error:  # noqa: BLE001 - logging never fails the summary
         log.error("summary llm_calls write failed error=%s", type(error).__name__)
-    gate = llm_writer.Gate(lines, facts, lambda _: None)
+    # the card already lists every action and verification id (Actions, Evidence), so the summary need not repeat them
+    shown = re.findall(r"\b[AV]-[0-9A-Z]{12}\b", " ".join(lines))
+    gate = llm_writer.Gate(lines, facts, lambda _: None, shown=shown)
     for raw in (result.text or "").splitlines():
         gate.take(raw)
     out = gate.finish()

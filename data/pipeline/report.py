@@ -5,6 +5,7 @@ missing, the corresponding section says so and explains how to produce it.
 """
 from __future__ import annotations
 
+import csv
 import json
 import logging
 import subprocess
@@ -16,6 +17,13 @@ from data.pipeline.run import expected_vs_actual
 
 log = logging.getLogger("pipeline.report")
 WEB_JSON = ROOT / "apps" / "web" / "public" / "data" / "data_quality.json"   # read by /data (spec 12 §7.2)
+LINK_QUERY = "queries/data/d01_complaint_transaction_link.sql"               # dataset limitations on /data
+PROFILE_QUERIES = {                                                          # the data profile of /data (spec 12 §7.2)
+    "d02": "queries/data/d02_transactions_per_month.sql",
+    "d03": "queries/data/d03_customers_transactions_by_country_segment.sql",
+    "d04": "queries/data/d04_fraud_score_distribution.sql",
+    "d05": "queries/data/d05_complaints_per_month.sql",
+    "d06": "queries/data/d06_data_quality_per_table.sql"}
 
 
 def n(x) -> str:
@@ -284,7 +292,38 @@ def late_arrival(fx: dict) -> dict:
         "expected_counts": {"matched": sum(1 for x in compared if x["ok"]), "total": len(compared)}}
 
 
-def data_quality(r: dict, fx: dict | None) -> dict:
+def complaint_link(csv_path: Path = ROOT / LINK_QUERY.replace(".sql", ".csv")) -> dict | None:
+    """The committed output of the complaint-to-transaction query (queries/data/run.py), or None if it is missing."""
+    if not csv_path.exists():
+        return None
+    rows = list(csv.DictReader(csv_path.read_text(encoding="utf-8").splitlines()))
+    return {"query": LINK_QUERY, "rows": [{"metric": x["metric"], "numerator": int(x["numerator"]),
+                                           "denominator": int(x["denominator"])} for x in rows]}
+
+
+def _typed(value: str) -> int | float | str:
+    """A CSV cell as the number it is (int, then float) or the text it is."""
+    for kind in (int, float):
+        try:
+            return kind(value)
+        except ValueError:
+            pass
+    return value
+
+
+def profile(root: Path = ROOT) -> dict | None:
+    """The committed outputs of queries/data d02..d06 (run.py) as `{dNN: {query, label, rows}}`; None if any is missing."""
+    out = {}
+    for key, query in PROFILE_QUERIES.items():
+        csv_path = root / query.replace(".sql", ".csv")
+        if not csv_path.exists():
+            return None
+        rows = csv.DictReader(csv_path.read_text(encoding="utf-8").splitlines())
+        out[key] = {"query": query, "label": "[data]", "rows": [{k: _typed(v) for k, v in row.items()} for row in rows]}
+    return out
+
+
+def data_quality(r: dict, fx: dict | None, link: dict | None = None, prof: dict | None = None) -> dict:
     """The `data` of data_quality.json (spec 12 §7.2), from the same results as the Markdown report."""
     m = r["gold"]["manifest"]
     layers = [
@@ -306,12 +345,13 @@ def data_quality(r: dict, fx: dict | None) -> dict:
                      "pipeline_version": r["pipeline_version"], "contract_version": r["contract_version"],
                      "run_at": r["run_at"], "transactions_window": m["contract"]["transactions_window"],
                      "source_files": r["source"]["files"], "source_bytes": r["source"]["bytes"]},
-        "late_arrival": late_arrival(fx) if fx else None}
+        "late_arrival": late_arrival(fx) if fx else None, "complaint_link": link, "profile": prof}
 
 
-def write_json(path: Path = WEB_JSON) -> None:
-    """`python -m data.pipeline report --json`: writes `{generated_at, git_sha, source, data}` (spec 01 §6.2)."""
-    real, fx_path = Layout(DATA_DIR).results, FIXTURE_WORKDIR / "fixture_results.json"
+def write_json(path: Path = WEB_JSON, data_dir: Path = DATA_DIR) -> None:
+    """`python -m data.pipeline report --json [--data-dir D]`: writes `{generated_at, git_sha, source, data}` (spec 01
+    §6.2). `data_dir` (read only) holds the run results and `_fixture_run/`; it defaults to this repo's data/."""
+    real, fx_path = Layout(data_dir).results, data_dir / FIXTURE_WORKDIR.name / "fixture_results.json"
     if not real.exists():
         raise SystemExit("no real run: run `make setup` or `python -m data.pipeline run` first")
     fx = json.loads(fx_path.read_text(encoding="utf-8")) if fx_path.exists() else None
@@ -322,7 +362,7 @@ def write_json(path: Path = WEB_JSON) -> None:
         sha = "unknown"
     payload = {"generated_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"), "git_sha": sha,
                "source": "data/pipeline report [data] — data/gold/run_results.json and the late_arrival fixture",
-               "data": data_quality(json.loads(real.read_text(encoding="utf-8")), fx)}
+               "data": data_quality(json.loads(real.read_text(encoding="utf-8")), fx, complaint_link(), profile())}
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8", newline="\n")
     log.info("report: %s", path)

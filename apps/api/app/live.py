@@ -29,7 +29,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse, RedirectResponse, StreamingResponse
 from pydantic import ValidationError
 
-from app import console, demo, persona, voice
+from app import console, demo, persona, stream_events, voice
 from app.auth import AuthError, CognitoVerifier
 from app.catalog import Catalog, FixtureCatalog, catalog_from_env
 from app.guard import install as install_guard
@@ -409,6 +409,11 @@ def create_live_app(store: Store, *, catalog: Optional[Catalog] = None, verifier
             raise ApiError(404, "NOT_FOUND", "Thread not found")
         return s
 
+    def writer() -> str:
+        """ADR 0030, AC-11: the console setting, `template` until an analyst sets it; the client never contributes."""
+        value = store.get_setting("writer")
+        return value if value in ("template", "llm") else "template"
+
     def supervised() -> bool:
         value = store.get_setting("supervised_mode")
         return bool(policies.approval.supervised_mode) if value is None else bool(value)
@@ -419,7 +424,7 @@ def create_live_app(store: Store, *, catalog: Optional[Catalog] = None, verifier
         writes from each turn's usage; the graph compares it with the cap before calling (G-OPS-01, spec 04 §5)."""
         midnight = app.state.now().astimezone(dt.timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
         return {"session_id": s["session_id"], "session_state": session_state(s), "mode": s["mode"], "arm": s["arm"],
-                "case_id": None, "supervised_mode": supervised(),
+                "case_id": None, "supervised_mode": supervised(), "writer": writer(),
                 "llm_day_spent_usd": float(store.llm_spend_since(midnight)), "llm_day_cap_usd": day_cap}
 
     def run_input(payload: dict, s: dict) -> dict:
@@ -542,6 +547,9 @@ def create_live_app(store: Store, *, catalog: Optional[Catalog] = None, verifier
     def progress_event(data: Any) -> Optional[str]:
         """Spec 04 AC-17: a step label from the run's custom stream leaves only as an in-progress ProgressItem; any
         other chunk (not a ProgressItem, or one claiming a result, constitution #4) is dropped, never failing the turn."""
+        if isinstance(data, dict) and "kind" in data:        # spec 01 §6.4.1 / AC-09: `tool` and `text`, else dropped
+            shown = stream_events.project(data)
+            return _sse(*shown) if shown else None
         try:
             item = ProgressItem.model_validate(data)
         except ValueError:
@@ -956,7 +964,7 @@ def create_live_app(store: Store, *, catalog: Optional[Catalog] = None, verifier
                     platform=platform)
 
     def _settings() -> dict:
-        return {"supervised_mode": supervised(), "score_provider": os.getenv("SCORE_PROVIDER", "dataset"),
+        return {"supervised_mode": supervised(), "writer": writer(), "score_provider": os.getenv("SCORE_PROVIDER", "dataset"),
                 "policies_version": policies.version}
 
     @app.get("/api/console/settings", response_model=SettingsOut)
@@ -965,7 +973,10 @@ def create_live_app(store: Store, *, catalog: Optional[Catalog] = None, verifier
 
     @app.put("/api/console/settings", response_model=SettingsOut)
     def put_settings(body: SettingsIn, sub: str = Depends(analyst)):
-        store.record_setting("supervised_mode", body.supervised_mode, actor=f"analyst:{sub}")   # AC-06: audited
+        if body.supervised_mode is not None:
+            store.record_setting("supervised_mode", body.supervised_mode, actor=f"analyst:{sub}")   # AC-06: audited
+        if body.writer is not None:
+            store.record_setting("writer", body.writer, actor=f"analyst:{sub}")                     # AC-11: audited
         return _settings()
 
     return app
