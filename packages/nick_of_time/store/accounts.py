@@ -147,6 +147,7 @@ class CustomerChannel(_Row):
     address: str                                            # chat id or e-mail, never shown unmasked
     event: ChannelEvent
     created_at: AwareDatetime
+    run_id: Optional[str] = None                            # a demo run's channel belongs to that visitor only (ADR 0026)
 
     @property
     def confirmed(self) -> bool:

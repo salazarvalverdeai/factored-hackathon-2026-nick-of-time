@@ -503,8 +503,9 @@ class Store(Protocol):
         `{channel_id, channel}` in the same operation. `confirmed` needs the channel's `linked` address and `revoked`
         its current one; the address never goes into the event."""
 
-    def channels(self, customer_id: str) -> list[CustomerChannel]:
-        """The latest row (inserted last) of each of the customer's channels, by channel name; a tool sends only where
+    def channels(self, customer_id: str, run_id: Optional[str] = None) -> list[CustomerChannel]:
+        """The latest row (inserted last) of each of the customer's channels in `run_id` (None: production; a demo run:
+        only the channels its visitor linked, ADR 0026), by channel name; a tool sends only where
         `confirmed` is true and shows only masked addresses (spec 03 AC-11, AC-21)."""
 
     def serialize(self, key: str) -> AbstractContextManager[None]:

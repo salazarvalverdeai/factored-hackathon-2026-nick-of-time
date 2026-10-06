@@ -98,7 +98,7 @@ export const landing = defineMessages({
       leadBefore: "Open",
       leadLink: "the chat",
       leadAfter:
-        ", pick a demo customer and enter the one-time code shown on screen. Each visit starts clean and sees only its own cases. Notifications appear in the case page's log; Telegram and e-mail are off in demo sessions.",
+        ", pick a demo customer and enter the one-time code shown on screen. Each visit starts clean and sees only its own cases. Notifications appear in the case page's log, and on that page you can link your own e-mail or Telegram to get each status update there.",
       tryTitle: "What to try",
       pick: "pick {who}",
       lookTitle: "What to look at",
@@ -228,7 +228,7 @@ export const landing = defineMessages({
       leadBefore: "Abre",
       leadLink: "el chat",
       leadAfter:
-        ", elige un cliente de demo e ingresa el código de un solo uso que aparece en pantalla. Cada visita empieza limpia y solo ve sus propios casos. Las notificaciones aparecen en el registro de la página del caso; Telegram y e-mail están apagados en las sesiones de demo.",
+        ", elige un cliente de demo e ingresa el código de un solo uso que aparece en pantalla. Cada visita empieza limpia y solo ve sus propios casos. Las notificaciones aparecen en el registro de la página del caso, y ahí puedes vincular tu correo o tu Telegram para recibir cada cambio de estado.",
       tryTitle: "Qué probar",
       pick: "elige {who}",
       lookTitle: "Qué mirar",
@@ -359,7 +359,7 @@ export const landing = defineMessages({
       leadBefore: "Abra",
       leadLink: "o chat",
       leadAfter:
-        ", escolha um cliente de demonstração e digite o código de uso único mostrado na tela. Cada visita começa limpa e vê só os próprios casos. As notificações aparecem no registro da página do caso; Telegram e e-mail ficam desligados nas sessões de demonstração.",
+        ", escolha um cliente de demonstração e digite o código de uso único mostrado na tela. Cada visita começa limpa e vê só os próprios casos. As notificações aparecem no registro da página do caso, e ali você pode vincular seu e-mail ou Telegram para receber cada mudança de status.",
       tryTitle: "O que testar",
       pick: "escolha {who}",
       lookTitle: "O que observar",
