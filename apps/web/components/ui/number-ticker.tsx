@@ -2,7 +2,8 @@
 
 // Magic UI number ticker (added with `npx shadcn add https://magicui.design/r/number-ticker`), adapted for this app:
 // - the server render, the first client render and any capture that never scrolls show the final value, never a start value;
-// - it counts up subtly (from 90% of the value, never 0) only when it scrolls into view after the page loads (a number already on screen never jumps back);
+// - it counts up subtly (from 90% of the value, never 0) only when it scrolls into view after the page loads (a number already on screen never jumps back),
+//   or when it sits inside a motion-kit root that is still hidden (components/motion/): then the count runs while the root fades in;
 // - a fixed-duration tween instead of the spring, so it always lands on the exact value and never rests in between;
 // - with `prefers-reduced-motion: reduce` it never animates;
 // - screen readers get the final value once; the moving digits are hidden from them;
@@ -11,6 +12,7 @@ import { useEffect, useRef, type ComponentPropsWithoutRef } from "react"
 import { animate, useInView } from "motion/react"
 
 import { cn } from "@/lib/utils"
+import { MOTION_OK } from "@/lib/motion"
 import { formatTicker as format, tickerStart } from "@/lib/ticker"
 
 interface NumberTickerProps extends ComponentPropsWithoutRef<"span"> {
@@ -42,8 +44,10 @@ export function NumberTicker({
     const el = ref.current
     if (!el) return
     if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return
+    // Inside a motion-kit root that has not been revealed yet the number is invisible, so counting cannot jump back.
+    const hidden = document.documentElement.hasAttribute(MOTION_OK) && el.closest("[data-motion]:not([data-revealed])") !== null
     const rect = el.getBoundingClientRect()
-    if (rect.top < window.innerHeight && rect.bottom > 0) return
+    if (!hidden && rect.top < window.innerHeight && rect.bottom > 0) return
     // The final value stays in the DOM: a capture that never triggers the observer must show it, not a start state.
     armed.current = true
     return () => {
