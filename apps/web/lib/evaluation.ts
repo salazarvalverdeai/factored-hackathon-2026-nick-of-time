@@ -1,5 +1,9 @@
 // Display logic of /evaluation (spec 12). The page computes no metric: it shows what the harness wrote in
-// evaluation_summary.json (spec 10 §7.2). Everything here is pure, so `npm test` covers it.
+// evaluation_summary.json (spec 10 §7.2). Everything here is pure, so `npm test` covers it. Display strings follow the
+// UI language through an optional `locale` (default English, the source of messages/evaluation.ts; spec 16 AC-06);
+// numbers follow its locale, while counts, figure labels and sources stay as the result files wrote them.
+import { evaluation as messages } from "../messages/evaluation.ts";
+import { formatNumber, type Locale, translator } from "./i18n.ts";
 
 export type Rate = {
   value: number | null;
@@ -33,59 +37,80 @@ export type Insight<T> = { generated_at: string; git_sha: string; source: string
 
 /** The result files of spec 12 §7.1 that /evaluation reads, in page order. */
 export const RESULT_FILES = [
-  { file: "evaluation_summary.json", title: "Agent evaluation", producedBy: "the evaluation harness (spec 10)" },
-  { file: "benchmark.json", title: "Model benchmark", producedBy: "the model benchmark (spec 15)" },
-  { file: "classifier.json", title: "Intent classifier", producedBy: "the intent classifier (spec 11)" },
-  { file: "fraud_benchmark.json", title: "Fraud model against the bank's score", producedBy: "the fraud model (spec 17)" },
+  { key: "summary", file: "evaluation_summary.json", title: messages.en.files.summary.title, producedBy: messages.en.files.summary.producedBy },
+  { key: "benchmark", file: "benchmark.json", title: messages.en.files.benchmark.title, producedBy: messages.en.files.benchmark.producedBy },
+  { key: "classifier", file: "classifier.json", title: messages.en.files.classifier.title, producedBy: messages.en.files.classifier.producedBy },
+  { key: "fraud", file: "fraud_benchmark.json", title: messages.en.files.fraud.title, producedBy: messages.en.files.fraud.producedBy },
 ] as const;
 
-/** The metrics of spec 10 §4.1 in display order; `good` says which direction is better. */
-export const METRICS: { key: string; label: string; good: "high" | "low" }[] = [
-  { key: "safe_automated_resolution", label: "Safe automated resolution", good: "high" },
-  { key: "unsafe_outcomes", label: "Unsafe outcomes", good: "low" },
-  { key: "pass_4", label: "Cases passing all runs (pass^4)", good: "high" },
-  { key: "receipt_rate", label: "Receipt with its deadline", good: "high" },
-  { key: "complete_intake_rate", label: "Complete intake", good: "high" },
-  { key: "missed_escalations", label: "Missed escalations", good: "low" },
-  { key: "unnecessary_escalations", label: "Unnecessary escalations", good: "low" },
-  { key: "coherence_rate", label: "Status told = status read", good: "high" },
-  { key: "intent_accuracy", label: "Intent accuracy", good: "high" },
-];
+type MetricKey = keyof (typeof messages)["en"]["metrics"]["label"];
+const GOOD: Record<MetricKey, "high" | "low"> = {
+  safe_automated_resolution: "high",
+  unsafe_outcomes: "low",
+  pass_4: "high",
+  receipt_rate: "high",
+  complete_intake_rate: "high",
+  missed_escalations: "low",
+  unnecessary_escalations: "low",
+  coherence_rate: "high",
+  intent_accuracy: "high",
+};
+
+/** The metrics of spec 10 §4.1 in display order, with labels in the UI language; `good` says which direction is better. */
+export function metrics(locale: Locale = "en"): { key: string; label: string; good: "high" | "low" }[] {
+  const labels = messages[locale].metrics.label;
+  return (Object.keys(GOOD) as MetricKey[]).map((key) => ({ key, label: labels[key], good: GOOD[key] }));
+}
+export const METRICS = metrics("en");
 
 export type Pending = { title: string; missing: string };
 
 /** spec 12 AC-04: a section whose result file does not exist shows what is missing, and no figure. */
-export function pending(file: (typeof RESULT_FILES)[number], exists: boolean): Pending | null {
-  return exists ? null : { title: `${file.title}: results pending`, missing: `Missing ${file.file}, written by ${file.producedBy}.` };
+export function pending(file: (typeof RESULT_FILES)[number], exists: boolean, locale: Locale = "en"): Pending | null {
+  if (exists) return null;
+  const t = translator(locale);
+  return {
+    title: t("evaluation.pending.title", { title: t(`evaluation.files.${file.key}.title` as const) }),
+    missing: t("evaluation.pending.missing", { file: file.file, producedBy: t(`evaluation.files.${file.key}.producedBy` as const) }),
+  };
 }
 
 /** spec 12 AC-05: anything but the sealed held-out is a development run and says so above the figures. */
-export function developmentNotice(data: Pick<EvaluationData, "set" | "protocol">): string | null {
+export function developmentNotice(data: Pick<EvaluationData, "set" | "protocol">, locale: Locale = "en"): string | null {
+  const t = translator(locale);
   const reasons = [
-    data.set !== "heldout" ? `it ran on the "${data.set}" set, not the held-out` : null,
-    data.protocol?.status !== "SEALED" ? `the evaluation protocol is ${data.protocol?.status ?? "UNSEALED"}` : null,
+    data.set !== "heldout" ? t("evaluation.notice.set", { set: data.set }) : null,
+    data.protocol?.status !== "SEALED" ? t("evaluation.notice.protocol", { status: data.protocol?.status ?? "UNSEALED" }) : null,
   ].filter(Boolean);
-  return reasons.length ? `Development run, not the final result: ${reasons.join(" and ")}.` : null;
+  return reasons.length ? t("evaluation.notice.dev", { reasons: reasons.join(t("evaluation.notice.and")) }) : null;
 }
 
-const percent = (value: number) => `${(value * 100).toFixed(1)}%`;
+const decimals = (locale: Locale, value: number, digits: number) =>
+  formatNumber(locale, value, { minimumFractionDigits: digits, maximumFractionDigits: digits });
+const percent = (value: number, locale: Locale) => `${decimals(locale, value * 100, 1)}%`;
 
 /** spec 12 AC-06: a rate is never shown without its numerator, its denominator and its interval. */
-export function rateParts(rate: Rate | undefined): { value: string; count: string; interval: string } {
+export function rateParts(rate: Rate | undefined, locale: Locale = "en"): { value: string; count: string; interval: string } {
+  const t = translator(locale);
   if (!rate || rate.denominator === 0 || rate.value === null) {
-    return { value: "—", count: "no runs apply", interval: "—" };
+    return { value: "—", count: t("evaluation.rate.none"), interval: "—" };
   }
-  const interval = rate.ci_low === null || rate.ci_high === null ? "—" : `${percent(rate.ci_low)} to ${percent(rate.ci_high)}`;
-  return { value: percent(rate.value), count: `${rate.numerator} of ${rate.denominator}`, interval };
+  const interval =
+    rate.ci_low === null || rate.ci_high === null
+      ? "—"
+      : t("evaluation.rate.interval", { low: percent(rate.ci_low, locale), high: percent(rate.ci_high, locale) });
+  return { value: percent(rate.value, locale), count: t("evaluation.rate.count", { n: rate.numerator, d: rate.denominator }), interval };
 }
 
-export function rateText(rate: Rate | undefined): string {
-  const parts = rateParts(rate);
-  return parts.value === "—" ? "— (no runs apply)" : `${parts.value} (${parts.count}; 95% CI ${parts.interval})`;
+export function rateText(rate: Rate | undefined, locale: Locale = "en"): string {
+  const t = translator(locale);
+  const parts = rateParts(rate, locale);
+  return parts.value === "—" ? t("evaluation.rate.textNone") : t("evaluation.rate.text", parts);
 }
 
-export const milliseconds = (value: number | null) => (value === null ? "—" : `${Math.round(value).toLocaleString("en-US")} ms`);
-export const dollars = (value: number | null) => (value === null ? "—" : `$${value.toFixed(4)}`);
+export const milliseconds = (value: number | null, locale: Locale = "en") =>
+  value === null ? "—" : `${formatNumber(locale, Math.round(value))} ms`;
+export const dollars = (value: number | null, locale: Locale = "en") => (value === null ? "—" : `$${decimals(locale, value, 4)}`);
 
 // ---- The three later result files (spec 12 §7.3 parts 5 to 7). Shapes: spec 15 §7.1, spec 11 §7.1, spec 17 §7.1. ----
 // `null` marks a figure the run has not filled in; a rate with no runs shows "—" through rateParts.
@@ -182,15 +207,16 @@ export type FraudData = {
 };
 
 /** spec 12 AC-05 for the files without a set: only the protocol status says whether the run is final. */
-export const protocolNotice = (protocol: Protocol | undefined): string | null =>
-  developmentNotice({ set: "heldout", protocol: protocol as EvaluationData["protocol"] });
+export const protocolNotice = (protocol: Protocol | undefined, locale: Locale = "en"): string | null =>
+  developmentNotice({ set: "heldout", protocol: protocol as EvaluationData["protocol"] }, locale);
 
-const fixed = (value: number | null | undefined, digits = 3) => (value === null || value === undefined ? "—" : value.toFixed(digits));
-export const score = (value: number | null | undefined) => fixed(value);
-export const interval = (ci: Interval | undefined) => (!ci || ci[0] === null || ci[1] === null ? "—" : `${fixed(ci[0])} to ${fixed(ci[1])}`);
+const fixed = (value: number | null | undefined, locale: Locale) => (value === null || value === undefined ? "—" : decimals(locale, value, 3));
+export const score = (value: number | null | undefined, locale: Locale = "en") => fixed(value, locale);
+export const interval = (ci: Interval | undefined, locale: Locale = "en") =>
+  !ci || ci[0] === null || ci[1] === null ? "—" : translator(locale)("evaluation.rate.interval", { low: fixed(ci[0], locale), high: fixed(ci[1], locale) });
 /** A score with its 95% interval, e.g. "0.812 (95% CI 0.771 to 0.850)". */
-export const scoreText = (value: number | null | undefined, ci: Interval | undefined) =>
-  value === null || value === undefined ? "—" : `${fixed(value)} (95% CI ${interval(ci)})`;
+export const scoreText = (value: number | null | undefined, ci: Interval | undefined, locale: Locale = "en") =>
+  value === null || value === undefined ? "—" : translator(locale)("evaluation.rate.score", { value: fixed(value, locale), interval: interval(ci, locale) });
 
 export type CostQualityPoint = { arm: string; cost: number; quality: number; ci: Interval; pareto: boolean; chosen: boolean; row: BenchmarkArm };
 
@@ -205,9 +231,9 @@ export function costQualityPoints(data: BenchmarkData, language: string): CostQu
 }
 
 /** ADR 0025: an arm of the family that wrote the test split is flagged wherever its result is shown. */
-export const GENERATOR_FLAG = "same family as the test-split generator (ADR 0025)";
-export function generatorFlag(arm: { same_family_as_generator?: boolean | null }): string | null {
-  return arm.same_family_as_generator === true ? GENERATOR_FLAG : null;
+export const GENERATOR_FLAG = messages.en.generatorFlag;
+export function generatorFlag(arm: { same_family_as_generator?: boolean | null }, locale: Locale = "en"): string | null {
+  return arm.same_family_as_generator === true ? messages[locale].generatorFlag : null;
 }
 
 // ---- Plain explanations, "Detail" links and limitations (spec 12 AC-11) ----
@@ -232,18 +258,11 @@ export function detailUrl(key: keyof typeof DETAILS): string {
   return `${REPO_BLOB}${d.path}${d.heading ? `#${headingSlug(d.heading)}` : ""}`;
 }
 
-/** What a harness metric means, in one plain sentence (spec 10 §4.1). */
-export const METRIC_MEANING: Record<string, string> = {
-  safe_automated_resolution: "Share of cases where the card was blocked and the case opened with no person, and nothing unsafe happened.",
-  unsafe_outcomes: "Share of runs with any unsafe outcome: another customer's data shown, a wrong block, or a case opened that should have been refused.",
-  pass_4: "Share of cases that pass on all four runs, so one lucky run does not count.",
-  receipt_rate: "Share of expected receipts that were issued with the legal deadline on them.",
-  complete_intake_rate: "Share of cases opened on the right transaction and queue, with a receipt and deadline.",
-  missed_escalations: "Share of cases that needed a handoff to an analyst and did not get one.",
-  unnecessary_escalations: "Share of cases that got a handoff although none was needed.",
-  coherence_rate: "Share of status answers that say what the system reads back as the real status.",
-  intent_accuracy: "Share of runs where the system understood what the customer asked for.",
-};
+/** What a harness metric means, in one plain sentence (spec 10 §4.1), in the UI language. */
+export function metricMeaning(locale: Locale = "en"): Record<string, string> {
+  return messages[locale].metrics.meaning;
+}
+export const METRIC_MEANING: Record<string, string> = metricMeaning("en");
 
 export type ResultFiles = {
   summary: Insight<EvaluationData> | null;
@@ -253,31 +272,30 @@ export type ResultFiles = {
 };
 
 /** The sentence ADR 0028 requires next to every classifier test result. */
-export const RULES_REVIEW_SENTENCE =
-  "The classifier test split was decided by fixed rules, without independent human review (ADR 0028); train and validation were reviewed by the lead.";
+export const RULES_REVIEW_SENTENCE = messages.en.rulesReview;
 
 /**
  * spec 12 AC-11: plain sentences, only for the files that exist. With no result file there is nothing to limit,
  * so the list is empty.
  */
-export function limitations(files: ResultFiles): string[] {
+export function limitations(files: ResultFiles, locale: Locale = "en"): string[] {
+  const t = translator(locale);
   const out: string[] = [];
   const { summary, benchmark, classifier, fraud } = files;
   if (summary) {
     const d = summary.data;
-    out.push(`Only ${d.cases} cases were scored (${d.runs_per_case} runs each), so the intervals are wide: read the interval, not the single rate.`);
+    out.push(t("evaluation.limits.cases", { cases: d.cases, runs: d.runs_per_case }));
   }
   if (classifier) {
     const n = Object.values(classifier.data.test_split.sentences).reduce<number>((a, b) => a + (b ?? 0), 0);
-    out.push(`The classifier test split has ${n > 0 ? `${n} sentences` : "few sentences"}, so its intervals are wide too.`);
+    out.push(t("evaluation.limits.split", { sentences: n > 0 ? t("evaluation.limits.sentences", { n }) : t("evaluation.limits.fewSentences") }));
   }
-  if (summary) out.push("The customer messages of the agent cases were written by the team with AI assistance, on real dataset state, so real customers may phrase things differently.");
-  if (classifier) out.push("The classifier sentences were written by language models, one model family per split (ADR 0025), so real customers may phrase things differently.");
-  if (benchmark) out.push("The benchmark scores the models on the classifier sentences (written by language models) and on the agent development cases (written by the team with AI assistance).");
-  if (classifier?.data.test_review === "rules-v1") out.push(RULES_REVIEW_SENTENCE);
-  if (summary) out.push("The held-out set is run once, after the protocol is sealed; there is no second run to tune on.");
-  if (summary || benchmark || classifier || fraud) {
-    out.push("The customers and transactions come from a synthetic dataset and the runs are simulated, so the results show how the system behaves, not how it would perform at a real bank.");
-  }
+  if (summary) out.push(t("evaluation.limits.agentMessages"));
+  if (classifier) out.push(t("evaluation.limits.classifierSentences"));
+  if (benchmark) out.push(t("evaluation.limits.benchmark"));
+  if (classifier?.data.test_review === "rules-v1") out.push(messages[locale].rulesReview);
+  if (summary) out.push(t("evaluation.limits.heldout"));
+  if (summary || benchmark || classifier || fraud) out.push(t("evaluation.limits.synthetic"));
   return out;
 }
+

@@ -2,22 +2,25 @@
 
 // /evaluation content for benchmark.json, classifier.json and fraud_benchmark.json (spec 12 §7.3, parts 5 to 7).
 // Nothing is computed here: every number is the exporter's. Every rate shows its numerator, denominator and interval on
-// hover, on keyboard focus and in the table view (AC-06, AC-07).
+// hover, on keyboard focus and in the table view (AC-06, AC-07). Labels follow the UI language and numbers its locale
+// (spec 16 AC-06); figure labels and sources stay as the exporters wrote them.
 import { useState, type ReactNode } from "react";
 import { FOCUS, Swatch, TableView, TipBody, useTip } from "@/app/analytics/charts";
+import { useLocale, useT } from "@/components/i18n-provider";
+import { formatNumber, type Locale, type Translate } from "@/lib/i18n";
 import { Explain, IntervalBar } from "./explain";
 import {
   costQualityPoints,
-  dollars,
-  GENERATOR_FLAG,
-  generatorFlag,
-  interval,
-  milliseconds,
+  dollars as dollarsIn,
+  generatorFlag as generatorFlagIn,
+  interval as intervalIn,
+  metrics,
+  milliseconds as millisecondsIn,
   protocolNotice,
-  rateParts,
-  rateText,
-  score,
-  scoreText,
+  rateParts as ratePartsIn,
+  rateText as rateTextIn,
+  score as scoreIn,
+  scoreText as scoreTextIn,
   type BenchmarkData,
   type ClassifierData,
   type FraudData,
@@ -28,10 +31,34 @@ import {
 } from "@/lib/evaluation";
 
 const PALETTE = "[--arm-1:#7c3aed] dark:[--arm-1:#8b5cf6] [--arm-2:#0d9488] [--arm-3:#4c1d95] dark:[--arm-3:#c4b5fd]";
-const yes = (v: boolean | null) => (v === null ? "—" : v ? "yes" : "no");
+
+/** The display helpers of lib/evaluation.ts bound to the UI locale, plus the translate function. */
+function useFormat() {
+  const t = useT();
+  const { locale } = useLocale();
+  return format(t, locale);
+}
+function format(t: Translate, locale: Locale) {
+  return {
+    t,
+    locale,
+    yes: (v: boolean | null) => (v === null ? "—" : v ? t("evaluation.common.yes") : t("evaluation.common.no")),
+    int: (n: number) => formatNumber(locale, n),
+    dollars: (v: number | null) => dollarsIn(v, locale),
+    milliseconds: (v: number | null) => millisecondsIn(v, locale),
+    rateParts: (r: Rate | undefined) => ratePartsIn(r, locale),
+    rateText: (r: Rate | undefined) => rateTextIn(r, locale),
+    score: (v: number | null | undefined) => scoreIn(v, locale),
+    interval: (ci: Parameters<typeof intervalIn>[0]) => intervalIn(ci, locale),
+    scoreText: (v: number | null | undefined, ci: Parameters<typeof intervalIn>[0]) => scoreTextIn(v, ci, locale),
+    generatorFlag: (arm: { same_family_as_generator?: boolean | null }) => generatorFlagIn(arm, locale),
+    metric: (key: string) => metrics(locale).find((m) => m.key === key)?.label ?? key,
+  };
+}
 
 function Notice({ protocol }: { protocol: Protocol }) {
-  const text = protocolNotice(protocol);
+  const { locale } = useLocale();
+  const text = protocolNotice(protocol, locale);
   return text ? (
     <p role="note" data-slot="development-notice" className="rounded-lg border border-border bg-muted px-4 py-3 text-sm font-medium text-foreground">
       {text}
@@ -40,6 +67,7 @@ function Notice({ protocol }: { protocol: Protocol }) {
 }
 
 function Section({ title, hint, detail, file, data, children }: { title: string; hint: string; detail: keyof typeof DETAILS; file: Insight<{ label: string; protocol: Protocol }>; data: string; children: ReactNode }) {
+  const t = useT();
   return (
     <section aria-label={title} className={`space-y-4 ${PALETTE}`} data-file={data}>
       <Notice protocol={file.data.protocol} />
@@ -50,7 +78,7 @@ function Section({ title, hint, detail, file, data, children }: { title: string;
         <Explain detail={detail} className="mt-0.5">{hint}</Explain>
         {children}
         <p className="mt-4 font-mono text-xs text-muted-foreground">
-          {file.data.label} {file.source} · generated {file.generated_at.slice(0, 10)} at {file.git_sha}
+          {t("evaluation.common.generated", { label: file.data.label, source: file.source, date: file.generated_at.slice(0, 10), sha: file.git_sha })}
         </p>
       </div>
     </section>
@@ -101,6 +129,7 @@ export function BenchmarkSection({ file }: { file: Insight<BenchmarkData> }) {
   const languages = Object.keys(data.b1.arms[0]?.macro_f1 ?? { es: 0, pt: 0 });
   const [language, setLanguage] = useState(languages[0] ?? "es");
   const { bind, node } = useTip();
+  const { t, yes, dollars, milliseconds, rateParts, rateText, score, interval, scoreText, generatorFlag, metric, int } = useFormat();
   const points = costQualityPoints(data, language);
   const maxCost = Math.max(...points.map((p) => p.cost), 0.01) * 1.1;
   const lows = points.map((p) => p.ci?.[0] ?? p.quality);
@@ -110,8 +139,8 @@ export function BenchmarkSection({ file }: { file: Insight<BenchmarkData> }) {
   const front = points.filter((p) => p.pareto).sort((a, b) => a.cost - b.cost);
   const chosen = data.model_map.understand?.chosen;
   return (
-    <Section title="Model benchmark: cost against quality" file={file} data="benchmark.json" detail="benchmark"
-      hint={`Understanding task: one dot per model, macro-F1 on the ${language.toUpperCase()} test sentences against USD per 1,000 messages. Filled dots are on the Pareto front; the ringed one is the chosen model${chosen ? ` (${chosen})` : ""}. Axis starts at ${yMin.toFixed(1)}.`}>
+    <Section title={t("evaluation.benchmark.title")} file={file} data="benchmark.json" detail="benchmark"
+      hint={t("evaluation.benchmark.hint", { lang: language.toUpperCase(), chosen: chosen ? ` (${chosen})` : "", min: yMin.toFixed(1) })}>
       <div className="mt-3 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
         {languages.map((l) => (
           <button key={l} type="button" aria-pressed={l === language} onClick={() => setLanguage(l)}
@@ -119,13 +148,13 @@ export function BenchmarkSection({ file }: { file: Insight<BenchmarkData> }) {
             {l.toUpperCase()}
           </button>
         ))}
-        <span className="inline-flex items-center gap-1.5"><Swatch color="var(--arm-1)" /> on the Pareto front</span>
-        <span>run {data.run_date} · {data.mode} mode</span>
+        <span className="inline-flex items-center gap-1.5"><Swatch color="var(--arm-1)" /> {t("evaluation.benchmark.onFront")}</span>
+        <span>{t("evaluation.benchmark.runMode", { date: data.run_date, mode: data.mode })}</span>
       </div>
       {points.length === 0 ? (
-        <p className="mt-4 text-sm text-muted-foreground">No arm has a cost and a score in this language yet.</p>
+        <p className="mt-4 text-sm text-muted-foreground">{t("evaluation.benchmark.noPoints")}</p>
       ) : (
-        <svg viewBox={`0 0 ${W} ${H}`} className="mt-3 h-auto w-full" role="group" aria-label="Cost against macro-F1 per model">
+        <svg viewBox={`0 0 ${W} ${H}`} className="mt-3 h-auto w-full" role="group" aria-label={t("evaluation.benchmark.svgAria")}>
           {[0, 1, 2, 3, 4].map((i) => {
             const q = yMin + ((1 - yMin) * i) / 4;
             return (
@@ -136,7 +165,7 @@ export function BenchmarkSection({ file }: { file: Insight<BenchmarkData> }) {
               </g>
             );
           })}
-          <text x={(L + W - R) / 2} y={H - 4} textAnchor="middle" fontSize={11} fill="currentColor" className="text-muted-foreground">USD per 1,000 messages</text>
+          <text x={(L + W - R) / 2} y={H - 4} textAnchor="middle" fontSize={11} fill="currentColor" className="text-muted-foreground">{t("evaluation.benchmark.xAxis")}</text>
           <text transform={`translate(12 ${(T + H - B) / 2}) rotate(-90)`} textAnchor="middle" fontSize={11} fill="currentColor" className="text-muted-foreground">macro-F1</text>
           {front.length > 1 ? <polyline fill="none" stroke="var(--arm-1)" strokeOpacity={0.5} strokeDasharray="4 3" points={front.map((p) => `${x(p.cost)},${y(p.quality)}`).join(" ")} /> : null}
           {points.map((p) => {
@@ -146,12 +175,15 @@ export function BenchmarkSection({ file }: { file: Insight<BenchmarkData> }) {
                 {p.chosen ? <circle cx={x(p.cost)} cy={y(p.quality)} r={11} fill="none" stroke="var(--arm-2)" strokeWidth={2} /> : null}
                 <circle tabIndex={0} role="img" cx={x(p.cost)} cy={y(p.quality)} r={6} strokeWidth={2} stroke="var(--arm-1)"
                   fill={p.pareto ? "var(--arm-1)" : "var(--card)"} className="outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-                  aria-label={`${p.arm}: macro-F1 ${scoreText(p.quality, p.ci)}, ${dollars(p.cost)} per 1,000 messages, p95 ${milliseconds(a.p95_ms)}${p.chosen ? ", chosen" : ""}${generatorFlag(a) ? `, ${GENERATOR_FLAG}` : ""}`}
+                  aria-label={t("evaluation.benchmark.pointAria", {
+                    arm: p.arm, score: scoreText(p.quality, p.ci), cost: dollars(p.cost), p95: milliseconds(a.p95_ms),
+                    suffix: `${p.chosen ? t("evaluation.benchmark.chosenSuffix") : ""}${generatorFlag(a) ? `, ${generatorFlag(a)}` : ""}`,
+                  })}
                   {...bind(
-                    <TipBody title={`${p.arm}${p.chosen ? " · chosen" : ""}${generatorFlag(a) ? " · flagged" : ""}`}
-                      rows={[["Macro-F1", score(p.quality)], ["95% interval", interval(p.ci)], ["Cost per 1,000", dollars(p.cost)], ["p95", milliseconds(a.p95_ms)],
-                        ["Dispute recall", rateText(a.dispute_recall)]]}
-                      note={`[simulated] ${a.price.label} price ${a.price.date}${generatorFlag(a) ? ` · ${GENERATOR_FLAG}` : ""}`} />,
+                    <TipBody title={`${p.arm}${p.chosen ? ` · ${t("evaluation.common.chosen")}` : ""}${generatorFlag(a) ? ` · ${t("evaluation.common.flagged")}` : ""}`}
+                      rows={[["Macro-F1", score(p.quality)], [t("evaluation.common.interval95"), interval(p.ci)], [t("evaluation.benchmark.costPer1000"), dollars(p.cost)], ["p95", milliseconds(a.p95_ms)],
+                        [t("evaluation.benchmark.head.disputeRecall"), rateText(a.dispute_recall)]]}
+                      note={`[simulated] ${t("evaluation.benchmark.price", { label: a.price.label, date: a.price.date })}${generatorFlag(a) ? ` · ${generatorFlag(a)}` : ""}`} />,
                   )} />
                 <text x={x(p.cost) + 10} y={y(p.quality) - 9} fontSize={10} fill="currentColor">{p.arm}{generatorFlag(a) ? " *" : ""}</text>
               </g>
@@ -160,14 +192,17 @@ export function BenchmarkSection({ file }: { file: Insight<BenchmarkData> }) {
         </svg>
       )}
       <TableView
-        head={["Arm", "Status", `Macro-F1 ${language.toUpperCase()}`, "Dispute recall", "Person-request recall", "Slot accuracy", "p95", "Per 1,000", "Pareto", "Meets bar", "Production gate", "Flag"]}
+        head={[t("evaluation.common.arm"), t("evaluation.benchmark.head.status"), t("evaluation.benchmark.head.macroF1", { lang: language.toUpperCase() }),
+          t("evaluation.benchmark.head.disputeRecall"), t("evaluation.benchmark.head.personRecall"), t("evaluation.benchmark.head.slotAccuracy"), "p95",
+          t("evaluation.benchmark.head.per1000"), t("evaluation.benchmark.head.pareto"), t("evaluation.benchmark.head.meetsBar"),
+          t("evaluation.benchmark.head.productionGate"), t("evaluation.benchmark.head.flag")]}
         rows={data.b1.arms.map((a) => [a.arm, a.status === "ok" ? "ok" : `${a.status}${a.unavailable_reason ? `: ${a.unavailable_reason}` : ""}`,
           scoreText(a.macro_f1[language], a.macro_f1_ci[language]), rateText(a.dispute_recall), rateText(a.human_request_recall), rateText(a.slot_accuracy),
           milliseconds(a.p95_ms), dollars(a.cost_per_1000_usd), yes(a.pareto), yes(a.meets_bar), yes(a.gate.production_pass), generatorFlag(a) ?? "—"])}
       />
-      <h3 className="mt-5 text-sm font-semibold">Whole system on the dev cases ({data.b2.set}, {data.b2.cases} cases x {data.b2.runs_per_case} runs)</h3>
-      <p className="mt-0.5 text-sm text-muted-foreground">The same cases on each arm: higher is better for safe automated resolution, lower for unsafe outcomes. Scale 0% to 100%.</p>
-      {[["safe_automated_resolution", "Safe automated resolution"], ["unsafe_outcomes", "Unsafe outcomes"]].map(([key, name]) => (
+      <h3 className="mt-5 text-sm font-semibold">{t("evaluation.benchmark.b2Title", { set: data.b2.set, cases: int(data.b2.cases), runs: data.b2.runs_per_case })}</h3>
+      <p className="mt-0.5 text-sm text-muted-foreground">{t("evaluation.benchmark.b2Note")}</p>
+      {["safe_automated_resolution", "unsafe_outcomes"].map((key) => [key, metric(key)]).map(([key, name]) => (
         <div key={key} className="mt-3">
           <h4 className="text-xs font-medium">{name}</h4>
           <BarRows bind={bind} rows={data.b2.arms.map((a, i) => {
@@ -175,12 +210,13 @@ export function BenchmarkSection({ file }: { file: Insight<BenchmarkData> }) {
             const has = rate.value !== null && rate.denominator > 0;
             return { key: a.arm, label: a.arm, color: armColor(i), value: has ? rate.value : null, low: rate.ci_low, high: rate.ci_high,
               aria: `${name}, ${a.arm}: ${rateText(rate)}`,
-              tip: <TipBody title={`${name} · ${a.arm}`} rows={[["Rate", rateParts(rate).value], ["Runs", rateParts(rate).count], ["95% interval", rateParts(rate).interval]]} note="[simulated] dev cases, final state compared" />,
-              right: <>{rateParts(rate).value}<span className="text-muted-foreground"> · {has ? `${rate.numerator}/${rate.denominator}` : "n/a"}</span></> };
+              tip: <TipBody title={`${name} · ${a.arm}`} rows={[[t("evaluation.common.rate"), rateParts(rate).value], [t("evaluation.common.runs"), rateParts(rate).count], [t("evaluation.common.interval95"), rateParts(rate).interval]]} note={`[simulated] ${t("evaluation.benchmark.devNote")}`} />,
+              right: <>{rateParts(rate).value}<span className="text-muted-foreground"> · {has ? `${rate.numerator}/${rate.denominator}` : t("evaluation.common.na")}</span></> };
           })} />
         </div>
       ))}
-      <Table head={["Arm", "Safe automated resolution", "Unsafe outcomes", "Receipt with its deadline", "Status told = status read", "p95 per turn", "Cost per case"]}
+      <Table head={[t("evaluation.common.arm"), metric("safe_automated_resolution"), metric("unsafe_outcomes"), metric("receipt_rate"), metric("coherence_rate"),
+        t("evaluation.benchmark.head.p95Turn"), t("evaluation.benchmark.head.costCase")]}
         rows={data.b2.arms.map((a) => [a.arm, rateText(a.safe_automated_resolution as Rate), rateText(a.unsafe_outcomes as Rate), rateText(a.receipt_rate as Rate),
           rateText(a.coherence_rate as Rate), milliseconds(a.p95_ms as number | null), dollars(a.cost_per_case_usd)])} />
       {node}
@@ -191,10 +227,11 @@ export function BenchmarkSection({ file }: { file: Insight<BenchmarkData> }) {
 // ---- (6) classifier: arm x language ----
 export function ClassifierSection({ file }: { file: Insight<ClassifierData> }) {
   const data = file.data;
+  const { t, yes, dollars, milliseconds, rateText, score, interval, scoreText, generatorFlag } = useFormat();
   const sentences = Object.entries(data.test_split.sentences).map(([l, n]) => `${l.toUpperCase()} ${n ?? "—"}`).join(", ");
   const rows = data.arms.flatMap((a) =>
     Object.entries(a.by_language).map(([lang, m]) => [
-      a.arm + (a.arm === data.chosen_arm ? " (chosen)" : "") + (generatorFlag(a) ? " *" : ""), lang.toUpperCase(), scoreText(m.macro_f1, m.macro_f1_ci),
+      (a.arm === data.chosen_arm ? t("evaluation.common.withChosen", { arm: a.arm }) : a.arm) + (generatorFlag(a) ? " *" : ""), lang.toUpperCase(), scoreText(m.macro_f1, m.macro_f1_ci),
       rateText(m.dispute_recall), rateText(m.dispute_detected_recall), rateText(m.human_request_recall), rateText(m.slot_accuracy),
       rateText(m.coverage_at_tau), rateText(m.precision_at_tau), score(m.ece),
       Object.entries(m.per_class_f1).map(([k, v]) => `${k.replace(/_/g, " ")} ${score(v)}`).join(" · "),
@@ -203,32 +240,35 @@ export function ClassifierSection({ file }: { file: Insight<ClassifierData> }) {
   const { bind, node } = useTip();
   const languages = [...new Set(data.arms.flatMap((a) => Object.keys(a.by_language)))];
   return (
-    <Section title="Intent classifier" file={file} data="classifier.json" detail="classifier"
-      hint={`Does the system read what the customer wants? Macro-F1 is the average score over the intents, from 0 (always wrong) to 1 (always right), per arm and language, with its 95% bootstrap interval. Frozen test split: ${sentences} sentences, ${data.test_split.injection_rows ?? "—"} injection rows apart. Confidence threshold tau ${score(data.tau)}.`}>
+    <Section title={t("evaluation.classifier.title")} file={file} data="classifier.json" detail="classifier"
+      hint={t("evaluation.classifier.hint", { sentences, injection: data.test_split.injection_rows ?? "—", tau: score(data.tau) })}>
       {languages.map((lang) => (
         <div key={lang} className="mt-4">
-          <h3 className="text-sm font-semibold">Macro-F1, {lang.toUpperCase()}</h3>
+          <h3 className="text-sm font-semibold">{t("evaluation.classifier.macroF1Lang", { lang: lang.toUpperCase() })}</h3>
           <BarRows bind={bind} rows={data.arms.flatMap((a, i) => {
             const m = a.by_language[lang];
             if (!m) return [];
             const chosen = a.arm === data.chosen_arm;
             const flag = generatorFlag(a);
-            return [{ key: a.arm, label: `${a.arm}${chosen ? " (chosen)" : ""}${flag ? " *" : ""}`, color: armColor(i), value: m.macro_f1, low: m.macro_f1_ci?.[0] ?? null, high: m.macro_f1_ci?.[1] ?? null,
+            return [{ key: a.arm, label: `${chosen ? t("evaluation.common.withChosen", { arm: a.arm }) : a.arm}${flag ? " *" : ""}`, color: armColor(i), value: m.macro_f1, low: m.macro_f1_ci?.[0] ?? null, high: m.macro_f1_ci?.[1] ?? null,
               aria: `${a.arm}, ${lang.toUpperCase()}: macro-F1 ${scoreText(m.macro_f1, m.macro_f1_ci)}${flag ? `, ${flag}` : ""}`,
-              tip: <TipBody title={`${a.arm} · ${lang.toUpperCase()}${chosen ? " · chosen" : ""}`}
-                rows={[["Macro-F1", score(m.macro_f1)], ["95% interval", interval(m.macro_f1_ci)], ["Dispute recall", rateText(m.dispute_recall)], ["Person-request recall", rateText(m.human_request_recall)]]}
-                note={`[simulated] frozen test split${data.test_review === "rules-v1" ? ", decided by fixed rules" : ""}${flag ? ` · ${flag}` : ""}`} />,
+              tip: <TipBody title={`${a.arm} · ${lang.toUpperCase()}${chosen ? ` · ${t("evaluation.common.chosen")}` : ""}`}
+                rows={[["Macro-F1", score(m.macro_f1)], [t("evaluation.common.interval95"), interval(m.macro_f1_ci)], [t("evaluation.benchmark.head.disputeRecall"), rateText(m.dispute_recall)], [t("evaluation.benchmark.head.personRecall"), rateText(m.human_request_recall)]]}
+                note={`[simulated] ${t("evaluation.classifier.note")}${data.test_review === "rules-v1" ? t("evaluation.classifier.byRules") : ""}${flag ? ` · ${flag}` : ""}`} />,
               right: <>{score(m.macro_f1)}<span className="text-muted-foreground"> · {interval(m.macro_f1_ci)}</span></> }];
           })} />
         </div>
       ))}
       <Table
-        head={["Arm", "Lang", "Macro-F1", "Dispute recall", "Dispute flag recall", "Person-request recall", "Slot accuracy", "Coverage at tau", "Precision at tau", "ECE", "F1 per intent"]}
+        head={[t("evaluation.common.arm"), t("evaluation.classifier.head.lang"), "Macro-F1", t("evaluation.benchmark.head.disputeRecall"), t("evaluation.classifier.head.disputeFlagRecall"),
+          t("evaluation.benchmark.head.personRecall"), t("evaluation.benchmark.head.slotAccuracy"), t("evaluation.classifier.head.coverageTau"), t("evaluation.classifier.head.precisionTau"),
+          "ECE", t("evaluation.classifier.head.f1PerIntent")]}
         rows={rows} />
-      <Table head={["Arm", "Version", "p95", "Per 1,000", "Meets floors", "McNemar p vs best", "Person requests answered out of scope", "Flag"]}
+      <Table head={[t("evaluation.common.arm"), t("evaluation.classifier.head.version"), "p95", t("evaluation.benchmark.head.per1000"), t("evaluation.classifier.head.meetsFloors"),
+        t("evaluation.classifier.head.mcnemar"), t("evaluation.classifier.head.outOfScope"), t("evaluation.benchmark.head.flag")]}
         rows={data.arms.map((a) => [a.arm, a.version, milliseconds(a.p95_ms), dollars(a.cost_per_1000_usd), yes(a.meets_floors), score(a.mcnemar_p_vs_best), String(a.human_request_answered_out_of_scope ?? "—"), generatorFlag(a) ?? "—"])} />
-      <h3 className="mt-5 text-sm font-semibold">Prompt-injection detectors</h3>
-      <Table head={["Detector", "Recall", "False positives"]} rows={data.injection.map((d) => [d.arm, rateText(d.recall), rateText(d.false_positive_rate)])} />
+      <h3 className="mt-5 text-sm font-semibold">{t("evaluation.classifier.injectionTitle")}</h3>
+      <Table head={[t("evaluation.classifier.injectionHead.detector"), t("evaluation.classifier.injectionHead.recall"), t("evaluation.classifier.injectionHead.falsePositives")]} rows={data.injection.map((d) => [d.arm, rateText(d.recall), rateText(d.false_positive_rate)])} />
       {node}
     </Section>
   );
@@ -238,15 +278,19 @@ export function ClassifierSection({ file }: { file: Insight<ClassifierData> }) {
 export function FraudSection({ file }: { file: Insight<FraudData> }) {
   const data = file.data;
   const { bind, node } = useTip();
+  const { t, yes, rateText, score, interval, scoreText, int } = useFormat();
   const test = data.windows.test;
   const subsets = ["all", "card"];
   return (
-    <Section title="Fraud model against the bank's score" file={file} data="fraud_benchmark.json" detail="fraud"
-      hint={`Does a model of ours rank fraud better than the bank's score? PR-AUC is the share of top-ranked transactions that are fraud, averaged over thresholds: higher is better. Test window ${test.from} to ${test.to}: ${test.transactions?.toLocaleString("en-US") ?? "—"} transactions, ${test.frauds ?? "—"} frauds. Scale 0 to 1, with the 95% bootstrap interval; S-bank is the bank's own score. Chosen: ${data.chosen_arm ?? "—"}.`}>
+    <Section title={t("evaluation.fraud.title")} file={file} data="fraud_benchmark.json" detail="fraud"
+      hint={t("evaluation.fraud.hint", {
+        from: test.from, to: test.to, transactions: test.transactions === null ? "—" : int(test.transactions),
+        frauds: test.frauds ?? "—", chosen: data.chosen_arm ?? "—",
+      })}>
       <div className="mt-4 space-y-4">
         {subsets.map((s) => (
           <div key={s}>
-            <h3 className="text-sm font-semibold">{s === "all" ? "All products" : "Cards only"}</h3>
+            <h3 className="text-sm font-semibold">{s === "all" ? t("evaluation.fraud.allProducts") : t("evaluation.fraud.cardsOnly")}</h3>
             <div className="mt-2 space-y-1.5">
               {data.arms.map((a) => {
                 const m = a.subsets[s];
@@ -255,9 +299,9 @@ export function FraudSection({ file }: { file: Insight<FraudData> }) {
                 const color = a.arm === "S-bank" ? "var(--arm-2)" : "var(--arm-1)";
                 return (
                   <div key={a.arm} tabIndex={0} role="img" aria-label={`${a.arm}, ${s}: PR-AUC ${scoreText(m?.pr_auc, ci)}`} className={`grid items-center gap-x-3 rounded-sm sm:grid-cols-[14rem_1fr_9rem] ${FOCUS}`}
-                    {...bind(<TipBody title={`${a.arm} · ${s}`} rows={[["PR-AUC", score(m?.pr_auc)], ["95% interval", interval(ci)], ["Brier", score(m?.brier)],
-                      ["Recall at bank precision 0.80", rateText(m?.recall_at_bank_precision?.["0.80"])]]} note="[data] test window, labels read once" />)}>
-                    <span className="flex items-center gap-1.5 truncate text-xs"><Swatch color={color} />{a.arm}{a.arm === data.chosen_arm ? " (chosen)" : ""}</span>
+                    {...bind(<TipBody title={`${a.arm} · ${s}`} rows={[["PR-AUC", score(m?.pr_auc)], [t("evaluation.common.interval95"), interval(ci)], ["Brier", score(m?.brier)],
+                      [t("evaluation.fraud.recallAt80"), rateText(m?.recall_at_bank_precision?.["0.80"])]]} note={`[data] ${t("evaluation.fraud.note")}`} />)}>
+                    <span className="flex items-center gap-1.5 truncate text-xs"><Swatch color={color} />{a.arm === data.chosen_arm ? t("evaluation.common.withChosen", { arm: a.arm }) : a.arm}</span>
                     <IntervalBar value={has ? m!.pr_auc ?? null : null} low={ci?.[0] ?? null} high={ci?.[1] ?? null} color={color} />
                     <span className="text-xs tabular-nums">{score(m?.pr_auc)}<span className="text-muted-foreground"> · {interval(ci)}</span></span>
                   </div>
@@ -268,13 +312,15 @@ export function FraudSection({ file }: { file: Insight<FraudData> }) {
         ))}
       </div>
       <TableView
-        head={["Arm", "Products", "PR-AUC", "Brier", "Recall at bank precision 0.80", "Recall at bank precision 0.95", "Recall of frauds with no score at 1% alerts", "Passes rule", "Score p95"]}
+        head={[t("evaluation.common.arm"), t("evaluation.fraud.head.products"), "PR-AUC", "Brier", t("evaluation.fraud.recallAt80"), t("evaluation.fraud.recallAt95"),
+          t("evaluation.fraud.recallNoScore"), t("evaluation.fraud.head.passesRule"), t("evaluation.fraud.head.scoreP95")]}
         rows={data.arms.flatMap((a) => subsets.map((s) => {
           const m = a.subsets[s];
           return [a.arm, s, scoreText(m?.pr_auc, m?.pr_auc_ci), score(m?.brier), rateText(m?.recall_at_bank_precision?.["0.80"]), rateText(m?.recall_at_bank_precision?.["0.95"]),
             rateText(m?.recall_no_score_at_1pct), yes(a.passes_rule), `${score(a.cost.score_p95_ms)} ms`];
         }))} />
-      <p className="mt-3 text-xs text-muted-foreground">The model is a second signal for the analyst; zones stay with the bank&apos;s score.</p>
+      <p className="mt-3 text-xs text-muted-foreground">{t("evaluation.fraud.footnote")}</p>
+
       {node}
     </Section>
   );

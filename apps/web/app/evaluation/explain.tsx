@@ -1,6 +1,10 @@
+"use client";
+
 // Small shared parts of /evaluation (spec 12 AC-11): a plain explanation with its "Detail" link, the limitations block,
-// and one interval row that every chart of the page reuses. Plain SVG-free markup, no dependency.
+// and one interval row that every chart of the page reuses. Plain SVG-free markup, no dependency. Client components,
+// so their labels follow the UI language (spec 16 AC-06).
 import type { ReactNode } from "react";
+import { useT } from "@/components/i18n-provider";
 import { detailUrl, type DETAILS } from "@/lib/evaluation";
 
 // Same ring as the charts (a client module's constant cannot be read from here on the server).
@@ -8,11 +12,12 @@ const FOCUS = "outline-none focus-visible:ring-2 focus-visible:ring-ring";
 
 /** One or two plain lines on what a chart means, and a link to the markdown that defines it. */
 export function Explain({ children, detail, className = "" }: { children: ReactNode; detail: keyof typeof DETAILS; className?: string }) {
+  const t = useT();
   return (
     <p data-slot="explain" className={`text-sm text-muted-foreground ${className}`}>
       {children}{" "}
       <a href={detailUrl(detail)} className={`whitespace-nowrap rounded-sm underline underline-offset-2 hover:text-foreground ${FOCUS}`}>
-        Detail →
+        {t("evaluation.explain.detail")}
       </a>
     </p>
   );
@@ -20,11 +25,13 @@ export function Explain({ children, detail, className = "" }: { children: ReactN
 
 /** spec 12 AC-11: plain sentences for the files that exist, no tags. Nothing renders when there is no limitation. */
 export function Limitations({ items }: { items: string[] }) {
+  const t = useT();
   if (items.length === 0) return null;
   return (
-    <section aria-label="Limitations" data-slot="limitations" className="rounded-lg border bg-card p-5 text-card-foreground">
-      <h2 className="text-base font-semibold">Limitations</h2>
-      <p className="mt-0.5 text-sm text-muted-foreground">What to keep in mind before reading any figure above.</p>
+    <section aria-label={t("evaluation.limitations.title")} data-slot="limitations" className="rounded-lg border bg-card p-5 text-card-foreground">
+      <h2 className="text-base font-semibold">{t("evaluation.limitations.title")}</h2>
+      <p className="mt-0.5 text-sm text-muted-foreground">{t("evaluation.limitations.note")}</p>
+
       <ul className="mt-3 list-disc space-y-1.5 pl-5 text-sm">
         {items.map((text) => (
           <li key={text}>{text}</li>

@@ -1,11 +1,22 @@
-import type { ReactNode } from "react";
+import { Fragment, type ReactNode } from "react";
 import { PageShell } from "@/components/page-shell";
+import { formatNumber, type Locale } from "@/lib/i18n";
+import { getT } from "@/lib/i18n-server";
 import quality from "@/public/data/data_quality.json";
 
 // /data (spec 12 AC-03): the medallion, the gold rules, the checks with counts, the manifest versions and the
 // late-arrival fixture result. Every value comes from data_quality.json, written by `python -m data.pipeline report --json`.
-const int = (n: number) => n.toLocaleString("en-US");
-const megabytes = (bytes: number | null) => (bytes === null ? "—" : `${(bytes / 1e6).toFixed(1)} MB`);
+// Labels follow the UI language and numbers its locale (spec 16 AC-06); check texts and sources stay as written.
+const numbers = (locale: Locale) => ({
+  int: (n: number) => formatNumber(locale, n),
+  megabytes: (bytes: number | null) =>
+    bytes === null ? "—" : `${formatNumber(locale, bytes / 1e6, { minimumFractionDigits: 1, maximumFractionDigits: 1 })} MB`,
+});
+
+/** A translated sentence whose `{name}` placeholders are filled with React nodes. */
+function fill(text: string, nodes: Record<string, ReactNode>): ReactNode {
+  return text.split(/\{(\w+)\}/).map((part, i) => <Fragment key={i}>{i % 2 === 1 ? (nodes[part] ?? `{${part}}`) : part}</Fragment>);
+}
 const TH = "border-b py-1.5 pr-4 font-normal";
 const TD = "border-b py-1.5 pr-4";
 
@@ -48,14 +59,21 @@ function Table({ head, rows }: { head: string[]; rows: ReactNode[][] }) {
   );
 }
 
-function Result({ ok }: { ok: boolean }) {
-  return (
-    <span className={`whitespace-nowrap font-medium ${ok ? "text-brand-teal" : "text-destructive"}`}>{ok ? "✓ pass" : "✕ fail"}</span>
-  );
+function Result({ ok, label }: { ok: boolean; label: string }) {
+  return <span className={`whitespace-nowrap font-medium ${ok ? "text-brand-teal" : "text-destructive"}`}>{label}</span>;
 }
 
-export default function Page() {
+export default async function Page() {
+  const { t, locale } = await getT();
+  const { int, megabytes } = numbers(locale);
   const { layers, gold_rules, checks, manifest, late_arrival } = quality.data;
+  const checkHead = [
+    t("data.checks.head.check"),
+    t("data.checks.head.table"),
+    t("data.checks.head.looksFor"),
+    t("data.checks.head.affected"),
+    t("data.checks.head.action"),
+  ];
   const flagged = checks.filter((c) => c.rows_affected > 0);
   const checkRow = (c: (typeof checks)[number]) => [
     <span key="id" className="font-mono">
@@ -63,22 +81,21 @@ export default function Page() {
     </span>,
     c.table,
     c.check,
-    `${int(c.rows_affected)} of ${int(c.denominator)}`,
+    t("data.ofN", { n: int(c.rows_affected), total: int(c.denominator) }),
     c.action,
   ];
   const facts: [string, string][] = [
-    ["Gold version", `v${manifest.gold_version}`],
-    ["Contract", manifest.contract_version],
-    ["Pipeline", manifest.pipeline_version],
-    ["Run", manifest.run_at.slice(0, 10)],
-    ["Transactions window", `${manifest.transactions_window[0]} to ${manifest.transactions_window[1]}`],
-    ["Source", `${int(manifest.source_files)} files · ${megabytes(manifest.source_bytes)}`],
+    [t("data.facts.goldVersion"), `v${manifest.gold_version}`],
+    [t("data.facts.contract"), manifest.contract_version],
+    [t("data.facts.pipeline"), manifest.pipeline_version],
+    [t("data.facts.run"), manifest.run_at.slice(0, 10)],
+    [t("data.facts.window"), t("data.facts.windowValue", { from: manifest.transactions_window[0], to: manifest.transactions_window[1] })],
+    [t("data.facts.source"), t("data.facts.sourceValue", { n: int(manifest.source_files), size: megabytes(manifest.source_bytes) })],
   ];
   return (
-    <PageShell title="Data" description="Can the data be trusted? Pipeline bronze → silver → gold, its checks and its versions.">
+    <PageShell title={t("data.title")} description={t("data.description")}>
       <p className="mb-4 rounded-lg border border-dashed px-4 py-3 text-sm text-muted-foreground">
-        Synthetic dataset of the hackathon. Every count on this page is <span className="font-mono">[data]</span>: it is
-        written by the pipeline run, not typed. A row with a quality problem is flagged, never deleted.
+        {fill(t("data.intro"), { label: <span className="font-mono">[data]</span> })}
       </p>
       <div className="space-y-4">
         <dl className="grid grid-cols-2 gap-x-6 gap-y-3 rounded-lg border bg-card p-5 text-sm sm:grid-cols-3 lg:grid-cols-6">
@@ -94,7 +111,7 @@ export default function Page() {
           {layers.map((layer, i) => (
             <Section key={layer.layer} title={`${i + 1}. ${layer.layer[0].toUpperCase()}${layer.layer.slice(1)}`} note={layer.note}>
               <Table
-                head={["Table", "Rows", "Size"]}
+                head={[t("data.tables.table"), t("data.tables.rows"), t("data.tables.size")]}
                 rows={layer.tables.map((t) => [t.table, int(t.rows), megabytes(t.bytes)])}
               />
             </Section>
@@ -102,61 +119,69 @@ export default function Page() {
         </div>
 
         <Section
-          title="Gold contract rules"
-          note="Checked on every run before gold is published; if one fails, gold is not replaced (contracts/gold_contract.md)."
+          title={t("data.rules.title")}
+          note={t("data.rules.note")}
         >
           <Table
-            head={["Rule", "Condition", "Value on this run", "Result"]}
-            rows={gold_rules.map((r) => [<span key="id" className="font-mono">{r.id}</span>, r.rule, r.value, <Result key="ok" ok={r.ok} />])}
+            head={[t("data.rules.head.rule"), t("data.rules.head.condition"), t("data.rules.head.value"), t("data.rules.head.result")]}
+            rows={gold_rules.map((r) => [
+              <span key="id" className="font-mono">
+                {r.id}
+              </span>,
+              r.rule,
+              r.value,
+              <Result key="ok" ok={r.ok} label={r.ok ? t("data.rules.pass") : t("data.rules.fail")} />,
+            ])}
           />
         </Section>
 
         <Section
-          title={`Quality checks: ${flagged.length} of ${checks.length} found rows`}
-          note="Rows affected over the rows the check applies to, and what the pipeline does with them."
+          title={t("data.checks.title", { flagged: flagged.length, total: checks.length })}
+          note={t("data.checks.note")}
         >
-          <Table head={["Check", "Table", "What it looks for", "Rows affected", "Action"]} rows={flagged.map(checkRow)} />
+          <Table head={checkHead} rows={flagged.map(checkRow)} />
           <details className="mt-4">
             <summary className="cursor-pointer rounded-sm text-xs text-muted-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring">
-              View all {checks.length} checks
+              {t("data.checks.viewAll", { n: checks.length })}
             </summary>
             <div className="mt-2">
-              <Table head={["Check", "Table", "What it looks for", "Rows affected", "Action"]} rows={checks.map(checkRow)} />
+              <Table head={checkHead} rows={checks.map(checkRow)} />
             </div>
           </details>
         </Section>
 
         {late_arrival ? (
           <Section
-            title="Late arrivals and schema change"
-            note={`Shown with a ${late_arrival.label}: the real dataset has no late arrivals or schema changes, so two labeled deliveries go through the same pipeline code.`}
+            title={t("data.late.title")}
+            note={t("data.late.note", { label: late_arrival.label })}
           >
             <ul className="space-y-1.5 text-sm">
               <li>
-                Deliveries:{" "}
-                {late_arrival.deliveries.map((d) => `${d.name} (gold v${d.gold_version})`).join(" → ")}
+                {t("data.late.deliveries")} {late_arrival.deliveries.map((d) => `${d.name} (gold v${d.gold_version})`).join(" → ")}
               </li>
               <li>
-                Rows added:{" "}
+                {t("data.late.rowsAdded")}{" "}
                 {Object.entries(late_arrival.rows_added)
                   .map(([table, n]) => `${table} ${n}`)
                   .join(" · ")}
               </li>
               <li>
-                New column kept in bronze only: <span className="font-mono">{late_arrival.columns_added.join(", ") || "none"}</span>
-                {" · "}declared rename: <span className="font-mono">{late_arrival.columns_renamed.join(", ") || "none"}</span>
+                {t("data.late.newColumn")} <span className="font-mono">{late_arrival.columns_added.join(", ") || t("data.none")}</span>
+                {" · "}
+                {t("data.late.rename")} <span className="font-mono">{late_arrival.columns_renamed.join(", ") || t("data.none")}</span>
               </li>
               <li>
-                Rows that arrived after their date, in silver: {late_arrival.late_rows}; kept and flagged <span className="font-mono">qc_late_arrival</span> (longest
-                delay {late_arrival.max_lag_days} days)
+                {fill(t("data.late.lateRows"), {
+                  n: late_arrival.late_rows,
+                  flag: <span className="font-mono">qc_late_arrival</span>,
+                  days: late_arrival.max_lag_days,
+                })}
               </li>
-              <li>
-                Counts matching the expected ones: {late_arrival.expected_counts.matched} of {late_arrival.expected_counts.total}
-              </li>
+              <li>{t("data.late.matched", { matched: late_arrival.expected_counts.matched, total: late_arrival.expected_counts.total })}</li>
             </ul>
             <div className="mt-4">
               <Table
-                head={["Check", "Table", "What it looks for", "Before", "After"]}
+                head={[checkHead[0], checkHead[1], checkHead[2], t("data.late.before"), t("data.late.after")]}
                 rows={late_arrival.checks_changed.map((c) => [
                   <span key="id" className="font-mono">
                     {c.id}
@@ -172,7 +197,8 @@ export default function Page() {
         ) : null}
       </div>
       <p className="mt-4 font-mono text-xs text-muted-foreground">
-        {quality.source} · generated {quality.generated_at.slice(0, 10)} at {quality.git_sha}
+        {t("data.generated", { source: quality.source, date: quality.generated_at.slice(0, 10), sha: quality.git_sha })}
+
       </p>
     </PageShell>
   );

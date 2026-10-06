@@ -218,7 +218,7 @@ test("spec 12 AC-04, AC-05, AC-06, AC-07, AC-11: the new charts keep the empty s
   assert.match(results, /detail="harness"/);
   assert.match(page, /href="\/agent"/); // the architecture lives on /agent
   const intro = page.slice(page.indexOf('<p className="mb-4'), page.indexOf('<div className="space-y-4">'));
-  const prose = panel.replace(/<th[^]*?<\/th>/g, "").replace(/Contacts avoided[^]*?<\/p>/, "");
+  const prose = panel.replace(/<th[^]*?<\/th>/g, "").replace(/evaluation\.panel\.avoided[^]*?<\/p>/, "");
   for (const text of [intro, prose]) assert.doesNotMatch(text, /\[(simulated|data|projected)\]/); // AC-11: labels go on figures, not in prose
 });
 
