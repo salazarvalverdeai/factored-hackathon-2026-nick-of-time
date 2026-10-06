@@ -2,7 +2,7 @@
 
 - **Feature:** three pages where a judge sees the results, the business numbers and the data quality without reading
   code. `/evaluation` is P0; `/analytics` and `/data` are P1.
-- **Status:** In progress
+- **Status:** Implemented (2026-10-06)
 - **Owner:** @vldiego (follow-ups from 2026-10-05: @salazarvalverdeai) · **Priority:** P0 / P1 · **Size:** M
 - **Challenge dimension:** Data Analytics
 - **Depends on:** 16 (web foundation), 10, 11, 15, 17 (result files), 14 (operational KPIs, P1) · **Enables:** E1
@@ -176,10 +176,9 @@ Implementation goes in `feat/12-…` branches once this spec is approved.
       shared detail panel ("Read the query →"); a missing profile or block shows "Results pending" · covers AC-03,
       AC-04, AC-07, AC-09 · [T] `apps/web/lib/data-profile.test.ts`, `tests/test_spec12_data_quality.py`; 390 px and
       both themes checked with `scripts/web/insight_screenshots.py` (no horizontal overflow, with and without `--motion`)
-- [ ] T7 — screenshots on the public URL, both themes and 390 px · covers AC-01, AC-03, AC-09 (2026-10-05:
-      `docs/assets/screenshots/spec12/` by `scripts/web/insight_screenshots.py` — the three pages at 1280 and 390 px in
-      both themes with no horizontal overflow (AC-09), `/data` (AC-03) and a chart tooltip opened with the Tab key
-      (AC-07); `/evaluation` still shows "Results pending", so AC-01 needs one more run after the held-out results)
+- [x] T7 — screenshots on the public URL, both themes and 390 px · covers AC-01, AC-03, AC-09 (2026-10-06:
+      `docs/assets/screenshots/spec12/` by `scripts/web/insight_screenshots.py` on production with the sealed results;
+      13 shots, 0 with horizontal overflow, `report.json`)
 
 **Closing checklist:** every AC has its evidence · status → Implemented · every figure on the three pages carries its
 label · lessons added to `CLAUDE.md`.

@@ -4,7 +4,7 @@
 
 One picture of the project's reasoning: the problem the data showed, the decisions that answered it, the specs and components that implement them, and the evidence behind each. Every ADR and spec is a node; every edge comes from a header (`Status`, `Amended by`, `Related`, `ADRs`, `Depends on`) or from the small mapping in [`graph_extra.yaml`](graph_extra.yaml). The same graph, with every edge, is in [`graph.json`](graph.json).
 
-**Size:** 4 problem nodes, 28 decision nodes (29 ADRs, ADRs 0001 and 0002 drawn as one), 18 specs, 15 evidence nodes: 65 nodes and 84 edges drawn.
+**Size:** 4 problem nodes, 30 decision nodes (31 ADRs, ADRs 0001 and 0002 drawn as one), 18 specs, 15 evidence nodes: 67 nodes and 85 edges drawn.
 
 ```mermaid
 flowchart LR
@@ -53,6 +53,10 @@ flowchart LR
       adr_0020["0020 Two time modes: historical (replay) for..."]
       adr_0023["0023 MX provisional credit covers..."]
     end
+    subgraph TOther["Other"]
+      adr_0030["0030 An LLM writer words chat replies, and the..."]
+      adr_0031["0031 Held-out scored under the sealed rules and,..."]
+    end
   end
   subgraph LS["3. Specs and components"]
     spec_01["01 Integration contract + stubs<br/>Draft | contracts/"]
@@ -64,9 +68,9 @@ flowchart LR
     spec_07["07 Customer chat /chat with verified...<br/>In progress | apps/web/app/chat/"]
     spec_08["08 Analyst login + console /login,...<br/>In progress | apps/web/app/console/"]
     spec_09["09 Demo and evaluation data<br/>Implemented | eval/demo/"]
-    spec_10["10 Evaluation harness<br/>In progress | eval/harness/"]
+    spec_10["10 Evaluation harness<br/>Implemented | eval/harness/"]
     spec_11["11 Intent classifier, injection...<br/>Draft | packages/nick_of_time/nlu/"]
-    spec_12["12 Insight pages: /evaluation,...<br/>In progress | apps/web/app/evaluation/"]
+    spec_12["12 Insight pages: /evaluation,...<br/>Implemented | apps/web/app/evaluation/"]
     spec_13["13 /case/{id} + Telegram + email...<br/>In progress | apps/web/app/case/"]
     spec_14["14 Operational lakehouse<br/>In progress | data/pipeline/"]
     spec_15["15 Model benchmark (cost vs quality,...<br/>Draft | eval/bench/"]
@@ -163,6 +167,7 @@ flowchart LR
   adr_0026 --> spec_05
   adr_0029 --> spec_05
   adr_0029 --> spec_07
+  adr_0031 --> spec_10
   P1 --> adr_0003
   P1 --> adr_0004
   P2 --> adr_0013
@@ -180,7 +185,7 @@ flowchart LR
   classDef spec fill:#F1F5F9,stroke:#94A3B8,color:#1F2937
   classDef evidence fill:#CCFBF1,stroke:#0F766E,color:#1F2937
   class P1,P2,P3,P4 problem
-  class adr_0003,adr_0004,adr_0005,adr_0006,adr_0007,adr_0008,adr_0009,adr_0010,adr_0011,adr_0012,adr_0013,adr_0014,adr_0015,adr_0016,adr_0017,adr_0018,adr_0019,adr_0020,adr_0021,adr_0022,adr_0023,adr_0024,adr_0025,adr_0026,adr_0027,adr_0028,adr_0029,collapsed_process decision
+  class adr_0003,adr_0004,adr_0005,adr_0006,adr_0007,adr_0008,adr_0009,adr_0010,adr_0011,adr_0012,adr_0013,adr_0014,adr_0015,adr_0016,adr_0017,adr_0018,adr_0019,adr_0020,adr_0021,adr_0022,adr_0023,adr_0024,adr_0025,adr_0026,adr_0027,adr_0028,adr_0029,adr_0030,adr_0031,collapsed_process decision
   class spec_01,spec_02,spec_03,spec_04,spec_05,spec_06,spec_07,spec_08,spec_09,spec_10,spec_11,spec_12,spec_13,spec_14,spec_15,spec_16,spec_17,spec_18 spec
   class E_audit,E_bench,E_decide,E_demo,E_deploy,E_fcr_panel,E_fraud,E_gold,E_identity,E_mcp,E_notify,E_policies,E_protocol,E_respond,E_store evidence
 ```
@@ -243,6 +248,8 @@ The dataset is synthetic; these figures describe the problem, not our system (se
 | [0027 Model selection per LLM task (understand, word, judge)](../adr/0027-model-selection.md) · Proposed |  | The agent uses an LLM for only two tasks: understand, below τ, and word. | [04](../../specs/04-agent-graph.md), [11](../../specs/11-intent-classifier.md), [15](../../specs/15-model-benchmark.md) | [`gate_evidence.yaml`](../../eval/bench/gate_evidence.yaml) |
 | [0028 The classifier test split is decided by fixed rules when no independent person can review it](../adr/0028-test-split-decided-by-fixed-rules-without-independent-reviewer.md) · Accepted | When no person other than the classifier's developer can review the test split before the seal, the test split is decided by fixed rules, eval.classifier.review.rule_decision, signed rules-v1: 1. | ADR 0025 asks a person who is not the classifier's developer to review every line of the test split. | [09](../../specs/09-demo-eval-data.md), [11](../../specs/11-intent-classifier.md) | [`PROTOCOL.md`](../../eval/PROTOCOL.md) |
 | [0029 Voice: Bedrock Voxtral speech-to-text on the api and the browser's text-to-speech](../adr/0029-voice-input-voxtral-stt-browser-tts.md) · Accepted | Voice is two halves around the unchanged text chat. | Customers report disputes by phone as much as by chat; speaking a claim lowers the effort of first contact. - Everything runs in us-east-2 (ADR 0009). | [05](../../specs/05-backend-api.md), [07](../../specs/07-customer-chat.md) | - |
+| [0030 An LLM writer words chat replies, and the stream shows each tool call live](../adr/0030-llm-writer-and-live-stream-events.md) · Accepted | A writer words the chat reply. | A walkthrough of the public URL on 2026-10-05 showed a working flow that reads like a menu bot: - every reply is a fixed template (spec 04 deferred LLM wording to the spec 15 word gate); - the stream carries only short progress ... | [01](../../specs/01-integration-contract.md), [04](../../specs/04-agent-graph.md), [05](../../specs/05-backend-api.md), [07](../../specs/07-customer-chat.md), [15](../../specs/15-model-benchmark.md) | - |
+| [0031 Held-out scored under the sealed rules and, secondarily, under D-070](../adr/0031-heldout-scored-under-sealed-rules-and-d070.md) · Accepted | The held-out reports two scores, computed in code from the same runs: 1. | The agent held-out (80 cases, eval/cases/heldout.jsonl) was derived and sealed under tag protocol-v1 on 2026-10-05 (ADR 0007, ADR 0021). | [04](../../specs/04-agent-graph.md), [09](../../specs/09-demo-eval-data.md), [10](../../specs/10-eval-harness.md) | - |
 
 ## Specs and components
 
@@ -257,9 +264,9 @@ The dataset is synthetic; these figures describe the problem, not our system (se
 | [07 Customer chat `/chat` with verified receipt and trace](../../specs/07-customer-chat.md) | In progress | [`apps/web/app/chat/`](../../apps/web/app/chat/) | 04, 05, 16 | - |
 | [08 Analyst login + console `/login`, `/console`](../../specs/08-analyst-console.md) | In progress | [`apps/web/app/console/`](../../apps/web/app/console/) | 05, 16 | - |
 | [09 Demo and evaluation data](../../specs/09-demo-eval-data.md) | Implemented | [`eval/demo/`](../../eval/demo/), [`eval/classifier/`](../../eval/classifier/), [`eval/cases/`](../../eval/cases/) | - | - |
-| [10 Evaluation harness](../../specs/10-eval-harness.md) | In progress | [`eval/harness/`](../../eval/harness/) | 01, 04, 09 | - |
+| [10 Evaluation harness](../../specs/10-eval-harness.md) | Implemented | [`eval/harness/`](../../eval/harness/) | 01, 04, 09 | - |
 | [11 Intent classifier, injection detector and selection protocol](../../specs/11-intent-classifier.md) | Draft | [`packages/nick_of_time/nlu/`](../../packages/nick_of_time/nlu/) | 09 | - |
-| [12 Insight pages: `/evaluation`, `/analytics`, `/data`](../../specs/12-insight-pages.md) | In progress | [`apps/web/app/evaluation/`](../../apps/web/app/evaluation/), [`apps/web/app/analytics/`](../../apps/web/app/analytics/), [`apps/web/app/data/`](../../apps/web/app/data/) | 10, 11, 14, 15, 16, 17 | [PR 171](https://github.com/salazarvalverdeai/factored-hackathon-2026-nick-of-time/pull/171) |
+| [12 Insight pages: `/evaluation`, `/analytics`, `/data`](../../specs/12-insight-pages.md) | Implemented | [`apps/web/app/evaluation/`](../../apps/web/app/evaluation/), [`apps/web/app/analytics/`](../../apps/web/app/analytics/), [`apps/web/app/data/`](../../apps/web/app/data/) | 10, 11, 14, 15, 16, 17 | [PR 171](https://github.com/salazarvalverdeai/factored-hackathon-2026-nick-of-time/pull/171) |
 | [13 `/case/{id}` + Telegram + email notifications](../../specs/13-case-page-notifications.md) | In progress | [`apps/web/app/case/`](../../apps/web/app/case/), [`apps/mcp/mcp_server/notify.py`](../../apps/mcp/mcp_server/notify.py), [`apps/api/app/notify.py`](../../apps/api/app/notify.py) | 05, 16 | [PR 174](https://github.com/salazarvalverdeai/factored-hackathon-2026-nick-of-time/pull/174) |
 | [14 Operational lakehouse](../../specs/14-ops-lakehouse.md) | In progress | [`data/pipeline/`](../../data/pipeline/), [`data/ops/`](../../data/ops/) | 05 | [`test_spec14_gold.py`](../../tests/test_spec14_gold.py) |
 | [15 Model benchmark (cost vs quality, lean choice)](../../specs/15-model-benchmark.md) | Draft | [`eval/bench/`](../../eval/bench/) | 04, 09, 10, 11 | [`gate_evidence.yaml`](../../eval/bench/gate_evidence.yaml) |
