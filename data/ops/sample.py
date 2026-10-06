@@ -28,7 +28,7 @@ def gold_transactions(gold: Path, n: int = 4) -> list[dict[str, Any]]:
     rows = (pl.scan_parquet(Path(gold) / "transactions_enriched.parquet")
             .select("transaction_id", "customer_id", "product_id", "product_type")
             .filter(pl.col("product_type").is_in(list(PRODUCT)) & pl.col("customer_id").is_not_null())
-            .sort("transaction_id").head(n).join(customers, on="customer_id").collect())
+            .sort("transaction_id").head(n).join(customers, on="customer_id").sort("transaction_id").collect())
     return [{**r, "country": COUNTRY.get(r["country"], "XX"), "product_type": PRODUCT[r["product_type"]]}
             for r in rows.iter_rows(named=True)]
 

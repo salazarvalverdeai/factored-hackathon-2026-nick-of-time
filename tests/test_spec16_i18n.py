@@ -56,10 +56,10 @@ def test_ac_06_every_namespace_has_the_same_keys_and_placeholders_in_es_pt_en():
 
 
 def test_ac_06_the_header_offers_an_accessible_selector_and_the_layout_sets_html_lang():
-    """AC-06: ES · PT · EN selector in the header (keyboard, accessible name, announced), default ES, <html lang> from the cookie."""
+    """AC-06: ES · PT · EN selector in the header (keyboard, accessible name, announced), default EN, <html lang> from the cookie."""
     i18n = (WEB / "lib" / "i18n.ts").read_text(encoding="utf-8")
     assert 'LOCALES = ["es", "pt", "en"]' in i18n
-    assert 'DEFAULT_LOCALE: Locale = "es"' in i18n
+    assert 'DEFAULT_LOCALE: Locale = "en"' in i18n
     for tag in ('"es-MX"', '"pt-BR"', '"en-US"', 'hourCycle: "h23"'):
         assert tag in i18n
     select = (WEB / "components" / "language-select.tsx").read_text(encoding="utf-8")
