@@ -96,3 +96,9 @@ await api.analystAction(id, "take");                    // throws ApiError { cod
 ## Tests
 `npm test` checks that `messages.ts` matches the contract and that `agent-reference.ts` matches its sources (`npm run sync:agent` regenerates it), then runs Node's built-in runner on `lib/**/*.test.ts`. Each test cites the acceptance criterion
 it covers, for example `spec 13 AC-03`. A page built from the template must pass `npm run lint` and `npm run build`.
+
+## Local check of `/evaluation` on fixtures
+`EVALUATION_DATA_DIR` makes the page read its result files from another folder at build time, for a local screenshot
+check with `app/evaluation/__fixtures__/` copied to a temp folder. It is unset in production; a path outside the
+repository and the system temp directory is ignored and the page reads `public/data/`. Never put protocol results
+there by hand: `public/data/` holds only exporter output.

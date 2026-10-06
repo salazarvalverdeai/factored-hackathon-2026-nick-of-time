@@ -5,7 +5,7 @@
 - **Owner:** @gianzk · **Priority:** P0 · **Size:** L
 - **Challenge dimension:** AI Engineering
 - **Depends on:** 16, then 04 and 05 · **Enables:** 13
-- **ADRs:** [0013](../docs/adr/0013-customer-receives-proof-receipt-case-page-notifications.md), [0016](../docs/adr/0016-guardrails-injection-detector-and-exact-grounding.md), [0017](../docs/adr/0017-identity-mock-otp-customers-cognito-analysts.md)
+- **ADRs:** [0013](../docs/adr/0013-customer-receives-proof-receipt-case-page-notifications.md), [0016](../docs/adr/0016-guardrails-injection-detector-and-exact-grounding.md), [0017](../docs/adr/0017-identity-mock-otp-customers-cognito-analysts.md), [0029](../docs/adr/0029-voice-input-voxtral-stt-browser-tts.md)
 - **Issue:** #9
 
 > **Profile.** Minimal: sections 1, 3, 8, 9 and 10. The routes it calls belong to spec 01 §6.2.
@@ -50,7 +50,12 @@ AC-01 to AC-05 are copied from issue #9 with the same numbers. None is dropped o
   policy id shall never be shown (AC-03). · [T] `lib/trace.test.ts`, `lib/live.test.ts` ("spec 07 AC-08: …")
 - AC-09 — Agent replies shall keep their line breaks (capability bullets, numbered plan) and shall render as text,
   never as HTML. · [T] `lib/chat-view.test.ts` ("spec 07 AC-09: …")
-- AC-10 — reserved for voice input (PR #178, spec 05 AC-21).
+- AC-10 — (lead, D-072) Where the browser can record audio, the chat shall offer push-to-talk: the clip goes to
+  `POST /api/voice/transcribe` (spec 05 AC-24) and the returned `text` lands in the composer as an editable draft that
+  the customer sends like typed text (never sent on its own); with the read-aloud toggle on, each agent reply shall be
+  spoken with the browser's `speechSynthesis` in the session language. A 413, 415 or 503 shall show the api's calm
+  message and keep typing available; with no microphone, no permission or no `speechSynthesis`, the chat works as
+  today. · [U] · [T] (to add with the web work)
 - AC-11 — While a turn runs, the chat shall show each `tool` event of spec 01 §6.4.1 as a checklist row in its state
   (running, done, failed) with the cards built from tool results (charge, verdict, deadline, case) and each action's
   state; a call with no result when the turn ends shall show as failed, and an action shall show as verified only with
@@ -95,11 +100,36 @@ AC-01 to AC-05 are copied from issue #9 with the same numbers. None is dropped o
   The agent greets with the typed name, else the gold name, from `get_customer_profile`. Each session starts clean.
   Telegram and e-mail are off in a demo session (the link routes answer 403): the case page and the in-app log show
   every update.
+- Decided (lead, D-072, 2026-10-05; ADR 0029): voice for live mode, built by the web owner on spec 05 AC-24.
+  1. **Mic button and push-to-talk:** hold (pointer or Space while focused) to record, release to send; a tap toggles
+     for touch users. Recording stops at 30 s. `MediaRecorder` with `audio/webm;codecs=opus` (Chrome, Firefox,
+     Safari 18.4+), else `audio/ogg;codecs=opus`, else 16 kHz mono WAV encoded in the page; the raw blob is the POST
+     body with its `Content-Type`. Never store the clip (no IndexedDB, no upload elsewhere); release the stream after
+     each clip so the browser's mic indicator turns off.
+  2. **Silence:** Voxtral invents sentences for silence (spec 05 §8, live smoke). The api only gates silent 16-bit WAV,
+     so for WebM/Opus and Ogg/Opus the client level gate is **required**: the page measures the level with an
+     `AnalyserNode` and does not send a clip that never rose above the noise floor `[assumption]`; an empty `text`
+     shows "No te escuchamos / Não ouvimos você".
+  3. **Draft, not send:** every transcript, whatever the format (WebM/Opus included), fills the composer, focused, for
+     the customer to correct and send; it is never sent on its own. The chat path then works as for typed text (the
+     LLM understands, the rules decide).
+  4. **Read aloud:** `speechSynthesis` with a voice of `es-MX` (else any `es-*`) or `pt-BR` (else any `pt-*`) by the
+     session language, preferring voices with `localService === true`. A remote voice sends the reply text (amounts,
+     merchant, card last 4, case id) to the browser vendor's servers, the same objection ADR 0029 raises against
+     `SpeechRecognition`: when no local voice exists for the language, read-aloud stays off by default and the toggle
+     notes "uses an online voice". It reads the reply text only, never chips, ids or the trace. A mute toggle in the
+     chat header, off by default `[assumption]` and remembered in `localStorage`, cancels speech at once; a new reply
+     or a new recording cancels the one being spoken.
+  5. **Accessibility:** the mic is a real `<button>` with `aria-pressed` and an ES/PT label ("Mantén para hablar /
+     Segure para falar"); recording state is announced through an `aria-live="polite"` region and shown by more than
+     color (icon and text); keyboard push-to-talk works; read-aloud respects the mute toggle and is never the only
+     channel (every reply stays on screen). Without mic permission the button explains how to enable it and typing
+     stays the default.
 - Open question: the receipt deadline line uses `status.credit_deadline` until the stub returns `source_url` and
   `verified_on` (ADR 0019); then it uses `receipt.credit_deadline`.
 
 ## 9. Out of scope
-- Voice.
+- Real-time speech-to-speech (Nova Sonic runs only in us-east-1; D-072) and voice in the analyst console.
 - The real agent and backend (specs 04, 05).
 
 ## 10. Plan, tasks and verification
@@ -112,6 +142,8 @@ AC-01 to AC-05 are copied from issue #9 with the same numbers. None is dropped o
 
 - [x] Task 6 — production walkthrough fixes (2026-10-05): one greeting with the gold name, line breaks kept, trace
   filled on live turns with named guardrails · covers AC-07 to AC-09 · done when: the tests citing them pass
+- [ ] Task 7 — voice (D-072, the contract in §8): mic, push-to-talk, draft, read-aloud and mute · covers AC-10 · done
+  when: a visitor speaks a claim in ES and in PT on the public URL and hears the reply
 - [x] Task 7 — agentic chat, stage 1 (ADR 0030, plan of 2026-10-05): AI Elements (`conversation`, `suggestion`,
   `sources`, `task`, restyled to BRAND.md) with live tool steps, cards, streaming markdown, the receipt with its
   verified seal and named sources, chips as pills and the shared right panel; a mock stream in the exact §6.4.1 shapes
