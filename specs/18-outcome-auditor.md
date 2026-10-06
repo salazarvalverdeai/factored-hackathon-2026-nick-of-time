@@ -239,7 +239,10 @@ tools for the third line (internal audit).
       owns persistence: it calls `judge.record_decision` with the case's earlier analyst actions as `prior_actions` (only
       the first decisive action is matched, §4.2) and stores `matched_second_opinion` in the `analyst_action` payload,
       the opinion in `second_opinions`, and one `llm_calls` row per billed call (`on_call` result not `None`) · AC-10
-- [ ] T5b [P1] — auditor panel and critical flag in the console (with @gianzk) · AC-06
+      (Console side: `components/console/oversight.tsx`, labeled advisory, after the auditor, "No second opinion" on
+      none; spec 08 AC-12, `apps/web/lib/console-assist.test.ts`. Open until the api's route is live.)
+- [ ] T5b [P1] — auditor panel and critical flag in the console (with @gianzk) · AC-06 (the A1–A7 checklist is in the
+      console, spec 08 AC-12; the critical flag and the acknowledgment are still open)
 - [ ] T6 [P2] — `judge` as a spec 15 task; KPIs in `ops_kpis`; calibration report · AC-12, AC-13, AC-14
 
 ## 11. Sources
