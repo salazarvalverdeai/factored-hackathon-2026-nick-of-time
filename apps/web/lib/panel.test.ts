@@ -2,7 +2,6 @@
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 import test from "node:test";
-import { evaluation as evaluationMessages } from "../messages/evaluation.ts";
 import type { BenchmarkData, EvaluationData, Insight } from "./evaluation.ts";
 import { asIsRows, panelState, project, type PitchContacts } from "./panel.ts";
 
@@ -54,12 +53,9 @@ test("spec 12 AC-10: the arm is the one running the benchmark's chosen model; ot
 test("spec 12 AC-10: the panel carries the three labels and no placeholder result file is committed", () => {
   const src = readFileSync(new URL("../app/evaluation/panel.tsx", import.meta.url), "utf-8");
   for (const label of ["[data]", "[simulated]", "[projected]"]) assert.ok(src.includes(label), label);
-  // The projection sentence lives in messages/evaluation.ts (spec 16 AC-06); the panel fills its n with state.n.
-  assert.match(src, /t\("evaluation\.panel\.projection"\)[^]*?n: state\.n/);
-  const projection = evaluationMessages.en.panel.projection;
-  assert.match(projection, /n = \{n\} runs/);
-  assert.match(projection, /upper-bound/);
-  assert.match(projection, /full synthetic dataset/);
+  assert.match(src, /n = \{state\.n\} runs/);
+  assert.match(src, /upper-bound/);
+  assert.match(src, /full synthetic dataset/);
   assert.doesNotMatch(src, /\[data\] \{source\}/, "the source already carries its label");
   assert.equal(existsSync(new URL("../public/data/evaluation_summary.json", import.meta.url)), false);
 });

@@ -2,7 +2,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import { demoDateLabel } from "./demo-date.ts";
+import { demoDateLabel, withoutWallClock } from "./demo-date.ts";
 import { COPILOT_ACTION_LABELS, formatDateTime, HANDOFF_REASON_LABELS, handoffReasonLabel } from "./handoff-labels.ts";
 import { LOCALES, translator } from "./i18n.ts";
 
@@ -70,4 +70,10 @@ test("spec 08 / spec 13, spec 16 AC-06: timeline dates are es-MX on a 24 h clock
   for (const f of ["../app/console/page.tsx", "../components/timeline.tsx", "../app/case/[id]/case-view.tsx"]) {
     assert.ok(!/toLocale(Time)?String\(\)/.test(src(f)), f);
   }
+});
+
+test("spec 07 receipt: replay drops the real-clock times from a fact", () => {
+  assert.equal(withoutWallClock("Verificación V-123, 2026-10-06 01:00 UTC"), "Verificación V-123");
+  assert.equal(withoutWallClock("Tarjeta bloqueada 2026-10-06T01:00:00Z"), "Tarjeta bloqueada");
+  assert.equal(withoutWallClock("Plazo: 2026-06-03"), "Plazo: 2026-06-03");
 });

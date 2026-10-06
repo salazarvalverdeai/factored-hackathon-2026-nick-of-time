@@ -1,11 +1,9 @@
 "use client";
 
 // Voice for the customer chat (spec 07 AC-10, §8 D-072, ADR 0029): push-to-talk that fills the composer with an
-// editable draft, and read-aloud of agent replies with the browser's speechSynthesis. The clip is never stored. Button
-// labels follow the UI locale; the voice and the recorder's notes follow the conversation language (spec 16 AC-06).
+// editable draft, and read-aloud of agent replies with the browser's speechSynthesis. The clip is never stored.
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Mic, Volume2, VolumeX } from "lucide-react";
-import { useT } from "@/components/i18n-provider";
 import { Button } from "@/components/ui/button";
 import { ApiError, api } from "@/lib/api";
 import { useMounted } from "@/lib/use-query";
@@ -72,13 +70,14 @@ export function useReadAloud(lang: Lang) {
 }
 
 /** One fixed label with `aria-pressed` (a screen reader says "pressed" or not); notes an online-only voice. */
-export function ReadAloudToggle({ on, online, onToggle }: { on: boolean; online: boolean; onToggle: () => void }) {
-  const t = useT();
+export function ReadAloudToggle({ lang, on, online, onToggle }: { lang: Lang; on: boolean; online: boolean; onToggle: () => void }) {
+  const copy = VOICE_COPY[lang];
   return (
-    <Button type="button" size="xs" variant="outline" aria-pressed={on} onClick={onToggle}>
+    <Button type="button" size="xs" variant="outline" aria-pressed={on} onClick={onToggle} aria-label={copy.readAloud} title={copy.readAloud}>
       {on ? <Volume2 aria-hidden /> : <VolumeX aria-hidden />}
-      {t("chat.voice.readAloud")}
-      {online ? <span className="text-muted-foreground">({t("chat.voice.online")})</span> : null}
+      {/* One fixed label (aria-label); the words show from sm up so the chat header fits 390 px. */}
+      <span aria-hidden className="hidden sm:inline">{copy.readAloud}</span>
+      {online ? <span className="hidden text-muted-foreground sm:inline">({copy.online})</span> : null}
     </Button>
   );
 }
@@ -89,17 +88,18 @@ export function MicButton({
   disabled,
   onRecordStart,
   onTranscript,
+  compact = false,
+  onNote,
 }: {
   lang: Lang;
   disabled: boolean;
   onRecordStart: () => void;
   onTranscript: (text: string) => void;
+  /** An icon-only button for the composer (spec 07 AC-24); its notes go to `onNote` instead of under the button. */
+  compact?: boolean;
+  onNote?: (note: string | null) => void;
 }) {
-  const t = useT();
-  const copy = VOICE_COPY[lang]; // notes in the conversation language, next to the api's own ES/PT messages
-  const hold = t("chat.voice.hold");
-  const recordingLabel = t("chat.voice.recording");
-  const transcribing = t("chat.voice.transcribing");
+  const copy = VOICE_COPY[lang];
   const [phase, setPhase] = useState<Phase>("idle");
   const [note, setNote] = useState<string | null>(null);
   const supported = useMounted() && canRecord();
@@ -109,6 +109,7 @@ export function MicButton({
   // While the permission prompt is open `phase` is still idle: these refs stop a second start and remember a release.
   const starting = useRef(false);
   const stopAsked = useRef(false);
+  useEffect(() => onNote?.(note), [note, onNote]);
 
   // release the microphone when the chat goes away
   useEffect(
@@ -228,11 +229,13 @@ export function MicButton({
     <>
       <Button
         type="button"
-        variant={recording ? "default" : "outline"}
+        variant={recording ? "default" : compact ? "ghost" : "outline"}
+        size={compact ? "icon-sm" : "default"}
+        className={[compact ? "rounded-full" : "", recording ? "motion-safe:animate-pulse" : ""].join(" ").trim() || undefined}
         disabled={disabled || phase === "sending"}
         aria-pressed={recording}
-        aria-label={hold}
-        title={hold}
+        aria-label={copy.hold}
+        title={copy.hold}
         onPointerDown={(e) => {
           e.preventDefault();
           holding.current = true;
@@ -260,16 +263,12 @@ export function MicButton({
         }}
       >
         <Mic aria-hidden />
-        <span className="sr-only sm:not-sr-only">{recording ? recordingLabel : phase === "sending" ? transcribing : hold}</span>
+        <span className={compact ? "sr-only" : "sr-only sm:not-sr-only"}>{recording ? copy.recording : phase === "sending" ? copy.transcribing : copy.hold}</span>
       </Button>
       <span role="status" aria-live="polite" className="sr-only">
-        {recording ? recordingLabel : phase === "sending" ? transcribing : (note ?? "")}
+        {recording ? copy.recording : phase === "sending" ? copy.transcribing : (note ?? "")}
       </span>
-      {note ? (
-        <p lang={lang} className="basis-full text-xs text-muted-foreground">
-          {note}
-        </p>
-      ) : null}
+      {note && !onNote ? <p className="basis-full text-xs text-muted-foreground">{note}</p> : null}
     </>
   );
 }

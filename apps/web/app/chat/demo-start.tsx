@@ -1,17 +1,13 @@
 "use client";
 
 // Start screen of demo mode (spec 07 §8, D-068, ADR 0026): name, language, country and a scenario. The visitor never
-// picks or sends a customer id: the api chooses the customer from the scenario (spec 05 AC-16). The screen's chrome
-// follows the UI locale (spec 16 AC-06); the conversation language stays an explicit ES/PT choice, preset to the UI
-// locale when it is ES or PT, else Spanish.
+// picks or sends a customer id: the api chooses the customer from the scenario (spec 05 AC-16).
 import { useEffect, useState } from "react";
-import { useLocale, useT } from "@/components/i18n-provider";
 import { ErrorState, LoadingState } from "@/components/states";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { ApiError, api } from "@/lib/api";
-import { LOCALE_NAMES } from "@/lib/i18n";
 import { COUNTRIES, MAX_NAME_LENGTH, nameProblem, nameToSend } from "@/lib/demo";
 import type { Language, Scenario } from "@/lib/types";
 
@@ -30,23 +26,34 @@ export function Toggle({ pressed, onClick, children }: { pressed: boolean; onCli
   );
 }
 
-export function DemoStart({ title, onStarted }: { title: string; onStarted: (otp: string) => void }) {
-  const t = useT();
-  const { locale } = useLocale();
+export function DemoStart({
+  title,
+  onLanguage,
+  onStarted,
+}: {
+  title: string;
+  /** The chosen language, so the page can write its own copy in it. */
+  onLanguage: (language: Language) => void;
+  onStarted: (otp: string) => void;
+}) {
   const [name, setName] = useState("");
-  // The conversation language: the UI locale when it is ES or PT, else Spanish; the visitor can still switch it.
-  const [language, setLanguage] = useState<Language>(locale === "pt" ? "pt" : "es");
+  const [language, setLanguageState] = useState<Language | null>(null);
   // Demo type C needs a live session (today's date); the dataset scenarios keep the api's default, replay (#188).
   const [testCharge, setTestCharge] = useState(false);
+  const setLanguage = (l: Language) => {
+    setLanguageState(l);
+    onLanguage(l);
+  };
   const [country, setCountry] = useState<(typeof COUNTRIES)[number] | null>(null);
   const [scenarios, setScenarios] = useState<Scenario[] | null>(null);
   const [scenario, setScenario] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const hint = nameProblem(name, locale);
+  const hint = nameProblem(name);
 
   // The cards depend on the language (required) and the country (optional filter).
   useEffect(() => {
+    if (!language) return;
     let alive = true;
     api.listScenarios({ language, ...(country ? { country } : {}) }).then(
       (list) => {
@@ -58,16 +65,16 @@ export function DemoStart({ title, onStarted }: { title: string; onStarted: (otp
       (e: unknown) => {
         if (!alive) return;
         setScenarios([]);
-        setError(e instanceof ApiError ? e.message : t("chat.start.scenariosError"));
+        setError(e instanceof ApiError ? e.message : "Could not load the scenarios.");
       },
     );
     return () => {
       alive = false;
     };
-  }, [language, country, t]);
+  }, [language, country]);
 
   async function start() {
-    if (!scenario || hint) return;
+    if (!language || !scenario || hint) return;
     setBusy(true);
     setError(null);
     try {
@@ -84,7 +91,7 @@ export function DemoStart({ title, onStarted }: { title: string; onStarted: (otp
         }),
       );
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : t("chat.verify.unexpected")); // a 422 shows the api's own message
+      setError(e instanceof ApiError ? e.message : "unexpected error"); // a 422 shows the api's own message
     } finally {
       setBusy(false);
     }
@@ -94,16 +101,16 @@ export function DemoStart({ title, onStarted }: { title: string; onStarted: (otp
     <Card>
       <CardHeader>
         <CardTitle>{title}</CardTitle>
-        <CardDescription>{t("chat.start.description")}</CardDescription>
+        <CardDescription>Pick a language and a scenario. The customer is chosen for you: you never type a customer id.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         <label className="block text-sm">
-          {t("chat.start.name")}
+          Your name (optional)
           <Input
             value={name}
             onChange={(e) => setName(e.target.value)}
             maxLength={MAX_NAME_LENGTH + 10}
-            placeholder={t("chat.start.namePlaceholder")}
+            placeholder="How should the agent greet you?"
             aria-invalid={hint ? true : undefined}
             autoComplete="given-name"
           />
@@ -111,22 +118,22 @@ export function DemoStart({ title, onStarted }: { title: string; onStarted: (otp
         </label>
 
         <fieldset className="space-y-1">
-          <legend className="text-sm">{t("chat.start.language")}</legend>
+          <legend className="text-sm">Language (required)</legend>
           <div className="flex gap-2">
             <Toggle pressed={language === "es"} onClick={() => setLanguage("es")}>
-              <span lang="es">{LOCALE_NAMES.es}</span>
+              Español
             </Toggle>
             <Toggle pressed={language === "pt"} onClick={() => setLanguage("pt")}>
-              <span lang="pt">{LOCALE_NAMES.pt}</span>
+              Português
             </Toggle>
           </div>
         </fieldset>
 
         <fieldset className="space-y-1">
-          <legend className="text-sm">{t("chat.start.country")}</legend>
+          <legend className="text-sm">Country (optional)</legend>
           <div className="flex flex-wrap gap-2">
             <Toggle pressed={country === null} onClick={() => setCountry(null)}>
-              {t("chat.start.anyCountry")}
+              Any
             </Toggle>
             {COUNTRIES.map((c) => (
               <Toggle key={c} pressed={country === c} onClick={() => setCountry(c)}>
@@ -137,9 +144,10 @@ export function DemoStart({ title, onStarted }: { title: string; onStarted: (otp
         </fieldset>
 
         <fieldset className="space-y-2">
-          <legend className="text-sm">{t("chat.start.scenario")}</legend>
-          {scenarios === null ? <LoadingState label={t("chat.start.loadingScenarios")} /> : null}
-          {scenarios ? (
+          <legend className="text-sm">Scenario</legend>
+          {!language ? <p className="text-xs text-muted-foreground">Choose a language to see the scenarios.</p> : null}
+          {language && scenarios === null ? <LoadingState label="Loading scenarios…" /> : null}
+          {language && scenarios ? (
             <div className="grid gap-2">
               {scenarios.map((s) => (
                 <button
@@ -151,47 +159,49 @@ export function DemoStart({ title, onStarted }: { title: string; onStarted: (otp
                 >
                   <span className="min-w-0">
                     <span className="block truncate">{s.title}</span>
-                    <span className="block truncate text-xs text-muted-foreground">{s.customer_name ?? t("chat.start.demoCustomer")}</span>
+                    <span className="block truncate text-xs text-muted-foreground">{s.customer_name ?? "Demo customer"}</span>
                   </span>
                   <span className="shrink-0 text-xs text-muted-foreground">
                     {s.country} · {s.language.toUpperCase()}
                   </span>
                 </button>
               ))}
-              {scenarios.length === 0 && !error ? <p className="text-xs text-muted-foreground">{t("chat.start.noScenario")}</p> : null}
+              {scenarios.length === 0 && !error ? <p className="text-xs text-muted-foreground">No scenario for this country in that language. Try another country, or let us assign one.</p> : null}
               <button
                 type="button"
                 onClick={() => setScenario(AUTO)}
                 aria-pressed={scenario === AUTO}
                 className="rounded-lg border p-2 text-left text-sm hover:bg-accent aria-pressed:border-foreground"
               >
-                {t("chat.start.assign")}
-                <span className="block text-xs text-muted-foreground">{t("chat.start.assignHint")}</span>
+                Assign me one
+                <span className="block text-xs text-muted-foreground">Random within the country, in your language when possible.</span>
               </button>
             </div>
           ) : null}
         </fieldset>
 
         <fieldset className="space-y-1">
-          <legend className="text-sm">{t("chat.start.what")}</legend>
+          <legend className="text-sm">What to dispute</legend>
           <div className="flex flex-wrap gap-2">
             <Toggle pressed={!testCharge} onClick={() => setTestCharge(false)}>
-              {t("chat.start.fromScenario")}
+              A charge from the scenario
             </Toggle>
             <Toggle pressed={testCharge} onClick={() => setTestCharge(true)}>
-              {t("chat.start.testCharge")}
+              A test charge I register
             </Toggle>
           </div>
           <p className="text-xs text-muted-foreground">
-            {testCharge ? t("chat.start.testChargeHint") : t("chat.start.scenarioHint")}
+            {testCharge
+              ? "The session runs on today's date and lets you register up to three test charges to dispute."
+              : "The session runs on the frozen demo date, with the scenario's own recent charges."}
           </p>
         </fieldset>
 
-        <Button disabled={!scenario || Boolean(hint) || busy} onClick={start}>
-          {t("chat.verify.sendCode")}
+        <Button disabled={!language || !scenario || Boolean(hint) || busy} onClick={start}>
+          Send me a code
         </Button>
-        {busy ? <LoadingState label={t("chat.verify.working")} /> : null}
-        {error ? <ErrorState title={t("chat.verify.cannotContinue")} message={error} /> : null}
+        {busy ? <LoadingState label="Working…" /> : null}
+        {error ? <ErrorState title="Cannot continue" message={error} /> : null}
       </CardContent>
     </Card>
   );

@@ -69,6 +69,8 @@ export function createApi(store: MockStore, options: ApiOptions = {}) {
     verifyOtp: (otp: string): Promise<CustomerSession> => call(() => store.verifyOtp(otp)),
     logoutCustomer: (): Promise<void> => call(() => store.logoutCustomer()),
     expireCustomerSession: (): Promise<void> => call(() => store.expireCustomerSession()),
+    /** The mock keeps no thread: the page drops its pending confirmation itself. */
+    newThread: (): void => {},
     /** The scripted turn, then its `tool` and `text` events played as the live stream would send them (spec 01 §6.4.1). */
     chat: async (text: string, ctx: ChatContext = {}): Promise<AgentReply> => {
       const reply = await call(() => runAgentTurn(store, text, ctx));

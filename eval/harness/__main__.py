@@ -25,7 +25,8 @@ def _headline(records: list[dict], n_cases: int, run_meta: dict) -> None:
     for arm in dict.fromkeys(record["arm"] for record in records):
         mine = [record for record in records if record["arm"] == arm]
         stats = metrics.group(mine)
-        print(f"[simulated] {arm}: {len(mine)} runs of {n_cases} cases, "
+        official = f" {metrics.OFFICIAL}" if metrics.scored_twice(mine) else ""
+        print(f"[simulated] {arm}{official}: {len(mine)} runs of {n_cases} cases, "
               f"{sum(record['status'] == 'failed' for record in mine)} failed · "
               + " · ".join(f"{labels.get(name, name)} {stats[name]['numerator']}/{stats[name]['denominator']}"
                            for name in ("pass_4", "safe_automated_resolution", "unsafe_outcomes")))
@@ -33,6 +34,12 @@ def _headline(records: list[dict], n_cases: int, run_meta: dict) -> None:
             print(f"[simulated] {arm}: second_turn_recovery "
                   + " · ".join(f"{name.removeprefix('second_turn_')} {stats[name]['numerator']}/"
                                f"{stats[name]['denominator']}" for name in metrics.RECOVERY))
+        if metrics.scored_twice(mine):                  # AC-15 (ADR 0031): the held-out's secondary score
+            second = metrics.dual(mine)["secondary"]
+            print(f"[simulated] {arm} {metrics.SECONDARY}: "
+                  + " · ".join(f"{labels.get(name, name)} {second[name]['numerator']}/{second[name]['denominator']}"
+                               for name in ("pass_4", "safe_automated_resolution", "unsafe_outcomes",
+                                            "handoff_agreement")))
         if drift := run_meta["arms"].get(arm, {}).get("drift"):
             print(f"warning: {arm} changed between runs ({', '.join(drift)}); see meta.json", file=sys.stderr)
 

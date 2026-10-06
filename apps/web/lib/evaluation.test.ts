@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import test from "node:test";
 import { dataDir } from "./data-dir.ts";
-import { GENERATOR_FLAG, METRICS, METRIC_MEANING, RULES_REVIEW_SENTENCE, DETAILS, detailUrl, headingSlug, limitations, RESULT_FILES, costQualityPoints, developmentNotice, generatorFlag, interval, pending, protocolNotice, rateParts, rateText, scoreText } from "./evaluation.ts";
+import { DEVELOPMENT_CHIP, GENERATOR_FLAG, developmentRuns, pageNotice, METRICS, METRIC_MEANING, RULES_REVIEW_SENTENCE, DETAILS, detailUrl, headingSlug, limitations, RESULT_FILES, costQualityPoints, developmentNotice, generatorFlag, interval, pending, protocolNotice, rateParts, rateText, scoreText } from "./evaluation.ts";
 import type { BenchmarkData, ClassifierData, EvaluationData, FraudData, Insight, Rate } from "./evaluation.ts";
 
 const SAMPLE = JSON.parse(
@@ -210,7 +210,11 @@ test("spec 12 AC-04, AC-05, AC-06, AC-07, AC-11: the new charts keep the empty s
   const read = (f: string) => readFileSync(new URL(`../app/evaluation/${f}`, import.meta.url), "utf-8");
   const page = read("page.tsx"), sections = read("sections.tsx"), results = read("results.tsx"), panel = read("panel.tsx");
   assert.match(page, /<Pending \{\.\.\.classifier\.missing!\} \/>/); // AC-04 still reaches every section
-  assert.match(sections, /<Notice protocol=/); // AC-05
+  assert.match(sections, /<DevChip show=\{protocolNotice\(file\.data\.protocol\) !== null\} \/>/); // AC-05: a chip per section
+  assert.match(results, /<DevChip show=\{developmentNotice\(data\) !== null\} \/>/);
+  for (const text of [sections, results]) assert.doesNotMatch(text, /development-notice/); // AC-05: the notice is said once, on the page
+  assert.equal((page.match(/data-slot="development-notice"/g) ?? []).length, 1);
+  assert.match(page, /pageNotice\(files\)/);
   assert.match(sections, /tabIndex=\{0\}[^]*?\{\.\.\.bind\(r\.tip\)\}/); // AC-06, AC-07: the bar rows take focus and show the tooltip
   assert.ok((sections.match(/<TableView/g) ?? []).length >= 2 && (sections.match(/<Table\b/g) ?? []).length >= 3); // AC-07 tables stay
   assert.equal((sections.match(/<Section title=/g) ?? []).length, 3);
@@ -218,7 +222,7 @@ test("spec 12 AC-04, AC-05, AC-06, AC-07, AC-11: the new charts keep the empty s
   assert.match(results, /detail="harness"/);
   assert.match(page, /href="\/agent"/); // the architecture lives on /agent
   const intro = page.slice(page.indexOf('<p className="mb-4'), page.indexOf('<div className="space-y-4">'));
-  const prose = panel.replace(/<th[^]*?<\/th>/g, "").replace(/evaluation\.panel\.avoided[^]*?<\/p>/, "");
+  const prose = panel.replace(/<th[^]*?<\/th>/g, "").replace(/Contacts avoided[^]*?<\/p>/, "");
   for (const text of [intro, prose]) assert.doesNotMatch(text, /\[(simulated|data|projected)\]/); // AC-11: labels go on figures, not in prose
 });
 
@@ -229,4 +233,44 @@ test("spec 12 AC-11: EVALUATION_DATA_DIR is honored only inside the repo or the 
   assert.equal(dataDir("/repo/apps/web/app/evaluation/__fixtures__", cwd, tmpdir()), "/repo/apps/web/app/evaluation/__fixtures__");
   assert.equal(dataDir("/repo/../etc", cwd, tmpdir()), resolve(cwd, "public/data"));
   assert.equal(dataDir(resolve(tmpdir(), "fx"), cwd, tmpdir()), resolve(tmpdir(), "fx"));
+});
+
+test("spec 12 AC-05: one page notice names every development-run file and why; a sealed held-out file is not named", () => {
+  assert.deepEqual(developmentRuns(FILES).map((r) => r.file), ["evaluation_summary.json", "benchmark.json", "classifier.json", "fraud_benchmark.json"]);
+  const notice = pageNotice(FILES)!;
+  assert.match(notice, /^Development run, not the final result: evaluation_summary\.json \(it ran on the "dev" set, not the held-out and the evaluation protocol is UNSEALED\); benchmark\.json \(the evaluation protocol is UNSEALED\);/);
+  assert.ok(notice.includes(`"${DEVELOPMENT_CHIP}"`));
+  const sealed = { status: "SEALED", sha256: "a".repeat(64) };
+  const final = {
+    summary: { ...SAMPLE, data: { ...SAMPLE.data, set: "heldout", protocol: sealed } },
+    benchmark: { ...BENCH, data: { ...BENCH.data, protocol: sealed } },
+    classifier: null,
+    fraud: null,
+  };
+  assert.equal(pageNotice(final), null);
+  assert.deepEqual(developmentRuns({ ...final, fraud: FRAUD }).map((r) => r.file), ["fraud_benchmark.json"]);
+  assert.equal(pageNotice({ summary: null, benchmark: null, classifier: null, fraud: null }), null);
+});
+
+test("spec 12 AC-11: every 'Detail →' on /evaluation opens the shared panel, none is a plain anchor", () => {
+  const dir = new URL("../app/evaluation/", import.meta.url);
+  for (const file of ["explain.tsx", "page.tsx", "results.tsx", "sections.tsx", "panel.tsx"]) {
+    const src = readFileSync(new URL(file, dir), "utf-8");
+    assert.doesNotMatch(src, /<a\b[^>]*>\s*Detail →/, `${file}: Detail opens the panel, never a plain link`);
+  }
+  const explain = readFileSync(new URL("explain.tsx", dir), "utf-8");
+  assert.match(explain, /<DetailButton title=\{d\.title\} detail=\{\{ meaning: d\.meaning, method: d\.method, source: d\.source, label: d\.label, spec: detailUrl\(detail\) \}\}/);
+  const button = readFileSync(new URL("../components/detail-button.tsx", import.meta.url), "utf-8");
+  assert.match(button, /What it means/);
+  assert.match(button, /Read the spec →/);
+  for (const key of Object.keys(DETAILS) as (keyof typeof DETAILS)[]) {
+    const d = DETAILS[key];
+    for (const text of [d.meaning, d.method]) {
+      const sentences = text.split(/(?<=\.)\s+/).filter(Boolean);
+      assert.ok(sentences.length >= 1 && sentences.length <= 3, `${key}: ${sentences.length} sentences`);
+      assert.doesNotMatch(text, /\[(simulated|data|projected|assumption|external)\]/, `${key}: the label sits in its own field`);
+    }
+    assert.match(d.label, /^\[(data|simulated)\]/, key);
+    assert.ok(d.source.length > 0, key);
+  }
 });

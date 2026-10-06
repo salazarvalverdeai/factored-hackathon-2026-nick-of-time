@@ -29,7 +29,8 @@ def test_ac_05_development_notice_has_node_tests_including_a_missing_protocol():
     """AC-05: the notice shows unless the run is the sealed held-out; a missing protocol counts as unsealed."""
     titles = _titles_citing("AC-05")
     assert len(titles) >= 2 and any("without a protocol" in t for t in titles)
-    assert "protocol?.status" in LIB_TS and "development-notice" in RESULTS_TSX
+    page = (WEB / "app/evaluation/page.tsx").read_text(encoding="utf-8")
+    assert "protocol?.status" in LIB_TS and "development-notice" in page and "<DevChip" in RESULTS_TSX
 
 
 def test_ac_06_rates_show_numerator_denominator_and_interval():
@@ -58,7 +59,8 @@ def test_ac_11_explanations_detail_links_and_limitations_exist():
     """AC-11: node tests cite it; Explain, Limitations and the Detail links are in the code and the specs they point to exist."""
     assert len(_titles_citing("AC-11")) >= 3
     explain = _read("app/evaluation/explain.tsx")
-    assert "export function Explain" in explain and "export function Limitations" in explain and "Detail" in explain
+    assert "export function Explain" in explain and "export function Limitations" in explain and "<DetailButton" in explain
+    assert "<a href" not in explain, "Detail opens the shared panel, never a plain link (AC-11)"
     page = _read("app/evaluation/page.tsx")
     assert "<Limitations" in page and "limitations(" in page and 'href="/agent"' in page
     sections = _read("app/evaluation/sections.tsx")

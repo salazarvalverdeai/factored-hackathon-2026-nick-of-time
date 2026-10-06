@@ -84,6 +84,15 @@ Keep clear space on every side equal to **1× the symbol width (X)** unless a sp
 | Slate | `#94A3B8` | Secondary text | Supporting text |
 | White | `#FFFFFF` | Primary light text | Light backgrounds / dark UI text |
 
+**Text-role tokens (WCAG AA, computed in `apps/web/lib/contrast.test.ts`).** Fills keep the brand hex above; text uses these:
+
+| Token | Light | Dark | Contrast (light on white / dark on card `#111827`) |
+|---|---|---|---|
+| `--primary-text` (violet text) | `#7C3AED` | `#A78BFA` | 5.70:1 / 6.52:1 (on Space 7.32:1) |
+| `--teal-text` (verified, badges) | `#115E59` | `#5EEAD4` | 7.6:1 / 11.99:1 (6.12:1 on the light teal badge tint) |
+| `--amber-text` (urgency badges) | `#92400E` | `#FBBF24` | 7.1:1 / 10.6:1 (6.29:1 on the light amber badge tint) |
+| `--muted-foreground` (secondary text) | `#475569` | `#B4C0D1` | 7.5:1 / 9.63:1 (Slate `#94A3B8` stays the brand swatch, not the UI text value) |
+
 **Color rule:** Violet + teal define the identity. Amber is a signal color and should remain restrained.
 
 **Chart series:** `#0d9488` is allowed for chart series only, because the brand teal `#0F766E` falls below the chroma floor of the palette check on the light surface (0.086, it reads gray next to violet). Identity, text and UI keep `#0F766E`.
@@ -113,6 +122,10 @@ The constellation is a reusable visual system, not decoration.
 Keep the geometry sparse. Prefer a few intentional nodes over dense star fields.
 
 ## 9. Product avatars
+
+The symbol SVGs center the mark in their 512 × 512 canvas (`viewBox` reframed on 2026-10-05; the geometry is unchanged), so a
+symbol placed in a square or a circle is centered without offsets. The favicons, the app icon and the chat avatar are
+rendered from these SVGs.
 
 ### Telegram Bot Avatar
 Use the symbol-only mark. Keep it compact, centered, and highly recognizable at small sizes.

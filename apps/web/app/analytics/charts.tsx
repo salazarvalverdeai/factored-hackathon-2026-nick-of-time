@@ -43,7 +43,7 @@ export type PitchNumbers = {
 
 // Series colors checked with the palette validator on the light and dark card surfaces (violet and teal follow
 // docs/brand/BRAND.md). Zone colors are the brand's zone hues, one step darker so they clear 3:1 on both surfaces.
-const PALETTE =
+export const PALETTE =
   "[--series-1:#7c3aed] dark:[--series-1:#8b5cf6] [--series-2:#0d9488] " +
   "[--zone-high:#059669] [--zone-medium:#d97706] [--zone-human:#e11d48]";
 const CONTEXT = "color-mix(in oklab, var(--muted-foreground) 45%, transparent)";

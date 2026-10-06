@@ -1,8 +1,7 @@
 // Offline checks for the pure helpers of the demo start screen (spec 07 §8, D-068). Each test cites its criterion.
 import assert from "node:assert/strict";
 import test from "node:test";
-import { PERSONAS, channelLinksOffered, chipLabel, chipMessage, hasSeveralCards, nameProblem, nameToSend, parseAmount } from "./demo.ts";
-import { translator } from "./i18n.ts";
+import { PERSONAS, VERIFY_COPY, channelLinksOffered, chipLabel, chipMessage, hasSeveralCards, nameProblem, nameToSend, parseAmount } from "./demo.ts";
 import type { RecentTransaction } from "./types.ts";
 
 const TX: RecentTransaction = { transaction_id: "T-1", date: "2026-10-04", amount: 4200, currency: "MXN", merchant: "TIENDA X", last4: "4417", synthetic: false };
@@ -61,26 +60,15 @@ test("spec 07 §8.8: the six characters of demo type D are offered", () => {
   assert.deepEqual(PERSONAS.map((p) => p.id), ["aggressive", "passive", "terse", "verbose", "confused", "code_switching"]);
 });
 
-test("spec 07 §8 (lead decision 5), spec 16 AC-06: the identity step is plain copy in each UI language with no bracket tags, and the OTP line says SMS", () => {
-  const es = translator("es");
-  const pt = translator("pt");
-  assert.equal(es("chat.verify.who"), "1 · ¿Quién eres?");
-  assert.equal(es("chat.verify.intro"), "Demo con datos sintéticos del hackathon: elige un cliente de ejemplo.");
-  assert.equal(es("chat.verify.code", { otp: "094407" }), "Tu código es 094407. En un banco real llegaría por SMS.");
-  assert.equal(pt("chat.verify.code", { otp: "123456" }), "Seu código é 123456. Em um banco real, chegaria por SMS.");
-  for (const lang of ["es", "pt", "en"] as const) {
-    const t = translator(lang);
-    const all = [t("chat.verify.intro"), t("chat.verify.who"), t("chat.verify.code", { otp: "1" })].join(" ");
+test("spec 07 §8 (lead decision 5): the identity step is plain ES/PT copy with no bracket tags, and the OTP line says SMS", () => {
+  assert.equal(VERIFY_COPY.es.who, "1 · ¿Quién eres?");
+  assert.equal(VERIFY_COPY.es.intro, "Demo con datos sintéticos del hackathon: elige un cliente de ejemplo.");
+  assert.equal(VERIFY_COPY.es.code("094407"), "Tu código es 094407. En un banco real llegaría por SMS.");
+  assert.equal(VERIFY_COPY.pt.code("123456"), "Seu código é 123456. Em um banco real, chegaria por SMS.");
+  for (const lang of ["es", "pt"] as const) {
+    const all = [VERIFY_COPY[lang].intro, VERIFY_COPY[lang].who, VERIFY_COPY[lang].code("1")].join(" ");
     assert.ok(!/\[(simulated|data|external|assumption|projected)\]/.test(all), lang);
-    assert.match(all, /SMS/, lang);
   }
-});
-
-test("spec 07 §8.1, §8.7, spec 16 AC-06: the name hints and the test-charge tag follow the UI locale", () => {
-  assert.match(nameProblem("a".repeat(41), "es") ?? "", /40/);
-  assert.equal(nameProblem("Ana 2", "pt"), translator("pt")("chat.start.nameDigits"));
-  assert.match(chipLabel({ ...TX, synthetic: true }, "es"), / · cargo de prueba$/);
-  assert.match(chipLabel({ ...TX, synthetic: true }, "pt"), / · cobrança de teste$/);
 });
 
 test("spec 07 §8, spec 05 AC-16: Telegram and e-mail links are not offered in a live (demo) session", () => {

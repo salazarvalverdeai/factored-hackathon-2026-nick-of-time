@@ -1,30 +1,33 @@
-import { Fragment, type ReactNode } from "react";
+import { existsSync, readFileSync } from "node:fs";
+import path from "node:path";
+import type { ReactNode } from "react";
+import Link from "next/link";
 import { PageShell } from "@/components/page-shell";
-import { formatNumber, type Locale } from "@/lib/i18n";
-import { getT } from "@/lib/i18n-server";
+import { PipelineDiagram } from "@/components/pipeline-diagram";
+import { TableView } from "@/app/analytics/charts";
+import { DetailButton } from "@/components/detail-button";
+import { DATA_CARDS, GOLD_CONSUMERS, OPS_STEPS, datasetLimits, medallionSteps, type Detail } from "@/lib/pipelines";
 import quality from "@/public/data/data_quality.json";
 
-// /data (spec 12 AC-03): the medallion, the gold rules, the checks with counts, the manifest versions and the
-// late-arrival fixture result. Every value comes from data_quality.json, written by `python -m data.pipeline report --json`.
-// Labels follow the UI language and numbers its locale (spec 16 AC-06); check texts and sources stay as written.
-const numbers = (locale: Locale) => ({
-  int: (n: number) => formatNumber(locale, n),
-  megabytes: (bytes: number | null) =>
-    bytes === null ? "—" : `${formatNumber(locale, bytes / 1e6, { minimumFractionDigits: 1, maximumFractionDigits: 1 })} MB`,
-});
-
-/** A translated sentence whose `{name}` placeholders are filled with React nodes. */
-function fill(text: string, nodes: Record<string, ReactNode>): ReactNode {
-  return text.split(/\{(\w+)\}/).map((part, i) => <Fragment key={i}>{i % 2 === 1 ? (nodes[part] ?? `{${part}}`) : part}</Fragment>);
-}
+// /data (spec 12 AC-03): the medallion, the gold rules, the checks with counts, the manifest versions, the
+// late-arrival fixture result, the operational lakehouse and the dataset limits. Every value comes from
+// data_quality.json, written by `python -m data.pipeline report --json`; the page computes nothing.
+const int = (n: number) => n.toLocaleString("en-US");
+const megabytes = (bytes: number | null) => (bytes === null ? "—" : `${(bytes / 1e6).toFixed(1)} MB`);
 const TH = "border-b py-1.5 pr-4 font-normal";
 const TD = "border-b py-1.5 pr-4";
 
-function Section({ title, note, children }: { title: string; note: string; children: ReactNode }) {
+/** The shared card: a title, one or two plain lines and "Detail →", which opens the side panel. */
+function Section({ title, note, detail, chip, children }: { title: string; note: ReactNode; detail: Detail; chip?: string; children: ReactNode }) {
   return (
-    <section className="rounded-lg border bg-card p-5 text-card-foreground">
-      <h2 className="text-base font-semibold">{title}</h2>
-      <p className="mt-0.5 text-sm text-muted-foreground">{note}</p>
+    <section aria-label={title} className="rounded-lg border bg-card p-5 text-card-foreground">
+      <h2 className="text-base font-semibold">
+        {title}
+        {chip ? <span className="ml-2 rounded-full border px-2 py-0.5 align-middle text-xs font-normal text-muted-foreground">{chip}</span> : null}
+      </h2>
+      <p className="mt-0.5 text-sm text-muted-foreground">
+        {note} <DetailButton title={title} detail={detail} />
+      </p>
       <div className="mt-4">{children}</div>
     </section>
   );
@@ -55,25 +58,27 @@ function Table({ head, rows }: { head: string[]; rows: ReactNode[][] }) {
           ))}
         </tbody>
       </table>
+      <p className="sticky left-0 mt-1 text-xs text-muted-foreground sm:hidden">Scroll the table sideways for every column →</p>
     </div>
   );
 }
 
-function Result({ ok, label }: { ok: boolean; label: string }) {
-  return <span className={`whitespace-nowrap font-medium ${ok ? "text-brand-teal" : "text-destructive"}`}>{label}</span>;
+function Result({ ok }: { ok: boolean }) {
+  return (
+    <span className={`whitespace-nowrap font-medium ${ok ? "text-brand-teal dark:text-teal-300" : "text-destructive"}`}>{ok ? "✓ pass" : "✕ fail"}</span>
+  );
 }
 
-export default async function Page() {
-  const { t, locale } = await getT();
-  const { int, megabytes } = numbers(locale);
-  const { layers, gold_rules, checks, manifest, late_arrival } = quality.data;
-  const checkHead = [
-    t("data.checks.head.check"),
-    t("data.checks.head.table"),
-    t("data.checks.head.looksFor"),
-    t("data.checks.head.affected"),
-    t("data.checks.head.action"),
-  ];
+/** spec 14 AC-09: ops_kpis.json once the job exports to the site; its source names the ops manifest version. */
+function opsExport(): { version: string; source: string; generated_at: string } | null {
+  const file = path.join(process.cwd(), "public", "data", "ops_kpis.json");
+  if (!existsSync(file)) return null;
+  const json = JSON.parse(readFileSync(file, "utf-8")) as { source: string; generated_at: string };
+  return { ...json, version: /manifest v(\d+)/.exec(json.source)?.[1] ?? "?" };
+}
+
+export default function Page() {
+  const { layers, gold_rules, checks, manifest, late_arrival, complaint_link } = quality.data;
   const flagged = checks.filter((c) => c.rows_affected > 0);
   const checkRow = (c: (typeof checks)[number]) => [
     <span key="id" className="font-mono">
@@ -81,107 +86,112 @@ export default async function Page() {
     </span>,
     c.table,
     c.check,
-    t("data.ofN", { n: int(c.rows_affected), total: int(c.denominator) }),
+    `${int(c.rows_affected)} of ${int(c.denominator)}`,
     c.action,
   ];
   const facts: [string, string][] = [
-    [t("data.facts.goldVersion"), `v${manifest.gold_version}`],
-    [t("data.facts.contract"), manifest.contract_version],
-    [t("data.facts.pipeline"), manifest.pipeline_version],
-    [t("data.facts.run"), manifest.run_at.slice(0, 10)],
-    [t("data.facts.window"), t("data.facts.windowValue", { from: manifest.transactions_window[0], to: manifest.transactions_window[1] })],
-    [t("data.facts.source"), t("data.facts.sourceValue", { n: int(manifest.source_files), size: megabytes(manifest.source_bytes) })],
+    ["Gold version", `v${manifest.gold_version}`],
+    ["Contract", manifest.contract_version],
+    ["Pipeline", manifest.pipeline_version],
+    ["Run", manifest.run_at.slice(0, 10)],
+    ["Transactions window", `${manifest.transactions_window[0]} to ${manifest.transactions_window[1]}`],
+    ["Source", `${int(manifest.source_files)} files · ${megabytes(manifest.source_bytes)}`],
   ];
+  const limits = complaint_link ? datasetLimits(complaint_link.rows) : [];
+  const ops = opsExport();
   return (
-    <PageShell title={t("data.title")} description={t("data.description")}>
+    <PageShell title="Data" description="Can the data be trusted? Pipeline bronze → silver → gold, its checks and its versions.">
       <p className="mb-4 rounded-lg border border-dashed px-4 py-3 text-sm text-muted-foreground">
-        {fill(t("data.intro"), { label: <span className="font-mono">[data]</span> })}
+        Synthetic dataset of the hackathon. Every count on this page is written by the pipeline run, not typed. A row with
+        a quality problem is flagged, never deleted. How the system around this data is built:{" "}
+        <Link className="underline underline-offset-2" href="/agent">
+          the agent
+        </Link>
+        .
       </p>
       <div className="space-y-4">
-        <dl className="grid grid-cols-2 gap-x-6 gap-y-3 rounded-lg border bg-card p-5 text-sm sm:grid-cols-3 lg:grid-cols-6">
-          {facts.map(([name, value]) => (
-            <div key={name} className="min-w-0">
-              <dt className="text-xs text-muted-foreground">{name}</dt>
-              <dd className="font-medium tabular-nums">{value}</dd>
-            </div>
-          ))}
-        </dl>
+        <Section
+          title="Medallion pipeline"
+          note="From the bank's CSV files to the read-only tables the system uses. Hover a layer, or reach it with the Tab key, to see its tables."
+          detail={DATA_CARDS.medallion}
+        >
+          <PipelineDiagram label="Medallion pipeline" steps={medallionSteps(quality.data)} outputs={GOLD_CONSUMERS} />
+          <TableView
+            head={["Layer", "Table", "Rows", "Size"]}
+            rows={layers.flatMap((l) => l.tables.map((t) => [l.layer, t.table, `${int(t.rows)} [data]`, megabytes(t.bytes)]))}
+          />
+        </Section>
 
-        <div className="grid gap-4 lg:grid-cols-3">
-          {layers.map((layer, i) => (
-            <Section key={layer.layer} title={`${i + 1}. ${layer.layer[0].toUpperCase()}${layer.layer.slice(1)}`} note={layer.note}>
-              <Table
-                head={[t("data.tables.table"), t("data.tables.rows"), t("data.tables.size")]}
-                rows={layer.tables.map((t) => [t.table, int(t.rows), megabytes(t.bytes)])}
-              />
-            </Section>
-          ))}
-        </div>
+        <Section title="Versions" note="What this page was built from: one run of the pipeline on one source delivery." detail={DATA_CARDS.versions}>
+          <dl className="grid grid-cols-2 gap-x-6 gap-y-3 text-sm sm:grid-cols-3 lg:grid-cols-6">
+            {facts.map(([name, value]) => (
+              <div key={name} className="min-w-0">
+                <dt className="text-xs text-muted-foreground">{name}</dt>
+                <dd className="font-medium tabular-nums">{value}</dd>
+              </div>
+            ))}
+          </dl>
+        </Section>
 
         <Section
-          title={t("data.rules.title")}
-          note={t("data.rules.note")}
+          title="Gold contract rules"
+          note="Checked on every run before gold is published; if one fails, gold is not replaced."
+          detail={DATA_CARDS.rules}
         >
           <Table
-            head={[t("data.rules.head.rule"), t("data.rules.head.condition"), t("data.rules.head.value"), t("data.rules.head.result")]}
-            rows={gold_rules.map((r) => [
-              <span key="id" className="font-mono">
-                {r.id}
-              </span>,
-              r.rule,
-              r.value,
-              <Result key="ok" ok={r.ok} label={r.ok ? t("data.rules.pass") : t("data.rules.fail")} />,
-            ])}
+            head={["Rule", "Condition", "Value on this run", "Result"]}
+            rows={gold_rules.map((r) => [<span key="id" className="font-mono">{r.id}</span>, r.rule, r.value, <Result key="ok" ok={r.ok} />])}
           />
         </Section>
 
         <Section
-          title={t("data.checks.title", { flagged: flagged.length, total: checks.length })}
-          note={t("data.checks.note")}
+          title={`Quality checks: ${flagged.length} of ${checks.length} found rows`}
+          note="Rows affected over the rows the check applies to, and what the pipeline does with them."
+          detail={DATA_CARDS.checks}
         >
-          <Table head={checkHead} rows={flagged.map(checkRow)} />
+          <Table head={["Check", "Table", "What it looks for", "Rows affected", "Action"]} rows={flagged.map(checkRow)} />
           <details className="mt-4">
             <summary className="cursor-pointer rounded-sm text-xs text-muted-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring">
-              {t("data.checks.viewAll", { n: checks.length })}
+              View all {checks.length} checks
             </summary>
             <div className="mt-2">
-              <Table head={checkHead} rows={checks.map(checkRow)} />
+              <Table head={["Check", "Table", "What it looks for", "Rows affected", "Action"]} rows={checks.map(checkRow)} />
             </div>
           </details>
         </Section>
 
         {late_arrival ? (
           <Section
-            title={t("data.late.title")}
-            note={t("data.late.note", { label: late_arrival.label })}
+            title="Late arrivals and schema change"
+            note={`Shown with a ${late_arrival.label}: the real dataset has no late arrivals or schema changes, so two labeled deliveries go through the same pipeline code.`}
+            detail={DATA_CARDS.late}
           >
             <ul className="space-y-1.5 text-sm">
               <li>
-                {t("data.late.deliveries")} {late_arrival.deliveries.map((d) => `${d.name} (gold v${d.gold_version})`).join(" → ")}
+                Deliveries:{" "}
+                {late_arrival.deliveries.map((d) => `${d.name} (gold v${d.gold_version})`).join(" → ")}
               </li>
               <li>
-                {t("data.late.rowsAdded")}{" "}
+                Rows added:{" "}
                 {Object.entries(late_arrival.rows_added)
                   .map(([table, n]) => `${table} ${n}`)
                   .join(" · ")}
               </li>
               <li>
-                {t("data.late.newColumn")} <span className="font-mono">{late_arrival.columns_added.join(", ") || t("data.none")}</span>
-                {" · "}
-                {t("data.late.rename")} <span className="font-mono">{late_arrival.columns_renamed.join(", ") || t("data.none")}</span>
+                New column kept in bronze only: <span className="font-mono">{late_arrival.columns_added.join(", ") || "none"}</span>
+                {" · "}declared rename: <span className="font-mono">{late_arrival.columns_renamed.join(", ") || "none"}</span>
               </li>
               <li>
-                {fill(t("data.late.lateRows"), {
-                  n: late_arrival.late_rows,
-                  flag: <span className="font-mono">qc_late_arrival</span>,
-                  days: late_arrival.max_lag_days,
-                })}
+                Rows that arrived after their date, in silver: {late_arrival.late_rows}; kept and flagged <span className="font-mono">qc_late_arrival</span> (longest
+                delay {late_arrival.max_lag_days} days)
               </li>
-              <li>{t("data.late.matched", { matched: late_arrival.expected_counts.matched, total: late_arrival.expected_counts.total })}</li>
+              <li>
+                Counts matching the expected ones: {late_arrival.expected_counts.matched} of {late_arrival.expected_counts.total}
+              </li>
             </ul>
             <div className="mt-4">
               <Table
-                head={[checkHead[0], checkHead[1], checkHead[2], t("data.late.before"), t("data.late.after")]}
+                head={["Check", "Table", "What it looks for", "Before", "After"]}
                 rows={late_arrival.checks_changed.map((c) => [
                   <span key="id" className="font-mono">
                     {c.id}
@@ -195,10 +205,47 @@ export default async function Page() {
             </div>
           </Section>
         ) : null}
+
+        <Section
+          title="Operational lakehouse"
+          chip={ops ? `ops manifest v${ops.version}` : "Pending"}
+          note="The system's own case records go through the same three layers, to measure it day by day."
+          detail={DATA_CARDS.ops}
+        >
+          <PipelineDiagram label="Operational lakehouse" steps={OPS_STEPS} />
+          <ul className="mt-4 space-y-1.5 text-sm">
+            <li>Reads the case store&apos;s operational tables, read-only, and gold for the transaction and the customer.</li>
+            <li>Writes Parquet and a manifest under data/ops/, and ops_kpis.json for the Analytics page.</li>
+            {ops ? (
+              <li>
+                Last export: {ops.source}, generated {ops.generated_at.slice(0, 10)}.
+              </li>
+            ) : (
+              <li>
+                Pending: the job has run only on a seeded sample store, which writes to data/ops/ and never to this site. The
+                run on the live case store waits for real traffic.
+              </li>
+            )}
+          </ul>
+        </Section>
+
+        {complaint_link && limits.length ? (
+          <Section title="Dataset limitations" note="What the data cannot tell us, measured on gold." detail={DATA_CARDS.limits}>
+            <ul className="list-disc space-y-1.5 pl-5 text-sm">
+              {limits.map((text) => (
+                <li key={text}>{text}</li>
+              ))}
+            </ul>
+            <p className="mt-3 text-xs text-muted-foreground">
+              Method: disputed-charge complaints created from 2025-07-01 to 2026-05-31, so the 30-day look-back stays inside the
+              gold transactions window; a card transaction is one on a credit or debit card of the same customer. Query:{" "}
+              <span className="break-all font-mono">{complaint_link.query}</span>.
+            </p>
+          </Section>
+        ) : null}
       </div>
       <p className="mt-4 font-mono text-xs text-muted-foreground">
-        {t("data.generated", { source: quality.source, date: quality.generated_at.slice(0, 10), sha: quality.git_sha })}
-
+        {quality.source} · generated {quality.generated_at.slice(0, 10)} at {quality.git_sha}
       </p>
     </PageShell>
   );

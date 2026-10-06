@@ -109,6 +109,21 @@ def expected_for(case: dict[str, Any], intent: Optional[str], engine: Optional[P
     return expected
 
 
+def d070_expected(expected: dict[str, Any]) -> dict[str, Any]:
+    """A sealed `expected` block with only `final_state.handoff_emitted` re-derived under D-070 (ADR 0031): an opened
+    case is a handoff. Every other field is returned as sealed. For any case and engine,
+    `d070_expected(expected_for(c, i, e, sealed=True)) == expected_for(c, i, e, sealed=False)`: in expected_for the two
+    rules differ only by `or opened`, and `case_open` is `opened` wherever the fault branches leave the handoff to it.
+    The held-out's secondary score uses it on the sealed file, so the engine is not re-run on that set."""
+    final = expected.get("final_state")
+    if not final or "handoff_emitted" not in final:
+        return expected
+    handoff = bool(final["handoff_emitted"] or final.get("case_open"))
+    if handoff == final["handoff_emitted"]:
+        return expected
+    return {**expected, "final_state": {**final, "handoff_emitted": handoff}}
+
+
 def _fixture(row: dict[str, Any]) -> dict[str, Any]:
     """A transaction fixture from a row of the demo index."""
     return {"transaction_id": row["transaction_id"], "product_id": row["product_id"],
