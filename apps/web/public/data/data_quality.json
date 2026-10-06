@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-10-06T00:25:22Z",
-  "git_sha": "d574f4c",
+  "generated_at": "2026-10-06T01:56:09Z",
+  "git_sha": "3d92b47",
   "source": "data/pipeline report [data] — data/gold/run_results.json and the late_arrival fixture",
   "data": {
     "label": "[data]",
@@ -595,6 +595,2607 @@
           "denominator": 4962
         }
       ]
+    },
+    "profile": {
+      "d02": {
+        "query": "queries/data/d02_transactions_per_month.sql",
+        "label": "[data]",
+        "rows": [
+          {
+            "month": "2025-06",
+            "product_type": "credit",
+            "n_transactions": 29850,
+            "n_approved": 27454,
+            "n_declined": 1540,
+            "n_pending": 566,
+            "n_reversed": 290,
+            "pct_approved": 92.0,
+            "pct_declined": 5.2,
+            "pct_pending": 1.9
+          },
+          {
+            "month": "2025-06",
+            "product_type": "debit",
+            "n_transactions": 11926,
+            "n_approved": 10940,
+            "n_declined": 624,
+            "n_pending": 237,
+            "n_reversed": 125,
+            "pct_approved": 91.7,
+            "pct_declined": 5.2,
+            "pct_pending": 2.0
+          },
+          {
+            "month": "2025-06",
+            "product_type": "other",
+            "n_transactions": 77012,
+            "n_approved": 70798,
+            "n_declined": 3842,
+            "n_pending": 1555,
+            "n_reversed": 817,
+            "pct_approved": 91.9,
+            "pct_declined": 5.0,
+            "pct_pending": 2.0
+          },
+          {
+            "month": "2025-07",
+            "product_type": "credit",
+            "n_transactions": 31648,
+            "n_approved": 29119,
+            "n_declined": 1603,
+            "n_pending": 606,
+            "n_reversed": 320,
+            "pct_approved": 92.0,
+            "pct_declined": 5.1,
+            "pct_pending": 1.9
+          },
+          {
+            "month": "2025-07",
+            "product_type": "debit",
+            "n_transactions": 12761,
+            "n_approved": 11687,
+            "n_declined": 658,
+            "n_pending": 275,
+            "n_reversed": 141,
+            "pct_approved": 91.6,
+            "pct_declined": 5.2,
+            "pct_pending": 2.2
+          },
+          {
+            "month": "2025-07",
+            "product_type": "other",
+            "n_transactions": 82473,
+            "n_approved": 75835,
+            "n_declined": 4173,
+            "n_pending": 1618,
+            "n_reversed": 847,
+            "pct_approved": 92.0,
+            "pct_declined": 5.1,
+            "pct_pending": 2.0
+          },
+          {
+            "month": "2025-08",
+            "product_type": "credit",
+            "n_transactions": 31495,
+            "n_approved": 28915,
+            "n_declined": 1603,
+            "n_pending": 632,
+            "n_reversed": 345,
+            "pct_approved": 91.8,
+            "pct_declined": 5.1,
+            "pct_pending": 2.0
+          },
+          {
+            "month": "2025-08",
+            "product_type": "debit",
+            "n_transactions": 12431,
+            "n_approved": 11401,
+            "n_declined": 640,
+            "n_pending": 258,
+            "n_reversed": 132,
+            "pct_approved": 91.7,
+            "pct_declined": 5.1,
+            "pct_pending": 2.1
+          },
+          {
+            "month": "2025-08",
+            "product_type": "other",
+            "n_transactions": 82113,
+            "n_approved": 75616,
+            "n_declined": 4087,
+            "n_pending": 1596,
+            "n_reversed": 814,
+            "pct_approved": 92.1,
+            "pct_declined": 5.0,
+            "pct_pending": 1.9
+          },
+          {
+            "month": "2025-09",
+            "product_type": "credit",
+            "n_transactions": 29695,
+            "n_approved": 27292,
+            "n_declined": 1491,
+            "n_pending": 578,
+            "n_reversed": 334,
+            "pct_approved": 91.9,
+            "pct_declined": 5.0,
+            "pct_pending": 1.9
+          },
+          {
+            "month": "2025-09",
+            "product_type": "debit",
+            "n_transactions": 11759,
+            "n_approved": 10836,
+            "n_declined": 588,
+            "n_pending": 220,
+            "n_reversed": 115,
+            "pct_approved": 92.2,
+            "pct_declined": 5.0,
+            "pct_pending": 1.9
+          },
+          {
+            "month": "2025-09",
+            "product_type": "other",
+            "n_transactions": 77109,
+            "n_approved": 70861,
+            "n_declined": 3857,
+            "n_pending": 1576,
+            "n_reversed": 815,
+            "pct_approved": 91.9,
+            "pct_declined": 5.0,
+            "pct_pending": 2.0
+          },
+          {
+            "month": "2025-10",
+            "product_type": "credit",
+            "n_transactions": 32298,
+            "n_approved": 29723,
+            "n_declined": 1635,
+            "n_pending": 612,
+            "n_reversed": 328,
+            "pct_approved": 92.0,
+            "pct_declined": 5.1,
+            "pct_pending": 1.9
+          },
+          {
+            "month": "2025-10",
+            "product_type": "debit",
+            "n_transactions": 12869,
+            "n_approved": 11835,
+            "n_declined": 662,
+            "n_pending": 252,
+            "n_reversed": 120,
+            "pct_approved": 92.0,
+            "pct_declined": 5.1,
+            "pct_pending": 2.0
+          },
+          {
+            "month": "2025-10",
+            "product_type": "other",
+            "n_transactions": 84101,
+            "n_approved": 77410,
+            "n_declined": 4149,
+            "n_pending": 1693,
+            "n_reversed": 849,
+            "pct_approved": 92.0,
+            "pct_declined": 4.9,
+            "pct_pending": 2.0
+          },
+          {
+            "month": "2025-11",
+            "product_type": "credit",
+            "n_transactions": 30239,
+            "n_approved": 27841,
+            "n_declined": 1492,
+            "n_pending": 602,
+            "n_reversed": 304,
+            "pct_approved": 92.1,
+            "pct_declined": 4.9,
+            "pct_pending": 2.0
+          },
+          {
+            "month": "2025-11",
+            "product_type": "debit",
+            "n_transactions": 11985,
+            "n_approved": 11004,
+            "n_declined": 630,
+            "n_pending": 231,
+            "n_reversed": 120,
+            "pct_approved": 91.8,
+            "pct_declined": 5.3,
+            "pct_pending": 1.9
+          },
+          {
+            "month": "2025-11",
+            "product_type": "other",
+            "n_transactions": 78551,
+            "n_approved": 72144,
+            "n_declined": 3979,
+            "n_pending": 1636,
+            "n_reversed": 792,
+            "pct_approved": 91.8,
+            "pct_declined": 5.1,
+            "pct_pending": 2.1
+          },
+          {
+            "month": "2025-12",
+            "product_type": "credit",
+            "n_transactions": 30568,
+            "n_approved": 28134,
+            "n_declined": 1546,
+            "n_pending": 601,
+            "n_reversed": 287,
+            "pct_approved": 92.0,
+            "pct_declined": 5.1,
+            "pct_pending": 2.0
+          },
+          {
+            "month": "2025-12",
+            "product_type": "debit",
+            "n_transactions": 12113,
+            "n_approved": 11196,
+            "n_declined": 570,
+            "n_pending": 252,
+            "n_reversed": 95,
+            "pct_approved": 92.4,
+            "pct_declined": 4.7,
+            "pct_pending": 2.1
+          },
+          {
+            "month": "2025-12",
+            "product_type": "other",
+            "n_transactions": 79701,
+            "n_approved": 73451,
+            "n_declined": 3946,
+            "n_pending": 1547,
+            "n_reversed": 757,
+            "pct_approved": 92.2,
+            "pct_declined": 5.0,
+            "pct_pending": 1.9
+          },
+          {
+            "month": "2026-01",
+            "product_type": "credit",
+            "n_transactions": 30571,
+            "n_approved": 28140,
+            "n_declined": 1505,
+            "n_pending": 603,
+            "n_reversed": 323,
+            "pct_approved": 92.0,
+            "pct_declined": 4.9,
+            "pct_pending": 2.0
+          },
+          {
+            "month": "2026-01",
+            "product_type": "debit",
+            "n_transactions": 12099,
+            "n_approved": 11149,
+            "n_declined": 604,
+            "n_pending": 239,
+            "n_reversed": 107,
+            "pct_approved": 92.1,
+            "pct_declined": 5.0,
+            "pct_pending": 2.0
+          },
+          {
+            "month": "2026-01",
+            "product_type": "other",
+            "n_transactions": 79292,
+            "n_approved": 72945,
+            "n_declined": 4013,
+            "n_pending": 1535,
+            "n_reversed": 799,
+            "pct_approved": 92.0,
+            "pct_declined": 5.1,
+            "pct_pending": 1.9
+          },
+          {
+            "month": "2026-02",
+            "product_type": "credit",
+            "n_transactions": 28669,
+            "n_approved": 26346,
+            "n_declined": 1477,
+            "n_pending": 562,
+            "n_reversed": 284,
+            "pct_approved": 91.9,
+            "pct_declined": 5.2,
+            "pct_pending": 2.0
+          },
+          {
+            "month": "2026-02",
+            "product_type": "debit",
+            "n_transactions": 11518,
+            "n_approved": 10611,
+            "n_declined": 580,
+            "n_pending": 220,
+            "n_reversed": 107,
+            "pct_approved": 92.1,
+            "pct_declined": 5.0,
+            "pct_pending": 1.9
+          },
+          {
+            "month": "2026-02",
+            "product_type": "other",
+            "n_transactions": 74911,
+            "n_approved": 68863,
+            "n_declined": 3799,
+            "n_pending": 1519,
+            "n_reversed": 730,
+            "pct_approved": 91.9,
+            "pct_declined": 5.1,
+            "pct_pending": 2.0
+          },
+          {
+            "month": "2026-03",
+            "product_type": "credit",
+            "n_transactions": 30972,
+            "n_approved": 28546,
+            "n_declined": 1489,
+            "n_pending": 642,
+            "n_reversed": 295,
+            "pct_approved": 92.2,
+            "pct_declined": 4.8,
+            "pct_pending": 2.1
+          },
+          {
+            "month": "2026-03",
+            "product_type": "debit",
+            "n_transactions": 12090,
+            "n_approved": 11089,
+            "n_declined": 623,
+            "n_pending": 242,
+            "n_reversed": 136,
+            "pct_approved": 91.7,
+            "pct_declined": 5.2,
+            "pct_pending": 2.0
+          },
+          {
+            "month": "2026-03",
+            "product_type": "other",
+            "n_transactions": 80853,
+            "n_approved": 74548,
+            "n_declined": 3917,
+            "n_pending": 1596,
+            "n_reversed": 792,
+            "pct_approved": 92.2,
+            "pct_declined": 4.8,
+            "pct_pending": 2.0
+          },
+          {
+            "month": "2026-04",
+            "product_type": "credit",
+            "n_transactions": 31691,
+            "n_approved": 29163,
+            "n_declined": 1591,
+            "n_pending": 637,
+            "n_reversed": 300,
+            "pct_approved": 92.0,
+            "pct_declined": 5.0,
+            "pct_pending": 2.0
+          },
+          {
+            "month": "2026-04",
+            "product_type": "debit",
+            "n_transactions": 12607,
+            "n_approved": 11603,
+            "n_declined": 630,
+            "n_pending": 262,
+            "n_reversed": 112,
+            "pct_approved": 92.0,
+            "pct_declined": 5.0,
+            "pct_pending": 2.1
+          },
+          {
+            "month": "2026-04",
+            "product_type": "other",
+            "n_transactions": 82194,
+            "n_approved": 75684,
+            "n_declined": 4041,
+            "n_pending": 1684,
+            "n_reversed": 785,
+            "pct_approved": 92.1,
+            "pct_declined": 4.9,
+            "pct_pending": 2.0
+          },
+          {
+            "month": "2026-05",
+            "product_type": "credit",
+            "n_transactions": 32046,
+            "n_approved": 29460,
+            "n_declined": 1626,
+            "n_pending": 636,
+            "n_reversed": 324,
+            "pct_approved": 91.9,
+            "pct_declined": 5.1,
+            "pct_pending": 2.0
+          },
+          {
+            "month": "2026-05",
+            "product_type": "debit",
+            "n_transactions": 12561,
+            "n_approved": 11553,
+            "n_declined": 609,
+            "n_pending": 268,
+            "n_reversed": 131,
+            "pct_approved": 92.0,
+            "pct_declined": 4.8,
+            "pct_pending": 2.1
+          },
+          {
+            "month": "2026-05",
+            "product_type": "other",
+            "n_transactions": 82952,
+            "n_approved": 76415,
+            "n_declined": 4090,
+            "n_pending": 1625,
+            "n_reversed": 822,
+            "pct_approved": 92.1,
+            "pct_declined": 4.9,
+            "pct_pending": 2.0
+          }
+        ]
+      },
+      "d03": {
+        "query": "queries/data/d03_customers_transactions_by_country_segment.sql",
+        "label": "[data]",
+        "rows": [
+          {
+            "country": "AR",
+            "segment": "Basic",
+            "n_customers": 17924,
+            "n_transactions": 176931
+          },
+          {
+            "country": "AR",
+            "segment": "Plus",
+            "n_customers": 7441,
+            "n_transactions": 73344
+          },
+          {
+            "country": "AR",
+            "segment": "Premium",
+            "n_customers": 2979,
+            "n_transactions": 28622
+          },
+          {
+            "country": "AR",
+            "segment": "Student",
+            "n_customers": 1498,
+            "n_transactions": 14657
+          },
+          {
+            "country": "AR",
+            "segment": "all",
+            "n_customers": 29842,
+            "n_transactions": 293554
+          },
+          {
+            "country": "CO",
+            "segment": "Basic",
+            "n_customers": 27069,
+            "n_transactions": 265693
+          },
+          {
+            "country": "CO",
+            "segment": "Plus",
+            "n_customers": 11309,
+            "n_transactions": 110740
+          },
+          {
+            "country": "CO",
+            "segment": "Premium",
+            "n_customers": 4584,
+            "n_transactions": 45070
+          },
+          {
+            "country": "CO",
+            "segment": "Student",
+            "n_customers": 2289,
+            "n_transactions": 22112
+          },
+          {
+            "country": "CO",
+            "segment": "all",
+            "n_customers": 45251,
+            "n_transactions": 443615
+          },
+          {
+            "country": "MX",
+            "segment": "Basic",
+            "n_customers": 44763,
+            "n_transactions": 442844
+          },
+          {
+            "country": "MX",
+            "segment": "Plus",
+            "n_customers": 18797,
+            "n_transactions": 186556
+          },
+          {
+            "country": "MX",
+            "segment": "Premium",
+            "n_customers": 7644,
+            "n_transactions": 74603
+          },
+          {
+            "country": "MX",
+            "segment": "Student",
+            "n_customers": 3703,
+            "n_transactions": 36551
+          },
+          {
+            "country": "MX",
+            "segment": "all",
+            "n_customers": 74907,
+            "n_transactions": 740554
+          },
+          {
+            "country": "unknown",
+            "segment": "all",
+            "n_customers": 0,
+            "n_transactions": 0
+          }
+        ]
+      },
+      "d04": {
+        "query": "queries/data/d04_fraud_score_distribution.sql",
+        "label": "[data]",
+        "rows": [
+          {
+            "country": "AR",
+            "n_card_transactions": 102806,
+            "n_null": 20633,
+            "n_lt30": 82097,
+            "n_30_49": 30,
+            "n_ge50": 46,
+            "pct_null": 20.07,
+            "pct_lt30": 79.856,
+            "pct_30_49": 0.029,
+            "pct_ge50": 0.045
+          },
+          {
+            "country": "CO",
+            "n_card_transactions": 155209,
+            "n_null": 31211,
+            "n_lt30": 123903,
+            "n_30_49": 46,
+            "n_ge50": 49,
+            "pct_null": 20.109,
+            "pct_lt30": 79.83,
+            "pct_30_49": 0.03,
+            "pct_ge50": 0.032
+          },
+          {
+            "country": "MX",
+            "n_card_transactions": 258446,
+            "n_null": 51716,
+            "n_lt30": 206557,
+            "n_30_49": 74,
+            "n_ge50": 99,
+            "pct_null": 20.01,
+            "pct_lt30": 79.923,
+            "pct_30_49": 0.029,
+            "pct_ge50": 0.038
+          },
+          {
+            "country": "all",
+            "n_card_transactions": 516461,
+            "n_null": 103560,
+            "n_lt30": 412557,
+            "n_30_49": 150,
+            "n_ge50": 194,
+            "pct_null": 20.052,
+            "pct_lt30": 79.882,
+            "pct_30_49": 0.029,
+            "pct_ge50": 0.038
+          }
+        ]
+      },
+      "d05": {
+        "query": "queries/data/d05_complaints_per_month.sql",
+        "label": "[data]",
+        "rows": [
+          {
+            "month": "2023-06",
+            "category": "Branch",
+            "n_complaints": 154,
+            "n_w3": 0,
+            "n_month": 796,
+            "n_w3_month": 294,
+            "pct_w3_month": 36.9
+          },
+          {
+            "month": "2023-06",
+            "category": "Fees",
+            "n_complaints": 154,
+            "n_w3": 129,
+            "n_month": 796,
+            "n_w3_month": 294,
+            "pct_w3_month": 36.9
+          },
+          {
+            "month": "2023-06",
+            "category": "Service",
+            "n_complaints": 163,
+            "n_w3": 0,
+            "n_month": 796,
+            "n_w3_month": 294,
+            "pct_w3_month": 36.9
+          },
+          {
+            "month": "2023-06",
+            "category": "Technical",
+            "n_complaints": 156,
+            "n_w3": 0,
+            "n_month": 796,
+            "n_w3_month": 294,
+            "pct_w3_month": 36.9
+          },
+          {
+            "month": "2023-06",
+            "category": "Transactions",
+            "n_complaints": 169,
+            "n_w3": 165,
+            "n_month": 796,
+            "n_w3_month": 294,
+            "pct_w3_month": 36.9
+          },
+          {
+            "month": "2023-07",
+            "category": "Branch",
+            "n_complaints": 393,
+            "n_w3": 0,
+            "n_month": 1883,
+            "n_w3_month": 721,
+            "pct_w3_month": 38.3
+          },
+          {
+            "month": "2023-07",
+            "category": "Fees",
+            "n_complaints": 412,
+            "n_w3": 354,
+            "n_month": 1883,
+            "n_w3_month": 721,
+            "pct_w3_month": 38.3
+          },
+          {
+            "month": "2023-07",
+            "category": "Service",
+            "n_complaints": 359,
+            "n_w3": 0,
+            "n_month": 1883,
+            "n_w3_month": 721,
+            "pct_w3_month": 38.3
+          },
+          {
+            "month": "2023-07",
+            "category": "Technical",
+            "n_complaints": 334,
+            "n_w3": 0,
+            "n_month": 1883,
+            "n_w3_month": 721,
+            "pct_w3_month": 38.3
+          },
+          {
+            "month": "2023-07",
+            "category": "Transactions",
+            "n_complaints": 385,
+            "n_w3": 367,
+            "n_month": 1883,
+            "n_w3_month": 721,
+            "pct_w3_month": 38.3
+          },
+          {
+            "month": "2023-08",
+            "category": "Branch",
+            "n_complaints": 386,
+            "n_w3": 0,
+            "n_month": 1915,
+            "n_w3_month": 700,
+            "pct_w3_month": 36.6
+          },
+          {
+            "month": "2023-08",
+            "category": "Fees",
+            "n_complaints": 365,
+            "n_w3": 302,
+            "n_month": 1915,
+            "n_w3_month": 700,
+            "pct_w3_month": 36.6
+          },
+          {
+            "month": "2023-08",
+            "category": "Service",
+            "n_complaints": 361,
+            "n_w3": 0,
+            "n_month": 1915,
+            "n_w3_month": 700,
+            "pct_w3_month": 36.6
+          },
+          {
+            "month": "2023-08",
+            "category": "Technical",
+            "n_complaints": 389,
+            "n_w3": 0,
+            "n_month": 1915,
+            "n_w3_month": 700,
+            "pct_w3_month": 36.6
+          },
+          {
+            "month": "2023-08",
+            "category": "Transactions",
+            "n_complaints": 414,
+            "n_w3": 398,
+            "n_month": 1915,
+            "n_w3_month": 700,
+            "pct_w3_month": 36.6
+          },
+          {
+            "month": "2023-09",
+            "category": "Branch",
+            "n_complaints": 357,
+            "n_w3": 0,
+            "n_month": 1811,
+            "n_w3_month": 666,
+            "pct_w3_month": 36.8
+          },
+          {
+            "month": "2023-09",
+            "category": "Fees",
+            "n_complaints": 374,
+            "n_w3": 312,
+            "n_month": 1811,
+            "n_w3_month": 666,
+            "pct_w3_month": 36.8
+          },
+          {
+            "month": "2023-09",
+            "category": "Service",
+            "n_complaints": 347,
+            "n_w3": 0,
+            "n_month": 1811,
+            "n_w3_month": 666,
+            "pct_w3_month": 36.8
+          },
+          {
+            "month": "2023-09",
+            "category": "Technical",
+            "n_complaints": 372,
+            "n_w3": 0,
+            "n_month": 1811,
+            "n_w3_month": 666,
+            "pct_w3_month": 36.8
+          },
+          {
+            "month": "2023-09",
+            "category": "Transactions",
+            "n_complaints": 361,
+            "n_w3": 354,
+            "n_month": 1811,
+            "n_w3_month": 666,
+            "pct_w3_month": 36.8
+          },
+          {
+            "month": "2023-10",
+            "category": "Branch",
+            "n_complaints": 363,
+            "n_w3": 0,
+            "n_month": 1872,
+            "n_w3_month": 665,
+            "pct_w3_month": 35.5
+          },
+          {
+            "month": "2023-10",
+            "category": "Fees",
+            "n_complaints": 384,
+            "n_w3": 321,
+            "n_month": 1872,
+            "n_w3_month": 665,
+            "pct_w3_month": 35.5
+          },
+          {
+            "month": "2023-10",
+            "category": "Service",
+            "n_complaints": 387,
+            "n_w3": 0,
+            "n_month": 1872,
+            "n_w3_month": 665,
+            "pct_w3_month": 35.5
+          },
+          {
+            "month": "2023-10",
+            "category": "Technical",
+            "n_complaints": 375,
+            "n_w3": 0,
+            "n_month": 1872,
+            "n_w3_month": 665,
+            "pct_w3_month": 35.5
+          },
+          {
+            "month": "2023-10",
+            "category": "Transactions",
+            "n_complaints": 363,
+            "n_w3": 344,
+            "n_month": 1872,
+            "n_w3_month": 665,
+            "pct_w3_month": 35.5
+          },
+          {
+            "month": "2023-11",
+            "category": "Branch",
+            "n_complaints": 396,
+            "n_w3": 0,
+            "n_month": 1835,
+            "n_w3_month": 625,
+            "pct_w3_month": 34.1
+          },
+          {
+            "month": "2023-11",
+            "category": "Fees",
+            "n_complaints": 360,
+            "n_w3": 298,
+            "n_month": 1835,
+            "n_w3_month": 625,
+            "pct_w3_month": 34.1
+          },
+          {
+            "month": "2023-11",
+            "category": "Service",
+            "n_complaints": 347,
+            "n_w3": 0,
+            "n_month": 1835,
+            "n_w3_month": 625,
+            "pct_w3_month": 34.1
+          },
+          {
+            "month": "2023-11",
+            "category": "Technical",
+            "n_complaints": 379,
+            "n_w3": 0,
+            "n_month": 1835,
+            "n_w3_month": 625,
+            "pct_w3_month": 34.1
+          },
+          {
+            "month": "2023-11",
+            "category": "Transactions",
+            "n_complaints": 353,
+            "n_w3": 327,
+            "n_month": 1835,
+            "n_w3_month": 625,
+            "pct_w3_month": 34.1
+          },
+          {
+            "month": "2023-12",
+            "category": "Branch",
+            "n_complaints": 397,
+            "n_w3": 0,
+            "n_month": 1954,
+            "n_w3_month": 705,
+            "pct_w3_month": 36.1
+          },
+          {
+            "month": "2023-12",
+            "category": "Fees",
+            "n_complaints": 405,
+            "n_w3": 355,
+            "n_month": 1954,
+            "n_w3_month": 705,
+            "pct_w3_month": 36.1
+          },
+          {
+            "month": "2023-12",
+            "category": "Service",
+            "n_complaints": 378,
+            "n_w3": 0,
+            "n_month": 1954,
+            "n_w3_month": 705,
+            "pct_w3_month": 36.1
+          },
+          {
+            "month": "2023-12",
+            "category": "Technical",
+            "n_complaints": 402,
+            "n_w3": 0,
+            "n_month": 1954,
+            "n_w3_month": 705,
+            "pct_w3_month": 36.1
+          },
+          {
+            "month": "2023-12",
+            "category": "Transactions",
+            "n_complaints": 372,
+            "n_w3": 350,
+            "n_month": 1954,
+            "n_w3_month": 705,
+            "pct_w3_month": 36.1
+          },
+          {
+            "month": "2024-01",
+            "category": "Branch",
+            "n_complaints": 360,
+            "n_w3": 0,
+            "n_month": 1887,
+            "n_w3_month": 700,
+            "pct_w3_month": 37.1
+          },
+          {
+            "month": "2024-01",
+            "category": "Fees",
+            "n_complaints": 377,
+            "n_w3": 326,
+            "n_month": 1887,
+            "n_w3_month": 700,
+            "pct_w3_month": 37.1
+          },
+          {
+            "month": "2024-01",
+            "category": "Service",
+            "n_complaints": 375,
+            "n_w3": 0,
+            "n_month": 1887,
+            "n_w3_month": 700,
+            "pct_w3_month": 37.1
+          },
+          {
+            "month": "2024-01",
+            "category": "Technical",
+            "n_complaints": 385,
+            "n_w3": 0,
+            "n_month": 1887,
+            "n_w3_month": 700,
+            "pct_w3_month": 37.1
+          },
+          {
+            "month": "2024-01",
+            "category": "Transactions",
+            "n_complaints": 390,
+            "n_w3": 374,
+            "n_month": 1887,
+            "n_w3_month": 700,
+            "pct_w3_month": 37.1
+          },
+          {
+            "month": "2024-02",
+            "category": "Branch",
+            "n_complaints": 330,
+            "n_w3": 0,
+            "n_month": 1726,
+            "n_w3_month": 649,
+            "pct_w3_month": 37.6
+          },
+          {
+            "month": "2024-02",
+            "category": "Fees",
+            "n_complaints": 377,
+            "n_w3": 331,
+            "n_month": 1726,
+            "n_w3_month": 649,
+            "pct_w3_month": 37.6
+          },
+          {
+            "month": "2024-02",
+            "category": "Service",
+            "n_complaints": 307,
+            "n_w3": 0,
+            "n_month": 1726,
+            "n_w3_month": 649,
+            "pct_w3_month": 37.6
+          },
+          {
+            "month": "2024-02",
+            "category": "Technical",
+            "n_complaints": 377,
+            "n_w3": 0,
+            "n_month": 1726,
+            "n_w3_month": 649,
+            "pct_w3_month": 37.6
+          },
+          {
+            "month": "2024-02",
+            "category": "Transactions",
+            "n_complaints": 335,
+            "n_w3": 318,
+            "n_month": 1726,
+            "n_w3_month": 649,
+            "pct_w3_month": 37.6
+          },
+          {
+            "month": "2024-03",
+            "category": "Branch",
+            "n_complaints": 382,
+            "n_w3": 0,
+            "n_month": 1925,
+            "n_w3_month": 671,
+            "pct_w3_month": 34.9
+          },
+          {
+            "month": "2024-03",
+            "category": "Fees",
+            "n_complaints": 380,
+            "n_w3": 317,
+            "n_month": 1925,
+            "n_w3_month": 671,
+            "pct_w3_month": 34.9
+          },
+          {
+            "month": "2024-03",
+            "category": "Service",
+            "n_complaints": 389,
+            "n_w3": 0,
+            "n_month": 1925,
+            "n_w3_month": 671,
+            "pct_w3_month": 34.9
+          },
+          {
+            "month": "2024-03",
+            "category": "Technical",
+            "n_complaints": 403,
+            "n_w3": 0,
+            "n_month": 1925,
+            "n_w3_month": 671,
+            "pct_w3_month": 34.9
+          },
+          {
+            "month": "2024-03",
+            "category": "Transactions",
+            "n_complaints": 371,
+            "n_w3": 354,
+            "n_month": 1925,
+            "n_w3_month": 671,
+            "pct_w3_month": 34.9
+          },
+          {
+            "month": "2024-04",
+            "category": "Branch",
+            "n_complaints": 363,
+            "n_w3": 0,
+            "n_month": 1867,
+            "n_w3_month": 716,
+            "pct_w3_month": 38.4
+          },
+          {
+            "month": "2024-04",
+            "category": "Fees",
+            "n_complaints": 371,
+            "n_w3": 314,
+            "n_month": 1867,
+            "n_w3_month": 716,
+            "pct_w3_month": 38.4
+          },
+          {
+            "month": "2024-04",
+            "category": "Service",
+            "n_complaints": 367,
+            "n_w3": 0,
+            "n_month": 1867,
+            "n_w3_month": 716,
+            "pct_w3_month": 38.4
+          },
+          {
+            "month": "2024-04",
+            "category": "Technical",
+            "n_complaints": 342,
+            "n_w3": 0,
+            "n_month": 1867,
+            "n_w3_month": 716,
+            "pct_w3_month": 38.4
+          },
+          {
+            "month": "2024-04",
+            "category": "Transactions",
+            "n_complaints": 424,
+            "n_w3": 402,
+            "n_month": 1867,
+            "n_w3_month": 716,
+            "pct_w3_month": 38.4
+          },
+          {
+            "month": "2024-05",
+            "category": "Branch",
+            "n_complaints": 394,
+            "n_w3": 0,
+            "n_month": 1822,
+            "n_w3_month": 633,
+            "pct_w3_month": 34.7
+          },
+          {
+            "month": "2024-05",
+            "category": "Fees",
+            "n_complaints": 382,
+            "n_w3": 307,
+            "n_month": 1822,
+            "n_w3_month": 633,
+            "pct_w3_month": 34.7
+          },
+          {
+            "month": "2024-05",
+            "category": "Service",
+            "n_complaints": 330,
+            "n_w3": 0,
+            "n_month": 1822,
+            "n_w3_month": 633,
+            "pct_w3_month": 34.7
+          },
+          {
+            "month": "2024-05",
+            "category": "Technical",
+            "n_complaints": 367,
+            "n_w3": 0,
+            "n_month": 1822,
+            "n_w3_month": 633,
+            "pct_w3_month": 34.7
+          },
+          {
+            "month": "2024-05",
+            "category": "Transactions",
+            "n_complaints": 349,
+            "n_w3": 326,
+            "n_month": 1822,
+            "n_w3_month": 633,
+            "pct_w3_month": 34.7
+          },
+          {
+            "month": "2024-06",
+            "category": "Branch",
+            "n_complaints": 363,
+            "n_w3": 0,
+            "n_month": 1833,
+            "n_w3_month": 687,
+            "pct_w3_month": 37.5
+          },
+          {
+            "month": "2024-06",
+            "category": "Fees",
+            "n_complaints": 395,
+            "n_w3": 335,
+            "n_month": 1833,
+            "n_w3_month": 687,
+            "pct_w3_month": 37.5
+          },
+          {
+            "month": "2024-06",
+            "category": "Service",
+            "n_complaints": 348,
+            "n_w3": 0,
+            "n_month": 1833,
+            "n_w3_month": 687,
+            "pct_w3_month": 37.5
+          },
+          {
+            "month": "2024-06",
+            "category": "Technical",
+            "n_complaints": 356,
+            "n_w3": 0,
+            "n_month": 1833,
+            "n_w3_month": 687,
+            "pct_w3_month": 37.5
+          },
+          {
+            "month": "2024-06",
+            "category": "Transactions",
+            "n_complaints": 371,
+            "n_w3": 352,
+            "n_month": 1833,
+            "n_w3_month": 687,
+            "pct_w3_month": 37.5
+          },
+          {
+            "month": "2024-07",
+            "category": "Branch",
+            "n_complaints": 366,
+            "n_w3": 0,
+            "n_month": 1901,
+            "n_w3_month": 687,
+            "pct_w3_month": 36.1
+          },
+          {
+            "month": "2024-07",
+            "category": "Fees",
+            "n_complaints": 376,
+            "n_w3": 317,
+            "n_month": 1901,
+            "n_w3_month": 687,
+            "pct_w3_month": 36.1
+          },
+          {
+            "month": "2024-07",
+            "category": "Service",
+            "n_complaints": 385,
+            "n_w3": 0,
+            "n_month": 1901,
+            "n_w3_month": 687,
+            "pct_w3_month": 36.1
+          },
+          {
+            "month": "2024-07",
+            "category": "Technical",
+            "n_complaints": 389,
+            "n_w3": 0,
+            "n_month": 1901,
+            "n_w3_month": 687,
+            "pct_w3_month": 36.1
+          },
+          {
+            "month": "2024-07",
+            "category": "Transactions",
+            "n_complaints": 385,
+            "n_w3": 370,
+            "n_month": 1901,
+            "n_w3_month": 687,
+            "pct_w3_month": 36.1
+          },
+          {
+            "month": "2024-08",
+            "category": "Branch",
+            "n_complaints": 353,
+            "n_w3": 0,
+            "n_month": 1887,
+            "n_w3_month": 672,
+            "pct_w3_month": 35.6
+          },
+          {
+            "month": "2024-08",
+            "category": "Fees",
+            "n_complaints": 385,
+            "n_w3": 322,
+            "n_month": 1887,
+            "n_w3_month": 672,
+            "pct_w3_month": 35.6
+          },
+          {
+            "month": "2024-08",
+            "category": "Service",
+            "n_complaints": 372,
+            "n_w3": 0,
+            "n_month": 1887,
+            "n_w3_month": 672,
+            "pct_w3_month": 35.6
+          },
+          {
+            "month": "2024-08",
+            "category": "Technical",
+            "n_complaints": 398,
+            "n_w3": 0,
+            "n_month": 1887,
+            "n_w3_month": 672,
+            "pct_w3_month": 35.6
+          },
+          {
+            "month": "2024-08",
+            "category": "Transactions",
+            "n_complaints": 379,
+            "n_w3": 350,
+            "n_month": 1887,
+            "n_w3_month": 672,
+            "pct_w3_month": 35.6
+          },
+          {
+            "month": "2024-09",
+            "category": "Branch",
+            "n_complaints": 371,
+            "n_w3": 0,
+            "n_month": 1835,
+            "n_w3_month": 691,
+            "pct_w3_month": 37.7
+          },
+          {
+            "month": "2024-09",
+            "category": "Fees",
+            "n_complaints": 374,
+            "n_w3": 330,
+            "n_month": 1835,
+            "n_w3_month": 691,
+            "pct_w3_month": 37.7
+          },
+          {
+            "month": "2024-09",
+            "category": "Service",
+            "n_complaints": 344,
+            "n_w3": 0,
+            "n_month": 1835,
+            "n_w3_month": 691,
+            "pct_w3_month": 37.7
+          },
+          {
+            "month": "2024-09",
+            "category": "Technical",
+            "n_complaints": 370,
+            "n_w3": 0,
+            "n_month": 1835,
+            "n_w3_month": 691,
+            "pct_w3_month": 37.7
+          },
+          {
+            "month": "2024-09",
+            "category": "Transactions",
+            "n_complaints": 376,
+            "n_w3": 361,
+            "n_month": 1835,
+            "n_w3_month": 691,
+            "pct_w3_month": 37.7
+          },
+          {
+            "month": "2024-10",
+            "category": "Branch",
+            "n_complaints": 373,
+            "n_w3": 0,
+            "n_month": 1883,
+            "n_w3_month": 716,
+            "pct_w3_month": 38.0
+          },
+          {
+            "month": "2024-10",
+            "category": "Fees",
+            "n_complaints": 381,
+            "n_w3": 341,
+            "n_month": 1883,
+            "n_w3_month": 716,
+            "pct_w3_month": 38.0
+          },
+          {
+            "month": "2024-10",
+            "category": "Service",
+            "n_complaints": 373,
+            "n_w3": 0,
+            "n_month": 1883,
+            "n_w3_month": 716,
+            "pct_w3_month": 38.0
+          },
+          {
+            "month": "2024-10",
+            "category": "Technical",
+            "n_complaints": 360,
+            "n_w3": 0,
+            "n_month": 1883,
+            "n_w3_month": 716,
+            "pct_w3_month": 38.0
+          },
+          {
+            "month": "2024-10",
+            "category": "Transactions",
+            "n_complaints": 396,
+            "n_w3": 375,
+            "n_month": 1883,
+            "n_w3_month": 716,
+            "pct_w3_month": 38.0
+          },
+          {
+            "month": "2024-11",
+            "category": "Branch",
+            "n_complaints": 375,
+            "n_w3": 0,
+            "n_month": 1878,
+            "n_w3_month": 663,
+            "pct_w3_month": 35.3
+          },
+          {
+            "month": "2024-11",
+            "category": "Fees",
+            "n_complaints": 372,
+            "n_w3": 314,
+            "n_month": 1878,
+            "n_w3_month": 663,
+            "pct_w3_month": 35.3
+          },
+          {
+            "month": "2024-11",
+            "category": "Service",
+            "n_complaints": 394,
+            "n_w3": 0,
+            "n_month": 1878,
+            "n_w3_month": 663,
+            "pct_w3_month": 35.3
+          },
+          {
+            "month": "2024-11",
+            "category": "Technical",
+            "n_complaints": 368,
+            "n_w3": 0,
+            "n_month": 1878,
+            "n_w3_month": 663,
+            "pct_w3_month": 35.3
+          },
+          {
+            "month": "2024-11",
+            "category": "Transactions",
+            "n_complaints": 369,
+            "n_w3": 349,
+            "n_month": 1878,
+            "n_w3_month": 663,
+            "pct_w3_month": 35.3
+          },
+          {
+            "month": "2024-12",
+            "category": "Branch",
+            "n_complaints": 386,
+            "n_w3": 0,
+            "n_month": 1874,
+            "n_w3_month": 669,
+            "pct_w3_month": 35.7
+          },
+          {
+            "month": "2024-12",
+            "category": "Fees",
+            "n_complaints": 396,
+            "n_w3": 332,
+            "n_month": 1874,
+            "n_w3_month": 669,
+            "pct_w3_month": 35.7
+          },
+          {
+            "month": "2024-12",
+            "category": "Service",
+            "n_complaints": 367,
+            "n_w3": 0,
+            "n_month": 1874,
+            "n_w3_month": 669,
+            "pct_w3_month": 35.7
+          },
+          {
+            "month": "2024-12",
+            "category": "Technical",
+            "n_complaints": 370,
+            "n_w3": 0,
+            "n_month": 1874,
+            "n_w3_month": 669,
+            "pct_w3_month": 35.7
+          },
+          {
+            "month": "2024-12",
+            "category": "Transactions",
+            "n_complaints": 355,
+            "n_w3": 337,
+            "n_month": 1874,
+            "n_w3_month": 669,
+            "pct_w3_month": 35.7
+          },
+          {
+            "month": "2025-01",
+            "category": "Branch",
+            "n_complaints": 393,
+            "n_w3": 0,
+            "n_month": 2001,
+            "n_w3_month": 731,
+            "pct_w3_month": 36.5
+          },
+          {
+            "month": "2025-01",
+            "category": "Fees",
+            "n_complaints": 417,
+            "n_w3": 363,
+            "n_month": 2001,
+            "n_w3_month": 731,
+            "pct_w3_month": 36.5
+          },
+          {
+            "month": "2025-01",
+            "category": "Service",
+            "n_complaints": 389,
+            "n_w3": 0,
+            "n_month": 2001,
+            "n_w3_month": 731,
+            "pct_w3_month": 36.5
+          },
+          {
+            "month": "2025-01",
+            "category": "Technical",
+            "n_complaints": 407,
+            "n_w3": 0,
+            "n_month": 2001,
+            "n_w3_month": 731,
+            "pct_w3_month": 36.5
+          },
+          {
+            "month": "2025-01",
+            "category": "Transactions",
+            "n_complaints": 395,
+            "n_w3": 368,
+            "n_month": 2001,
+            "n_w3_month": 731,
+            "pct_w3_month": 36.5
+          },
+          {
+            "month": "2025-02",
+            "category": "Branch",
+            "n_complaints": 355,
+            "n_w3": 0,
+            "n_month": 1740,
+            "n_w3_month": 665,
+            "pct_w3_month": 38.2
+          },
+          {
+            "month": "2025-02",
+            "category": "Fees",
+            "n_complaints": 373,
+            "n_w3": 317,
+            "n_month": 1740,
+            "n_w3_month": 665,
+            "pct_w3_month": 38.2
+          },
+          {
+            "month": "2025-02",
+            "category": "Service",
+            "n_complaints": 314,
+            "n_w3": 0,
+            "n_month": 1740,
+            "n_w3_month": 665,
+            "pct_w3_month": 38.2
+          },
+          {
+            "month": "2025-02",
+            "category": "Technical",
+            "n_complaints": 337,
+            "n_w3": 0,
+            "n_month": 1740,
+            "n_w3_month": 665,
+            "pct_w3_month": 38.2
+          },
+          {
+            "month": "2025-02",
+            "category": "Transactions",
+            "n_complaints": 361,
+            "n_w3": 348,
+            "n_month": 1740,
+            "n_w3_month": 665,
+            "pct_w3_month": 38.2
+          },
+          {
+            "month": "2025-03",
+            "category": "Branch",
+            "n_complaints": 345,
+            "n_w3": 0,
+            "n_month": 1772,
+            "n_w3_month": 673,
+            "pct_w3_month": 38.0
+          },
+          {
+            "month": "2025-03",
+            "category": "Fees",
+            "n_complaints": 363,
+            "n_w3": 316,
+            "n_month": 1772,
+            "n_w3_month": 673,
+            "pct_w3_month": 38.0
+          },
+          {
+            "month": "2025-03",
+            "category": "Service",
+            "n_complaints": 356,
+            "n_w3": 0,
+            "n_month": 1772,
+            "n_w3_month": 673,
+            "pct_w3_month": 38.0
+          },
+          {
+            "month": "2025-03",
+            "category": "Technical",
+            "n_complaints": 328,
+            "n_w3": 0,
+            "n_month": 1772,
+            "n_w3_month": 673,
+            "pct_w3_month": 38.0
+          },
+          {
+            "month": "2025-03",
+            "category": "Transactions",
+            "n_complaints": 380,
+            "n_w3": 357,
+            "n_month": 1772,
+            "n_w3_month": 673,
+            "pct_w3_month": 38.0
+          },
+          {
+            "month": "2025-04",
+            "category": "Branch",
+            "n_complaints": 348,
+            "n_w3": 0,
+            "n_month": 1787,
+            "n_w3_month": 654,
+            "pct_w3_month": 36.6
+          },
+          {
+            "month": "2025-04",
+            "category": "Fees",
+            "n_complaints": 365,
+            "n_w3": 311,
+            "n_month": 1787,
+            "n_w3_month": 654,
+            "pct_w3_month": 36.6
+          },
+          {
+            "month": "2025-04",
+            "category": "Service",
+            "n_complaints": 341,
+            "n_w3": 0,
+            "n_month": 1787,
+            "n_w3_month": 654,
+            "pct_w3_month": 36.6
+          },
+          {
+            "month": "2025-04",
+            "category": "Technical",
+            "n_complaints": 370,
+            "n_w3": 0,
+            "n_month": 1787,
+            "n_w3_month": 654,
+            "pct_w3_month": 36.6
+          },
+          {
+            "month": "2025-04",
+            "category": "Transactions",
+            "n_complaints": 363,
+            "n_w3": 343,
+            "n_month": 1787,
+            "n_w3_month": 654,
+            "pct_w3_month": 36.6
+          },
+          {
+            "month": "2025-05",
+            "category": "Branch",
+            "n_complaints": 359,
+            "n_w3": 0,
+            "n_month": 1884,
+            "n_w3_month": 673,
+            "pct_w3_month": 35.7
+          },
+          {
+            "month": "2025-05",
+            "category": "Fees",
+            "n_complaints": 391,
+            "n_w3": 320,
+            "n_month": 1884,
+            "n_w3_month": 673,
+            "pct_w3_month": 35.7
+          },
+          {
+            "month": "2025-05",
+            "category": "Service",
+            "n_complaints": 354,
+            "n_w3": 0,
+            "n_month": 1884,
+            "n_w3_month": 673,
+            "pct_w3_month": 35.7
+          },
+          {
+            "month": "2025-05",
+            "category": "Technical",
+            "n_complaints": 408,
+            "n_w3": 0,
+            "n_month": 1884,
+            "n_w3_month": 673,
+            "pct_w3_month": 35.7
+          },
+          {
+            "month": "2025-05",
+            "category": "Transactions",
+            "n_complaints": 372,
+            "n_w3": 353,
+            "n_month": 1884,
+            "n_w3_month": 673,
+            "pct_w3_month": 35.7
+          },
+          {
+            "month": "2025-06",
+            "category": "Branch",
+            "n_complaints": 365,
+            "n_w3": 0,
+            "n_month": 1818,
+            "n_w3_month": 647,
+            "pct_w3_month": 35.6
+          },
+          {
+            "month": "2025-06",
+            "category": "Fees",
+            "n_complaints": 344,
+            "n_w3": 302,
+            "n_month": 1818,
+            "n_w3_month": 647,
+            "pct_w3_month": 35.6
+          },
+          {
+            "month": "2025-06",
+            "category": "Service",
+            "n_complaints": 379,
+            "n_w3": 0,
+            "n_month": 1818,
+            "n_w3_month": 647,
+            "pct_w3_month": 35.6
+          },
+          {
+            "month": "2025-06",
+            "category": "Technical",
+            "n_complaints": 368,
+            "n_w3": 0,
+            "n_month": 1818,
+            "n_w3_month": 647,
+            "pct_w3_month": 35.6
+          },
+          {
+            "month": "2025-06",
+            "category": "Transactions",
+            "n_complaints": 362,
+            "n_w3": 345,
+            "n_month": 1818,
+            "n_w3_month": 647,
+            "pct_w3_month": 35.6
+          },
+          {
+            "month": "2025-07",
+            "category": "Branch",
+            "n_complaints": 422,
+            "n_w3": 0,
+            "n_month": 1973,
+            "n_w3_month": 686,
+            "pct_w3_month": 34.8
+          },
+          {
+            "month": "2025-07",
+            "category": "Fees",
+            "n_complaints": 371,
+            "n_w3": 312,
+            "n_month": 1973,
+            "n_w3_month": 686,
+            "pct_w3_month": 34.8
+          },
+          {
+            "month": "2025-07",
+            "category": "Service",
+            "n_complaints": 375,
+            "n_w3": 0,
+            "n_month": 1973,
+            "n_w3_month": 686,
+            "pct_w3_month": 34.8
+          },
+          {
+            "month": "2025-07",
+            "category": "Technical",
+            "n_complaints": 411,
+            "n_w3": 0,
+            "n_month": 1973,
+            "n_w3_month": 686,
+            "pct_w3_month": 34.8
+          },
+          {
+            "month": "2025-07",
+            "category": "Transactions",
+            "n_complaints": 394,
+            "n_w3": 374,
+            "n_month": 1973,
+            "n_w3_month": 686,
+            "pct_w3_month": 34.8
+          },
+          {
+            "month": "2025-08",
+            "category": "Branch",
+            "n_complaints": 390,
+            "n_w3": 0,
+            "n_month": 1906,
+            "n_w3_month": 681,
+            "pct_w3_month": 35.7
+          },
+          {
+            "month": "2025-08",
+            "category": "Fees",
+            "n_complaints": 351,
+            "n_w3": 290,
+            "n_month": 1906,
+            "n_w3_month": 681,
+            "pct_w3_month": 35.7
+          },
+          {
+            "month": "2025-08",
+            "category": "Service",
+            "n_complaints": 400,
+            "n_w3": 0,
+            "n_month": 1906,
+            "n_w3_month": 681,
+            "pct_w3_month": 35.7
+          },
+          {
+            "month": "2025-08",
+            "category": "Technical",
+            "n_complaints": 354,
+            "n_w3": 0,
+            "n_month": 1906,
+            "n_w3_month": 681,
+            "pct_w3_month": 35.7
+          },
+          {
+            "month": "2025-08",
+            "category": "Transactions",
+            "n_complaints": 411,
+            "n_w3": 391,
+            "n_month": 1906,
+            "n_w3_month": 681,
+            "pct_w3_month": 35.7
+          },
+          {
+            "month": "2025-09",
+            "category": "Branch",
+            "n_complaints": 373,
+            "n_w3": 0,
+            "n_month": 1765,
+            "n_w3_month": 663,
+            "pct_w3_month": 37.6
+          },
+          {
+            "month": "2025-09",
+            "category": "Fees",
+            "n_complaints": 360,
+            "n_w3": 314,
+            "n_month": 1765,
+            "n_w3_month": 663,
+            "pct_w3_month": 37.6
+          },
+          {
+            "month": "2025-09",
+            "category": "Service",
+            "n_complaints": 322,
+            "n_w3": 0,
+            "n_month": 1765,
+            "n_w3_month": 663,
+            "pct_w3_month": 37.6
+          },
+          {
+            "month": "2025-09",
+            "category": "Technical",
+            "n_complaints": 338,
+            "n_w3": 0,
+            "n_month": 1765,
+            "n_w3_month": 663,
+            "pct_w3_month": 37.6
+          },
+          {
+            "month": "2025-09",
+            "category": "Transactions",
+            "n_complaints": 372,
+            "n_w3": 349,
+            "n_month": 1765,
+            "n_w3_month": 663,
+            "pct_w3_month": 37.6
+          },
+          {
+            "month": "2025-10",
+            "category": "Branch",
+            "n_complaints": 395,
+            "n_w3": 0,
+            "n_month": 1972,
+            "n_w3_month": 716,
+            "pct_w3_month": 36.3
+          },
+          {
+            "month": "2025-10",
+            "category": "Fees",
+            "n_complaints": 377,
+            "n_w3": 326,
+            "n_month": 1972,
+            "n_w3_month": 716,
+            "pct_w3_month": 36.3
+          },
+          {
+            "month": "2025-10",
+            "category": "Service",
+            "n_complaints": 407,
+            "n_w3": 0,
+            "n_month": 1972,
+            "n_w3_month": 716,
+            "pct_w3_month": 36.3
+          },
+          {
+            "month": "2025-10",
+            "category": "Technical",
+            "n_complaints": 389,
+            "n_w3": 0,
+            "n_month": 1972,
+            "n_w3_month": 716,
+            "pct_w3_month": 36.3
+          },
+          {
+            "month": "2025-10",
+            "category": "Transactions",
+            "n_complaints": 404,
+            "n_w3": 390,
+            "n_month": 1972,
+            "n_w3_month": 716,
+            "pct_w3_month": 36.3
+          },
+          {
+            "month": "2025-11",
+            "category": "Branch",
+            "n_complaints": 353,
+            "n_w3": 0,
+            "n_month": 1806,
+            "n_w3_month": 650,
+            "pct_w3_month": 36.0
+          },
+          {
+            "month": "2025-11",
+            "category": "Fees",
+            "n_complaints": 352,
+            "n_w3": 304,
+            "n_month": 1806,
+            "n_w3_month": 650,
+            "pct_w3_month": 36.0
+          },
+          {
+            "month": "2025-11",
+            "category": "Service",
+            "n_complaints": 374,
+            "n_w3": 0,
+            "n_month": 1806,
+            "n_w3_month": 650,
+            "pct_w3_month": 36.0
+          },
+          {
+            "month": "2025-11",
+            "category": "Technical",
+            "n_complaints": 369,
+            "n_w3": 0,
+            "n_month": 1806,
+            "n_w3_month": 650,
+            "pct_w3_month": 36.0
+          },
+          {
+            "month": "2025-11",
+            "category": "Transactions",
+            "n_complaints": 358,
+            "n_w3": 346,
+            "n_month": 1806,
+            "n_w3_month": 650,
+            "pct_w3_month": 36.0
+          },
+          {
+            "month": "2025-12",
+            "category": "Branch",
+            "n_complaints": 394,
+            "n_w3": 0,
+            "n_month": 1928,
+            "n_w3_month": 682,
+            "pct_w3_month": 35.4
+          },
+          {
+            "month": "2025-12",
+            "category": "Fees",
+            "n_complaints": 372,
+            "n_w3": 313,
+            "n_month": 1928,
+            "n_w3_month": 682,
+            "pct_w3_month": 35.4
+          },
+          {
+            "month": "2025-12",
+            "category": "Service",
+            "n_complaints": 389,
+            "n_w3": 0,
+            "n_month": 1928,
+            "n_w3_month": 682,
+            "pct_w3_month": 35.4
+          },
+          {
+            "month": "2025-12",
+            "category": "Technical",
+            "n_complaints": 380,
+            "n_w3": 0,
+            "n_month": 1928,
+            "n_w3_month": 682,
+            "pct_w3_month": 35.4
+          },
+          {
+            "month": "2025-12",
+            "category": "Transactions",
+            "n_complaints": 393,
+            "n_w3": 369,
+            "n_month": 1928,
+            "n_w3_month": 682,
+            "pct_w3_month": 35.4
+          },
+          {
+            "month": "2026-01",
+            "category": "Branch",
+            "n_complaints": 354,
+            "n_w3": 0,
+            "n_month": 1939,
+            "n_w3_month": 695,
+            "pct_w3_month": 35.8
+          },
+          {
+            "month": "2026-01",
+            "category": "Fees",
+            "n_complaints": 393,
+            "n_w3": 337,
+            "n_month": 1939,
+            "n_w3_month": 695,
+            "pct_w3_month": 35.8
+          },
+          {
+            "month": "2026-01",
+            "category": "Service",
+            "n_complaints": 426,
+            "n_w3": 0,
+            "n_month": 1939,
+            "n_w3_month": 695,
+            "pct_w3_month": 35.8
+          },
+          {
+            "month": "2026-01",
+            "category": "Technical",
+            "n_complaints": 394,
+            "n_w3": 0,
+            "n_month": 1939,
+            "n_w3_month": 695,
+            "pct_w3_month": 35.8
+          },
+          {
+            "month": "2026-01",
+            "category": "Transactions",
+            "n_complaints": 372,
+            "n_w3": 358,
+            "n_month": 1939,
+            "n_w3_month": 695,
+            "pct_w3_month": 35.8
+          },
+          {
+            "month": "2026-02",
+            "category": "Branch",
+            "n_complaints": 375,
+            "n_w3": 0,
+            "n_month": 1706,
+            "n_w3_month": 615,
+            "pct_w3_month": 36.0
+          },
+          {
+            "month": "2026-02",
+            "category": "Fees",
+            "n_complaints": 325,
+            "n_w3": 283,
+            "n_month": 1706,
+            "n_w3_month": 615,
+            "pct_w3_month": 36.0
+          },
+          {
+            "month": "2026-02",
+            "category": "Service",
+            "n_complaints": 350,
+            "n_w3": 0,
+            "n_month": 1706,
+            "n_w3_month": 615,
+            "pct_w3_month": 36.0
+          },
+          {
+            "month": "2026-02",
+            "category": "Technical",
+            "n_complaints": 305,
+            "n_w3": 0,
+            "n_month": 1706,
+            "n_w3_month": 615,
+            "pct_w3_month": 36.0
+          },
+          {
+            "month": "2026-02",
+            "category": "Transactions",
+            "n_complaints": 351,
+            "n_w3": 332,
+            "n_month": 1706,
+            "n_w3_month": 615,
+            "pct_w3_month": 36.0
+          },
+          {
+            "month": "2026-03",
+            "category": "Branch",
+            "n_complaints": 372,
+            "n_w3": 0,
+            "n_month": 1962,
+            "n_w3_month": 723,
+            "pct_w3_month": 36.9
+          },
+          {
+            "month": "2026-03",
+            "category": "Fees",
+            "n_complaints": 394,
+            "n_w3": 333,
+            "n_month": 1962,
+            "n_w3_month": 723,
+            "pct_w3_month": 36.9
+          },
+          {
+            "month": "2026-03",
+            "category": "Service",
+            "n_complaints": 376,
+            "n_w3": 0,
+            "n_month": 1962,
+            "n_w3_month": 723,
+            "pct_w3_month": 36.9
+          },
+          {
+            "month": "2026-03",
+            "category": "Technical",
+            "n_complaints": 413,
+            "n_w3": 0,
+            "n_month": 1962,
+            "n_w3_month": 723,
+            "pct_w3_month": 36.9
+          },
+          {
+            "month": "2026-03",
+            "category": "Transactions",
+            "n_complaints": 407,
+            "n_w3": 390,
+            "n_month": 1962,
+            "n_w3_month": 723,
+            "pct_w3_month": 36.9
+          },
+          {
+            "month": "2026-04",
+            "category": "Branch",
+            "n_complaints": 358,
+            "n_w3": 0,
+            "n_month": 1863,
+            "n_w3_month": 680,
+            "pct_w3_month": 36.5
+          },
+          {
+            "month": "2026-04",
+            "category": "Fees",
+            "n_complaints": 364,
+            "n_w3": 305,
+            "n_month": 1863,
+            "n_w3_month": 680,
+            "pct_w3_month": 36.5
+          },
+          {
+            "month": "2026-04",
+            "category": "Service",
+            "n_complaints": 356,
+            "n_w3": 0,
+            "n_month": 1863,
+            "n_w3_month": 680,
+            "pct_w3_month": 36.5
+          },
+          {
+            "month": "2026-04",
+            "category": "Technical",
+            "n_complaints": 391,
+            "n_w3": 0,
+            "n_month": 1863,
+            "n_w3_month": 680,
+            "pct_w3_month": 36.5
+          },
+          {
+            "month": "2026-04",
+            "category": "Transactions",
+            "n_complaints": 394,
+            "n_w3": 375,
+            "n_month": 1863,
+            "n_w3_month": 680,
+            "pct_w3_month": 36.5
+          },
+          {
+            "month": "2026-05",
+            "category": "Branch",
+            "n_complaints": 332,
+            "n_w3": 0,
+            "n_month": 1825,
+            "n_w3_month": 691,
+            "pct_w3_month": 37.9
+          },
+          {
+            "month": "2026-05",
+            "category": "Fees",
+            "n_complaints": 393,
+            "n_w3": 336,
+            "n_month": 1825,
+            "n_w3_month": 691,
+            "pct_w3_month": 37.9
+          },
+          {
+            "month": "2026-05",
+            "category": "Service",
+            "n_complaints": 363,
+            "n_w3": 0,
+            "n_month": 1825,
+            "n_w3_month": 691,
+            "pct_w3_month": 37.9
+          },
+          {
+            "month": "2026-05",
+            "category": "Technical",
+            "n_complaints": 362,
+            "n_w3": 0,
+            "n_month": 1825,
+            "n_w3_month": 691,
+            "pct_w3_month": 37.9
+          },
+          {
+            "month": "2026-05",
+            "category": "Transactions",
+            "n_complaints": 375,
+            "n_w3": 355,
+            "n_month": 1825,
+            "n_w3_month": 691,
+            "pct_w3_month": 37.9
+          },
+          {
+            "month": "2026-06",
+            "category": "Branch",
+            "n_complaints": 216,
+            "n_w3": 0,
+            "n_month": 1064,
+            "n_w3_month": 376,
+            "pct_w3_month": 35.3
+          },
+          {
+            "month": "2026-06",
+            "category": "Fees",
+            "n_complaints": 228,
+            "n_w3": 189,
+            "n_month": 1064,
+            "n_w3_month": 376,
+            "pct_w3_month": 35.3
+          },
+          {
+            "month": "2026-06",
+            "category": "Service",
+            "n_complaints": 230,
+            "n_w3": 0,
+            "n_month": 1064,
+            "n_w3_month": 376,
+            "pct_w3_month": 35.3
+          },
+          {
+            "month": "2026-06",
+            "category": "Technical",
+            "n_complaints": 191,
+            "n_w3": 0,
+            "n_month": 1064,
+            "n_w3_month": 376,
+            "pct_w3_month": 35.3
+          },
+          {
+            "month": "2026-06",
+            "category": "Transactions",
+            "n_complaints": 199,
+            "n_w3": 187,
+            "n_month": 1064,
+            "n_w3_month": 376,
+            "pct_w3_month": 35.3
+          }
+        ]
+      },
+      "d06": {
+        "query": "queries/data/d06_data_quality_per_table.sql",
+        "label": "[data]",
+        "rows": [
+          {
+            "table_name": "customers",
+            "kind": "rows",
+            "name": "*",
+            "numerator": 150000,
+            "denominator": 150000,
+            "pct": 100.0
+          },
+          {
+            "table_name": "customers",
+            "kind": "null",
+            "name": "country",
+            "numerator": 0,
+            "denominator": 150000,
+            "pct": 0.0
+          },
+          {
+            "table_name": "customers",
+            "kind": "null",
+            "name": "segment",
+            "numerator": 0,
+            "denominator": 150000,
+            "pct": 0.0
+          },
+          {
+            "table_name": "customers",
+            "kind": "null",
+            "name": "customer_status",
+            "numerator": 0,
+            "denominator": 150000,
+            "pct": 0.0
+          },
+          {
+            "table_name": "customers",
+            "kind": "null",
+            "name": "registration_date",
+            "numerator": 0,
+            "denominator": 150000,
+            "pct": 0.0
+          },
+          {
+            "table_name": "customers",
+            "kind": "flag",
+            "name": "qc_future_last_updated",
+            "numerator": 5957,
+            "denominator": 150000,
+            "pct": 4.0
+          },
+          {
+            "table_name": "customers",
+            "kind": "flag",
+            "name": "qc_label_normalized",
+            "numerator": 0,
+            "denominator": 150000,
+            "pct": 0.0
+          },
+          {
+            "table_name": "products",
+            "kind": "rows",
+            "name": "*",
+            "numerator": 400000,
+            "denominator": 400000,
+            "pct": 100.0
+          },
+          {
+            "table_name": "products",
+            "kind": "null",
+            "name": "customer_id",
+            "numerator": 0,
+            "denominator": 400000,
+            "pct": 0.0
+          },
+          {
+            "table_name": "products",
+            "kind": "null",
+            "name": "product_type",
+            "numerator": 0,
+            "denominator": 400000,
+            "pct": 0.0
+          },
+          {
+            "table_name": "products",
+            "kind": "null",
+            "name": "product_status",
+            "numerator": 0,
+            "denominator": 400000,
+            "pct": 0.0
+          },
+          {
+            "table_name": "products",
+            "kind": "null",
+            "name": "opening_date",
+            "numerator": 0,
+            "denominator": 400000,
+            "pct": 0.0
+          },
+          {
+            "table_name": "products",
+            "kind": "null",
+            "name": "credit_limit",
+            "numerator": 274683,
+            "denominator": 400000,
+            "pct": 68.7
+          },
+          {
+            "table_name": "products",
+            "kind": "flag",
+            "name": "qc_customer_orphan",
+            "numerator": 0,
+            "denominator": 400000,
+            "pct": 0.0
+          },
+          {
+            "table_name": "products",
+            "kind": "flag",
+            "name": "qc_future_last_updated",
+            "numerator": 15939,
+            "denominator": 400000,
+            "pct": 4.0
+          },
+          {
+            "table_name": "transactions",
+            "kind": "rows",
+            "name": "*",
+            "numerator": 1477723,
+            "denominator": 1477723,
+            "pct": 100.0
+          },
+          {
+            "table_name": "transactions",
+            "kind": "null",
+            "name": "customer_id",
+            "numerator": 0,
+            "denominator": 1477723,
+            "pct": 0.0
+          },
+          {
+            "table_name": "transactions",
+            "kind": "null",
+            "name": "product_id",
+            "numerator": 0,
+            "denominator": 1477723,
+            "pct": 0.0
+          },
+          {
+            "table_name": "transactions",
+            "kind": "null",
+            "name": "amount",
+            "numerator": 0,
+            "denominator": 1477723,
+            "pct": 0.0
+          },
+          {
+            "table_name": "transactions",
+            "kind": "null",
+            "name": "transaction_status",
+            "numerator": 0,
+            "denominator": 1477723,
+            "pct": 0.0
+          },
+          {
+            "table_name": "transactions",
+            "kind": "null",
+            "name": "merchant_category",
+            "numerator": 1134287,
+            "denominator": 1477723,
+            "pct": 76.8
+          },
+          {
+            "table_name": "transactions",
+            "kind": "null",
+            "name": "fraud_score",
+            "numerator": 296152,
+            "denominator": 1477723,
+            "pct": 20.0
+          },
+          {
+            "table_name": "transactions",
+            "kind": "flag",
+            "name": "qc_customer_orphan",
+            "numerator": 0,
+            "denominator": 1477723,
+            "pct": 0.0
+          },
+          {
+            "table_name": "transactions",
+            "kind": "flag",
+            "name": "qc_product_orphan",
+            "numerator": 0,
+            "denominator": 1477723,
+            "pct": 0.0
+          },
+          {
+            "table_name": "transactions",
+            "kind": "flag",
+            "name": "qc_product_other_customer",
+            "numerator": 0,
+            "denominator": 1477723,
+            "pct": 0.0
+          },
+          {
+            "table_name": "transactions",
+            "kind": "flag",
+            "name": "qc_before_product_open",
+            "numerator": 100659,
+            "denominator": 1477723,
+            "pct": 6.8
+          },
+          {
+            "table_name": "transactions",
+            "kind": "flag",
+            "name": "qc_future_date",
+            "numerator": 0,
+            "denominator": 1477723,
+            "pct": 0.0
+          },
+          {
+            "table_name": "transactions",
+            "kind": "flag",
+            "name": "qc_late_arrival",
+            "numerator": 0,
+            "denominator": 1477723,
+            "pct": 0.0
+          },
+          {
+            "table_name": "transactions",
+            "kind": "flag",
+            "name": "qc_label_normalized",
+            "numerator": 13416,
+            "denominator": 1477723,
+            "pct": 0.9
+          },
+          {
+            "table_name": "complaints",
+            "kind": "rows",
+            "name": "*",
+            "numerator": 67095,
+            "denominator": 67095,
+            "pct": 100.0
+          },
+          {
+            "table_name": "complaints",
+            "kind": "null",
+            "name": "customer_id",
+            "numerator": 0,
+            "denominator": 67095,
+            "pct": 0.0
+          },
+          {
+            "table_name": "complaints",
+            "kind": "null",
+            "name": "category",
+            "numerator": 0,
+            "denominator": 67095,
+            "pct": 0.0
+          },
+          {
+            "table_name": "complaints",
+            "kind": "null",
+            "name": "case_type",
+            "numerator": 0,
+            "denominator": 67095,
+            "pct": 0.0
+          },
+          {
+            "table_name": "complaints",
+            "kind": "null",
+            "name": "claimed_amount",
+            "numerator": 45344,
+            "denominator": 67095,
+            "pct": 67.6
+          },
+          {
+            "table_name": "complaints",
+            "kind": "null",
+            "name": "affected_product_id",
+            "numerator": 22525,
+            "denominator": 67095,
+            "pct": 33.6
+          },
+          {
+            "table_name": "complaints",
+            "kind": "null",
+            "name": "resolution_date",
+            "numerator": 51746,
+            "denominator": 67095,
+            "pct": 77.1
+          },
+          {
+            "table_name": "complaints",
+            "kind": "flag",
+            "name": "qc_customer_orphan",
+            "numerator": 0,
+            "denominator": 67095,
+            "pct": 0.0
+          },
+          {
+            "table_name": "complaints",
+            "kind": "flag",
+            "name": "qc_affected_product_orphan",
+            "numerator": 0,
+            "denominator": 67095,
+            "pct": 0.0
+          },
+          {
+            "table_name": "complaints",
+            "kind": "flag",
+            "name": "qc_affected_product_other_customer",
+            "numerator": 44570,
+            "denominator": 67095,
+            "pct": 66.4
+          },
+          {
+            "table_name": "complaints",
+            "kind": "flag",
+            "name": "qc_future_date",
+            "numerator": 0,
+            "denominator": 67095,
+            "pct": 0.0
+          },
+          {
+            "table_name": "complaints",
+            "kind": "flag",
+            "name": "qc_late_arrival",
+            "numerator": 0,
+            "denominator": 67095,
+            "pct": 0.0
+          }
+        ]
+      }
     }
   }
 }

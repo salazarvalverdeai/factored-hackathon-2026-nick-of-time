@@ -92,7 +92,7 @@ the empty state of AC-04 until the real files arrive.
 `data/gold/manifest.json`), `checks` (name, rows affected, action taken, from `data/quality_report.md` §3),
 `manifest` (version, pipeline version, contract version, run date) and `late_arrival` (rows added, column added and
 checks re-run between `delivery_1` and `delivery_2` of the fixture) and `complaint_link` (`query` and `rows` of metric, numerator,
-denominator: the committed output of `queries/data/d01_complaint_transaction_link.sql`, or null). Built by a new
+denominator: the committed output of `queries/data/d01_complaint_transaction_link.sql`, or null). and `profile` (or null): the data profile drawn on `/data`, one block per committed output of `queries/data/d02..d06`, each `{query, label: "[data]", rows}` with `rows` the CSV rows typed (d02 transactions per month by product type and status; d03 customers and transactions by country and segment; d04 the bank's `fraud_score` bands on card transactions per country, a score and not a label; d05 complaints per month by category with the W3 share; d06 rows, null rate and `qc_*` flags per gold table). Aggregate only: no ids, no personal data, and no query reads the label or `data/gold_eval/` (AC-03). Built by a new
 `--json` output of `python -m data.pipeline report` (`--data-dir` reads another checkout's run results, read-only).
 
 ### 7.3 What each page shows

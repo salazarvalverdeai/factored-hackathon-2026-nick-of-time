@@ -17,11 +17,12 @@ def main() -> None:
     parser.add_argument("--gold", type=Path, default=HERE.parents[1] / "data" / "gold")
     gold = parser.parse_args().gold.resolve()
     con = duckdb.connect()
-    for table in ("complaints", "transactions", "products"):
+    for table in ("complaints", "transactions", "products", "customers"):
         con.execute(f"CREATE VIEW {table} AS SELECT * FROM read_parquet('{gold / table}.parquet')")
     for sql in sorted(HERE.glob("*.sql")):
         frame = con.sql(sql.read_text(encoding="utf-8")).pl()
-        frame = frame.with_columns((100 * frame["numerator"] / frame["denominator"]).round(1).alias("pct"))
+        if {"numerator", "denominator"} <= set(frame.columns):       # ratio queries (d01, d06) get their pct
+            frame = frame.with_columns((100 * frame["numerator"] / frame["denominator"]).round(1).alias("pct"))
         frame.write_csv(sql.with_suffix(".csv"))
         print(sql.name, frame, sep="\n")
 
