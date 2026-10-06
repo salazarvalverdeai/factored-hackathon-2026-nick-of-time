@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import test from "node:test";
 import { dataDir } from "./data-dir.ts";
-import { DEVELOPMENT_CHIP, GENERATOR_FLAG, developmentRuns, pageNotice, METRICS, METRIC_MEANING, RULES_REVIEW_SENTENCE, DETAILS, detailUrl, headingSlug, limitations, RESULT_FILES, costQualityPoints, developmentNotice, generatorFlag, interval, pending, protocolNotice, rateParts, rateText, scoreText } from "./evaluation.ts";
+import { classifierRunNote, DEVELOPMENT_CHIP, GENERATOR_FLAG, developmentRuns, pageNotice, METRICS, METRIC_MEANING, RULES_REVIEW_SENTENCE, DETAILS, detailUrl, headingSlug, limitations, RESULT_FILES, costQualityPoints, developmentNotice, generatorFlag, interval, pending, protocolNotice, rateParts, rateText, scoreText } from "./evaluation.ts";
 import type { BenchmarkData, ClassifierData, EvaluationData, FraudData, Insight, Rate } from "./evaluation.ts";
 
 const SAMPLE = JSON.parse(
@@ -28,9 +28,31 @@ test("spec 12 AC-04: a missing result file gives a pending section that names th
 });
 
 test("spec 12 AC-04: no placeholder result file is committed; the sample lives only in the test fixtures", () => {
-  for (const name of ["benchmark.json", "classifier.json", "fraud_benchmark.json"]) {
-    assert.equal(existsSync(new URL(`../public/data/${name}`, import.meta.url)), false, name);
+  // Each result file is either absent (pending) or a real sealed result, never a sample or a development run.
+  const sealedRuns: Record<string, (d: Record<string, unknown>) => boolean> = {
+    "classifier.json": (d) => d.run === "test",
+    "fraud_benchmark.json": (d) => d.scored_window === "test",
+    "evaluation_summary.json": (d) => d.set === "heldout",
+    "benchmark.json": (d) => d.split === "test",
+  };
+  for (const [name, isTestRun] of Object.entries(sealedRuns)) {
+    const url = new URL(`../public/data/${name}`, import.meta.url);
+    if (!existsSync(url)) continue;
+    const file = JSON.parse(readFileSync(url, "utf-8")) as Insight<Record<string, unknown> & { protocol: { status: string } }>;
+    assert.doesNotMatch(file.source ?? "", /SAMPLE FOR TESTS ONLY/, name);
+    assert.equal(file.data.protocol.status, "SEALED", name);
+    assert.ok(isTestRun(file.data), `${name} is the test or held-out run`);
   }
+  // classifier.json is the real sealed test run (ADR 0028), not a placeholder
+  const real = JSON.parse(readFileSync(new URL("../public/data/classifier.json", import.meta.url), "utf-8")) as Insight<ClassifierData>;
+  assert.doesNotMatch(real.source, /SAMPLE FOR TESTS ONLY/);
+  assert.equal(real.data.run, "test");
+  assert.equal(real.data.protocol.status, "SEALED");
+  assert.equal(real.data.test_review, "rules-v1");
+  assert.equal(protocolNotice(real.data.protocol), null);
+  assert.ok(real.data.arms.every((a) => a.meets_floors === false));
+  assert.equal(classifierRunNote(real.data), "Sealed test result · test split decided by fixed rules (rules-v1), not by a person · no arm meets the floors; B0 kept.");
+  assert.equal(classifierRunNote(CLASSIFIER.data), null);
   assert.match(SAMPLE.source, /SAMPLE FOR TESTS ONLY/);
 });
 

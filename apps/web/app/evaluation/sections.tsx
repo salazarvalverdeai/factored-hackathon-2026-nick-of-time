@@ -6,7 +6,7 @@
 import { useState, type CSSProperties, type ReactNode } from "react";
 import { FOCUS, Swatch, TableView, TipBody, useTip } from "@/app/analytics/charts";
 import { DevChip, Explain, IntervalBar } from "./explain";
-import {
+import { classifierRunNote, sealedRunNote,
   costQualityPoints,
   dollars,
   GENERATOR_FLAG,
@@ -114,6 +114,7 @@ export function BenchmarkSection({ file }: { file: Insight<BenchmarkData> }) {
   return (
     <Section title="Model benchmark: cost against quality" file={file} data="benchmark.json" detail="benchmark"
       hint={`Understanding task: one dot per model, macro-F1 on the ${language.toUpperCase()} test sentences against USD per 1,000 messages. Filled dots are on the Pareto front; the ringed one is the chosen model${chosen ? ` (${chosen})` : ""}. Axis starts at ${yMin.toFixed(1)}.`}>
+      {sealedRunNote(data as never) && <p className="mt-3 text-sm font-medium" data-slot="sealed-run-note">{sealedRunNote(data as never)}</p>}
       <div className="mt-3 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
         {languages.map((l) => (
           <button key={l} type="button" aria-pressed={l === language} onClick={() => setLanguage(l)}
@@ -164,7 +165,7 @@ export function BenchmarkSection({ file }: { file: Insight<BenchmarkData> }) {
       <TableView
         head={["Arm", "Status", `Macro-F1 ${language.toUpperCase()}`, "Dispute recall", "Person-request recall", "Slot accuracy", "p95", "Per 1,000", "Pareto", "Meets bar", "Production gate", "Flag"]}
         rows={data.b1.arms.map((a) => [a.arm, a.status === "ok" ? "ok" : `${a.status}${a.unavailable_reason ? `: ${a.unavailable_reason}` : ""}`,
-          scoreText(a.macro_f1[language], a.macro_f1_ci[language]), rateText(a.dispute_recall), rateText(a.human_request_recall), rateText(a.slot_accuracy),
+          scoreText(a.macro_f1?.[language], a.macro_f1_ci?.[language]), rateText(a.dispute_recall), rateText(a.human_request_recall), rateText(a.slot_accuracy),
           milliseconds(a.p95_ms), dollars(a.cost_per_1000_usd), yes(a.pareto), yes(a.meets_bar), yes(a.gate.production_pass), generatorFlag(a) ?? "—"])}
       />
       <h3 className="mt-5 text-sm font-semibold">Whole system on the dev cases ({data.b2.set}, {data.b2.cases} cases x {data.b2.runs_per_case} runs)</h3>
@@ -210,6 +211,7 @@ export function ClassifierSection({ file }: { file: Insight<ClassifierData> }) {
   return (
     <Section title="Intent classifier" file={file} data="classifier.json" detail="classifier"
       hint={`Does the system read what the customer wants? Macro-F1 is the average score over the intents, from 0 (always wrong) to 1 (always right), per arm and language, with its 95% bootstrap interval. Frozen test split: ${sentences} sentences, ${data.test_split.injection_rows ?? "—"} injection rows apart. Confidence threshold tau ${score(data.tau)}.`}>
+      {classifierRunNote(data) && <p className="mt-3 text-sm font-medium" data-slot="classifier-run-note">{classifierRunNote(data)}</p>}
       {languages.map((lang) => (
         <div key={lang} className="mt-4">
           <h3 className="text-sm font-semibold">Macro-F1, {lang.toUpperCase()}</h3>
@@ -249,6 +251,7 @@ export function FraudSection({ file }: { file: Insight<FraudData> }) {
   return (
     <Section title="Fraud model against the bank's score" file={file} data="fraud_benchmark.json" detail="fraud"
       hint={`Does a model of ours rank fraud better than the bank's score? PR-AUC is the share of top-ranked transactions that are fraud, averaged over thresholds: higher is better. Test window ${test.from} to ${test.to}: ${test.transactions?.toLocaleString("en-US") ?? "—"} transactions, ${test.frauds ?? "—"} frauds. Scale 0 to 1, with the 95% bootstrap interval; S-bank is the bank's own score. Chosen: ${data.chosen_arm ?? "—"}.`}>
+      {sealedRunNote(data as never) && <p className="mt-3 text-sm font-medium" data-slot="sealed-run-note">{sealedRunNote(data as never)}</p>}
       <div className="mt-4 space-y-4">
         {subsets.map((s) => (
           <div key={s}>

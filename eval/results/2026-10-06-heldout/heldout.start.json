@@ -1,0 +1,21 @@
+{
+  "run": "heldout",
+  "head": "9242dc53fb673b1695e5d4f6e4dde8484c74c699",
+  "tag": "protocol-v1",
+  "tag_commit": "7b18f72f4f7c427e51f54dadf9435b0896af476a",
+  "protocol_sha256": "533fc516c78509868b95e1d674bbeeee2555285d68bc4856f229623aa7aaa2d2",
+  "origin_main": "3d92b47be897109b00770e7ff5536763739297f4",
+  "started_at": "2026-10-06T01:56:00Z",
+  "argv": [
+    "/Users/svai/dev/FactoredAI/factored-hackathon-2026-nick-of-time/.claude/worktrees/ot-eval-main/eval/harness/__main__.py",
+    "run",
+    "--set",
+    "heldout",
+    "--arms",
+    "S0,S1,S2",
+    "--runs",
+    "4",
+    "--api",
+    "http://localhost:8000"
+  ]
+}
