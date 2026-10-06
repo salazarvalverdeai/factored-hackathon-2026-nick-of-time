@@ -235,5 +235,5 @@ def test_ac_06_env_file_carries_the_demo_arm_and_public_links():
 def test_ac_06_judging_limits_are_explicit_and_the_spend_cap_stays():
     """AC-06 / FR-09: per-IP limits sized for a jury behind one IP; the daily Bedrock cap stays the cost guard."""
     script = (INFRA / "deploy.sh").read_text()
-    for needle in ("RATE_SESSIONS_PER_IP_HOUR=100", "RATE_TURNS_PER_IP_HOUR=600", "DAILY_LLM_CAP_USD=5"):
+    for needle in ("RATE_SESSIONS_PER_IP_HOUR=100", "RATE_TURNS_PER_IP_HOUR=600", "DAILY_LLM_CAP_USD=10"):
         assert needle in script, needle

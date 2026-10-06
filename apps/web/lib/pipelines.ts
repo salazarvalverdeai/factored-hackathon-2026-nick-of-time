@@ -5,11 +5,14 @@ import { REPO_BLOB } from "./evaluation.ts";
 
 /** What "Detail →" opens in the side panel: the method, its source, the label of its figures and the spec. */
 export type Detail = {
+  /** What the figure means, in one to three plain sentences (shown first when present). */
+  meaning?: string;
   /** One to three plain sentences, no bracket label. */
   method: string;
   /** The query or file the figures come from. */
   source: string;
-  label: "[data]" | "[simulated]" | "[projected]";
+  /** The label of the figures, for example "[data]". */
+  label: string;
   /** The repo markdown on GitHub ("Read the spec →"). */
   spec: string;
 };

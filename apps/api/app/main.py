@@ -153,6 +153,7 @@ class ConsoleCaseOut(Out):
 
 class SettingsOut(Out):
     supervised_mode: bool
+    writer: Literal["template", "llm"] = "template"       # ADR 0030: who words a chat reply
     score_provider: str
     policies_version: int
 
@@ -259,7 +260,8 @@ class EmailIn(BaseModel):
 
 
 class SettingsIn(BaseModel):
-    supervised_mode: bool
+    supervised_mode: Optional[bool] = None
+    writer: Optional[Literal["template", "llm"]] = None
 
 
 class SeedIn(BaseModel):
@@ -288,6 +290,7 @@ def create_app(eval_mode: Optional[bool] = None, store: Any = None, **deps: Any)
     app.state.runs = []                # configurable of every proxied agent run (AC-06 evidence)
     app.state.policy_denials = []      # policy ids stay server-side; customer error bodies carry null (D-013)
     app.state.supervised = True
+    app.state.writer = "template"
 
     @app.exception_handler(ApiError)
     async def _api_error(request: Request, e: ApiError):
@@ -545,7 +548,7 @@ def create_app(eval_mode: Optional[bool] = None, store: Any = None, **deps: Any)
                                 notification_id=ids.new_id("notification"))
 
     def _settings() -> dict:
-        return {"supervised_mode": app.state.supervised, "score_provider": "dataset",
+        return {"supervised_mode": app.state.supervised, "writer": app.state.writer, "score_provider": "dataset",
                 "policies_version": fx.POLICIES_VERSION}
 
     @app.get("/api/console/settings", response_model=SettingsOut)
@@ -554,7 +557,10 @@ def create_app(eval_mode: Optional[bool] = None, store: Any = None, **deps: Any)
 
     @app.put("/api/console/settings", response_model=SettingsOut)
     def put_settings(body: SettingsIn, _: str = Depends(analyst)):
-        app.state.supervised = body.supervised_mode
+        if body.supervised_mode is not None:
+            app.state.supervised = body.supervised_mode
+        if body.writer is not None:
+            app.state.writer = body.writer
         return _settings()
 
     @app.post("/api/console/demo/reset", response_model=ResetOut)
