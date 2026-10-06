@@ -26,8 +26,8 @@ GUARDRAILS = {g["id"]: g for g in POLICIES["guardrails"]}
 
 
 def test_ac_01_contract_version_is_1_4_0_in_the_package_and_the_spec():
-    assert CONTRACT_VERSION == "1.7.0"                       # 1.5.0 (DLANG), 1.6.0 (D-068), 1.7.0 (DEMOCD): additive
-    assert "Contract version **1.7.0**" in SPEC_01 and "(contract 1.7.0," in SPEC_01
+    assert CONTRACT_VERSION == "1.8.0"                       # 1.5.0 (DLANG), 1.6.0 (D-068), 1.7.0 (DEMOCD), 1.8.0 (ADR 0030): additive
+    assert "Contract version **1.8.0**" in SPEC_01 and "(contract 1.8.0," in SPEC_01
     for decision in ("D-052", "D-029", "D-033", "`ListMyCardsOut.read_at`", "`person_requested`", "01g2", "01g3"):
         assert decision in SPEC_01.split("## 1. Introduction")[0], decision     # the 1.4.0 entry names each item
 
