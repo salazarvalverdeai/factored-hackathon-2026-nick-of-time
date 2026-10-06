@@ -1,0 +1,199 @@
+arm,criterion,needed_benchmark,needed_production,verdict,evidence_url,checked_on
+nova-micro,synthetic_only,True,False,pass,docs/adr/0009 (internal: synthetic data only),2026-10-04
+nova-micro,no_training,True,True,pass,https://aws.amazon.com/bedrock/security-compliance/,2026-10-04
+nova-micro,retention,False,True,pass,https://docs.aws.amazon.com/bedrock/latest/userguide/data-retention.html,2026-10-04
+nova-micro,region,False,True,pass,https://docs.aws.amazon.com/bedrock/latest/userguide/cross-region-inference.html,2026-10-04
+nova-micro,certification,False,True,pass,https://aws.amazon.com/bedrock/security-compliance/,2026-10-04
+nova-micro,credentials,True,True,pass,"docs/infrastructure.md section IAM (internal: svc-nickoftime-langgraph, Bedrock invoke only; its key lives in the Platform deployment secrets) and CLAUDE.md constraint 10",2026-10-04
+nova-micro,version_pinning,True,True,pass,https://docs.aws.amazon.com/bedrock/latest/userguide/model-lifecycle-legacy.html,2026-10-04
+nova-micro,availability,False,True,pass,https://aws.amazon.com/bedrock/sla/,2026-10-05
+nova-micro,es_pt_quality,False,True,fail,"eval/results/bench_b1.csv, macro-F1 per language >= 0.9",2026-06-01
+nova-lite,synthetic_only,True,False,pass,docs/adr/0009 (internal: synthetic data only),2026-10-04
+nova-lite,no_training,True,True,pass,https://aws.amazon.com/bedrock/security-compliance/,2026-10-04
+nova-lite,retention,False,True,pass,https://docs.aws.amazon.com/bedrock/latest/userguide/data-retention.html,2026-10-04
+nova-lite,region,False,True,pass,https://docs.aws.amazon.com/bedrock/latest/userguide/cross-region-inference.html,2026-10-04
+nova-lite,certification,False,True,pass,https://aws.amazon.com/bedrock/security-compliance/,2026-10-04
+nova-lite,credentials,True,True,pass,"docs/infrastructure.md section IAM (internal: svc-nickoftime-langgraph, Bedrock invoke only; its key lives in the Platform deployment secrets) and CLAUDE.md constraint 10",2026-10-04
+nova-lite,version_pinning,True,True,pass,https://docs.aws.amazon.com/bedrock/latest/userguide/model-lifecycle-legacy.html,2026-10-04
+nova-lite,availability,False,True,pass,https://aws.amazon.com/bedrock/sla/,2026-10-05
+nova-lite,es_pt_quality,False,True,fail,"eval/results/bench_b1.csv, macro-F1 per language >= 0.9",2026-06-01
+nova-2-lite,synthetic_only,True,False,pass,docs/adr/0009 (internal: synthetic data only),2026-10-04
+nova-2-lite,no_training,True,True,pass,https://aws.amazon.com/bedrock/security-compliance/,2026-10-04
+nova-2-lite,retention,False,True,pass,https://docs.aws.amazon.com/bedrock/latest/userguide/data-retention.html,2026-10-04
+nova-2-lite,region,False,True,pass,https://docs.aws.amazon.com/bedrock/latest/userguide/cross-region-inference.html,2026-10-04
+nova-2-lite,certification,False,True,pass,https://aws.amazon.com/bedrock/security-compliance/,2026-10-04
+nova-2-lite,credentials,True,True,pass,"docs/infrastructure.md section IAM (internal: svc-nickoftime-langgraph, Bedrock invoke only; its key lives in the Platform deployment secrets) and CLAUDE.md constraint 10",2026-10-04
+nova-2-lite,version_pinning,True,True,pass,https://docs.aws.amazon.com/bedrock/latest/userguide/model-lifecycle-legacy.html,2026-10-04
+nova-2-lite,availability,False,True,pass,https://aws.amazon.com/bedrock/sla/,2026-10-05
+nova-2-lite,es_pt_quality,False,True,pass,"eval/results/bench_b1.csv, macro-F1 per language >= 0.9",2026-06-01
+nova-pro,synthetic_only,True,False,pass,docs/adr/0009 (internal: synthetic data only),2026-10-04
+nova-pro,no_training,True,True,pass,https://aws.amazon.com/bedrock/security-compliance/,2026-10-04
+nova-pro,retention,False,True,pass,https://docs.aws.amazon.com/bedrock/latest/userguide/data-retention.html,2026-10-04
+nova-pro,region,False,True,pass,https://docs.aws.amazon.com/bedrock/latest/userguide/cross-region-inference.html,2026-10-04
+nova-pro,certification,False,True,pass,https://aws.amazon.com/bedrock/security-compliance/,2026-10-04
+nova-pro,credentials,True,True,pass,"docs/infrastructure.md section IAM (internal: svc-nickoftime-langgraph, Bedrock invoke only; its key lives in the Platform deployment secrets) and CLAUDE.md constraint 10",2026-10-04
+nova-pro,version_pinning,True,True,pass,https://docs.aws.amazon.com/bedrock/latest/userguide/model-lifecycle-legacy.html,2026-10-04
+nova-pro,availability,False,True,pass,https://aws.amazon.com/bedrock/sla/,2026-10-05
+nova-pro,es_pt_quality,False,True,fail,"eval/results/bench_b1.csv, macro-F1 per language >= 0.9",2026-06-01
+gpt-oss-20b,synthetic_only,True,False,pass,docs/adr/0009 (internal: synthetic data only),2026-10-04
+gpt-oss-20b,no_training,True,True,pass,https://aws.amazon.com/bedrock/security-compliance/,2026-10-04
+gpt-oss-20b,retention,False,True,pass,https://docs.aws.amazon.com/bedrock/latest/userguide/data-retention.html,2026-10-04
+gpt-oss-20b,region,False,True,pass,https://docs.aws.amazon.com/bedrock/latest/userguide/cross-region-inference.html,2026-10-04
+gpt-oss-20b,certification,False,True,pass,https://aws.amazon.com/bedrock/security-compliance/,2026-10-04
+gpt-oss-20b,credentials,True,True,pass,"docs/infrastructure.md section IAM (internal: svc-nickoftime-langgraph, Bedrock invoke only; its key lives in the Platform deployment secrets) and CLAUDE.md constraint 10",2026-10-04
+gpt-oss-20b,version_pinning,True,True,pass,https://docs.aws.amazon.com/bedrock/latest/userguide/model-lifecycle-legacy.html,2026-10-04
+gpt-oss-20b,availability,False,True,pass,https://aws.amazon.com/bedrock/sla/,2026-10-05
+gpt-oss-20b,es_pt_quality,False,True,pass,"eval/results/bench_b1.csv, macro-F1 per language >= 0.9",2026-06-01
+gpt-oss-120b,synthetic_only,True,False,pass,docs/adr/0009 (internal: synthetic data only),2026-10-04
+gpt-oss-120b,no_training,True,True,pass,https://aws.amazon.com/bedrock/security-compliance/,2026-10-04
+gpt-oss-120b,retention,False,True,pass,https://docs.aws.amazon.com/bedrock/latest/userguide/data-retention.html,2026-10-04
+gpt-oss-120b,region,False,True,pass,https://docs.aws.amazon.com/bedrock/latest/userguide/cross-region-inference.html,2026-10-04
+gpt-oss-120b,certification,False,True,pass,https://aws.amazon.com/bedrock/security-compliance/,2026-10-04
+gpt-oss-120b,credentials,True,True,pass,"docs/infrastructure.md section IAM (internal: svc-nickoftime-langgraph, Bedrock invoke only; its key lives in the Platform deployment secrets) and CLAUDE.md constraint 10",2026-10-04
+gpt-oss-120b,version_pinning,True,True,pass,https://docs.aws.amazon.com/bedrock/latest/userguide/model-lifecycle-legacy.html,2026-10-04
+gpt-oss-120b,availability,False,True,pass,https://aws.amazon.com/bedrock/sla/,2026-10-05
+gpt-oss-120b,es_pt_quality,False,True,pass,"eval/results/bench_b1.csv, macro-F1 per language >= 0.9",2026-06-01
+ministral-3-8b,synthetic_only,True,False,pass,docs/adr/0009 (internal: synthetic data only),2026-10-04
+ministral-3-8b,no_training,True,True,pass,https://aws.amazon.com/bedrock/security-compliance/,2026-10-04
+ministral-3-8b,retention,False,True,pass,https://docs.aws.amazon.com/bedrock/latest/userguide/data-retention.html,2026-10-04
+ministral-3-8b,region,False,True,pass,https://docs.aws.amazon.com/bedrock/latest/userguide/cross-region-inference.html,2026-10-04
+ministral-3-8b,certification,False,True,pass,https://aws.amazon.com/bedrock/security-compliance/,2026-10-04
+ministral-3-8b,credentials,True,True,pass,"docs/infrastructure.md section IAM (internal: svc-nickoftime-langgraph, Bedrock invoke only; its key lives in the Platform deployment secrets) and CLAUDE.md constraint 10",2026-10-04
+ministral-3-8b,version_pinning,True,True,pass,https://docs.aws.amazon.com/bedrock/latest/userguide/model-lifecycle-legacy.html,2026-10-04
+ministral-3-8b,availability,False,True,pass,https://aws.amazon.com/bedrock/sla/,2026-10-05
+ministral-3-8b,es_pt_quality,False,True,fail,"eval/results/bench_b1.csv, macro-F1 per language >= 0.9",2026-06-01
+ministral-3-14b,synthetic_only,True,False,pass,docs/adr/0009 (internal: synthetic data only),2026-10-04
+ministral-3-14b,no_training,True,True,pass,https://aws.amazon.com/bedrock/security-compliance/,2026-10-04
+ministral-3-14b,retention,False,True,pass,https://docs.aws.amazon.com/bedrock/latest/userguide/data-retention.html,2026-10-04
+ministral-3-14b,region,False,True,pass,https://docs.aws.amazon.com/bedrock/latest/userguide/cross-region-inference.html,2026-10-04
+ministral-3-14b,certification,False,True,pass,https://aws.amazon.com/bedrock/security-compliance/,2026-10-04
+ministral-3-14b,credentials,True,True,pass,"docs/infrastructure.md section IAM (internal: svc-nickoftime-langgraph, Bedrock invoke only; its key lives in the Platform deployment secrets) and CLAUDE.md constraint 10",2026-10-04
+ministral-3-14b,version_pinning,True,True,pass,https://docs.aws.amazon.com/bedrock/latest/userguide/model-lifecycle-legacy.html,2026-10-04
+ministral-3-14b,availability,False,True,pass,https://aws.amazon.com/bedrock/sla/,2026-10-05
+ministral-3-14b,es_pt_quality,False,True,fail,"eval/results/bench_b1.csv, macro-F1 per language >= 0.9",2026-06-01
+mistral-large-3,synthetic_only,True,False,pass,docs/adr/0009 (internal: synthetic data only),2026-10-04
+mistral-large-3,no_training,True,True,pass,https://aws.amazon.com/bedrock/security-compliance/,2026-10-04
+mistral-large-3,retention,False,True,pass,https://docs.aws.amazon.com/bedrock/latest/userguide/data-retention.html,2026-10-04
+mistral-large-3,region,False,True,pass,https://docs.aws.amazon.com/bedrock/latest/userguide/cross-region-inference.html,2026-10-04
+mistral-large-3,certification,False,True,pass,https://aws.amazon.com/bedrock/security-compliance/,2026-10-04
+mistral-large-3,credentials,True,True,pass,"docs/infrastructure.md section IAM (internal: svc-nickoftime-langgraph, Bedrock invoke only; its key lives in the Platform deployment secrets) and CLAUDE.md constraint 10",2026-10-04
+mistral-large-3,version_pinning,True,True,pass,https://docs.aws.amazon.com/bedrock/latest/userguide/model-lifecycle-legacy.html,2026-10-04
+mistral-large-3,availability,False,True,pass,https://aws.amazon.com/bedrock/sla/,2026-10-05
+mistral-large-3,es_pt_quality,False,True,pass,"eval/results/bench_b1.csv, macro-F1 per language >= 0.9",2026-06-01
+gemma-3-12b,synthetic_only,True,False,pass,docs/adr/0009 (internal: synthetic data only),2026-10-04
+gemma-3-12b,no_training,True,True,pass,https://aws.amazon.com/bedrock/security-compliance/,2026-10-04
+gemma-3-12b,retention,False,True,pass,https://docs.aws.amazon.com/bedrock/latest/userguide/data-retention.html,2026-10-04
+gemma-3-12b,region,False,True,pass,https://docs.aws.amazon.com/bedrock/latest/userguide/cross-region-inference.html,2026-10-04
+gemma-3-12b,certification,False,True,pass,https://aws.amazon.com/bedrock/security-compliance/,2026-10-04
+gemma-3-12b,credentials,True,True,pass,"docs/infrastructure.md section IAM (internal: svc-nickoftime-langgraph, Bedrock invoke only; its key lives in the Platform deployment secrets) and CLAUDE.md constraint 10",2026-10-04
+gemma-3-12b,version_pinning,True,True,pass,https://docs.aws.amazon.com/bedrock/latest/userguide/model-lifecycle-legacy.html,2026-10-04
+gemma-3-12b,availability,False,True,pass,https://aws.amazon.com/bedrock/sla/,2026-10-05
+gemma-3-12b,es_pt_quality,False,True,not documented,,2026-06-01
+gemma-3-27b,synthetic_only,True,False,pass,docs/adr/0009 (internal: synthetic data only),2026-10-04
+gemma-3-27b,no_training,True,True,pass,https://aws.amazon.com/bedrock/security-compliance/,2026-10-04
+gemma-3-27b,retention,False,True,pass,https://docs.aws.amazon.com/bedrock/latest/userguide/data-retention.html,2026-10-04
+gemma-3-27b,region,False,True,pass,https://docs.aws.amazon.com/bedrock/latest/userguide/cross-region-inference.html,2026-10-04
+gemma-3-27b,certification,False,True,pass,https://aws.amazon.com/bedrock/security-compliance/,2026-10-04
+gemma-3-27b,credentials,True,True,pass,"docs/infrastructure.md section IAM (internal: svc-nickoftime-langgraph, Bedrock invoke only; its key lives in the Platform deployment secrets) and CLAUDE.md constraint 10",2026-10-04
+gemma-3-27b,version_pinning,True,True,pass,https://docs.aws.amazon.com/bedrock/latest/userguide/model-lifecycle-legacy.html,2026-10-04
+gemma-3-27b,availability,False,True,pass,https://aws.amazon.com/bedrock/sla/,2026-10-05
+gemma-3-27b,es_pt_quality,False,True,not documented,,2026-06-01
+llama-3-3-70b,synthetic_only,True,False,pass,docs/adr/0009 (internal: synthetic data only),2026-10-04
+llama-3-3-70b,no_training,True,True,pass,https://aws.amazon.com/bedrock/security-compliance/,2026-10-04
+llama-3-3-70b,retention,False,True,pass,https://docs.aws.amazon.com/bedrock/latest/userguide/data-retention.html,2026-10-04
+llama-3-3-70b,region,False,True,pass,https://docs.aws.amazon.com/bedrock/latest/userguide/cross-region-inference.html,2026-10-04
+llama-3-3-70b,certification,False,True,pass,https://aws.amazon.com/bedrock/security-compliance/,2026-10-04
+llama-3-3-70b,credentials,True,True,pass,"docs/infrastructure.md section IAM (internal: svc-nickoftime-langgraph, Bedrock invoke only; its key lives in the Platform deployment secrets) and CLAUDE.md constraint 10",2026-10-04
+llama-3-3-70b,version_pinning,True,True,pass,https://docs.aws.amazon.com/bedrock/latest/userguide/model-lifecycle-legacy.html,2026-10-04
+llama-3-3-70b,availability,False,True,pass,https://aws.amazon.com/bedrock/sla/,2026-10-05
+llama-3-3-70b,es_pt_quality,False,True,not documented,,2026-06-01
+llama-4-scout,synthetic_only,True,False,pass,docs/adr/0009 (internal: synthetic data only),2026-10-04
+llama-4-scout,no_training,True,True,pass,https://aws.amazon.com/bedrock/security-compliance/,2026-10-04
+llama-4-scout,retention,False,True,pass,https://docs.aws.amazon.com/bedrock/latest/userguide/data-retention.html,2026-10-04
+llama-4-scout,region,False,True,pass,https://docs.aws.amazon.com/bedrock/latest/userguide/cross-region-inference.html,2026-10-04
+llama-4-scout,certification,False,True,pass,https://aws.amazon.com/bedrock/security-compliance/,2026-10-04
+llama-4-scout,credentials,True,True,pass,"docs/infrastructure.md section IAM (internal: svc-nickoftime-langgraph, Bedrock invoke only; its key lives in the Platform deployment secrets) and CLAUDE.md constraint 10",2026-10-04
+llama-4-scout,version_pinning,True,True,pass,https://docs.aws.amazon.com/bedrock/latest/userguide/model-lifecycle-legacy.html,2026-10-04
+llama-4-scout,availability,False,True,pass,https://aws.amazon.com/bedrock/sla/,2026-10-05
+llama-4-scout,es_pt_quality,False,True,fail,"eval/results/bench_b1.csv, macro-F1 per language >= 0.9",2026-06-01
+llama-4-maverick,synthetic_only,True,False,pass,docs/adr/0009 (internal: synthetic data only),2026-10-04
+llama-4-maverick,no_training,True,True,pass,https://aws.amazon.com/bedrock/security-compliance/,2026-10-04
+llama-4-maverick,retention,False,True,pass,https://docs.aws.amazon.com/bedrock/latest/userguide/data-retention.html,2026-10-04
+llama-4-maverick,region,False,True,pass,https://docs.aws.amazon.com/bedrock/latest/userguide/cross-region-inference.html,2026-10-04
+llama-4-maverick,certification,False,True,pass,https://aws.amazon.com/bedrock/security-compliance/,2026-10-04
+llama-4-maverick,credentials,True,True,pass,"docs/infrastructure.md section IAM (internal: svc-nickoftime-langgraph, Bedrock invoke only; its key lives in the Platform deployment secrets) and CLAUDE.md constraint 10",2026-10-04
+llama-4-maverick,version_pinning,True,True,pass,https://docs.aws.amazon.com/bedrock/latest/userguide/model-lifecycle-legacy.html,2026-10-04
+llama-4-maverick,availability,False,True,pass,https://aws.amazon.com/bedrock/sla/,2026-10-05
+llama-4-maverick,es_pt_quality,False,True,fail,"eval/results/bench_b1.csv, macro-F1 per language >= 0.9",2026-06-01
+qwen3-32b,synthetic_only,True,False,pass,docs/adr/0009 (internal: synthetic data only),2026-10-04
+qwen3-32b,no_training,True,True,pass,https://aws.amazon.com/bedrock/security-compliance/,2026-10-04
+qwen3-32b,retention,False,True,pass,https://docs.aws.amazon.com/bedrock/latest/userguide/data-retention.html,2026-10-04
+qwen3-32b,region,False,True,pass,https://docs.aws.amazon.com/bedrock/latest/userguide/cross-region-inference.html,2026-10-04
+qwen3-32b,certification,False,True,pass,https://aws.amazon.com/bedrock/security-compliance/,2026-10-04
+qwen3-32b,credentials,True,True,pass,"docs/infrastructure.md section IAM (internal: svc-nickoftime-langgraph, Bedrock invoke only; its key lives in the Platform deployment secrets) and CLAUDE.md constraint 10",2026-10-04
+qwen3-32b,version_pinning,True,True,pass,https://docs.aws.amazon.com/bedrock/latest/userguide/model-lifecycle-legacy.html,2026-10-04
+qwen3-32b,availability,False,True,pass,https://aws.amazon.com/bedrock/sla/,2026-10-05
+qwen3-32b,es_pt_quality,False,True,fail,"eval/results/bench_b1.csv, macro-F1 per language >= 0.9",2026-06-01
+qwen3-235b,synthetic_only,True,False,pass,docs/adr/0009 (internal: synthetic data only),2026-10-04
+qwen3-235b,no_training,True,True,pass,https://aws.amazon.com/bedrock/security-compliance/,2026-10-04
+qwen3-235b,retention,False,True,pass,https://docs.aws.amazon.com/bedrock/latest/userguide/data-retention.html,2026-10-04
+qwen3-235b,region,False,True,pass,https://docs.aws.amazon.com/bedrock/latest/userguide/cross-region-inference.html,2026-10-04
+qwen3-235b,certification,False,True,pass,https://aws.amazon.com/bedrock/security-compliance/,2026-10-04
+qwen3-235b,credentials,True,True,pass,"docs/infrastructure.md section IAM (internal: svc-nickoftime-langgraph, Bedrock invoke only; its key lives in the Platform deployment secrets) and CLAUDE.md constraint 10",2026-10-04
+qwen3-235b,version_pinning,True,True,pass,https://docs.aws.amazon.com/bedrock/latest/userguide/model-lifecycle-legacy.html,2026-10-04
+qwen3-235b,availability,False,True,pass,https://aws.amazon.com/bedrock/sla/,2026-10-05
+qwen3-235b,es_pt_quality,False,True,pass,"eval/results/bench_b1.csv, macro-F1 per language >= 0.9",2026-06-01
+nemotron-nano-3,synthetic_only,True,False,pass,docs/adr/0009 (internal: synthetic data only),2026-10-04
+nemotron-nano-3,no_training,True,True,pass,https://aws.amazon.com/bedrock/security-compliance/,2026-10-04
+nemotron-nano-3,retention,False,True,pass,https://docs.aws.amazon.com/bedrock/latest/userguide/data-retention.html,2026-10-04
+nemotron-nano-3,region,False,True,pass,https://docs.aws.amazon.com/bedrock/latest/userguide/cross-region-inference.html,2026-10-04
+nemotron-nano-3,certification,False,True,pass,https://aws.amazon.com/bedrock/security-compliance/,2026-10-04
+nemotron-nano-3,credentials,True,True,pass,"docs/infrastructure.md section IAM (internal: svc-nickoftime-langgraph, Bedrock invoke only; its key lives in the Platform deployment secrets) and CLAUDE.md constraint 10",2026-10-04
+nemotron-nano-3,version_pinning,True,True,pass,https://docs.aws.amazon.com/bedrock/latest/userguide/model-lifecycle-legacy.html,2026-10-04
+nemotron-nano-3,availability,False,True,pass,https://aws.amazon.com/bedrock/sla/,2026-10-05
+nemotron-nano-3,es_pt_quality,False,True,not documented,,2026-06-01
+deepseek-v3-2,synthetic_only,True,False,pass,docs/adr/0009 (internal: synthetic data only),2026-10-04
+deepseek-v3-2,no_training,True,True,pass,https://aws.amazon.com/bedrock/security-compliance/,2026-10-04
+deepseek-v3-2,retention,False,True,pass,https://docs.aws.amazon.com/bedrock/latest/userguide/data-retention.html,2026-10-04
+deepseek-v3-2,region,False,True,pass,https://docs.aws.amazon.com/bedrock/latest/userguide/cross-region-inference.html,2026-10-04
+deepseek-v3-2,certification,False,True,pass,https://aws.amazon.com/bedrock/security-compliance/,2026-10-04
+deepseek-v3-2,credentials,True,True,pass,"docs/infrastructure.md section IAM (internal: svc-nickoftime-langgraph, Bedrock invoke only; its key lives in the Platform deployment secrets) and CLAUDE.md constraint 10",2026-10-04
+deepseek-v3-2,version_pinning,True,True,pass,https://docs.aws.amazon.com/bedrock/latest/userguide/model-lifecycle-legacy.html,2026-10-04
+deepseek-v3-2,availability,False,True,pass,https://aws.amazon.com/bedrock/sla/,2026-10-05
+deepseek-v3-2,es_pt_quality,False,True,pass,"eval/results/bench_b1.csv, macro-F1 per language >= 0.9",2026-06-01
+haiku-4-5,synthetic_only,True,False,pass,docs/adr/0009 (internal: synthetic data only),2026-10-04
+haiku-4-5,no_training,True,True,pass,https://aws.amazon.com/bedrock/security-compliance/,2026-10-04
+haiku-4-5,retention,False,True,pass,https://docs.aws.amazon.com/bedrock/latest/userguide/data-retention.html,2026-10-04
+haiku-4-5,region,False,True,pass,https://docs.aws.amazon.com/bedrock/latest/userguide/cross-region-inference.html,2026-10-04
+haiku-4-5,certification,False,True,pass,https://aws.amazon.com/bedrock/security-compliance/,2026-10-04
+haiku-4-5,credentials,True,True,pass,"docs/infrastructure.md section IAM (internal: svc-nickoftime-langgraph, Bedrock invoke only; its key lives in the Platform deployment secrets) and CLAUDE.md constraint 10",2026-10-04
+haiku-4-5,version_pinning,True,True,pass,https://docs.aws.amazon.com/bedrock/latest/userguide/model-lifecycle-legacy.html,2026-10-04
+haiku-4-5,availability,False,True,pass,https://aws.amazon.com/bedrock/sla/,2026-10-05
+haiku-4-5,es_pt_quality,False,True,pass,"eval/results/bench_b1.csv, macro-F1 per language >= 0.9",2026-06-01
+sonnet-5-5,synthetic_only,True,False,pass,docs/adr/0009 (internal: synthetic data only),2026-10-04
+sonnet-5-5,no_training,True,True,pass,https://aws.amazon.com/bedrock/security-compliance/,2026-10-04
+sonnet-5-5,retention,False,True,pass,https://docs.aws.amazon.com/bedrock/latest/userguide/data-retention.html,2026-10-04
+sonnet-5-5,region,False,True,pass,https://docs.aws.amazon.com/bedrock/latest/userguide/cross-region-inference.html,2026-10-04
+sonnet-5-5,certification,False,True,pass,https://aws.amazon.com/bedrock/security-compliance/,2026-10-04
+sonnet-5-5,credentials,True,True,pass,"docs/infrastructure.md section IAM (internal: svc-nickoftime-langgraph, Bedrock invoke only; its key lives in the Platform deployment secrets) and CLAUDE.md constraint 10",2026-10-04
+sonnet-5-5,version_pinning,True,True,pass,https://docs.aws.amazon.com/bedrock/latest/userguide/model-lifecycle-legacy.html,2026-10-04
+sonnet-5-5,availability,False,True,fail,"specs/15-model-benchmark.md section 8 (internal: quota 0, AccessDeniedException on 2026-10-04)",2026-10-04
+sonnet-5-5,es_pt_quality,False,True,not documented,,2026-06-01
+sonnet-4-6,synthetic_only,True,False,pass,docs/adr/0009 (internal: synthetic data only),2026-10-04
+sonnet-4-6,no_training,True,True,pass,https://aws.amazon.com/bedrock/security-compliance/,2026-10-04
+sonnet-4-6,retention,False,True,pass,https://docs.aws.amazon.com/bedrock/latest/userguide/data-retention.html,2026-10-04
+sonnet-4-6,region,False,True,pass,https://docs.aws.amazon.com/bedrock/latest/userguide/cross-region-inference.html,2026-10-04
+sonnet-4-6,certification,False,True,pass,https://aws.amazon.com/bedrock/security-compliance/,2026-10-04
+sonnet-4-6,credentials,True,True,pass,"docs/infrastructure.md section IAM (internal: svc-nickoftime-langgraph, Bedrock invoke only; its key lives in the Platform deployment secrets) and CLAUDE.md constraint 10",2026-10-04
+sonnet-4-6,version_pinning,True,True,pass,https://docs.aws.amazon.com/bedrock/latest/userguide/model-lifecycle-legacy.html,2026-10-04
+sonnet-4-6,availability,False,True,pass,https://aws.amazon.com/bedrock/sla/,2026-10-05
+sonnet-4-6,es_pt_quality,False,True,pass,"eval/results/bench_b1.csv, macro-F1 per language >= 0.9",2026-06-01
+jev,synthetic_only,True,False,pass,docs/adr/0009 (internal: synthetic data only),2026-10-04
+jev,no_training,True,True,pass,https://docs.typesafe.ai/legal.md,2026-10-04
+jev,retention,False,True,not documented,https://docs.typesafe.ai/legal.md,2026-10-04
+jev,region,False,True,not documented,,2026-06-01
+jev,certification,False,True,not documented,,2026-06-01
+jev,credentials,True,True,pass,specs/15-model-benchmark.md section 4.5 (internal: key in SSM /nickoftime/prod/TYPESAFE_API_KEY),2026-10-04
+jev,version_pinning,True,True,pass,model id jev-1.13.0 (fallback: version in the id),2026-06-01
+jev,availability,False,True,not documented,,2026-06-01
+jev,es_pt_quality,False,True,not documented,,2026-06-01

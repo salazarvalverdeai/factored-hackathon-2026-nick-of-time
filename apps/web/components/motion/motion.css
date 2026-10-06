@@ -1,0 +1,121 @@
+/*
+ * Motion kit (components/motion/README.md). Every rule sits behind two gates:
+ *   - html[data-motion-ok], set before the first paint by the head script only when JavaScript runs and the user has not
+ *     asked for reduced motion (lib/motion.ts MOTION_HEAD_SCRIPT);
+ *   - @media (prefers-reduced-motion: no-preference) and screen, so a later change of preference and print show the final state.
+ * Without them nothing here applies: every mark renders at its final size, place and opacity.
+ *
+ * A root ([data-motion]) is pending until the component sees it in the viewport, then "in" while it plays, then "done".
+ * Its parts ([data-motion-rise|fade|grow|draw|flow|after], or the children of a stagger) start hidden while any root
+ * around them is pending. Only transform, opacity and stroke-dashoffset move: no layout property, so nothing shifts.
+ * Durations mirror MOTION in lib/motion.ts (lib/motion.test.ts checks them).
+ */
+[data-motion] {
+  --motion-ease: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* When a part starts: its root's delay plus its place in a stagger. */
+[data-motion],
+[data-motion] * {
+  --motion-at: calc(var(--motion-delay, 0ms) + var(--motion-i, 0) * var(--motion-step, 0ms));
+}
+
+[data-motion-grow="x"] {
+  transform-origin: left center;
+  transform-box: fill-box;
+}
+
+[data-motion-grow="y"] {
+  transform-origin: center bottom;
+  transform-box: fill-box;
+}
+
+[data-motion="stagger"] > :nth-child(2) { --motion-i: 1; }
+[data-motion="stagger"] > :nth-child(3) { --motion-i: 2; }
+[data-motion="stagger"] > :nth-child(4) { --motion-i: 3; }
+[data-motion="stagger"] > :nth-child(5) { --motion-i: 4; }
+[data-motion="stagger"] > :nth-child(6) { --motion-i: 5; }
+[data-motion="stagger"] > :nth-child(7) { --motion-i: 6; }
+[data-motion="stagger"] > :nth-child(8) { --motion-i: 7; }
+[data-motion="stagger"] > :nth-child(9) { --motion-i: 8; }
+[data-motion="stagger"] > :nth-child(10) { --motion-i: 9; }
+[data-motion="stagger"] > :nth-child(11) { --motion-i: 10; }
+[data-motion="stagger"] > :nth-child(12) { --motion-i: 11; }
+[data-motion="stagger"] > :nth-child(n + 13) { --motion-i: 12; }
+
+@media screen and (prefers-reduced-motion: no-preference) {
+  /* ---- start states, while a root around the part is pending ---- */
+  html[data-motion-ok] :is([data-motion]:not([data-revealed]), [data-motion]:not([data-revealed]) *):is([data-motion-rise], [data-motion="stagger"] > *) {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+
+  html[data-motion-ok] :is([data-motion]:not([data-revealed]), [data-motion]:not([data-revealed]) *):is([data-motion-fade], [data-motion-after]) {
+    opacity: 0;
+  }
+
+  html[data-motion-ok] :is([data-motion]:not([data-revealed]), [data-motion]:not([data-revealed]) *)[data-motion-grow="x"] {
+    transform: scaleX(0);
+  }
+
+  html[data-motion-ok] :is([data-motion]:not([data-revealed]), [data-motion]:not([data-revealed]) *)[data-motion-grow="y"] {
+    transform: scaleY(0);
+  }
+
+  /* pathLength="1": a single dash as long as the path, offset by its full length, is an undrawn line. */
+  html[data-motion-ok] :is([data-motion]:not([data-revealed="done"]), [data-motion]:not([data-revealed="done"]) *)[data-motion-draw] {
+    stroke-dasharray: 1 1;
+  }
+
+  html[data-motion-ok] :is([data-motion]:not([data-revealed]), [data-motion]:not([data-revealed]) *)[data-motion-draw] {
+    stroke-dashoffset: 1;
+  }
+
+  html[data-motion-ok] :is([data-motion]:not([data-revealed]), [data-motion]:not([data-revealed]) *)[data-motion-flow] {
+    opacity: 0;
+    stroke-dashoffset: 12;
+  }
+
+  /* ---- transitions, only while a root around the part plays ("in"); "done" hands transitions back to the page ---- */
+  html[data-motion-ok] :is([data-revealed="in"], [data-revealed="in"] *):is([data-motion-rise], [data-motion="stagger"] > *) {
+    transition:
+      opacity 450ms var(--motion-ease) var(--motion-at),
+      transform 450ms var(--motion-ease) var(--motion-at);
+  }
+
+  html[data-motion-ok] :is([data-revealed="in"], [data-revealed="in"] *)[data-motion-fade] {
+    transition: opacity 300ms var(--motion-ease) var(--motion-at);
+  }
+
+  html[data-motion-ok] :is([data-revealed="in"], [data-revealed="in"] *)[data-motion-grow] {
+    transition: transform 500ms var(--motion-ease) var(--motion-at);
+  }
+
+  html[data-motion-ok] :is([data-revealed="in"], [data-revealed="in"] *)[data-motion-draw] {
+    transition: stroke-dashoffset 600ms var(--motion-ease) var(--motion-at);
+  }
+
+  html[data-motion-ok] :is([data-revealed="in"], [data-revealed="in"] *)[data-motion-flow] {
+    transition:
+      opacity 200ms linear var(--motion-at),
+      stroke-dashoffset 450ms var(--motion-ease) var(--motion-at);
+  }
+
+  html[data-motion-ok] :is([data-revealed="in"], [data-revealed="in"] *)[data-motion-after] {
+    transition: opacity 250ms var(--motion-ease) calc(var(--motion-delay, 0ms) + var(--motion-after, 500ms));
+  }
+
+  /* An edge that stays live (FlowConnector loop): the dashes keep moving after the first pass. */
+  html[data-motion-ok] [data-revealed="done"] [data-motion-flow][data-motion-loop] {
+    animation: motion-flow 1.2s linear infinite;
+  }
+}
+
+@keyframes motion-flow {
+  from {
+    stroke-dashoffset: 12;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}

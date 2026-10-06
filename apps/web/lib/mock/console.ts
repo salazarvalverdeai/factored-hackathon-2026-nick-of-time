@@ -201,8 +201,9 @@ export function mockAudit(c: ConsoleCase): AuditResult {
         passed: verified ? true : null,
         detail: verified ? `${verified} verified action, each with a read after its write.` : "No action claimed as verified.",
       },
-      { id: "A4", name: "Grounding", passed: true, detail: "Every number, date and id shown comes from a tool result." },
-      { id: "A5", name: "Coherence", passed: true, detail: "Every status told to the customer matches the database." },
+      // As the api: A4 and A5 need the turn's tool results and replies from the agent trace (the harness runs them).
+      { id: "A4", name: "Grounding", status: "not_applicable", passed: null, detail: "Needs the agent trace; the evaluation harness runs it." },
+      { id: "A5", name: "Coherence", status: "not_applicable", passed: null, detail: "Needs the agent trace; the evaluation harness runs it." },
       { id: "A6", name: "Privacy", passed: true, detail: "No score, policy id or card number reached the customer." },
       { id: "A7", name: "Lifecycle", passed: true, detail: "Valid transitions only; nothing resolved or closed without a person." },
     ],

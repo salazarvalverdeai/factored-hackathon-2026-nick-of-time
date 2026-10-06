@@ -12,6 +12,8 @@ import { formatDay as formatIntlDay, formatNumber, type Locale, translator } fro
 import type { CaseStatus } from "./types.ts";
 
 const titleCase = (v: string) => v.replace(/[_-]+/g, " ").trim().replace(/^./, (c) => c.toUpperCase());
+/** An unknown identifier (`some_value`) reads as words; free text from the api (it has spaces, dates…) stays as it is. */
+const fallback = (v: string) => (/^[a-z][a-z0-9_]*$/i.test(v) ? titleCase(v) : v);
 
 /** Removes the figure labels (`[simulated]`, `[data]`…) from texts the operational screens show (spec 08, 13). */
 export const plain = (text: string): string =>
@@ -25,7 +27,7 @@ export const labelTables = (locale: Locale): Record<LabelTable, Record<string, s
 const labelOf =
   (table: LabelTable) =>
   (v: string | null | undefined, locale: Locale): string =>
-    v ? (labelTables(locale)[table][v] ?? titleCase(v)) : "—";
+    v ? (labelTables(locale)[table][v] ?? fallback(v)) : "—";
 
 export const verdictLabel = labelOf("verdict");
 
@@ -34,9 +36,22 @@ export const auditCheckLabel = (c: Pick<AuditCheck, "id" | "name">, locale: Loca
   labelTables(locale).auditCheck[c.id] ?? titleCase(c.name || c.id);
 
 export type AuditState = "passed" | "finding" | "na";
-export const auditState = (c: Pick<AuditCheck, "passed">): AuditState =>
-  c.passed === true ? "passed" : c.passed === false ? "finding" : "na";
+/** The api's `status` wins; `not_applicable` (A4, A5 in the console: they need the agent trace) is never a failure. */
+export const auditState = (c: Pick<AuditCheck, "passed" | "status">): AuditState => {
+  if (c.status === "not_applicable") return "na";
+  if (c.status === "finding") return "finding";
+  if (c.status === "passed") return "passed";
+  return c.passed === true ? "passed" : c.passed === false ? "finding" : "na";
+};
 export const auditStateLabel = (s: AuditState, locale: Locale): string => labelTables(locale).auditState[s];
+/** The short word shown next to a check; screen readers get auditStateLabel. */
+export const auditStateShort = (s: AuditState, locale: Locale): string => labelTables(locale).auditStateShort[s];
+
+/** Why there is no second opinion (`X-No-Opinion-Reason`), as one calm line (spec 18 AC-11). */
+export const noOpinionReasonLabel = (v: string | null | undefined, locale: Locale): string => {
+  const table: Record<string, string> = labelTables(locale).noOpinionReason;
+  return (v && table[v]) || table.error;
+};
 
 export const outcomeLabel = labelOf("outcome");
 export const channelLabel = labelOf("channel");
@@ -60,6 +75,12 @@ export function formatDay(locale: Locale, iso: string): string {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) return iso;
   return formatIntlDay(locale, day);
 }
+
+/** A transaction's merchant, or a plain word when the bank's record has none. */
+export const merchantLabel = (m: string | null | undefined, locale: Locale): string =>
+  m && m.trim() ? m : translator(locale)("console.history.unknownMerchant");
+/** "•••• 4417", or "—" when the card is not known. */
+export const cardLabel = (last4: string | null | undefined): string => (last4 ? `•••• ${last4}` : "—");
 
 /** "4,200.00 MXN" (es, en) or "4.200,00 MXN" (pt): the currency code stays visible, so no symbol is ambiguous. */
 export function formatAmount(locale: Locale, amount: number, currency: string): string {

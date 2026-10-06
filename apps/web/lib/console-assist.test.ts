@@ -7,6 +7,10 @@ import { createApi } from "./api.ts";
 import { consoleActions } from "./console-actions.ts";
 import { type CaseContext, createLiveConsoleApi, createMockConsoleApi, storedAnalystToken } from "./console-api.ts";
 import {
+  auditStateShort,
+  cardLabel,
+  merchantLabel,
+  noOpinionReasonLabel,
   auditCheckLabel,
   auditState,
   auditStateLabel,
@@ -75,8 +79,10 @@ test("spec 08 AC-10: the summary carries lines and the deadline with its countdo
 test("spec 08 AC-12, spec 18 AC-09 / AC-11: the second opinion is asked, never pre-filled, ties reasons to evidence ids and is labeled advisory", async () => {
   const { console: c } = mockConsole();
   assert.equal(await c.getSecondOpinion("NOT-0001"), null);
-  const o = await c.requestSecondOpinion("NOT-0001");
+  const asked = await c.requestSecondOpinion("NOT-0001");
+  const o = asked.opinion;
   assert.ok(o);
+  assert.equal(asked.reason, null);
   assert.equal(o.label, "AI second opinion — advisory");
   assert.ok(["agree", "disagree", "uncertain"].includes(o.verdict));
   assert.ok(o.reasons.length > 0 && o.reasons.length <= 5);
@@ -112,6 +118,12 @@ test("spec 08 AC-12, spec 18 AC-06: the auditor gives A1–A7 with passed, findi
   }
   assert.equal(auditCheckLabel({ id: "A9", name: "notifications_sent" }, "en"), "Notifications sent");
   assert.equal(auditStateLabel("na", "es"), "No aplica");
+  // The api's status wins: A4 and A5 come as not_applicable with passed null, shown "n/a", never as a failure.
+  assert.equal(auditState({ status: "not_applicable", passed: null }), "na");
+  assert.equal(auditState({ status: "finding", passed: false }), "finding");
+  assert.equal(auditStateShort("na", "en"), "n/a");
+  for (const id of ["A4", "A5"]) assert.equal(auditState(a.checks.find((x) => x.id === id)!), "na");
+  assert.equal(a.matches, true);
 });
 
 test("spec 08 AC-14: the status stepper marks done, current and upcoming for every status", () => {
@@ -169,7 +181,7 @@ test("spec 08 AC-14: no bracket tags on the console screens or in what the mock 
   assert.ok(!TAG.test(src("../app/console/page.tsx")));
   assert.equal(plain("transaction match [simulated]"), "transaction match");
   const { console: c } = mockConsole();
-  const all = JSON.stringify([await c.getSummary("NOT-0001"), await c.getAudit("NOT-0001"), await c.requestSecondOpinion("NOT-0001")]);
+  const all = JSON.stringify([await c.getSummary("NOT-0001"), await c.getAudit("NOT-0001"), (await c.requestSecondOpinion("NOT-0001")).opinion]);
   assert.ok(!TAG.test(all));
 });
 
@@ -207,7 +219,7 @@ test("spec 08 AC-10 to AC-12: the live client calls the analyst routes with the 
   const calls: { url: string; method: string; auth: string }[] = [];
   const replies: Record<string, Response> = {
     "GET /api/console/cases/K-1/second-opinion": new Response("{}", { status: 404 }),
-    "POST /api/console/cases/K-1/second-opinion": new Response(null, { status: 204 }),
+    "POST /api/console/cases/K-1/second-opinion": new Response(null, { status: 204, headers: { "X-No-Opinion-Reason": "budget" } }),
     "GET /api/console/cases/K-1/audit": Response.json({ checks: [], rederived_outcome: "human_review", matches: true }),
     "GET /api/console/cases/K-1/summary": new Response(JSON.stringify({ code: "DENY", message: "no" }), { status: 403 }),
   };
@@ -220,7 +232,7 @@ test("spec 08 AC-10 to AC-12: the live client calls the analyst routes with the 
     }) as typeof fetch,
   });
   assert.equal(await live.getSecondOpinion("K-1"), null);
-  assert.equal(await live.requestSecondOpinion("K-1"), null);
+  assert.deepEqual(await live.requestSecondOpinion("K-1"), { opinion: null, reason: "budget" });
   assert.equal((await live.getAudit("K-1")).matches, true);
   await assert.rejects(live.getSummary("K-1"), (e: Error & { code?: string }) => e.code === "DENY");
   assert.ok(calls.every((c) => c.auth === "Bearer tok"));
@@ -253,6 +265,39 @@ test("spec 08 AC-15: the conversation tab is a read-only transcript next to the 
       url === "/api/console/cases/K-1/conversation" ? Response.json({ threads: [] }) : new Response(null, { status: 500 })) as unknown as typeof fetch,
   });
   assert.deepEqual(await live.getConversation("K-1"), { threads: [] });
+  // 503: Platform cannot search the threads; the tab says so calmly instead of an error.
+  const down = createLiveConsoleApi({
+    token: () => "tok",
+    fetch: (async () => Response.json({ code: "UNAVAILABLE" }, { status: 503 })) as unknown as typeof fetch,
+  });
+  assert.deepEqual(await down.getConversation("K-1"), { threads: [], unavailable: true });
+  assert.ok(src("../components/console/conversation-transcript.tsx").includes("console.transcript.unavailableTitle"));
+  assert.equal(translator("en")("console.transcript.unavailableTitle"), "Conversation not available right now");
+});
+
+test("spec 08 AC-12, spec 18 AC-11: every no-opinion reason of the api reads as one calm line", () => {
+  assert.equal(noOpinionReasonLabel("budget", "en"), "Not available: daily budget reached");
+  for (const r of ["no_handoff", "budget", "timeout", "error", "unavailable"]) {
+    assert.match(noOpinionReasonLabel(r, "en"), /^Not available: /);
+    for (const loc of LOCALES) assert.ok(noOpinionReasonLabel(r, loc));
+  }
+  assert.equal(noOpinionReasonLabel("something_new", "en"), labelTables("en").noOpinionReason.error);
+  assert.equal(noOpinionReasonLabel(null, "en"), labelTables("en").noOpinionReason.error);
+  assert.equal(verdictLabel("uncertain", "en"), "Not sure about the proposal");
+});
+
+test("spec 08 AC-11: a transaction with no merchant or no card renders words, never null", () => {
+  assert.equal(merchantLabel(null, "en"), "Unknown merchant");
+  assert.equal(merchantLabel(null, "es"), "Comercio desconocido");
+  assert.equal(merchantLabel("", "en"), "Unknown merchant");
+  assert.equal(merchantLabel("Farmacia Plaza", "en"), "Farmacia Plaza");
+  assert.equal(cardLabel(null), "—");
+  assert.equal(cardLabel("4417"), "•••• 4417");
+  const view = src("../components/console/customer-history.tsx");
+  assert.ok(view.includes("merchantLabel(t.merchant, locale)") && view.includes("cardLabel(t.last4)"));
+  // Free text from the api (the re-derived outcome) is shown as written: dates and ids keep their hyphens.
+  assert.equal(outcomeLabel("zone high · credit by 2026-06-05", "en"), "zone high · credit by 2026-06-05");
+  assert.equal(outcomeLabel("approve_block", "en"), "Card block approved");
 });
 
 test("spec 08 AC-10 to AC-12: the analyst token is read from lib/live.ts's session entry, never past its expiry", () => {

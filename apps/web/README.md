@@ -37,6 +37,7 @@ npm run lint && npm test && npm run build     # what CI runs
 | Case history | `Timeline` (a case's status is its last event) | `components/timeline.tsx` |
 | Chart | `BarChartCard` (Recharts); `source` is **required** and carries the figure label | `components/chart.tsx` |
 | Animated figure (sparingly) | `NumberTicker` (Magic UI): renders the final value without JavaScript, animates once below the fold, never with reduced motion | `components/ui/number-ticker.tsx` |
+| Motion (reveal, stagger, growing bars, drawing lines, diagram edges, count-up, crossfade) | `Reveal`, `Stagger`, `GrowBar`, `DrawPath`, `FlowConnector`, `Lift`, `Crossfade`, `CountText`: once, ≤ 600 ms, nothing moves with reduced motion, no layout shift | `components/motion/` ([README](components/motion/README.md)) |
 | States | `LoadingState`, `EmptyState`, `ErrorState`, `DenyState` | `components/states.tsx` |
 | Right detail panel ("Detail →") | `DetailPanel`, `DetailFields`, `DetailField`: generic modal sheet, Escape closes, focus returns | `components/detail-panel.tsx` |
 | Chat building blocks | AI Elements (`conversation`, `message`, `chain-of-thought`, `tool`, `task`, `confirmation`, `inline-citation`, `prompt-input`, `suggestion`, `sources`, `shimmer`), installed with the shadcn CLI and lightly restyled to the brand | `components/ai-elements/` |

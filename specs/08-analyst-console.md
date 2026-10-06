@@ -56,11 +56,13 @@ analyst-only `GET /api/console/cases/{id}/context`, `/summary`, `/audit`, `/conv
   case has no legal deadline, then it shall say a person decides and show no date. · [T] `lib/console-assist.test.ts` · [U]
 - AC-11 — The case view shall show the customer's history as cards: previous cases, transactions within ±30 days with
   the disputed one marked by a word as well as a color, cards, calls and notifications; "Detail" shall open the shared
-  detail panel (`components/detail-panel.tsx`, spec 07) with the whole list. · [T] · [U]
+  detail panel (`components/detail-panel.tsx`, spec 07) with the whole list. A transaction with no merchant or no
+  known card shall read "Unknown merchant" or "—", never "null". · [T] · [U]
 - AC-12 — The case view shall show the deterministic auditor A1–A7 as a checklist titled "The outcome re-derives from
   the rules" (an icon and a word per check, spec 18 AC-06), then, only when the analyst asks for it, the judge's opinion
   labeled "AI second opinion — advisory" with every reason tied to its evidence ids; without one it shall say "No second
-  opinion" (spec 18 AC-09, AC-11). · [T] · [U]
+  opinion" and the api's reason (`X-No-Opinion-Reason`) in one calm line (spec 18 AC-09, AC-11). A check the api marks
+  `not_applicable` (`passed: null`) shall read "n/a", never a failure. · [T] · [U]
 - AC-13 — The copilot proposal shall read in plain words (`explanation`, else the rationale); its button shall run an
   existing analyst action only after a confirm step, supervised mode keeps its second confirmation, and a proposal no
   console action carries out shall say so. · [T] · [U]
@@ -70,7 +72,7 @@ analyst-only `GET /api/console/cases/{id}/context`, `/summary`, `/audit`, `/conv
 - AC-15 — The case view shall offer a "Conversation" tab next to the handoff card, which stays the first and default
   tab: a read-only transcript of the customer–agent conversation by chat session (`GET /api/console/cases/{id}/conversation`,
   analyst only), drawn like the chat (the chat's safe markdown, the AI Elements conversation log), with nothing to send.
-  · [T] · [U]
+  When the route answers 503, the tab shall say "Conversation not available right now", not an error. · [T] · [U]
 
 ## 8. Assumptions and open questions
 - Assumption `[assumption]`: mock accounts `freddy`, `gianmarco`, `diego`, `judge` with any non-empty password stand in for

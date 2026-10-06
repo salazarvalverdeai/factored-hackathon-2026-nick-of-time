@@ -20,7 +20,9 @@ export function ConversationTranscript({ query }: { query: Query<CaseConversatio
   return (
     <Conversation className="h-[28rem] min-h-0 rounded-xl border bg-background" aria-label={t("console.transcript.aria")}>
       <ConversationContent className="gap-4 p-3 sm:p-4">
-        {threads.length === 0 ? (
+        {query.data.unavailable ? (
+          <ConversationEmptyState title={t("console.transcript.unavailableTitle")} description={t("console.transcript.unavailableDescription")} />
+        ) : threads.length === 0 ? (
           <ConversationEmptyState title={t("console.transcript.emptyTitle")} description={t("console.transcript.emptyDescription")} />
         ) : (
           threads.map((th) => (

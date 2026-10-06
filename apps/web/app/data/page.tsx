@@ -6,6 +6,7 @@ import { PageShell } from "@/components/page-shell";
 import { PipelineDiagram } from "@/components/pipeline-diagram";
 import { TableView } from "@/app/analytics/charts";
 import { DetailButton } from "@/components/detail-button";
+import { Reveal } from "@/components/motion";
 import { DATA_CARDS, GOLD_CONSUMERS, OPS_STEPS, datasetLimits, medallionSteps, type Detail } from "@/lib/pipelines";
 import quality from "@/public/data/data_quality.json";
 
@@ -17,10 +18,10 @@ const megabytes = (bytes: number | null) => (bytes === null ? "—" : `${(bytes 
 const TH = "border-b py-1.5 pr-4 font-normal";
 const TD = "border-b py-1.5 pr-4";
 
-/** The shared card: a title, one or two plain lines and "Detail →", which opens the side panel. */
+/** The shared card: a title, one or two plain lines and "Detail →", which opens the side panel. It rises once into view. */
 function Section({ title, note, detail, chip, children }: { title: string; note: ReactNode; detail: Detail; chip?: string; children: ReactNode }) {
   return (
-    <section aria-label={title} className="rounded-lg border bg-card p-5 text-card-foreground">
+    <Reveal as="section" aria-label={title} className="rounded-lg border bg-card p-5 text-card-foreground">
       <h2 className="text-base font-semibold">
         {title}
         {chip ? <span className="ml-2 rounded-full border px-2 py-0.5 align-middle text-xs font-normal text-muted-foreground">{chip}</span> : null}
@@ -29,7 +30,7 @@ function Section({ title, note, detail, chip, children }: { title: string; note:
         {note} <DetailButton title={title} detail={detail} />
       </p>
       <div className="mt-4">{children}</div>
-    </section>
+    </Reveal>
   );
 }
 

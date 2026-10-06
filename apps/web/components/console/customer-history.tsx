@@ -14,11 +14,13 @@ import type { CaseContext, ContextTransaction } from "@/lib/console-api";
 import {
   callStatusLabel,
   cardStatusLabel,
+  cardLabel,
   caseStatusLabel,
   channelLabel,
   deliveryLabel,
   formatAmount,
   formatDay,
+  merchantLabel,
   notificationEventLabel,
   outcomeLabel,
   productLabel,
@@ -62,7 +64,7 @@ export function CustomerHistory({ query }: { query: Query<CaseContext> }) {
             </HistoryCard>
             <HistoryCard title={title("cards")} count={query.data.cards.length} onDetail={() => setOpen("cards")} empty={t("console.history.empty.cards")}>
               {query.data.cards.slice(0, PREVIEW).map((c) => (
-                <Row key={c.last4 + c.product} left={`•••• ${c.last4}`} right={cardStatusLabel(c.status, locale)}>
+                <Row key={`${c.last4}-${c.product}`} left={cardLabel(c.last4)} right={cardStatusLabel(c.status, locale)}>
                   {productLabel(c.product, locale)}
                 </Row>
               ))}
@@ -157,12 +159,12 @@ function TxRow({ t }: { t: ContextTransaction }) {
       <span className="flex items-baseline justify-between gap-2">
         <span className="min-w-0 truncate">
           {t.disputed ? <Badge className="mr-1 bg-brand-amber/20 text-foreground">{tr("console.history.disputed")}</Badge> : null}
-          {t.merchant}
+          {merchantLabel(t.merchant, locale)}
         </span>
         <span className="shrink-0 font-mono text-xs tabular-nums">{formatAmount(locale, t.amount, t.currency)}</span>
       </span>
       <span className="block text-xs text-muted-foreground">
-        {formatDay(locale, t.date)} · •••• {t.last4}
+        {formatDay(locale, t.date)} · {cardLabel(t.last4)}
       </span>
     </li>
   );
@@ -197,8 +199,8 @@ function SectionDetail({ section, data }: { section: Section; data: CaseContext 
       return (
         <div className="space-y-4">
           {data.cards.map((c) => (
-            <DetailFields key={c.last4 + c.product}>
-              <DetailField label={t("console.history.fields.card")}>•••• {c.last4}</DetailField>
+            <DetailFields key={`${c.last4}-${c.product}`}>
+              <DetailField label={t("console.history.fields.card")}>{cardLabel(c.last4)}</DetailField>
               <DetailField label={t("console.history.fields.product")}>{productLabel(c.product, locale)}</DetailField>
               <DetailField label={t("console.history.fields.status")}>{cardStatusLabel(c.status, locale)}</DetailField>
             </DetailFields>

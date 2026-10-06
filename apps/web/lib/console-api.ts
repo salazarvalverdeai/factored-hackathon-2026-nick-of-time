@@ -29,8 +29,10 @@ export interface ContextTransaction {
   date: string;
   amount: number;
   currency: string;
-  merchant: string;
-  last4: string;
+  /** Null when the bank's record names no merchant. */
+  merchant: string | null;
+  /** Null when the card of the charge is not in the customer's catalog. */
+  last4: string | null;
   /** The charge this case disputes. */
   disputed: boolean;
 }
@@ -94,6 +96,8 @@ export interface AuditCheck {
   name: string;
   /** null = not applicable to this case (spec 18 AC-06). */
   passed: boolean | null;
+  /** The api's finding status: `passed`, `finding` or `not_applicable` (it wins over `passed` when present). */
+  status?: string;
   detail: string;
 }
 
@@ -120,6 +124,17 @@ export interface TranscriptMessage {
 /** The customer–agent transcript of a case, one thread per chat session (analyst only, read-only). */
 export interface CaseConversation {
   threads: { thread_id: string; session_started_at: string; messages: TranscriptMessage[] }[];
+  /** Live: the api answered 503 (Platform cannot search the threads now); the console says so calmly. */
+  unavailable?: boolean;
+}
+
+/** Why the judge gave no opinion (`X-No-Opinion-Reason` on the api's 204, spec 18 AC-11). */
+export type NoOpinionReason = "no_handoff" | "budget" | "timeout" | "error" | "unavailable" | (string & {});
+
+export interface AskedOpinion {
+  opinion: SecondOpinion | null;
+  /** Set when `opinion` is null. */
+  reason: NoOpinionReason | null;
 }
 
 export interface ConsoleApi {
@@ -128,8 +143,8 @@ export interface ConsoleApi {
   getSummary: (caseId: string) => Promise<CaseSummary>;
   /** The opinion already issued for this case, or null. */
   getSecondOpinion: (caseId: string) => Promise<SecondOpinion | null>;
-  /** Asks the judge; null means "No second opinion" (it failed, timed out or was over budget). */
-  requestSecondOpinion: (caseId: string) => Promise<SecondOpinion | null>;
+  /** Asks the judge; a null opinion is "No second opinion", with the api's reason. */
+  requestSecondOpinion: (caseId: string) => Promise<AskedOpinion>;
   getAudit: (caseId: string) => Promise<AuditResult>;
 }
 
@@ -165,7 +180,7 @@ export function createMockConsoleApi(deps: MockDeps): ConsoleApi {
       await wait();
       const out = mockSecondOpinion(c);
       opinions.set(id, out);
-      return out;
+      return { opinion: out, reason: out ? null : "no_handoff" };
     },
     async getAudit(id) {
       return mockAudit(await deps.getCase(id));
@@ -208,7 +223,7 @@ export function createLiveConsoleApi(deps: LiveDeps = {}): ConsoleApi {
   const doFetch: typeof fetch = deps.fetch ?? ((...args) => fetch(...args));
   const token = deps.token ?? (() => storedAnalystToken());
 
-  async function send(path: string, method = "GET", allow404 = false): Promise<unknown> {
+  async function send(path: string, method = "GET", allow404 = false): Promise<{ body: unknown; headers: Headers | null }> {
     const t = token();
     if (!t) throw new ApiError("UNAUTHORIZED", 401, "Sign in first.");
     let res: Response;
@@ -221,27 +236,40 @@ export function createLiveConsoleApi(deps: LiveDeps = {}): ConsoleApi {
     } catch {
       throw new ApiError("UNAVAILABLE", 0, "Cannot reach the server. Check your connection and try again.");
     }
-    if (allow404 && res.status === 404) return null;
-    if (res.status === 204) return null;
+    if (allow404 && res.status === 404) return { body: null, headers: res.headers };
+    if (res.status === 204) return { body: null, headers: res.headers };
     if (!res.ok) {
       const b = (await res.json().catch(() => ({}))) as { code?: string; message?: string };
       if (res.status === 401) throw new ApiError("UNAUTHORIZED", 401, "Your sign-in expired or was not accepted: sign in again.");
       throw new ApiError(b.code ?? "UNAVAILABLE", res.status, b.message ?? `The api answered ${res.status}`);
     }
-    return res.json().catch(() => null);
+    return { body: await res.json().catch(() => null), headers: res.headers };
   }
+  const read = async (p: string) => (await send(p)).body;
 
   const path = (id: string, leaf: string) => `/api/console/cases/${encodeURIComponent(id)}/${leaf}`;
   const opinion = (v: unknown): SecondOpinion | null =>
     v && typeof v === "object" && "verdict" in v ? (v as SecondOpinion) : null;
 
   return {
-    getContext: async (id) => (await send(path(id, "context"))) as CaseContext,
-    getConversation: async (id) => ((await send(path(id, "conversation"))) as CaseConversation | null) ?? { threads: [] },
-    getSummary: async (id) => (await send(path(id, "summary"))) as CaseSummary,
-    getSecondOpinion: async (id) => opinion(await send(path(id, "second-opinion"), "GET", true)),
-    requestSecondOpinion: async (id) => opinion(await send(path(id, "second-opinion"), "POST")),
-    getAudit: async (id) => (await send(path(id, "audit"))) as AuditResult,
+    getContext: async (id) => (await read(path(id, "context"))) as CaseContext,
+    async getConversation(id) {
+      try {
+        return ((await read(path(id, "conversation"))) as CaseConversation | null) ?? { threads: [] };
+      } catch (err) {
+        // 503: Platform cannot search the threads right now; not an error the analyst can act on.
+        if (err instanceof ApiError && err.status === 503) return { threads: [], unavailable: true };
+        throw err;
+      }
+    },
+    getSummary: async (id) => (await read(path(id, "summary"))) as CaseSummary,
+    getSecondOpinion: async (id) => opinion((await send(path(id, "second-opinion"), "GET", true)).body),
+    async requestSecondOpinion(id) {
+      const out = await send(path(id, "second-opinion"), "POST");
+      const got = opinion(out.body);
+      return { opinion: got, reason: got ? null : (out.headers?.get("X-No-Opinion-Reason") ?? "error") };
+    },
+    getAudit: async (id) => (await read(path(id, "audit"))) as AuditResult,
   };
 }
 

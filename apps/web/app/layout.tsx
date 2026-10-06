@@ -2,10 +2,12 @@ import type { Metadata } from "next";
 import { JetBrains_Mono, Sora } from "next/font/google";
 import "./globals.css";
 import { I18nProvider } from "@/components/i18n-provider";
+import { MotionReady } from "@/components/motion/motion-group";
 import { ThemeProvider } from "@/components/theme-provider";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
 import { getLocale, getT } from "@/lib/i18n-server";
+import { MOTION_HEAD_SCRIPT } from "@/lib/motion";
 
 const sora = Sora({
   variable: "--font-sora",
@@ -36,7 +38,12 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
       suppressHydrationWarning
       className={`${sora.variable} ${jetbrainsMono.variable} h-full antialiased`}
     >
+      <head>
+        {/* Motion kit (components/motion/README.md): before the first paint, so a mark never shows and then hides. */}
+        <script dangerouslySetInnerHTML={{ __html: MOTION_HEAD_SCRIPT }} />
+      </head>
       <body className="min-h-full flex flex-col">
+        <MotionReady />
         <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false}>
           <I18nProvider locale={locale}>
             <SiteHeader />
