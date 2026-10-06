@@ -101,6 +101,26 @@ def meta(records: list[dict[str, Any]], cases: Path, started_at: str, protocol: 
             "arms": {arm: _run_meta(mine) for arm, mine in _arms(records).items()}}
 
 
+def scores_d070(records: list[dict[str, Any]]) -> Optional[dict[str, Any]]:
+    """AC-15 (D-083, ADR 0031): the held-out's secondary score next to the official one, per arm, from the same runs;
+    None for a dev set. `official` holds the same figures as the arm's `overall` (plus `handoff_agreement`)."""
+    if not metrics.scored_twice(records):
+        return None
+    return {"label": metrics.LABEL, "scoring": metrics.SECONDARY, "official_scoring": metrics.OFFICIAL,
+            "rule": "only final_state.handoff_emitted is re-derived, under D-070 (an opened case is a handoff, "
+                    "eval.derive_expected.d070_expected); every other expectation stays sealed",
+            "adr": "docs/adr/0031-heldout-scored-under-sealed-rules-and-d070.md",
+            "arms": {arm: metrics.dual(mine) for arm, mine in _arms(records).items()}}
+
+
+def scoring(records: list[dict[str, Any]]) -> dict[str, Any]:
+    """The labels of a run set's scores and, for the held-out, the secondary block (AC-15)."""
+    dual = scores_d070(records)
+    if dual is None:
+        return {}
+    return {"scoring": {"official": metrics.OFFICIAL, "secondary": metrics.SECONDARY}, "scores_d070": dual}
+
+
 def web_summary(records: list[dict[str, Any]], run_meta: dict[str, Any],
                 fraud_labels: Optional[dict[str, bool]] = None) -> dict[str, Any]:
     """`{generated_at, git_sha, source, data}` of spec 01 §6.2 with the `data` of spec 10 §7.2."""
@@ -134,12 +154,14 @@ def web_summary(records: list[dict[str, Any]], run_meta: dict[str, Any],
             "data": {"label": "[simulated]", "set": next(iter({record["set"] for record in records}), None),
                      "cases": len(cases), "variant_cases": len(variants), "runs_per_case": per_case,
                      "cases_sha256": run_meta["cases_sha256"],
-                     "protocol": run_meta["protocol"], "arms": arms}}
+                     "protocol": run_meta["protocol"], "arms": arms, **scoring(records)}}
 
 
 def write_reports(records: list[dict[str, Any]], out: Path, run_meta: dict[str, Any],
                   web: Optional[Path] = None, labels_path: Optional[Path] = None) -> dict[str, Any]:
-    """meta.json and evaluation_summary.json in the run folder, and the web copy when `web` is given (AC-11)."""
+    """meta.json and evaluation_summary.json in the run folder, and the web copy when `web` is given (AC-11). For the
+    held-out, meta.json also carries `scoring` and `scores_d070` (AC-15)."""
+    run_meta = {**run_meta, **scoring(records)}
     labels_path = labels_path or label_module.LABELS
     wanted = {record["expected_transaction_id"] for record in records if record.get("expected_transaction_id")}
     wanted |= {(record.get("final_state") or {}).get("transaction_id") for record in records} - {None}

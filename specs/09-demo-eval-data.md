@@ -174,8 +174,9 @@ reproduce (spec 02 §4.1 and §4.2):
 closes every case (spec 04 AC-34), so `handoff_emitted` is true whenever the case opens. Before D-070 this table had
 `false` on the first row; the held-out was derived and sealed with that rule, so `heldout` keeps it
 (`expected_for(..., sealed=True)`) and its file and hash never change (ADR 0021). Held-out runs therefore expect no
-handoff on the verified high-zone blocks while the agent emits one; how the sealed set is scored on that field is the
-lead's call (spec 10 §8).
+handoff on the verified high-zone blocks while the agent emits one. D-083 (lead, 2026-10-06, ADR 0031) scores the
+held-out twice: officially as sealed, and secondarily with only `handoff_emitted` re-derived under D-070
+(`d070_expected`, equal to `expected_for(..., sealed=False)` on that field; spec 10 AC-15).
 
 The script runs `PolicyEngine.decide()` once per scripted message and keeps the last decision, so a case states the
 outcome of its last turn. `tests/test_spec09_eval_data.py` checks every row above against the engine and every

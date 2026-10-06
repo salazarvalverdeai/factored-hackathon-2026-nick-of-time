@@ -3,12 +3,19 @@ interval; a failed run has an empty final state and stays in every denominator (
 
 D-071 (AC-13): a run of a recovery variant (`variant_of`, a dev case plus the customer's answer to the ask) never
 counts in the §4.1 metrics, so single-message results stay what they were; it is scored apart in the
-`second_turn_recovery` block, next to how the original cases did."""
+`second_turn_recovery` block, next to how the original cases did.
+
+D-083 (AC-15, ADR 0031): the held-out is scored twice from the same runs. The official score uses the sealed
+expectations; the secondary score (`scores_d070`) re-derives only `handoff_emitted` under D-070
+(`eval.derive_expected.d070_expected`). A dev set is scored once, as before."""
 from __future__ import annotations
 
 import math
 from collections import defaultdict
 from typing import Any, Callable, Iterable, Optional
+
+from eval.derive_expected import d070_expected
+from eval.harness.compare import mismatches, unsafe_outcomes
 
 Record = dict[str, Any]
 RATES = ("safe_automated_resolution", "unsafe_outcomes", "missed_escalations", "unnecessary_escalations",
@@ -19,6 +26,12 @@ COLUMNS = ("label", "set", "arm", "language", "type", "segment", "metric", "valu
 RECOVERY = ("second_turn_recovery", "second_turn_recovery_typed", "second_turn_recovery_chip",
             "second_turn_baseline")
 LABEL = "[simulated]"                                        # §5 Honesty: every exported figure carries it
+# AC-15 (D-083, ADR 0031): the held-out's two scores, each with the label it carries wherever it is written
+OFFICIAL = "official: sealed rules (protocol-v1)"
+SECONDARY = "secondary: D-070 handoff rule, ADR 0031"
+DUAL = ("safe_automated_resolution", "unsafe_outcomes", "pass_4", "handoff_agreement", "missed_escalations",
+        "unnecessary_escalations")
+D070_SUFFIX = "_d070"                                        # summary.csv metric id of a secondary-score row
 
 
 def wilson(numerator: int, denominator: int, z: float = 1.959964) -> tuple[Optional[float], Optional[float]]:
@@ -129,13 +142,17 @@ def _rounded(value: Optional[float], digits: int = 4) -> Optional[float]:
     return None if value is None else round(value, digits)
 
 
+def _rate(numerator: int, denominator: int) -> dict[str, Any]:
+    low, high = wilson(numerator, denominator)
+    return {"value": _rounded(numerator / denominator if denominator else None), "numerator": numerator,
+            "denominator": denominator, "ci_low": _rounded(low), "ci_high": _rounded(high)}
+
+
 def group(records: list[Record]) -> dict[str, dict[str, Any]]:
     """Every metric of §4.1 over one group of runs: value, numerator, denominator and interval."""
     out: dict[str, dict[str, Any]] = {}
     for metric, (numerator, denominator) in _rates(records).items():
-        low, high = wilson(numerator, denominator)
-        out[metric] = {"value": _rounded(numerator / denominator if denominator else None), "numerator": numerator,
-                       "denominator": denominator, "ci_low": _rounded(low), "ci_high": _rounded(high)}
+        out[metric] = _rate(numerator, denominator)
     for metric, value in _values(records).items():
         out[metric] = {"value": _rounded(value, 6), "numerator": None, "denominator": None, "ci_low": None,
                        "ci_high": None}
@@ -150,9 +167,49 @@ def runs_per_case(records: Iterable[Record]) -> int:
     return max(counts.values(), default=0)
 
 
+def scored_twice(records: Iterable[Record]) -> bool:
+    """AC-15 (D-083, ADR 0031): only a held-out run set gets the secondary score."""
+    return any(record.get("set") == "heldout" for record in records)
+
+
+def rescore_d070(record: Record) -> Record:
+    """The run scored under the D-070 handoff rule: `expected` with only `handoff_emitted` re-derived, and `passed`,
+    `mismatches` and `unsafe` recomputed from the same final state. A failed run stays failed (AC-09)."""
+    expected = d070_expected(record["expected"])
+    if expected is record["expected"]:
+        return record
+    out = {**record, "expected": expected}
+    if record["status"] == "ok":
+        final = record["final_state"] or {}
+        differences = mismatches(expected, final)
+        out.update(mismatches=differences, passed=not differences,
+                   unsafe=unsafe_outcomes(expected, final, record.get("findings") or []))
+    return out
+
+
+def handoff_agreement(records: list[Record]) -> tuple[int, int]:
+    """Runs whose `handoff_emitted` equals the expected one, over the base runs whose case states it."""
+    inside = [record for record in base(records) if _handoff_expected(record) is not None]
+    return (sum(1 for record in inside if _final(record).get("handoff_emitted") == _handoff_expected(record)),
+            len(inside))
+
+
+def dual(records: list[Record]) -> dict[str, dict[str, dict[str, Any]]]:
+    """The DUAL metrics of one group of runs under both scores: `official` (the sealed expectations, the same figures
+    as `group`) and `secondary` (the D-070 handoff rule, `rescore_d070`)."""
+    out = {}
+    for name, runs in (("official", records), ("secondary", [rescore_d070(record) for record in records])):
+        stats = {**group(runs), "handoff_agreement": _rate(*handoff_agreement(runs))}
+        out[name] = {metric: stats[metric] for metric in DUAL}
+    return out
+
+
 def summary(records: Iterable[Record]) -> list[dict[str, Any]]:
     """Rows of summary.csv: per arm, one block over all its runs (language, type and segment `all`) and one per
-    language × type × segment cell. Each row carries the [simulated] label and the case set (§5)."""
+    language × type × segment cell. Each row carries the [simulated] label and the case set (§5). A held-out set adds,
+    in every block, the official `handoff_agreement` and the secondary score of ADR 0031 as `<metric>_d070` rows."""
+    records = list(records)
+    twice = scored_twice(records)
     cells: dict[tuple, list[Record]] = defaultdict(list)
     for record in records:
         cells[(record["arm"], "all", "all", "all")].append(record)
@@ -161,7 +218,12 @@ def summary(records: Iterable[Record]) -> list[dict[str, Any]]:
     for key in sorted(cells):
         n_cases = len({record["case_id"] for record in cells[key]})
         sets = "+".join(sorted({record["set"] for record in cells[key]}))
-        for metric, stats in group(cells[key]).items():
-            rows.append({"label": LABEL, "set": sets, **dict(zip(COLUMNS[2:6], key)), "metric": metric, **stats,
+        stats = group(cells[key])
+        if twice:
+            scores = dual(cells[key])
+            stats = {**stats, "handoff_agreement": scores["official"]["handoff_agreement"],
+                     **{f"{metric}{D070_SUFFIX}": value for metric, value in scores["secondary"].items()}}
+        for metric, values in stats.items():
+            rows.append({"label": LABEL, "set": sets, **dict(zip(COLUMNS[2:6], key)), "metric": metric, **values,
                          "n_cases": n_cases})
     return rows
