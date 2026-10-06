@@ -4,7 +4,11 @@ Drives a local headless Chrome through the DevTools Protocol (no Playwright): de
 light and the dark theme (next-themes reads `theme` from localStorage), plus one shot of a chart tooltip opened with the
 Tab key (AC-07). Writes PNGs and report.json; `scrollWidth > clientWidth` means the page scrolls sideways (AC-09).
 
-    python scripts/web/insight_screenshots.py OUT_DIR [--base URL] [--port N] [--pages /evaluation /agent]
+By default Chrome emulates `prefers-reduced-motion: reduce`, so the motion kit (apps/web/components/motion/) renders
+every chart, figure and diagram in its final state and a full-page shot never catches a bar at 0. `--motion` captures
+with the animations on, for a manual look; the script then waits for the sequences to end before each shot.
+
+    python scripts/web/insight_screenshots.py OUT_DIR [--base URL] [--port N] [--pages /evaluation /agent] [--motion]
     # needs Google Chrome and `pip install websockets`; --port 0 (default) picks a free debug port, so two sessions
     # can run it at once; every run uses its own temporary Chrome profile.
 """
@@ -55,7 +59,7 @@ def free_port() -> int:
         return probe.getsockname()[1]
 
 
-async def run(out: str, base: str, port: int, pages: list[str]) -> list[dict]:
+async def run(out: str, base: str, port: int, pages: list[str], motion: bool = False) -> list[dict]:
     profile = tempfile.mkdtemp(prefix="nick-shots-")
     chrome = subprocess.Popen([CHROME, "--headless=new", f"--remote-debugging-port={port}", "--disable-gpu",
                                "--hide-scrollbars", f"--user-data-dir={profile}", "about:blank"],
@@ -70,6 +74,9 @@ async def run(out: str, base: str, port: int, pages: list[str]) -> list[dict]:
         url = next(t["webSocketDebuggerUrl"] for t in targets if t["type"] == "page")
         async with websockets.connect(url, max_size=50_000_000) as ws:
             page, report = Page(ws), []
+            # Reduced motion unless --motion: final states only (the kit's head script reads this media query).
+            await page.call("Emulation.setEmulatedMedia", features=[
+                {"name": "prefers-reduced-motion", "value": "no-preference" if motion else "reduce"}])
             for path in pages:
                 for view, width, height, mobile in VIEWS:
                     for theme in THEMES:
@@ -85,12 +92,13 @@ async def run(out: str, base: str, port: int, pages: list[str]) -> list[dict]:
                                                 ".documentElement.classList.contains('dark')})")
                         await page.call("Emulation.setDeviceMetricsOverride", width=width, height=min(size["h"], 6000),
                                         deviceScaleFactor=1, mobile=mobile)
-                        await asyncio.sleep(1)
-                        name = f"{path.strip('/')}-{view}-{theme}.png"
+                        await asyncio.sleep(2.5 if motion else 1)  # the full height brings every root into view
+                        name = f"{path.strip('/')}-{view}-{theme}{'-motion' if motion else ''}.png"
                         await page.shot(f"{out}/{name}", full=True)
                         report.append({"page": path, "view": view, "width": width, "theme": theme,
                                        "dark_class": size["dark"], "scroll_width": size["sw"],
                                        "client_width": size["cw"], "overflow_x": size["sw"] > size["cw"],
+                                       "reduced_motion": not motion,
                                        "file": name})
             if "/analytics" in pages:                        # AC-07: the tooltip on keyboard focus
                 await page.call("Emulation.setDeviceMetricsOverride", width=1280, height=900, deviceScaleFactor=1,
@@ -120,10 +128,12 @@ def main() -> None:
     parser.add_argument("--base", default="https://nickoftime.salazarvalverdeai.com")
     parser.add_argument("--port", type=int, default=0, help="Chrome debug port; 0 picks a free one")
     parser.add_argument("--pages", nargs="+", default=list(PAGES), metavar="PATH", help=f"default: {' '.join(PAGES)}")
+    parser.add_argument("--motion", action="store_true",
+                        help="capture with animations on (default: emulate prefers-reduced-motion: reduce, final states)")
     args = parser.parse_args()
-    report = asyncio.run(run(args.out, args.base, args.port or free_port(), args.pages))
+    report = asyncio.run(run(args.out, args.base, args.port or free_port(), args.pages, args.motion))
     with open(f"{args.out}/report.json", "w", encoding="utf-8") as target:
-        json.dump({"base": args.base, "taken_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        json.dump({"base": args.base, "reduced_motion": not args.motion, "taken_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
                    "shots": report}, target, indent=1)
         target.write("\n")
     bad = [shot for shot in report if shot.get("overflow_x")]
