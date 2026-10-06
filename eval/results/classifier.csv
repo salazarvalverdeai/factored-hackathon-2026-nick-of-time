@@ -1,0 +1,61 @@
+label,arm,language,metric,value
+[simulated],B0,es,macro_f1,0.5828
+[simulated],B0,es,macro_f1_ci,"[0.4852, 0.6663]"
+[simulated],B0,es,per_class_f1,"{""unrecognized_charge"": 0.7907, ""wrongful_charge"": 0.4, ""status_inquiry"": 0.4667, ""human_request"": 0.7568, ""out_of_scope"": 0.5}"
+[simulated],B0,es,dispute_recall,0.4792
+[simulated],B0,es,dispute_detected_recall,0.4688
+[simulated],B0,es,human_request_recall,0.6087
+[simulated],B0,es,slot_accuracy,0.8958
+[simulated],B0,es,ece,0.1746
+[simulated],B0,es,coverage_at_tau,0.4746
+[simulated],B0,es,precision_at_tau,0.9643
+[simulated],B0,pt,macro_f1,0.6683
+[simulated],B0,pt,macro_f1_ci,"[0.5758, 0.7456]"
+[simulated],B0,pt,per_class_f1,"{""unrecognized_charge"": 0.7805, ""wrongful_charge"": 0.5, ""status_inquiry"": 0.7027, ""human_request"": 0.8, ""out_of_scope"": 0.5581}"
+[simulated],B0,pt,dispute_recall,0.5217
+[simulated],B0,pt,dispute_detected_recall,0.459
+[simulated],B0,pt,human_request_recall,0.6667
+[simulated],B0,pt,slot_accuracy,0.5217
+[simulated],B0,pt,ece,0.1475
+[simulated],B0,pt,coverage_at_tau,0.5847
+[simulated],B0,pt,precision_at_tau,0.9565
+[simulated],B1,es,macro_f1,0.916
+[simulated],B1,es,macro_f1_ci,"[0.8617, 0.9595]"
+[simulated],B1,es,per_class_f1,"{""unrecognized_charge"": 0.8163, ""wrongful_charge"": 0.875, ""status_inquiry"": 1.0, ""human_request"": 0.8889, ""out_of_scope"": 1.0}"
+[simulated],B1,es,dispute_recall,0.9583
+[simulated],B1,es,dispute_detected_recall,0.8594
+[simulated],B1,es,human_request_recall,0.8696
+[simulated],B1,es,slot_accuracy,0.8958
+[simulated],B1,es,ece,0.1502
+[simulated],B1,es,coverage_at_tau,0.6695
+[simulated],B1,es,precision_at_tau,0.962
+[simulated],B1,pt,macro_f1,0.9136
+[simulated],B1,pt,macro_f1_ci,"[0.8563, 0.9599]"
+[simulated],B1,pt,per_class_f1,"{""unrecognized_charge"": 0.8261, ""wrongful_charge"": 0.8261, ""status_inquiry"": 0.9796, ""human_request"": 0.9362, ""out_of_scope"": 1.0}"
+[simulated],B1,pt,dispute_recall,0.9565
+[simulated],B1,pt,dispute_detected_recall,0.8361
+[simulated],B1,pt,human_request_recall,0.9167
+[simulated],B1,pt,slot_accuracy,0.5217
+[simulated],B1,pt,ece,0.1627
+[simulated],B1,pt,coverage_at_tau,0.5763
+[simulated],B1,pt,precision_at_tau,1.0
+[simulated],B2,es,macro_f1,0.9322
+[simulated],B2,es,macro_f1_ci,"[0.8787, 0.9733]"
+[simulated],B2,es,per_class_f1,"{""unrecognized_charge"": 0.9412, ""wrongful_charge"": 0.9787, ""status_inquiry"": 0.902, ""human_request"": 0.9302, ""out_of_scope"": 0.9091}"
+[simulated],B2,es,dispute_recall,0.9792
+[simulated],B2,es,dispute_detected_recall,0.9844
+[simulated],B2,es,human_request_recall,0.8696
+[simulated],B2,es,slot_accuracy,0.6042
+[simulated],B2,es,ece,0.0449
+[simulated],B2,es,coverage_at_tau,0.9746
+[simulated],B2,es,precision_at_tau,0.9304
+[simulated],B2,pt,macro_f1,0.9147
+[simulated],B2,pt,macro_f1_ci,"[0.8555, 0.963]"
+[simulated],B2,pt,per_class_f1,"{""unrecognized_charge"": 0.9167, ""wrongful_charge"": 0.8696, ""status_inquiry"": 0.92, ""human_request"": 0.9583, ""out_of_scope"": 0.9091}"
+[simulated],B2,pt,dispute_recall,1.0
+[simulated],B2,pt,dispute_detected_recall,0.9672
+[simulated],B2,pt,human_request_recall,0.9583
+[simulated],B2,pt,slot_accuracy,0.3043
+[simulated],B2,pt,ece,0.0423
+[simulated],B2,pt,coverage_at_tau,1.0
+[simulated],B2,pt,precision_at_tau,0.9153
