@@ -323,4 +323,13 @@ export interface AgentReply {
   plan?: string[];
   /** The tool calls the turn streamed (spec 01 §6.4.1), settled: a call with no result is shown as failed. */
   tools?: ToolEvent[];
+  /** The charges the turn offers (`CustomerTurn.options`, spec 01 §6.4): one card to confirm (spec 04 D-067
+   *  `clarify.confirm_one`) or up to `max_candidate_transactions` to pick from. */
+  options?: TurnOption[];
+}
+
+/** One charge a turn offers: the transaction id and the server's label ("USD 1,250.00 · 2026-05-31 · TIENDA X"). */
+export interface TurnOption {
+  id: string;
+  label: string;
 }

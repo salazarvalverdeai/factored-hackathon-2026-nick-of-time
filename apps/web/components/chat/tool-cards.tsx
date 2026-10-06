@@ -21,6 +21,7 @@ import {
   deadlineWords,
   formatAmount,
   formatDate,
+  localizeDates,
 } from "@/lib/chat-stream";
 import { CHAT_STRINGS } from "@/lib/chat-strings";
 import type { Language } from "@/lib/types";
@@ -90,13 +91,32 @@ export function ChargeCardView({
       >
         <span className="block truncate font-medium">{merchant}</span>
         <span className="block text-xs text-muted-foreground">
-          {formatDate(card.date, lang)} · {COPY.cardEnding[lang]} {card.last4}
+          {formatDate(card.date, lang)}
+          {card.last4 ? ` · ${COPY.cardEnding[lang]} ${card.last4}` : ""}
           {card.synthetic ? ` · ${COPY.test[lang]}` : ""}
         </span>
       </button>
       <span className="shrink-0 text-right font-semibold tabular-nums">{formatAmount(card.amount, card.currency, lang)}</span>
       {onPick ? (
         <Button size="sm" variant="ghost" className="shrink-0 text-primary" onClick={() => onPick(card)} aria-label={`${CHAT_STRINGS.pick[lang]}: ${merchant}`}>
+          {CHAT_STRINGS.pick[lang]}
+        </Button>
+      ) : null}
+    </Card>
+  );
+}
+
+/** A charge the turn offers with no tool card behind it: the server's option label, dates in the turn language. */
+export function OptionCardView({ label, lang, onPick }: { label: string; lang: Language; onPick?: () => void }) {
+  const text = localizeDates(customerText(label), lang);
+  return (
+    <Card className="flex items-center gap-3 p-3 text-sm" data-slot="charge-card">
+      <span aria-hidden className="grid size-8 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary">
+        <CreditCardIcon className="size-4" />
+      </span>
+      <span className="min-w-0 flex-1 font-medium break-words">{text}</span>
+      {onPick ? (
+        <Button size="sm" variant="ghost" className="shrink-0 text-primary" onClick={onPick} aria-label={`${CHAT_STRINGS.pick[lang]}: ${text}`}>
           {CHAT_STRINGS.pick[lang]}
         </Button>
       ) : null}
