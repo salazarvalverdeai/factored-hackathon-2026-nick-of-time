@@ -6,7 +6,7 @@ import { GraphView } from "@/components/agent/graph-view";
 import { GuardrailList, ModelGrid, Rich, ToolGroups, ZoneDiagram } from "@/components/agent/reference-visuals";
 import { PageShell } from "@/components/page-shell";
 import { AGENT_REFERENCE } from "@/lib/agent-reference";
-import { AGENT_UI, fill } from "@/lib/agent-strings";
+import { getT } from "@/lib/i18n-server";
 import {
   CONSTITUTION,
   DIAGRAM,
@@ -27,7 +27,6 @@ import {
 export const metadata: Metadata = { title: "Agent" };
 
 const { policies, tools, graph, sources } = AGENT_REFERENCE;
-const P = AGENT_UI.page;
 const branchLabel = (from: string, to: string) => graph.branches.find((b) => b.from === from && b.to === to)?.label;
 const TH = "border-b py-2 pr-4 align-bottom font-normal";
 const TD = "border-b py-2 pr-4 align-top";
@@ -54,7 +53,8 @@ function Source({ path }: { path: string }) {
 }
 
 /** A section: its title, one plain line, a "Detail →" that opens the sources in the side panel, then the visual. */
-function Section({ id, title, line, detail, children }: { id: string; title: string; line: string; detail: ReactNode; children: ReactNode }) {
+async function Section({ id, title, line, detail, children }: { id: string; title: string; line: string; detail: ReactNode; children: ReactNode }) {
+  const { t } = await getT();
   return (
     <section id={id} aria-labelledby={`${id}-title`} className="min-w-0 scroll-mt-20 rounded-lg border bg-card p-4 text-card-foreground sm:p-5">
       <h2 id={`${id}-title`} className="text-base font-semibold">
@@ -64,10 +64,10 @@ function Section({ id, title, line, detail, children }: { id: string; title: str
         {line}{" "}
         <DetailTrigger
           className="whitespace-nowrap rounded-sm underline underline-offset-2 hover:text-foreground"
-          ariaLabel={`${title}: ${P.sources}`}
+          ariaLabel={`${title}: ${t("agent.ui.page.sources")}`}
           title={title}
-          description={P.sources}
-          label={P.detail}
+          description={t("agent.ui.page.sources")}
+          label={t("agent.ui.page.detail")}
         >
           <div className="grid gap-3 text-muted-foreground">{detail}</div>
         </DetailTrigger>
@@ -78,11 +78,12 @@ function Section({ id, title, line, detail, children }: { id: string; title: str
 }
 
 /** A table behind a disclosure, collapsed by default; the summary is keyboard reachable. */
-function AsTable({ label, head, rows }: { label: string; head: string[]; rows: ReactNode[][] }) {
+async function AsTable({ label, head, rows }: { label: string; head: string[]; rows: ReactNode[][] }) {
+  const { t } = await getT();
   return (
     <details className="group mt-4">
       <summary className="w-fit cursor-pointer rounded-sm text-sm text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring">
-        {P.viewAsTable} <span className="text-xs">({label})</span>
+        {t("agent.ui.page.viewAsTable")} <span className="text-xs">({label})</span>
       </summary>
       <div className="mt-2 overflow-x-auto">
         <table aria-label={label} className="w-full min-w-[36rem] text-left text-xs">
@@ -131,7 +132,8 @@ function RuleText({ text }: { text: string }) {
 
 const Dash = () => <span className="text-muted-foreground">—</span>;
 
-export default function Page() {
+export default async function Page() {
+  const { t } = await getT();
   const start = nextOf("START").to;
   const last = graph.edges.find((e) => (e.to as readonly string[]).includes("END"))?.from;
   return (
@@ -140,7 +142,7 @@ export default function Page() {
         <span className="text-primary">{CONSTITUTION.split(",")[0]},</span>
         {CONSTITUTION.slice(CONSTITUTION.indexOf(",") + 1)}
       </p>
-      <p className="mt-2 max-w-3xl text-sm text-muted-foreground">{P.lead}</p>
+      <p className="mt-2 max-w-3xl text-sm text-muted-foreground">{t("agent.ui.page.lead")}</p>
       <nav aria-label="On this page" className="mt-4 flex flex-wrap gap-1.5 text-sm">
         {SECTIONS.map(([id, label]) => (
           <a key={id} href={`#${id}`} className="rounded-md border px-2.5 py-1 text-muted-foreground hover:bg-accent hover:text-foreground">
@@ -153,7 +155,7 @@ export default function Page() {
         <Section
           id="architecture"
           title="Architecture"
-          line={P.lines.architecture}
+          line={t("agent.ui.page.lines.architecture")}
           detail={
             <>
               <p>
@@ -170,16 +172,16 @@ export default function Page() {
           <ArchitectureView />
           <p className="mt-3 text-xs text-muted-foreground">
             <a href={DIAGRAM.src} className="underline decoration-muted-foreground/40 underline-offset-2 hover:text-foreground">
-              {AGENT_UI.arch.staticView}
+              {t("agent.ui.arch.staticView")}
             </a>{" "}
-            {AGENT_UI.arch.staticNote}
+            {t("agent.ui.arch.staticNote")}
           </p>
         </Section>
 
         <Section
           id="graph"
           title={`Graph ${graph.name}`}
-          line={fill(P.lines.graph, { nodes: graph.nodes.length })}
+          line={t("agent.ui.page.lines.graph", { nodes: graph.nodes.length })}
           detail={
             <>
               <p>
@@ -225,7 +227,7 @@ export default function Page() {
         <Section
           id="policies"
           title="Policies"
-          line={P.lines.policies}
+          line={t("agent.ui.page.lines.policies")}
           detail={
             <>
               <p>
@@ -251,7 +253,7 @@ export default function Page() {
         <Section
           id="tools"
           title="Customer tools"
-          line={fill(P.lines.tools, { count: tools.length })}
+          line={t("agent.ui.page.lines.tools", { count: tools.length })}
           detail={
             <>
               <p>
@@ -280,7 +282,7 @@ export default function Page() {
         <Section
           id="guardrails"
           title="Guardrails"
-          line={fill(P.lines.guardrails, { count: policies.guardrails.length })}
+          line={t("agent.ui.page.lines.guardrails", { count: policies.guardrails.length })}
           detail={
             <p>
               Every deny cites its guardrail id. Source: <Source path={sources.policies} /> <Mono>guardrails</Mono>.
@@ -317,7 +319,7 @@ export default function Page() {
         <Section
           id="models"
           title="Models and decision engines"
-          line={P.lines.models}
+          line={t("agent.ui.page.lines.models")}
           detail={
             <>
               <p>

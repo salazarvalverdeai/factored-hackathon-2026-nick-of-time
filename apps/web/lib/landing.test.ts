@@ -2,16 +2,19 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
+import { LOCALES, translator } from "./i18n.ts";
 import { DEADLINES, FCR, RESOLUTION, STATS, figureTexts, numbersIn } from "./landing.ts";
 
 const DOC = readFileSync(new URL("../../../docs/problem_in_numbers.md", import.meta.url), "utf-8");
 const POLICIES = readFileSync(new URL("../../../contracts/policies.yaml", import.meta.url), "utf-8");
 
-test("spec 16 AC-01: every number on the home page appears, spelled the same, in docs/problem_in_numbers.md", () => {
-  const missing = figureTexts()
-    .flatMap(numbersIn)
-    .filter((n) => !DOC.includes(n));
-  assert.deepEqual(missing, []);
+test("spec 16 AC-01, AC-06: every number on the home page appears, spelled the same, in docs/problem_in_numbers.md, in every UI language", () => {
+  for (const loc of LOCALES) {
+    const missing = figureTexts(translator(loc))
+      .flatMap(numbersIn)
+      .filter((n) => !DOC.includes(n));
+    assert.deepEqual(missing, [], loc);
+  }
 });
 
 test("spec 16 AC-01: the headline is the doc's FCR, 43.6% against 76.6%, and every ticker matches its text", () => {

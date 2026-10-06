@@ -98,7 +98,8 @@ export function ReceiptCard({ receipt, country, demoDate = null, charge }: { rec
         <dl className="space-y-2">
           {charge ? (
             <Row label={S.rowCharge[lang]}>
-              {formatAmount(charge.amount, charge.currency, lang)} · {formatDate(charge.date, lang)} · ··{charge.last4}
+              {formatAmount(charge.amount, charge.currency, lang)} · {formatDate(charge.date, lang)}
+              {charge.last4 ? ` · ··${charge.last4}` : ""}
             </Row>
           ) : null}
           {receipt.card_blocked ? <Row label={S.rowDone[lang]}>{customerText(localizeTimes(replayText(receipt.card_blocked, replay), lang, zoneCountry))}</Row> : null}

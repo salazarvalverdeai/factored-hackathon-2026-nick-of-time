@@ -24,13 +24,14 @@
 #   suggest.confirm_charge (D-067).
 #   Task PROG (T7) added progress.* (AC-17). D-071 (lead, 2026-10-05) added clarify.ask_intent,
 #   clarify.confirm_again, suggest.intent_unrecognized and suggest.intent_wrongful (0.10.0). ADR 0030 (spec 01
-#   §6.4.1, spec 04 AC-38) added tool.* (live tool event titles and summaries) and verdict.* (0.11.0).
+#   §6.4.1, spec 04 AC-38) added tool.* (live tool event titles and summaries) and verdict.* (0.11.0). Lead request
+#   2026-10-06 (tone, spec 04 AC-44) added tone.urgent and tone.frustrated (0.12.0).
 # - Chips: `kind` is static here; the action payload ({type}, spec 01 §6.4) is set by the server code.
 # - Never a placeholder or text for the fraud score, policy ids, rule ids, zones or the transcript
 #   (notifications.never_send in policies.yaml).
 # - Never promise an outcome or a provisional credit: a person reviews and decides (CLAUDE.md rule 6).
 # - Dates are absolute (YYYY-MM-DD) and come from tools; the template never computes them.
-version: "0.11.0"
+version: "0.12.0"
 
 system:
   # The agent platform is unreachable, timed out, answered an error or dropped the stream (spec 05 AC-05). Calm, no
@@ -502,6 +503,17 @@ progress:
   writing:
     es: "Preparando tu respuesta…"
     pt: "Preparando sua resposta…"
+
+tone:
+  # Spec 04 AC-44 (lead request 2026-10-06): one acknowledgement when `nlu.tone` reads the customer's message as
+  # urgent or frustrated; streamed once as a progress label and prepended to the template reply. No digits, no
+  # placeholders, no promise of an outcome.
+  urgent:
+    es: "Noté que es urgente para ti · te respondo paso a paso"
+    pt: "Percebi que é urgente para você · vou responder passo a passo"
+  frustrated:
+    es: "Entiendo tu molestia · vamos a resolverlo"
+    pt: "Entendo seu incômodo · vamos resolver isso"
 
 tool:
   # Spec 01 §6.4.1, spec 04 AC-38 (ADR 0030, 0.11.0): the title and summary of each live `tool` event. A title says

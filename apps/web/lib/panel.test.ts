@@ -54,6 +54,18 @@ test("spec 12 AC-10: the arm is the one running the benchmark's chosen model; ot
   assert.ok(picked.kind === "ready" && picked.note === null);
 });
 
+test("spec 12 AC-10: the panel carries the three labels and no placeholder result file is committed", () => {
+  const src = readFileSync(new URL("../app/evaluation/panel.tsx", import.meta.url), "utf-8");
+  for (const label of ["[data]", "[simulated]", "[projected]"]) assert.ok(src.includes(label), label);
+  assert.match(src, /n = \$\{s\.n\} runs/); // in the "Contacts avoided" detail panel
+  assert.match(src, /upper-bound/);
+  assert.match(src, /"results pending"/); // AC-10: the WITH US figure reads "results pending", with no number
+  assert.match(src, /full synthetic dataset/);
+  assert.doesNotMatch(src, /\[data\] \{source\}/, "the source already carries its label");
+  const summaryUrl = new URL("../public/data/evaluation_summary.json", import.meta.url);
+  if (existsSync(summaryUrl)) assert.doesNotMatch(readFileSync(summaryUrl, "utf-8"), /SAMPLE FOR TESTS ONLY/);
+});
+
 test("spec 12 AC-10: without scores_d070 the panel keeps its single official score and no ADR 0031 sentence", () => {
   const state = panelState(SEALED, PITCH);
   assert.ok(state.kind === "ready");
@@ -78,12 +90,12 @@ test("spec 12 AC-10, spec 10 AC-15: with the real files the panel shows both hel
   assert.equal(state.note, "B0 kept: no arm meets the floors (spec 15); held-out arm shown: S1 = Haiku 4.5 [assumption] (D-080)");
   assert.doesNotMatch(state.note!, /pending/);
   // spec 10 AC-15 / ADR 0031: official first, secondary labeled as such (D-083: sealed = official).
-  const [official, secondary] = state.scores;
   assert.equal(state.scores.length, 2);
+  const [official, secondary] = state.scores;
   assert.equal(official.key, "official");
   assert.equal(official.label, "Official: sealed rules (protocol-v1)");
   assert.equal(secondary.key, "secondary");
-  assert.match(secondary.label, /^Secondary: D-070 handoff rule \(ADR 0031, decided before the run\)$/);
+  assert.equal(secondary.label, "Secondary: D-070 handoff rule (ADR 0031, decided before the run)");
   const d070 = summary.data.scores_d070!.arms.S1;
   assert.deepEqual(official.rate, d070.official.safe_automated_resolution);
   assert.deepEqual(secondary.rate, d070.secondary.safe_automated_resolution);
@@ -94,28 +106,15 @@ test("spec 12 AC-10, spec 10 AC-15: with the real files the panel shows both hel
   // Each projection is a CI range tied to its own score, over the same stated base.
   const fcr = PITCH.find((c) => c.key === "fcr")!.groups[0];
   for (const s of state.scores) {
-    assert.ok(s.projection);
     assert.equal(s.projection!.volume, fcr.denominator);
     assert.equal(s.projection!.low, Math.max(0, Math.round((s.rate.ci_low! - fcr.value / 100) * fcr.denominator)));
     assert.equal(s.projection!.high, Math.max(0, Math.round((s.rate.ci_high! - fcr.value / 100) * fcr.denominator)));
   }
   assert.deepEqual([official.projection!.low, official.projection!.high], [0, 0]);
   assert.ok(secondary.projection!.low > 0 && secondary.projection!.low < secondary.projection!.high);
-  // The view labels every projection [projected], ties it to its score and prints the ADR sentence.
+  // The view gives every score its own [projected] line and prints the ADR sentence.
   const src = readFileSync(new URL("../app/evaluation/panel.tsx", import.meta.url), "utf-8");
-  assert.match(src, /state\.scores\.map\(\(s\) => \(\s*<ScoreCard/);
-  assert.equal((src.match(/<Tag>\[projected\]<\/Tag>/g) ?? []).length, 2, "both projection branches carry [projected]");
-  assert.match(src, /from this score&apos;s 95% CI/);
+  assert.match(src, /<ProjectionLine key=\{s\.key\} s=\{s\} label="\[projected\]" \/>/);
   assert.match(src, /\{state\.sentence\}/);
-});
-
-test("spec 12 AC-10: the panel carries the three labels and no placeholder result file is committed", () => {
-  const src = readFileSync(new URL("../app/evaluation/panel.tsx", import.meta.url), "utf-8");
-  for (const label of ["[data]", "[simulated]", "[projected]"]) assert.ok(src.includes(label), label);
-  assert.match(src, /n = \{s\.n\} runs/);
-  assert.match(src, /upper-bound/);
-  assert.match(src, /full synthetic dataset/);
-  assert.doesNotMatch(src, /\[data\] \{source\}/, "the source already carries its label");
-  const summaryUrl = new URL("../public/data/evaluation_summary.json", import.meta.url);
-  if (existsSync(summaryUrl)) assert.doesNotMatch(readFileSync(summaryUrl, "utf-8"), /SAMPLE FOR TESTS ONLY/);
+  assert.match(src, /Secondary \(D-070\)/);
 });

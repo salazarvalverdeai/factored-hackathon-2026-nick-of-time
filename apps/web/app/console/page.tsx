@@ -1,9 +1,12 @@
 "use client";
 
+// The analyst console (spec 08) in the UI language (spec 16 AC-06): only labels are translated; the handoff card's
+// facts, evidence, tool names, ids and figures are shown exactly as the tools returned them (constitution #5).
 import { copilotActionLabel, formatTime, handoffReasonLabel } from "@/lib/handoff-labels";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { StatusBadge, ZoneBadge } from "@/components/badges";
+import { useLocale, useT } from "@/components/i18n-provider";
 import { AgentSummary } from "@/components/console/agent-summary";
 import { CaseHeader } from "@/components/console/case-header";
 import { ConversationTranscript } from "@/components/console/conversation-transcript";
@@ -28,6 +31,7 @@ import { useMounted, useQuery, useSession } from "@/lib/use-query";
 import { ClosedList, KpiStrip, SlaLight } from "./board";
 
 export default function ConsolePage() {
+  const t = useT();
   const router = useRouter();
   const mounted = useMounted();
   const { analystSession } = useSession();
@@ -39,8 +43,8 @@ export default function ConsolePage() {
 
   if (!mounted || !analystSession) {
     return (
-      <PageShell title="Console" description="Analyst inbox, handoff card and audit trail.">
-        <LoadingState label="Checking your session…" />
+      <PageShell title={t("console.page.title")} description={t("console.page.description")}>
+        <LoadingState label={t("console.page.checkingSession")} />
       </PageShell>
     );
   }
@@ -48,6 +52,8 @@ export default function ConsolePage() {
 }
 
 function Console({ actor }: { actor: string }) {
+  const t = useT();
+  const { locale } = useLocale();
   const router = useRouter();
   const { supervised, audit } = useSession();
   // The inbox with each case's events and the api's countdown: the KPI strip, the SLA lights and the Closed tab read it.
@@ -66,11 +72,17 @@ function Console({ actor }: { actor: string }) {
   const activeId = selectedId ?? firstId;
   const detail = useQuery((a) => (activeId ? a.getConsoleCase(activeId) : Promise.resolve(null)), [activeId]);
 
-  if (cases.status === "loading") return <PageShell title="Console" description="Analyst inbox."><LoadingState /></PageShell>;
+  if (cases.status === "loading") {
+    return (
+      <PageShell title={t("console.page.title")} description={t("console.page.shortDescription")}>
+        <LoadingState />
+      </PageShell>
+    );
+  }
   if (cases.status === "error") {
     return (
-      <PageShell title="Console" description="Analyst inbox.">
-        <ErrorState title="Cannot load the inbox" message={cases.error.message} />
+      <PageShell title={t("console.page.title")} description={t("console.page.shortDescription")}>
+        <ErrorState title={t("console.page.cannotLoadInbox")} message={cases.error.message} />
       </PageShell>
     );
   }
@@ -86,7 +98,7 @@ function Console({ actor }: { actor: string }) {
       setReason("");
     } catch (err) {
       if (err instanceof ApiError && err.code === "APPROVAL_REQUIRED") setConfirming({ caseId, action });
-      else setMessage(err instanceof ApiError ? err.message : "unexpected error");
+      else setMessage(err instanceof ApiError ? err.message : t("console.page.unexpectedError"));
     } finally {
       setBusy(false);
     }
@@ -98,7 +110,7 @@ function Console({ actor }: { actor: string }) {
     try {
       await api.setSupervised(on);
     } catch (err) {
-      setMessage(err instanceof ApiError ? err.message : "unexpected error");
+      setMessage(err instanceof ApiError ? err.message : t("console.page.unexpectedError"));
     } finally {
       setBusy(false);
     }
@@ -116,7 +128,9 @@ function Console({ actor }: { actor: string }) {
   const doneCount = all.filter((c) => DONE_STATUSES.includes(c.status)).length;
   const openList = (
     <div className="space-y-4">
-      {openCount === 0 ? <EmptyState title="No open cases" hint={all.length === 0 ? "Open one from /chat." : undefined} /> : null}
+      {openCount === 0 ? (
+        <EmptyState title={t("console.inbox.noOpen")} hint={all.length === 0 ? t("console.inbox.openFromChat") : undefined} />
+      ) : null}
       {OPEN_STATUSES.map((status) => {
         const rows = all.filter((c) => c.status === status);
         if (rows.length === 0) return null;
@@ -140,10 +154,10 @@ function Console({ actor }: { actor: string }) {
                     </span>
                     <span className="block truncate">{c.customerName}</span>
                     <span className="block text-xs text-muted-foreground">
-                      Deadline {formatDeadline(c.deadline)} · priority {c.priority}
+                      {t("console.inbox.rowMeta", { deadline: formatDeadline(c.deadline, locale), priority: t(`console.priority.${c.priority}`) })}
                     </span>
                     {/* SLA light: text + icon, never color alone (spec 08 AC-08). */}
-                    <SlaLight sla={slaOf(c)} />
+                    <SlaLight sla={slaOf(c, locale)} />
                   </button>
                 </li>
               ))}
@@ -157,14 +171,14 @@ function Console({ actor }: { actor: string }) {
   const inbox = (
     <Card>
       <CardHeader>
-        <CardTitle>Inbox</CardTitle>
-        <CardDescription>Open cases by status · zone · deadline · priority; resolved and closed ones under Closed</CardDescription>
+        <CardTitle>{t("console.inbox.title")}</CardTitle>
+        <CardDescription>{t("console.inbox.description")}</CardDescription>
       </CardHeader>
       <CardContent>
         <Tabs value={inboxTab} onValueChange={(v) => setInboxTab(String(v))}>
           <TabsList className="w-full">
-            <TabsTrigger value="open">Open ({openCount})</TabsTrigger>
-            <TabsTrigger value="closed">Closed ({doneCount})</TabsTrigger>
+            <TabsTrigger value="open">{t("console.inbox.open", { n: openCount })}</TabsTrigger>
+            <TabsTrigger value="closed">{t("console.inbox.closed", { n: doneCount })}</TabsTrigger>
           </TabsList>
           <TabsContent value="open">{openList}</TabsContent>
           <TabsContent value="closed">
@@ -177,9 +191,9 @@ function Console({ actor }: { actor: string }) {
 
   const shown = detail.status === "ok" && detail.data && detail.data.id === activeId ? detail.data : null;
   const detailPanel = !activeId ? (
-    <EmptyState title="Select a case" />
+    <EmptyState title={t("console.inbox.selectCase")} />
   ) : detail.status === "error" ? (
-    <ErrorState title="Cannot load the case" message={detail.error.message} />
+    <ErrorState title={t("console.inbox.cannotLoadCase")} message={detail.error.message} />
   ) : shown ? (
     <CaseDetail
       c={shown}
@@ -192,18 +206,18 @@ function Console({ actor }: { actor: string }) {
       onRun={(action, confirmed) => run(shown.id, action, confirmed)}
     />
   ) : (
-    <LoadingState label="Loading the case…" />
+    <LoadingState label={t("console.inbox.loadingCase")} />
   );
 
   const auditPanel = (
     <Card>
       <CardHeader>
-        <CardTitle>Audit</CardTitle>
-        <CardDescription>Every action and supervised-mode change of this session, with its user. The case timeline holds the server&apos;s record.</CardDescription>
+        <CardTitle>{t("console.audit.title")}</CardTitle>
+        <CardDescription>{t("console.audit.description")}</CardDescription>
       </CardHeader>
       <CardContent>
         {audit.length === 0 ? (
-          <EmptyState title="No actions yet" />
+          <EmptyState title={t("console.audit.empty")} />
         ) : (
           <ul className="space-y-2 text-sm">
             {audit.map((a) => (
@@ -211,7 +225,7 @@ function Console({ actor }: { actor: string }) {
                 <span className="font-medium">{a.action}</span> · {a.target}
                 {a.reason ? ` · ${a.reason}` : ""}
                 <p className="text-xs text-muted-foreground">
-                  {a.actor} · {formatTime(a.at)}
+                  {a.actor} · {formatTime(locale, a.at)}
                 </p>
               </li>
             ))}
@@ -222,7 +236,7 @@ function Console({ actor }: { actor: string }) {
   );
 
   return (
-    <PageShell title="Console" description={`Signed in as ${actor}. The analyst receives evidence, not a chat.`}>
+    <PageShell title={t("console.page.title")} description={t("console.page.signedInAs", { name: actor })}>
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <button
           type="button"
@@ -237,7 +251,7 @@ function Console({ actor }: { actor: string }) {
           >
             <span className={`block size-3 rounded-full bg-background transition-transform ${supervised ? "translate-x-3" : ""}`} />
           </span>
-          Supervised mode: {supervised ? "on" : "off"}
+          {t("console.page.supervised", { state: supervised ? t("console.page.on") : t("console.page.off") })}
         </button>
         <Button
           size="sm"
@@ -247,7 +261,7 @@ function Console({ actor }: { actor: string }) {
             router.push("/login");
           }}
         >
-          Sign out
+          {t("console.page.signOut")}
         </Button>
       </div>
 
@@ -263,9 +277,9 @@ function Console({ actor }: { actor: string }) {
       <div className="lg:hidden">
         <Tabs value={tab} onValueChange={(v) => setTab(String(v))}>
           <TabsList className="w-full">
-            <TabsTrigger value="inbox">Inbox</TabsTrigger>
-            <TabsTrigger value="case">Case</TabsTrigger>
-            <TabsTrigger value="audit">Audit</TabsTrigger>
+            <TabsTrigger value="inbox">{t("console.page.tabs.inbox")}</TabsTrigger>
+            <TabsTrigger value="case">{t("console.page.tabs.case")}</TabsTrigger>
+            <TabsTrigger value="audit">{t("console.page.tabs.audit")}</TabsTrigger>
           </TabsList>
           <TabsContent value="inbox">{inbox}</TabsContent>
           <TabsContent value="case">{detailPanel}</TabsContent>
@@ -296,12 +310,14 @@ function CaseDetail({
   onReason: (reason: string) => void;
   onRun: (action: AnalystActionName, confirmed?: boolean) => void;
 }) {
+  const t = useT();
+  const { locale } = useLocale();
   const status = c.status;
   const h = c.handoff;
   const actions = consoleActions(status, api.mode);
   const needsReason = actions.some((a) => a.needsReason);
   const canApprove = actions.some((a) => a.approval);
-  const label = (a: ConsoleAction) => (confirming === a.action ? "Confirm approval (supervised mode)" : a.label);
+  const label = (a: ConsoleAction) => (confirming === a.action ? t("console.detail.confirmApproval") : t(`console.actions.${a.action}`));
   // The assisted view (spec 08, spec 18 T5/T5b): read again after every action, like the case itself.
   const summary = useQuery(() => consoleApi.getSummary(c.id), [c.id]);
   const context = useQuery(() => consoleApi.getContext(c.id), [c.id]);
@@ -325,57 +341,61 @@ function CaseDetail({
           priority={c.priority}
           status={status}
           path={path}
-          sla={<SlaLight sla={slaOf(c)} />}
+          sla={<SlaLight sla={slaOf(c, locale)} />}
         />
       </CardHeader>
       <CardContent className="space-y-4 text-sm">
         {/* The handoff card stays first; the conversation is a read-only transcript next to it (spec 08 AC-15). */}
         <Tabs value={view} onValueChange={(v) => setView(String(v))}>
           <TabsList className="w-full">
-            <TabsTrigger value="handoff">Handoff card</TabsTrigger>
-            <TabsTrigger value="conversation">Conversation</TabsTrigger>
+            <TabsTrigger value="handoff">{t("console.detail.tabs.handoff")}</TabsTrigger>
+            <TabsTrigger value="conversation">{t("console.detail.tabs.conversation")}</TabsTrigger>
           </TabsList>
           <TabsContent value="handoff" className="space-y-4">
             <AgentSummary query={summary} />
-            <section aria-label="Handoff card" className="space-y-2 rounded-xl border bg-card p-3">
-              <h3 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Handoff card</h3>
+            {/* Only the field labels follow the UI language; every value is the tool's, as returned (constitution #5). */}
+            <section aria-label={t("console.handoff.title")} className="space-y-2 rounded-xl border bg-card p-3">
+              <h3 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{t("console.handoff.title")}</h3>
               {c.handoffEmitted === false ? (
-                <p className="text-muted-foreground">The agent has not written the handoff card for this case yet.</p>
+                <p className="text-muted-foreground">{t("console.handoff.notWritten")}</p>
               ) : null}
               <p>
-                <b>Request:</b> {h.request || "—"}
+                <b>{t("console.handoff.request")}</b> {h.request || "—"}
               </p>
               <p>
-                <b>Deadline:</b> {formatDeadline(c.deadline)}
+                <b>{t("console.handoff.deadline")}</b> {formatDeadline(c.deadline, locale)}
                 <span className="block text-xs text-muted-foreground">{plain(h.deadline.deadline_source)}</span>
               </p>
               {h.handoff_reason ? (
                 <p>
-                  <b>Handoff reason:</b> {handoffReasonLabel(h.handoff_reason)}
+                  <b>{t("console.handoff.reason")}</b> {handoffReasonLabel(h.handoff_reason, locale)}
                 </p>
               ) : null}
               <p>
-                <b>Verified facts:</b> {h.verified_facts.map((f) => plain(f.fact)).join("; ") || "—"}
+                <b>{t("console.handoff.facts")}</b> {h.verified_facts.map((f) => plain(f.fact)).join("; ") || "—"}
               </p>
               <p>
-                <b>Actions:</b>{" "}
+                <b>{t("console.handoff.actions")}</b>{" "}
                 {h.actions.length
-                  ? h.actions.map((a) => `${a.tool.replace(/_/g, " ")}: ${a.result}${a.verified ? " (verified ✓)" : ""}`).join("; ")
-                  : "none taken"}
+                  ? h.actions
+                      .map((a) => `${a.tool.replace(/_/g, " ")}: ${a.result}${a.verified ? ` (${t("console.handoff.verified")})` : ""}`)
+                      .join("; ")
+                  : t("console.handoff.noneTaken")}
               </p>
               <p>
-                <b>Evidence:</b> {h.evidence.map(plain).join("; ") || "—"}
+                <b>{t("console.handoff.evidence")}</b> {h.evidence.map(plain).join("; ") || "—"}
               </p>
               <p>
-                <b>Open questions:</b> {h.open_questions.map(plain).join("; ") || "—"}
+                <b>{t("console.handoff.openQuestions")}</b> {h.open_questions.map(plain).join("; ") || "—"}
               </p>
               {h.copilot_proposal ? (
                 <p>
-                  <b>Copilot proposal:</b> {copilotActionLabel(h.copilot_proposal.action)} (a person decides)
+                  <b>{t("console.handoff.copilot")}</b> {copilotActionLabel(h.copilot_proposal.action, locale)}{" "}
+                  {t("console.handoff.personDecides")}
                 </p>
               ) : null}
               <p className="text-xs text-muted-foreground">
-                {h.score === null || h.score === undefined ? "Score del banco: sin dato" : `Score del banco: ${h.score}`}
+                {h.score === null || h.score === undefined ? t("console.handoff.scoreNone") : t("console.handoff.score", { score: h.score })}
                 {h.trace_id ? ` · trace ${h.trace_id}` : ""}
               </p>
             </section>
@@ -398,12 +418,12 @@ function CaseDetail({
           />
         ) : null}
 
-        <section aria-label="Actions" className="space-y-2">
-          <h3 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Your decision</h3>
+        <section aria-label={t("console.detail.decisionAria")} className="space-y-2">
+          <h3 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{t("console.detail.decision")}</h3>
           {needsReason ? (
             <label className="block text-xs">
-              Reason (recorded with your user)
-              <Input value={reason} onChange={(e) => onReason(e.target.value)} placeholder="Why this decision" />
+              {t("console.detail.reason")}
+              <Input value={reason} onChange={(e) => onReason(e.target.value)} placeholder={t("console.detail.reasonPlaceholder")} />
             </label>
           ) : null}
           <div className="flex flex-wrap gap-2">
@@ -419,9 +439,9 @@ function CaseDetail({
               </Button>
             ))}
           </div>
-          {actions.length === 0 ? <p className="text-xs text-muted-foreground">No action is open for this status.</p> : null}
-          {supervised && canApprove ? <p className="text-xs text-muted-foreground">Supervised mode is on: approvals need a second click.</p> : null}
-          {message ? <ErrorState title="Action refused" message={message} /> : null}
+          {actions.length === 0 ? <p className="text-xs text-muted-foreground">{t("console.detail.noAction")}</p> : null}
+          {supervised && canApprove ? <p className="text-xs text-muted-foreground">{t("console.detail.supervisedHint")}</p> : null}
+          {message ? <ErrorState title={t("console.detail.refused")} message={message} /> : null}
         </section>
 
         <CustomerHistory query={context} />
@@ -430,8 +450,8 @@ function CaseDetail({
         <AuditChecklist query={auditor} />
         <SecondOpinionPanel caseId={c.id} />
 
-        <section aria-label="Timeline">
-          <h3 className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">Timeline</h3>
+        <section aria-label={t("console.detail.timeline")}>
+          <h3 className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">{t("console.detail.timeline")}</h3>
           <Timeline
             events={c.events.map((e) => ({
               id: e.id,

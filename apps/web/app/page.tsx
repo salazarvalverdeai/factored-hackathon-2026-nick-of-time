@@ -6,39 +6,37 @@ import { HowItWorks } from "@/components/landing/how-it-works";
 import { JuryGuide } from "@/components/landing/jury-guide";
 import { ProblemNumbers } from "@/components/landing/problem-numbers";
 import { buttonVariants } from "@/components/ui/button";
+import { getT } from "@/lib/i18n-server";
 
-const TAGLINE = "Verified action. Before the deadline.";
-const DESCRIPTION =
-  "Card dispute intake for a synthetic LATAM bank, in Spanish and Portuguese. The LLM understands, the rules decide, the tools act, verification confirms and a person closes the case.";
-
-export const metadata: Metadata = {
-  metadataBase: new URL("https://nickoftime.salazarvalverdeai.com"),
-  title: `Nick of Time · ${TAGLINE}`,
-  description: DESCRIPTION,
-  openGraph: {
-    type: "website",
-    siteName: "Nick of Time",
-    title: `Nick of Time · ${TAGLINE}`,
-    description: DESCRIPTION,
-    // TODO(lead): OG IMAGE SLOT — add the 1200×630 image the lead is designing at apps/web/public/og/home.png.
-    // The path is a placeholder until that file exists.
-    images: [{ url: "/og/home.png", width: 1200, height: 630, alt: `Nick of Time — ${TAGLINE}` }],
-  },
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const { t, locale } = await getT();
+  const tagline = t("landing.meta.tagline");
+  const description = t("landing.meta.description");
+  return {
+    metadataBase: new URL("https://nickoftime.salazarvalverdeai.com"),
+    title: `Nick of Time · ${tagline}`,
+    description,
+    openGraph: {
+      type: "website",
+      siteName: "Nick of Time",
+      locale: { es: "es_MX", pt: "pt_BR", en: "en_US" }[locale],
+      title: `Nick of Time · ${tagline}`,
+      description,
+      // TODO(lead): OG IMAGE SLOT — add the 1200×630 image the lead is designing at apps/web/public/og/home.png.
+      // The path is a placeholder until that file exists.
+      images: [{ url: "/og/home.png", width: 1200, height: 630, alt: `Nick of Time — ${tagline}` }],
+    },
+  };
+}
 
 const CTAS = [
-  {
-    href: "/chat",
-    label: "Try it as a customer",
-    hint: "Report a charge in Spanish or Portuguese",
-    Icon: MessageSquareText,
-    primary: true,
-  },
-  { href: "/console", label: "Open the analyst console", hint: "Handoff cards, actions and audit", Icon: Inbox, primary: false },
-  { href: "/evaluation", label: "See the evaluation", hint: "How we know it works", Icon: ChartColumn, primary: false },
+  { href: "/chat", label: "landing.hero.chat", hint: "landing.hero.chatHint", Icon: MessageSquareText, primary: true },
+  { href: "/console", label: "landing.hero.console", hint: "landing.hero.consoleHint", Icon: Inbox, primary: false },
+  { href: "/evaluation", label: "landing.hero.evaluation", hint: "landing.hero.evaluationHint", Icon: ChartColumn, primary: false },
 ] as const;
 
-export default function Home() {
+export default async function Home() {
+  const { t } = await getT();
   return (
     <>
       <main id="main" className="mx-auto w-full max-w-7xl flex-1 space-y-20 px-4 py-10 sm:py-16">
@@ -50,14 +48,10 @@ export default function Home() {
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src="/brand/logo-horizontal-light.svg" alt="Nick of Time" className="h-24 w-auto sm:h-32 dark:hidden" />
             <h1 id="hero-title" className="text-4xl font-bold tracking-tight text-balance sm:text-5xl">
-              {TAGLINE}
+              {t("landing.meta.tagline")}
             </h1>
-            <p className="max-w-xl text-lg text-muted-foreground">
-              A customer reports a card charge they do not recognize, in Spanish or Portuguese. Nick of Time finds their own transaction, lets
-              the rules decide whether to block the card, opens a case, reports each action only once it is verified and states the
-              country&apos;s legal deadline. A person always closes the case.
-            </p>
-            <nav aria-label="Start here" className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+            <p className="max-w-xl text-lg text-muted-foreground">{t("landing.hero.lead")}</p>
+            <nav aria-label={t("landing.hero.start")} className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
               {CTAS.map(({ href, label, hint, Icon, primary }) => (
                 <Link
                   key={href}
@@ -69,9 +63,9 @@ export default function Home() {
                 >
                   <Icon aria-hidden="true" className="size-4" />
                   <span className="flex flex-col">
-                    <span>{label}</span>
+                    <span>{t(label)}</span>
                     <span className={`text-xs font-normal ${primary ? "text-primary-foreground" : "text-muted-foreground"}`}>
-                      {hint}
+                      {t(hint)}
                     </span>
                   </span>
                   <ArrowRight aria-hidden="true" className="ml-auto size-4 sm:ml-2" />

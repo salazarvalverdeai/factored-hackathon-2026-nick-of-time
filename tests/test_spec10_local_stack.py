@@ -143,6 +143,13 @@ def test_ac_06_expired_none_and_tool_faults_are_seeded_as_the_case_states():
     assert expired.expires_at < dt.datetime.now(dt.timezone.utc)
     none = s.store.get_session(seed(s.client, {"customer_id": ME, "session": "none"}).json()["session_id"])
     assert none.customer_id is None and none.verified_at is None
+    # a session_expired case with no session still carries its customer's fixture (held-out EV-0267, EV-0268)
+    with_fixture = seed(s.client, {**case()["initial_state"], "session": "none"})
+    assert with_fixture.status_code == 200
+    assert s.store.get_session(with_fixture.json()["session_id"]).customer_id is None
+    stray = seed(s.client, {**case()["initial_state"], "session": "none",
+                            "fixtures": [{"transaction_id": "TRX-LATEARRIVAL00000001", "product_id": PRD}]})
+    assert stray.status_code == 422
     faulty = seed(s.client, {"customer_id": ME, "session": "verified", "tool_faults": ["block_card"]}).json()
     assert s.store.get_session(faulty["session_id"]).tool_faults == ("block_card",)
 

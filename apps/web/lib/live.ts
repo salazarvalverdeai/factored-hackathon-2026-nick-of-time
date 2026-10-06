@@ -57,6 +57,7 @@ interface WireTurn {
   decision?: string | null;
   intent?: string | null;
   case_id?: string | null;
+  options?: { id: string; label: string }[];
   plan?: string[];
   progress?: WireProgress[];
   actions?: { tool: string; state: string; verification_id?: string | null; read_at?: string | null }[];
@@ -184,6 +185,7 @@ export function replyFromTurn(turn: WireTurn, streamed: WireProgress[] = []): Ag
     awaitingConfirmation: turn.decision === "confirm",
     receipt: turn.receipt ? receiptFrom(turn.receipt) : undefined,
     ...(turn.plan?.length ? { plan: turn.plan } : {}),
+    ...(Array.isArray(turn.options) ? { options: turn.options.map((o) => ({ id: o.id, label: o.label })) } : {}),
   };
 }
 

@@ -18,7 +18,7 @@ import { CitationContext, Markdown } from "@/components/chat/markdown";
 import { Reveal, Stagger } from "@/components/chat/motion";
 import { ReceiptCard } from "@/components/chat/receipt-card";
 import { TurnSteps } from "@/components/chat/steps";
-import { CaseCardView, ChargeCardView, DeadlineCardView } from "@/components/chat/tool-cards";
+import { CaseCardView, ChargeCardView, DeadlineCardView, OptionCardView } from "@/components/chat/tool-cards";
 import { DenyState } from "@/components/states";
 import { type ReplyPart, partDelay } from "@/lib/chat-motion";
 import {
@@ -32,6 +32,8 @@ import {
   formatAmount,
   formatClock,
   formatDate,
+  localizeDates,
+  offeredCharges,
   replyBody,
 } from "@/lib/chat-stream";
 import { CHAT_STRINGS as S } from "@/lib/chat-strings";
@@ -63,6 +65,11 @@ export type ChatDetail =
   | { kind: "charge"; card: ChargeCard; reply?: AgentReply }
   | { kind: "rule"; card: VerdictCard; tool?: ToolEvent; reply?: AgentReply }
   | { kind: "trace"; reply: AgentReply };
+
+const PICK_LABEL_TEXT = {
+  es: (label: string) => `Es este cargo: ${localizeDates(customerText(label), "es")}`,
+  pt: (label: string) => `É esta cobrança: ${localizeDates(customerText(label), "pt")}`,
+} as const;
 
 const PICK_TEXT = {
   es: (c: ChargeCard) => `Es este cargo: ${c.merchant ?? "sin comercio"}, ${formatAmount(c.amount, c.currency, "es")}, ${formatDate(c.date, "es")}`,
@@ -121,29 +128,34 @@ function TurnCards({
 }) {
   const [chosen, setChosen] = useState<string | null>(null);
   const cards = cardsOf(tools);
-  const charges = cards.filter((c): c is ChargeCard => c.type === "charge");
+  // Every charge the turn offers is a card, the one charge to confirm of D-067 included (spec 07 AC-28).
+  const offered = offeredCharges(reply.options, tools);
+  const charges = offered.flatMap((o) => (o.card ? [o.card] : []));
   const rest = reply.receipt ? [] : cards.filter((c) => c.type === "deadline" || c.type === "case");
+  // One charge to confirm: its chips ("Sí, es ese cargo" · "No es ese cargo") answer, so the card has no pick button.
+  const canPick = pickable && (reply.options ? reply.options.length > 1 : true);
+  const pick = (id: string, text: string) => {
+    setChosen(id);
+    onSend(text, { type: "choose_option", value: id });
+  };
   return (
     <>
-      {charges.length && !reply.receipt ? (
+      {offered.length && !reply.receipt ? (
         <Stagger className="grid gap-2" role="list" base={delay}>
-          {charges.map((c) => (
-            <ChargeCardView
-              key={c.transaction_id}
-                card={c}
+          {offered.map((o) =>
+            o.card ? (
+              <ChargeCardView
+                key={o.id}
+                card={o.card}
                 lang={lang}
-                selected={chosen === null ? null : chosen === c.transaction_id}
-                onPick={
-                  pickable
-                    ? (card) => {
-                        setChosen(card.transaction_id);
-                        onSend(PICK_TEXT[lang](card), { type: "choose_option", value: card.transaction_id });
-                      }
-                    : undefined
-                }
+                selected={chosen === null ? null : chosen === o.id}
+                onPick={canPick ? (card) => pick(card.transaction_id, PICK_TEXT[lang](card)) : undefined}
                 onOpen={(card) => onOpen({ kind: "charge", card, reply })}
               />
-          ))}
+            ) : (
+              <OptionCardView key={o.id} label={o.label ?? ""} lang={lang} onPick={canPick ? () => pick(o.id, PICK_LABEL_TEXT[lang](o.label ?? "")) : undefined} />
+            ),
+          )}
         </Stagger>
       ) : null}
       {rest.length ? (
@@ -208,7 +220,9 @@ function AgentTurn({
   const body = live ? live.text : replyBody(message?.text ?? "", reply?.receipt, lang);
   const plan = !running && !tools.length && reply?.plan?.length ? reply.plan : null;
   const hasSteps = tools.length > 0 || (progress?.length ?? 0) > 0;
-  const hasCards = Boolean(reply && (reply.receipt || cardsOf(tools).some((c) => c.type === "charge" || c.type === "deadline" || c.type === "case")));
+  const hasCards = Boolean(
+    reply && (reply.receipt || offeredCharges(reply.options, tools).length > 0 || cardsOf(tools).some((c) => c.type === "deadline" || c.type === "case")),
+  );
   const parts: ReplyPart[] = [hasSteps ? "steps" : null, body ? "text" : null, hasCards ? "cards" : null].filter((p): p is ReplyPart => p !== null);
 
   if (thinking)

@@ -13,7 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { ApiError, api } from "@/lib/api";
-import { customerText, formatDate, replyBody } from "@/lib/chat-stream";
+import { customerText, displayText, formatDate, replyBody } from "@/lib/chat-stream";
 import { CHAT_STRINGS } from "@/lib/chat-strings";
 import { greetingName, helloLine, showWebGreeting } from "@/lib/chat-view";
 import { DEMO_TODAY } from "@/lib/mock/store";
@@ -258,7 +258,7 @@ function Conversation({ onExpired }: { onExpired: () => void }) {
   const speak = readAloud.speak;
 
   const turn = usePacedTurn<AgentReply>({
-    streamText: customerText,
+    streamText: (text) => displayText(customerText(text), lang),
     finalText: (reply) => replyBody(reply.text, reply.receipt, lang),
     onComplete: (reply, view) => {
       setMessages((m) => [...m, { id: nextId.current++, role: "agent", text: reply.text, reply, at: Date.now(), progress: view.progress }]);

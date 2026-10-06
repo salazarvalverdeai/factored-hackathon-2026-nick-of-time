@@ -115,7 +115,8 @@ test("spec 12 AC-07: 'Detail →' opens the shared detail panel with method, sou
 });
 
 test("spec 12 AC-09: the Operation intro is at most two sentences and its detail panel holds the method and the limitation link", () => {
-  assert.ok(OPS_INTRO.split(/(?<=\.)\s+/).length <= 2, "two lines at most");
+  assert.equal(OPS_INTRO.split(/(?<=\.)\s+/).length, 1, "one line (the lead's legibility pass)");
+  assert.equal(OPS_INTRO.split("the system").length, 2, "the link to /agent sits on 'the system'");
   assert.match(SRC, /OPS_INTRO[^]*?setDetail\(introDetail\(all\)\)[^]*?Detail →/);
   const d = introDetail(SERIES);
   assert.match(d.method.join(" "), /real approved card charges/i);

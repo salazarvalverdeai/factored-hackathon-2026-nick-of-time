@@ -1,7 +1,12 @@
 import type { Metadata } from "next";
+import { getT } from "@/lib/i18n-server";
 
-// Tab title of /evaluation; the root layout's template adds " · Nick of Time". A layout keeps the page file untouched.
-export const metadata: Metadata = { title: "Evaluation" };
+// Tab title of /evaluation in the UI language; the root layout's template adds " · Nick of Time". A layout keeps the
+// page file untouched.
+export async function generateMetadata(): Promise<Metadata> {
+  const { t } = await getT();
+  return { title: t("evaluation.meta.title") };
+}
 
 export default function Layout({ children }: LayoutProps<"/evaluation">) {
   return children;

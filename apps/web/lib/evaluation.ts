@@ -323,8 +323,7 @@ export type ResultFiles = {
 };
 
 /** The sentence ADR 0028 requires next to every classifier test result. */
-export const RULES_REVIEW_SENTENCE =
-  "The classifier test split was decided by fixed rules, without independent human review (ADR 0028); train and validation were reviewed by the lead.";
+export const RULES_REVIEW_SENTENCE = "The classifier test split was decided by fixed rules, without independent human review (ADR 0028).";
 
 /**
  * spec 12 AC-11: plain sentences, only for the files that exist. With no result file there is nothing to limit,
@@ -335,19 +334,19 @@ export function limitations(files: ResultFiles): string[] {
   const { summary, benchmark, classifier, fraud } = files;
   if (summary) {
     const d = summary.data;
-    out.push(`Only ${d.cases} cases were scored (${d.runs_per_case} runs each), so the intervals are wide: read the interval, not the single rate.`);
+    out.push(`Only ${d.cases} cases were scored (${d.runs_per_case} runs each): read the interval, not the single rate.`);
   }
   if (classifier) {
     const n = Object.values(classifier.data.test_split.sentences).reduce<number>((a, b) => a + (b ?? 0), 0);
-    out.push(`The classifier test split has ${n > 0 ? `${n} sentences` : "few sentences"}, so its intervals are wide too.`);
+    out.push(`The classifier test split has ${n > 0 ? `${n} sentences` : "few sentences"}: its intervals are wide too.`);
   }
-  if (summary) out.push("The customer messages of the agent cases were written by the team with AI assistance, on real dataset state, so real customers may phrase things differently.");
-  if (classifier) out.push("The classifier sentences were written by language models, one model family per split (ADR 0025), so real customers may phrase things differently.");
-  if (benchmark) out.push("The benchmark scores the models on the classifier sentences (written by language models) and on the agent development cases (written by the team with AI assistance).");
+  if (summary) out.push("The agent cases were written by the team with AI assistance; real customers may phrase things differently.");
+  if (classifier) out.push("The classifier sentences were written by language models, one model family per split (ADR 0025).");
+  if (benchmark) out.push("The benchmark scores the models on those same written sentences and cases.");
   if (classifier?.data.test_review === "rules-v1") out.push(RULES_REVIEW_SENTENCE);
-  if (summary) out.push("The held-out set is run once, after the protocol is sealed; there is no second run to tune on.");
+  if (summary) out.push("The held-out set is run once, after the protocol is sealed.");
   if (summary || benchmark || classifier || fraud) {
-    out.push("The customers and transactions come from a synthetic dataset and the runs are simulated, so the results show how the system behaves, not how it would perform at a real bank.");
+    out.push("A synthetic dataset and simulated runs: the results show how the system behaves, not how it would do at a real bank.");
   }
   return out;
 }
