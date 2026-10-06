@@ -2,7 +2,7 @@
 // components use to show them. Nothing here renders: it parses, folds and words, so every rule is tested offline
 // (lib/chat-stream.test.ts). Customer text stays ES/PT; it never carries a score, zone, policy id or bracket label.
 import { MESSAGES } from "./mock/messages.ts";
-import type { Language, Receipt, Suggestion } from "./types.ts";
+import type { Language, Receipt, Suggestion, TurnOption } from "./types.ts";
 
 // --- contract shapes (spec 01 §6.4.1) ------------------------------------------------------------------------------
 
@@ -17,7 +17,8 @@ export interface ChargeCard {
   amount: number;
   currency: string;
   merchant: string | null;
-  last4: string;
+  /** Null for a candidate whose card was not read this turn (packages/nick_of_time/events.py). */
+  last4: string | null;
   synthetic: boolean;
 }
 export interface VerdictCard {
@@ -86,7 +87,7 @@ export function parseCard(raw: unknown): ToolCard | null {
   switch (raw.type) {
     case "charge":
       if (!str(raw.transaction_id) || !str(raw.date) || typeof raw.amount !== "number" || !Number.isFinite(raw.amount)) return null;
-      if (!str(raw.currency) || !strOrNull(raw.merchant ?? null) || !str(raw.last4)) return null;
+      if (!str(raw.currency) || !strOrNull(raw.merchant ?? null) || !strOrNull(raw.last4 ?? null)) return null;
       return {
         type: "charge",
         transaction_id: raw.transaction_id,
@@ -94,7 +95,7 @@ export function parseCard(raw: unknown): ToolCard | null {
         amount: raw.amount,
         currency: raw.currency,
         merchant: (raw.merchant as string | null | undefined) ?? null,
-        last4: raw.last4,
+        last4: (raw.last4 as string | null | undefined) ?? null,
         synthetic: raw.synthetic === true,
       };
     case "verdict":
@@ -191,6 +192,26 @@ export function cardsOf(tools: readonly ToolEvent[]): ToolCard[] {
   return tools.flatMap((t) => t.cards);
 }
 
+/** A charge a reply shows as a card: the tool's card when the turn streamed it, else the option's server label. */
+export interface OfferedCharge {
+  id: string;
+  card: ChargeCard | null;
+  label: string | null;
+}
+
+/**
+ * The charge cards of a reply (spec 07 AC-28), in order. When the turn carries `options` (spec 01 §6.4), every option
+ * is a card, the one charge to confirm of spec 04 D-067 (`clarify.confirm_one`) included: the tool's charge card of the
+ * same transaction when the turn streamed one, else the option's own label. A turn that offers nothing (`options: []`)
+ * still shows the charges its tools found; a reply with no `options` field (the mock) shows them as before.
+ */
+export function offeredCharges(options: readonly TurnOption[] | undefined, tools: readonly ToolEvent[]): OfferedCharge[] {
+  const byId = new Map<string, ChargeCard>();
+  for (const c of cardsOf(tools)) if (c.type === "charge") byId.set(c.transaction_id, c);
+  if (options?.length) return options.map((o) => ({ id: o.id, card: byId.get(o.id) ?? null, label: o.label }));
+  return [...byId.values()].map((c) => ({ id: c.transaction_id, card: c, label: null }));
+}
+
 // --- customer text -----------------------------------------------------------------------------------------------
 
 const BRACKET_TAG = /\s*\[(?:simulated|data|external|assumption|projected)\]/gi;
@@ -238,7 +259,7 @@ const LINK_LINE: Record<Language, RegExp> = { es: /^Sigue tu caso/i, pt: /^Acomp
  * is left, the reply points at the card.
  */
 export function replyBody(text: string, receipt: Pick<Receipt, "facts" | "deadline_text" | "language"> | undefined, lang: Language): string {
-  if (!receipt) return customerText(text);
+  if (!receipt) return displayText(customerText(text), lang);
   const repeated = new Set([...(receipt.facts ?? []), receipt.deadline_text].map((l) => l.trim()).filter(Boolean));
   const deadlineHead = [MESSAGES.receipt.credit_deadline, MESSAGES.receipt.ruling_deadline, MESSAGES.status.credit_deadline]
     .map((m) => m[lang].split("{")[0].trim())
@@ -254,7 +275,7 @@ export function replyBody(text: string, receipt: Pick<Receipt, "facts" | "deadli
     .join("\n")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
-  return kept ? customerText(kept) : RECEIPT_POINTER[lang];
+  return kept ? displayText(customerText(kept), lang) : RECEIPT_POINTER[lang];
 }
 
 const RECEIPT_POINTER: Record<Language, string> = {
@@ -326,12 +347,52 @@ export function formatClock(ms: number, lang: Language, country?: string): strin
   return new Intl.DateTimeFormat(LOCALE[lang], { hour: "2-digit", minute: "2-digit", hourCycle: "h23", timeZone: zoneFor(country, lang) }).format(ms);
 }
 
-/** A business date `YYYY-MM-DD` as "14 de octubre de 2026": a date, not an instant, so no zone shift. */
+/** The month names of the long date, a fixed table: the same words on every runtime, whatever its ICU data. */
+const MONTHS: Record<Language, readonly string[]> = {
+  es: ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"],
+  pt: ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"],
+};
+
+/** A business date `YYYY-MM-DD` as "14 de octubre de 2026" / "14 de outubro de 2026": a date, not an instant, so no
+ *  zone shift and no clock read. Anything that is not a real calendar date is returned as it is. */
 export function formatDate(ymd: string, lang: Language): string {
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(ymd);
   if (!m) return ymd;
-  const t = Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
-  return new Intl.DateTimeFormat(LOCALE[lang], { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" }).format(t);
+  const [y, mo, d] = [Number(m[1]), Number(m[2]), Number(m[3])];
+  const t = new Date(Date.UTC(y, mo - 1, d));
+  if (mo < 1 || mo > 12 || t.getUTCFullYear() !== y || t.getUTCMonth() !== mo - 1 || t.getUTCDate() !== d) return ymd;
+  return `${d} de ${MONTHS[lang][mo - 1]} de ${y}`;
+}
+
+/** A bare `YYYY-MM-DD` that is not part of an id, an instant or a path (`TRX-2026-06-02-…`, `2026-06-02T…`). */
+const ISO_DATE = /(?<![\w/.-])\d{4}-\d{2}-\d{2}(?![\w/-]|\.\d|:\d)/g;
+
+/** Every ISO date of a reply in the long form of the turn language (display only: ids and amounts stay as they are). */
+export function localizeDates(text: string, lang: Language): string {
+  return text.replace(ISO_DATE, (ymd) => formatDate(ymd, lang));
+}
+
+const LIST_ITEM = /^\s*(?:[-*+]|\d+[.)])\s+\S/;
+
+/**
+ * Each template line keeps its own block: a line right after a list item that is not itself an item (nor indented
+ * under it) would be read by markdown as a lazy continuation of the last bullet, so a blank line closes the list first.
+ * Works on a partial (streamed or revealed) reply too: it only adds a line break before a whole line.
+ */
+export function separateLists(text: string): string {
+  const lines = text.split("\n");
+  const out: string[] = [];
+  lines.forEach((line, i) => {
+    if (i > 0 && LIST_ITEM.test(lines[i - 1]) && line.trim() && !/^\s/.test(line) && !LIST_ITEM.test(line)) out.push("");
+    out.push(line);
+  });
+  return out.join("\n");
+}
+
+/** The reply text as the chat renders it (spec 07 AC-28, AC-29): text after a list is its own paragraph, ISO dates in
+ *  the long form of the turn language. Display only; the facts are the tool's. */
+export function displayText(text: string, lang: Language): string {
+  return separateLists(localizeDates(text, lang));
 }
 
 const ISO_INSTANT = /\b\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:?\d{2})\b/g;

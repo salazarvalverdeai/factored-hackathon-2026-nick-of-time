@@ -90,7 +90,7 @@ export function ChatDetailPanel({ detail, lang, country, onClose }: { detail: Ch
           <DetailField label={COPY.merchant[lang]}>{c.merchant ? customerText(c.merchant) : COPY.none[lang]}</DetailField>
           <DetailField label={COPY.amount[lang]}>{formatAmount(c.amount, c.currency, lang)}</DetailField>
           <DetailField label={COPY.date[lang]}>{formatDate(c.date, lang)}</DetailField>
-          <DetailField label={COPY.card[lang]}>{c.last4}</DetailField>
+          {c.last4 ? <DetailField label={COPY.card[lang]}>{c.last4}</DetailField> : null}
           <DetailField label={COPY.id[lang]} mono>
             {c.transaction_id}
           </DetailField>
