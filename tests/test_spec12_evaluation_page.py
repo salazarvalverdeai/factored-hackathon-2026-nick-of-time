@@ -39,3 +39,31 @@ def test_ac_06_rates_show_numerator_denominator_and_interval():
         assert part in LIB_TS
     assert "rateParts" in RESULTS_TSX or "rateText" in RESULTS_TSX
     assert "<table" in RESULTS_TSX or "<Table" in RESULTS_TSX
+
+
+def _read(rel: str) -> str:
+    return (WEB / rel).read_text(encoding="utf-8")
+
+
+def test_ac_10_as_is_panel_has_node_tests_and_a_code_path():
+    """AC-10: the as-is vs with Nick of Time panel exists, is pending without a sealed run, and lib/panel.test.ts cites it."""
+    panel_tests = _read("lib/panel.test.ts")
+    assert len(re.findall(r'^test\("spec 12 AC-10:', panel_tests, re.M)) >= 3
+    assert "panelState" in _read("lib/panel.ts") and "as-is-panel" in _read("app/evaluation/panel.tsx")
+    assert "results pending" in _read("app/evaluation/panel.tsx")
+    assert "AsIsPanel" in _read("app/evaluation/page.tsx")
+
+
+def test_ac_11_explanations_detail_links_and_limitations_exist():
+    """AC-11: node tests cite it; Explain, Limitations and the Detail links are in the code and the specs they point to exist."""
+    assert len(_titles_citing("AC-11")) >= 3
+    explain = _read("app/evaluation/explain.tsx")
+    assert "export function Explain" in explain and "export function Limitations" in explain and "Detail" in explain
+    page = _read("app/evaluation/page.tsx")
+    assert "<Limitations" in page and "limitations(" in page and 'href="/agent"' in page
+    sections = _read("app/evaluation/sections.tsx")
+    assert all(f'detail="{key}"' in sections for key in ("benchmark", "classifier", "fraud"))
+    assert 'detail="harness"' in RESULTS_TSX
+    for path in ("specs/10-eval-harness.md", "specs/11-intent-classifier.md", "specs/15-model-benchmark.md", "specs/17-fraud-model.md", "eval/PROTOCOL.md"):
+        assert f'"{path}"' in LIB_TS and (WEB.parents[1] / path).exists(), path
+    assert "EVALUATION_DATA_DIR" in _read("README.md")
