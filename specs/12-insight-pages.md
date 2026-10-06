@@ -30,8 +30,8 @@ comment). AC-04 onward are added by this spec. Evidence: [T] test · [C] command
   `[data]` for spec 17), with a link to
   `eval/PROTOCOL.md`. · [U]
 - **AC-02 (P1)** — `/analytics` shall show the pitch numbers with their `[data]` label and source, plus the
-  operational KPIs of spec 14. · [U] (pitch numbers done in PR #72; the KPIs wait for spec 14 T5, the run on
-  live traffic)
+  operational KPIs of spec 14. · [U] (pitch numbers done in PR #72; the Operation section with Bank today and the
+  replay done in T6; its Live position waits for spec 14 T5, the run on live traffic)
 - **AC-03 (P1)** — `/data` shall show the medallion, the quality report, the manifest versions and the late-arrival
   fixture result. · [U]
 - **AC-04** — While a result file of §7.1 does not exist, its section shall show "Results pending" with what is
@@ -148,7 +148,18 @@ Implementation goes in `feat/12-…` branches once this spec is approved.
       "Detail →" opening the shared side panel (method, source, label, spec), the operational lakehouse card and the
       dataset limitations · covers AC-03, AC-07, AC-09, AC-11 ·
       [T] `apps/web/lib/pipelines.test.ts`, `tests/test_spec12_data_quality.py`
-- [ ] T6 — operational KPIs on `/analytics` · covers AC-02 · needs spec 14
+- [x] T6 — operational KPIs on `/analytics` · covers AC-02, AC-04, AC-07, AC-09 · needs spec 14 · done 2026-10-05
+      (lead's E1): an "Operation" section with a three-position switch, Bank today `[data]` | With Nick of Time
+      (simulated) `[simulated]` | Live, read from `ops_kpis.json` `data.series` (spec 14 §7.4, §11), 2026-01..2026-05.
+      The headline pairs the bank's FCR with complete intake at first contact (spec 10 §4.1), with a plain sentence
+      that they measure different things; safe automated resolution and the no-merchant sensitivity are small
+      secondary figures. Only the `compare` pairs of the file (the headline and the days to a receipt) are side by
+      side; every other figure is marked "Context · <series> only", with its own definition and its own axis. One chart per
+      metric with its 5-month total, the other series' total, a plain line from the file's notes and a "Detail →"
+      link; one axis per metric across both series; tooltips on hover and focus; a table view. Live shows "Pending:
+      no live traffic yet" until spec 14 T5; a missing series shows "Results pending" (AC-04). The final resolution time
+      is shown for the bank only. [T] `apps/web/lib/ops.test.ts`; 390 px checked with `scripts/web/insight_screenshots.py`
+      (no horizontal overflow, both themes)
 - [ ] T7 — screenshots on the public URL, both themes and 390 px · covers AC-01, AC-03, AC-09 (2026-10-05:
       `docs/assets/screenshots/spec12/` by `scripts/web/insight_screenshots.py` — the three pages at 1280 and 390 px in
       both themes with no horizontal overflow (AC-09), `/data` (AC-03) and a chart tooltip opened with the Tab key
