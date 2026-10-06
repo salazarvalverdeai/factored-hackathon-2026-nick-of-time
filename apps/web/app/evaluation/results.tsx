@@ -8,7 +8,9 @@ import { FOCUS, Swatch, TableView, TipBody, useTip } from "@/app/analytics/chart
 import {
   METRICS,
   METRIC_MEANING,
+  d070View,
   developmentNotice,
+  type D070View,
   dollars,
   milliseconds,
   rateParts,
@@ -168,6 +170,61 @@ function Comparison({ arms }: { arms: EvaluationArm[] }) {
   );
 }
 
+function HeldoutScores({ view }: { view: D070View }) {
+  const unsafe = view.metrics.find((m) => m.key === "unsafe_outcomes")!;
+  return (
+    <section aria-label="Held-out scored twice" data-slot="d070-scores" className={`rounded-lg border bg-card p-5 ${PALETTE}`}>
+      <h2 className="text-base font-semibold">
+        Held-out, scored two ways <span className="font-mono text-xs font-normal text-muted-foreground">{view.tag}</span>
+      </h2>
+      <p className="mt-1 text-sm" data-slot="d070-sentence">{view.sentence}</p>
+      <div className="mt-3 grid gap-3 sm:grid-cols-3">
+        {unsafe.rows.map((r, i) => {
+          const p = rateParts(r.official);
+          return (
+            <div key={r.arm} className="rounded-md border p-3" data-slot="unsafe-card">
+              <p className="flex items-center gap-1.5 text-xs text-muted-foreground"><Swatch color={armColor(i)} />{r.arm} · {r.model}</p>
+              <p className="text-2xl font-semibold tabular-nums">{r.official.numerator}/{r.official.denominator}</p>
+              <p className="text-xs text-muted-foreground">unsafe outcomes · 95% CI {p.interval}</p>
+            </div>
+          );
+        })}
+      </div>
+      <div className="mt-5 space-y-5">
+        {view.metrics.filter((m) => m.key !== "unsafe_outcomes").map((m) => (
+          <div key={m.key}>
+            <p className="text-sm font-medium">{m.label}</p>
+            {m.rows.map((r, i) => (
+              <div key={r.arm} className="mt-1.5 grid gap-x-4 gap-y-1 sm:grid-cols-2">
+                {([["official", view.officialLabel, r.official], ["secondary", view.secondaryLabel, r.secondary]] as const).map(([k, lab, rate]) => {
+                  const parts = rateParts(rate);
+                  const empty = parts.value === "—";
+                  return (
+                    <div key={k} role="img" aria-label={`${m.label}, ${r.arm}, ${lab}: ${rateText(rate)}`} data-slot={`d070-${k}`}>
+                      <p className={k === "official" ? "text-xs font-medium" : "text-xs text-muted-foreground"}>{lab}</p>
+                      <div className="flex items-center gap-3">
+                        <span className="w-8 shrink-0 text-xs text-muted-foreground">{r.arm}</span>
+                        <IntervalBar value={empty ? null : rate.value} low={rate.ci_low} high={rate.ci_high} color={armColor(i)} />
+                        <span className="w-28 shrink-0 text-right text-xs tabular-nums">
+                          {parts.value}<span className="text-muted-foreground"> · {empty ? "n/a" : `${rate.numerator}/${rate.denominator}`}</span>
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ))}
+          </div>
+        ))}
+      </div>
+      <TableView
+        head={["Metric", "Arm", view.officialLabel, view.secondaryLabel]}
+        rows={view.metrics.flatMap((m) => m.rows.map((r) => [m.label, `${r.arm} (${r.model})`, rateText(r.official), rateText(r.secondary)]))}
+      />
+    </section>
+  );
+}
+
 function Breakdown({ arms }: { arms: EvaluationArm[] }) {
   const rows = arms.flatMap((arm) =>
     arm.cells.map((cell) => [
@@ -225,6 +282,7 @@ export function EvaluationResults({ file }: { file: Insight<EvaluationData> }) {
       {data.arms.map((arm, i) => (
         <Headline key={arm.arm} arm={arm} index={i} />
       ))}
+      {d070View(data) && <HeldoutScores view={d070View(data)!} />}
       <Comparison arms={data.arms} />
       <Breakdown arms={data.arms} />
       <p className="font-mono text-xs text-muted-foreground">

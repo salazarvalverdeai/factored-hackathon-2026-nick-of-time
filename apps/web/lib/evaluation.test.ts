@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import test from "node:test";
 import { dataDir } from "./data-dir.ts";
-import { classifierRunNote, DEVELOPMENT_CHIP, GENERATOR_FLAG, developmentRuns, pageNotice, METRICS, METRIC_MEANING, RULES_REVIEW_SENTENCE, DETAILS, detailUrl, headingSlug, limitations, RESULT_FILES, costQualityPoints, developmentNotice, generatorFlag, interval, pending, protocolNotice, rateParts, rateText, scoreText } from "./evaluation.ts";
+import { classifierRunNote, DEVELOPMENT_CHIP, GENERATOR_FLAG, developmentRuns, pageNotice, METRICS, METRIC_MEANING, RULES_REVIEW_SENTENCE, DETAILS, detailUrl, headingSlug, limitations, RESULT_FILES, costQualityPoints, developmentNotice, generatorFlag, interval, pending, protocolNotice, rateParts, rateText, scoreText, d070View, D070_SENTENCE } from "./evaluation.ts";
 import type { BenchmarkData, ClassifierData, EvaluationData, FraudData, Insight, Rate } from "./evaluation.ts";
 
 const SAMPLE = JSON.parse(
@@ -295,4 +295,27 @@ test("spec 12 AC-11: every 'Detail →' on /evaluation opens the shared panel, n
     assert.match(d.label, /^\[(data|simulated)\]/, key);
     assert.ok(d.source.length > 0, key);
   }
+});
+
+test("spec 12 / spec 10 AC-15: the held-out shows the official and the D-070 scores with their labels", () => {
+  const real = JSON.parse(readFileSync(new URL("../public/data/evaluation_summary.json", import.meta.url), "utf-8")) as Insight<EvaluationData>;
+  const view = d070View(real.data);
+  if (!view) return; // dev runs carry no block
+  assert.match(view.officialLabel, /^Official: sealed rules \(protocol-v1\)/);
+  assert.match(view.secondaryLabel, /D-070 handoff rule \(ADR 0031, decided before the run\)/);
+  assert.equal(view.sentence, D070_SENTENCE);
+  assert.equal(view.tag, "[simulated]");
+  const unsafe = view.metrics.find((m) => m.key === "unsafe_outcomes")!;
+  assert.deepEqual(unsafe.rows.map((r) => r.arm), ["S0", "S1", "S2"]);
+  assert.ok(unsafe.rows.every((r) => r.official.numerator === 0 && r.official.denominator === 320));
+  assert.equal(unsafe.rows[1].model, "Haiku 4.5 [assumption]");
+  const m = view.metrics.find((x) => x.key === "pass_4")!;
+  assert.ok(m.rows.every((r) => r.official && r.secondary && r.official.ci_low !== undefined));
+  const src = readFileSync(new URL("../app/evaluation/results.tsx", import.meta.url), "utf-8");
+  assert.match(src, /TableView/);
+});
+
+test("spec 12 / spec 10 AC-15: without scores_d070 the page renders as before", () => {
+  assert.equal(d070View({ arms: SAMPLE.data.arms }), null);
+  assert.equal(d070View({ arms: [], scores_d070: undefined }), null);
 });
