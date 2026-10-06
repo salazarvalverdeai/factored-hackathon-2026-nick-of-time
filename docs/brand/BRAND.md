@@ -114,6 +114,10 @@ Keep the geometry sparse. Prefer a few intentional nodes over dense star fields.
 
 ## 9. Product avatars
 
+The symbol SVGs center the mark in their 512 × 512 canvas (`viewBox` reframed on 2026-10-05; the geometry is unchanged), so a
+symbol placed in a square or a circle is centered without offsets. The favicons, the app icon and the chat avatar are
+rendered from these SVGs.
+
 ### Telegram Bot Avatar
 Use the symbol-only mark. Keep it compact, centered, and highly recognizable at small sizes.
 
