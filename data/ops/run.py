@@ -83,7 +83,7 @@ def export(tables: dict[str, pl.DataFrame], path: Path, *, mode: str, source: st
     """ops_kpis.json with the spec 01 §6.2 envelope (AC-09): `days` and `feedback` are `[simulated]`; `series` (§11)
     carries each series' own label, source, window and notes."""
     payload = {"generated_at": now.strftime("%Y-%m-%dT%H:%M:%SZ"), "git_sha": git_sha(),
-               "source": (f"make ops-replay — Bank today [data] and the W3 replay [simulated], {source} store, ops "
+               "source": (f"make ops-replay — Bank today [data] and the card-charge replay [simulated], {source} store, ops "
                           f"manifest v{version}" if series else
                           f"data/ops job [simulated] — {source} store, ops manifest v{version}"),
                "data": {**gold.summary(tables, mode), **({"series": series} if series else {})}}

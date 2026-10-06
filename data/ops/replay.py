@@ -1,23 +1,29 @@
-"""Replay of the dataset's W3 complaints through the S0 intake (spec 14 §11, lead 2026-10-05). Deterministic, offline.
+"""Replay of real card charges through the S0 intake (spec 14 §11.2, lead 2026-10-05). Deterministic, offline, no LLM.
 
-Each W3 complaint (queries/pitch/p01 definition) created in the window becomes one templated Spanish message, read by
-the B0 rules; the MCP read handlers search the customer's own card transactions, read the score and the deadline;
-`PolicyEngine.decide` decides. Several candidates or none → the engine asks, and the contact ends there. One candidate
-the customer must confirm (D-067, zone medium) → the customer is assumed to confirm it [assumption]. The writes go to
-an in-memory store with mode `replay`, as the MCP write tools would leave them, for the spec 14 job to read.
+"Synthetic message over real state" (spec 09): queries/ops/replay_sample.sql draws real approved card charges per
+month of 2026-01..2026-05, as many as the bank's W3 complaints that month. The customer reports each one the next day
+in a templated Spanish message that names it (amount, currency, date, merchant when there is one). The B0 rules read
+it; the MCP read handlers search the customer's own card transactions and read the score, the profile and the
+deadline; `PolicyEngine.decide` decides. Several candidates or none → the engine asks and the contact ends. A zone
+medium confirmation is answered yes [assumption]. Opened cases go to an in-memory store with mode `replay`, as the
+MCP write tools leave them, for the spec 14 job; each contact is then checked against the store (complete intake,
+spec 10 §4.1: a case on the reported charge, the expected queue status, a receipt with its legal deadline).
 
-[assumption] "Today" is the complaint's creation date: replay pins `clock.today` to DEMO_TODAY, so the read tools run
-with their `utc_now` hook at the complaint's creation instant (the same date arithmetic, another today). Gold is read
-by column name: complaints and customers here, card transactions in `mcp_server.gold`; never `is_fraud` or gold_eval.
+[assumption] "Today" is the contact date: replay pins `clock.today` to DEMO_TODAY, so the read handlers run with
+their `utc_now` hook at noon of the contact date in the customer's country. Gold is read by column name only; never
+`is_fraud` or gold_eval. The bank's `fraud_score` serves only the expected queue status (a policy lookup, as spec 09
+derives expected states) and, at runtime, `get_fraud_score`.
 """
 from __future__ import annotations
 
 import datetime as dt
+import hashlib
 import sys
 from pathlib import Path
 from typing import Any, Optional
 from zoneinfo import ZoneInfo
 
+import duckdb
 import polars as pl
 
 from contracts import tools as t
@@ -27,43 +33,42 @@ from nick_of_time.policy import DecisionInput, PolicyEngine, load_policies
 from nick_of_time.store import NewCase
 from nick_of_time.store.memory import MemoryStore
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "apps" / "mcp"))
+ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT / "apps" / "mcp"))
 from mcp_server.gate import Call, SessionRow  # noqa: E402
 from mcp_server.gold import Gold  # noqa: E402
 from mcp_server.reads import read_handlers  # noqa: E402
 
-WINDOW = (dt.date(2025, 6, 1), dt.date(2026, 6, 1))          # 12 months, 2025-06..2026-05 [half-open]
+SAMPLE_SQL = ROOT / "queries" / "ops" / "replay_sample.sql"
 TZ = {"México": "America/Mexico_City", "Colombia": "America/Bogota", "Argentina": "America/Argentina/Buenos_Aires"}
 SESSION = "S-replay0000000000"
+MONTHS = ("enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre",
+          "noviembre", "diciembre")
 
 
-def w3(frame: pl.LazyFrame) -> pl.LazyFrame:
-    """The W3 rules CMP-01..03 of queries/pitch/p01_w3_share_complaints.sql."""
-    tx = (pl.col("category") == "Transactions") & pl.col("case_type").is_in(["Claim", "Complaint", "Request"])
-    return frame.filter(tx | ((pl.col("category") == "Fees") & pl.col("case_type").is_in(["Claim", "Complaint"])))
-
-
-def complaints(gold: Path, window: tuple[dt.date, dt.date] = WINDOW) -> pl.DataFrame:
+def sample(gold: Path, quota: dict[str, int]) -> pl.DataFrame:
+    """queries/ops/replay_sample.sql over gold, `quota` = contacts per month (the bank's W3 complaints)."""
     if "gold_eval" in Path(gold).resolve().parts:                       # constitution #7
         raise ValueError("the replay reads data/gold only, never gold_eval")
-    cols = ("complaint_id", "creation_date", "customer_id", "category", "case_type", "subcategory", "claimed_amount",
-            "currency")
-    start, end = (dt.datetime.combine(d, dt.time()) for d in window)
-    country = pl.scan_parquet(Path(gold) / "customers.parquet").select("customer_id", "country")
-    return (w3(pl.scan_parquet(Path(gold) / "complaints.parquet").select(cols))
-            .filter((pl.col("creation_date") >= start) & (pl.col("creation_date") < end))
-            .join(country, on="customer_id", how="left").sort("complaint_id").collect())
+    con = duckdb.connect(":memory:")
+    con.register("card", con.read_parquet(str(Path(gold) / "transactions_enriched.parquet")).select(
+        "transaction_id, customer_id, transaction_date, amount, currency, merchant_name, fraud_score, product_type, "
+        "transaction_status"))
+    con.register("customers", con.read_parquet(str(Path(gold) / "customers.parquet")).select("customer_id, country"))
+    con.register("quota", pl.DataFrame({"month": list(quota), "n": list(quota.values())}))
+    rows = con.execute(SAMPLE_SQL.read_text()).pl()
+    return rows.join(pl.read_parquet(Path(gold) / "customers.parquet", columns=["customer_id", "country"]),
+                     on="customer_id", how="left")
 
 
 def message(row: dict[str, Any]) -> str:
-    """The customer's first message, from the category or subcategory and the claimed amount (ES; MX, CO, AR)."""
-    amount = row["claimed_amount"]
-    said = "" if amount is None else f" de {amount:.2f}" + (f" {row['currency']}" if row["currency"] else "")
-    if row["subcategory"] == "Cargo no reconocido":
-        return f"Hola, no reconozco un cargo{said} en mi tarjeta."
-    if row["subcategory"] == "Cobro indebido":
-        return f"Hola, me cobraron de más{said} en mi tarjeta, es un cobro indebido."
-    return f"Hola, quiero reclamar un {'cargo' if row['category'] == 'Transactions' else 'cobro'}{said} de mi tarjeta."
+    """The customer names the charge as their statement shows it; half the contacts read as a wrongful charge."""
+    day = row["charged_on"]
+    said = f"de {row['amount']:.2f} {row['currency']}" + (f" en {row['merchant_name']}" if row["merchant_name"] else "")
+    when = f"del {day.day} de {MONTHS[day.month - 1]} de {day.year}"
+    if int(hashlib.md5(row["transaction_id"].encode()).hexdigest(), 16) % 2:
+        return f"Hola, me cobraron de más: el cargo {said} {when} es un cobro indebido."
+    return f"Hola, no reconozco un cargo {said} {when}."
 
 
 class Replay:
@@ -82,16 +87,23 @@ class Replay:
                  "compute_deadline": t.ComputeDeadlineIn, "get_customer_profile": t.GetCustomerProfileIn}[tool]
         return self.tools[tool](Call(tool, session, "T-replay"), model(session_id=SESSION, **args))
 
+    def expected_status(self, row: dict[str, Any], country: Optional[str]) -> str:
+        """Spec 09's expected state from the policy file: zone high blocks (verification) unless the amount tier
+        needs a person; every other zone hands off (review)."""
+        score, high = row["fraud_score"], self.policies.zones["high"].score_min
+        tier = self.engine.amount_tier(row["amount"], row["currency"], country)
+        return "verification" if score is not None and score >= high and tier != "human_required" else "review"
+
     def contact(self, n: int, row: dict[str, Any]) -> dict[str, Any]:
-        local = row["creation_date"].replace(tzinfo=ZoneInfo(TZ.get(row["country"], "UTC")))
-        self.now[0], customer, today = local.astimezone(dt.UTC), row["customer_id"], local.date()
+        today, customer = row["contact_on"], row["customer_id"]
+        self.now[0] = dt.datetime.combine(today, dt.time(12), ZoneInfo(TZ.get(row["country"], "UTC"))).astimezone(dt.UTC)
         read = self.nlu.parse(message(row), "es", today=today)
         slots = read.slots
         query = {"amount": float(slots.amount) if slots.amount else None, "currency": slots.currency,
                  "approx_date": slots.date, "merchant": slots.merchant}
         found = self.call("search_transaction", customer, **{k: v for k, v in query.items() if v is not None})
         candidates = getattr(found, "candidates", [])
-        profile = self.call("get_customer_profile", customer)
+        country = getattr(self.call("get_customer_profile", customer), "country", None)
         facts: dict[str, Any] = {"candidates": len(candidates)}
         trx = candidates[0] if len(candidates) == 1 else None
         if trx is not None:
@@ -101,22 +113,31 @@ class Replay:
                       "amount": trx.amount, "currency": trx.currency, "product_type": card.product_type}
         base = dict(session_state="verified", intent=read.intent, intent_confidence=read.confidence,
                     dispute_detected=read.dispute_detected, injection_flagged=read.injection_flagged,
-                    cross_customer=False, supervised_mode=False, country=getattr(profile, "country", None), **facts)
+                    cross_customer=False, supervised_mode=False, country=country, **facts)
         decision = self.engine.decide(DecisionInput(**base))
         confirmed = decision.decision == "confirm"                      # zone medium: the customer says yes
         if confirmed:
             decision = self.engine.decide(DecisionInput(**base, customer_confirmed=True))
-        out = {"month": today.strftime("%Y-%m"), "country": row["country"], "candidates": min(len(candidates), 2),
-               "zone": decision.zone, "confirmed": confirmed or (trx is not None and not (slots.amount or slots.date))}
+        expected = self.expected_status(row, country)
+        out = {"month": row["month"], "country": row["country"], "candidates": min(len(candidates), 2),
+               "zone": decision.zone, "confirmed": confirmed, "expected_block": expected == "verification"}
         if decision.decision == "ask":
-            return out | {"outcome": "asked_several" if len(candidates) > 1 else "asked_none"}
-        if "open_case" not in decision.allowed_actions:
-            return out | {"outcome": "other"}
-        if any(c.transaction_id == trx.transaction_id and self.store.queue_status(c.case_id) != "closed"
-               for c in self.store.list_cases(customer, run_id=None)):
-            return out | {"outcome": "duplicate"}                       # AC-23: the active case answers, nothing opens
-        self.open(n, customer, today, base["country"], trx, card, decision, read.intent)
-        return out | {"outcome": "automated" if decision.decision == "block_and_open_case" else "handoff"}
+            outcome = "asked_several" if len(candidates) > 1 else "asked_none"
+        elif "open_case" not in decision.allowed_actions:
+            outcome = "other"
+        else:
+            self.open(n, customer, today, country, trx, card, decision, read.intent)
+            outcome = "automated" if decision.decision == "block_and_open_case" else "handoff"
+        return out | {"outcome": outcome, "complete_intake": self.complete(customer, row["transaction_id"], expected)}
+
+    def complete(self, customer: str, transaction_id: str, expected: str) -> bool:
+        """Spec 10 §4.1, read back from the store: a case on the reported charge, in the expected queue status, with
+        a receipt that carries its legal deadline."""
+        for case in self.store.list_cases(customer, run_id=None):
+            if case.transaction_id == transaction_id and self.store.queue_status(case.case_id) == expected:
+                receipts = [e.payload["receipt"] for e in self.store.events(case.case_id) if e.type == "receipt_issued"]
+                return any(r.get("deadline") for r in receipts)
+        return False
 
     def open(self, n: int, customer: str, day: dt.date, country: str, trx: Any, card: Any, decision: Any,
              intent: str) -> None:
@@ -148,14 +169,13 @@ class Replay:
                            payload={"receipt": {"receipt_id": ids.new_id("receipt"), "deadline": deadline}})
 
 
-def run(gold: Path, window: tuple[dt.date, dt.date] = WINDOW,
-        limit: Optional[int] = None) -> tuple[MemoryStore, pl.DataFrame]:
+def run(gold: Path, quota: dict[str, int], limit: Optional[int] = None) -> tuple[MemoryStore, pl.DataFrame]:
     """The store holding the replay's writes and one outcome row per contact (no id, name or text)."""
-    now = [dt.datetime(2025, 6, 1, tzinfo=dt.UTC)]
+    now = [dt.datetime(2026, 1, 1, tzinfo=dt.UTC)]
     store = MemoryStore(now=lambda: now[0])
-    replay, rows = Replay(gold, store, now), complaints(gold, window)
+    replay, rows = Replay(gold, store, now), sample(gold, quota)
     rows = rows if limit is None else rows.head(limit)
     outcomes = [replay.contact(n, row) for n, row in enumerate(rows.iter_rows(named=True), 1)]
     schema = {"month": pl.Utf8, "country": pl.Utf8, "candidates": pl.Int64, "zone": pl.Utf8, "confirmed": pl.Boolean,
-              "outcome": pl.Utf8}
+              "expected_block": pl.Boolean, "outcome": pl.Utf8, "complete_intake": pl.Boolean}
     return store, pl.DataFrame(outcomes, schema=schema)

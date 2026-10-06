@@ -1,7 +1,7 @@
 """Operational lakehouse (spec 14, ADR 0018): the store's own rows go bronze → silver → gold.
 
     python -m data.ops run --source sample      # a seeded in-memory store over gold (T1–T4, offline)
-    python -m data.ops replay                   # §11: Bank today and the W3 complaints replayed through S0 (T8)
+    python -m data.ops replay                   # §11: Bank today and real card charges replayed through S0 (T8)
 
 Layers under `data/ops/` (git-ignored):
     bronze/<table>.parquet   faithful copy of the eight §7.1 tables, every value as text, plus `_loaded_at`, `_source`

@@ -26,10 +26,10 @@ def main() -> None:
     p_run.add_argument("--gold", type=Path, default=Path(os.environ.get("GOLD_PATH") or ROOT / "data" / "gold"))
     p_run.add_argument("--web", type=Path, default=OPS_DIR / "ops_kpis.json")
     p_run.add_argument("--mode", choices=["replay", "live"], default="replay")
-    p_rep = sub.add_parser("replay", help="the W3 complaints through S0 → the job → ops_kpis.json with the series")
+    p_rep = sub.add_parser("replay", help="Bank today, real card charges through S0 → the job → ops_kpis.json with the series")
     p_rep.add_argument("--gold", type=Path, default=Path(os.environ.get("GOLD_PATH") or ROOT / "data" / "gold"))
     p_rep.add_argument("--web", type=Path, default=WEB)
-    p_rep.add_argument("--limit", type=int, default=None, help="first N complaints only (a quick check)")
+    p_rep.add_argument("--limit", type=int, default=None, help="first N contacts only (a quick check)")
     args = parser.parse_args()
     if args.cmd == "replay":
         return replay(args)
@@ -51,7 +51,7 @@ def replay(args: argparse.Namespace) -> None:
     start = time.perf_counter()
     asis = series.asis(args.gold)
     asis.write_csv(series.ASIS_SQL.with_suffix(".csv"))
-    store, contacts = rp.run(args.gold, limit=args.limit)
+    store, contacts = rp.run(args.gold, series.quota(asis), limit=args.limit)
     simulated = time.perf_counter() - start
     manifest = run(bronze.from_memory(store), gold_path=args.gold, web=args.web, contacts=contacts, asis=asis)
     print(json.dumps({"contacts": contacts.height, "outcomes": dict(contacts["outcome"].value_counts().iter_rows()),
