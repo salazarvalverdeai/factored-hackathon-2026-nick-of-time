@@ -12,8 +12,13 @@ from typing import Any, Optional
 import polars as pl
 
 from nick_of_time.audit import LifecycleEvent, check_lifecycle
+from nick_of_time.store import DEMO_RUN_PREFIX
 
 DECIDING = ("approve_credit", "approve_block", "unblock_card", "resolve", "close_case")
+OPERATION = pl.col("run_id").is_null()                                      # AC-07: the gold tables' rows
+# The Live series (T5): operation plus the public demo sessions, each under its own `demo-` run (ADR 0026). Every other
+# run_id is an evaluation run and never counts.
+DEMO_TRAFFIC = OPERATION | pl.col("run_id").str.starts_with(DEMO_RUN_PREFIX).fill_null(False)
 
 
 def percentile(values: list[int], q: float) -> Optional[int]:
@@ -25,9 +30,10 @@ def percentile(values: list[int], q: float) -> Optional[int]:
 
 def unsafe_cases(cases: pl.DataFrame, events: pl.DataFrame) -> set[str]:
     """Cases with a critical finding of the audit checks that run on store rows alone: A7 (lifecycle). A3-A6 need
-    the turn's reply, receipt and tool results, which the store does not keep [assumption]."""
+    the turn's reply, receipt and tool results, which the store does not keep [assumption]. Checked per mode and run:
+    two demo sessions of one customer on one charge are isolated by their runs (ADR 0026), not duplicates."""
     unsafe: set[str] = set()
-    for (mode,), part in cases.group_by("mode", maintain_order=True):
+    for _, part in cases.group_by("mode", "run_id", maintain_order=True):
         ids = set(part["case_id"])
         lifecycle = []
         for e in events.filter(pl.col("case_id").is_in(list(ids))).sort("case_id", "seq").iter_rows(named=True):
@@ -48,12 +54,13 @@ def _rate(num: str, den: str, name: str) -> list[pl.Expr]:
             pl.when(pl.col(den) > 0).then(pl.col(num) / pl.col(den)).alias(name)]
 
 
-def ops_kpis(silver: dict[str, pl.DataFrame]) -> pl.DataFrame:
-    cases = silver["cases"].filter(pl.col("run_id").is_null())
+def ops_kpis(silver: dict[str, pl.DataFrame], scope: pl.Expr = OPERATION) -> pl.DataFrame:
+    """One row per day × mode over the cases, calls and denials whose `run_id` is in `scope` (operation by default)."""
+    cases = silver["cases"].filter(scope)
     unsafe = unsafe_cases(cases, silver["case_events"])
     day = cases.select("case_id", pl.col("opened_on").alias("day"), "mode")
-    calls = silver["llm_calls"].filter(pl.col("run_id").is_null()).join(day, on="case_id")
-    denials = silver["policy_denials"].filter(pl.col("run_id").is_null()).join(day, on="case_id")
+    calls = silver["llm_calls"].filter(scope).join(day, on="case_id")
+    denials = silver["policy_denials"].filter(scope).join(day, on="case_id")
     base = (cases.with_columns(pl.col("case_id").is_in(list(unsafe)).alias("unsafe"))
             .group_by(pl.col("opened_on").alias("day"), "mode")
             .agg(pl.len().alias("cases"), pl.col("receipt_has_deadline").sum().alias("receipts"),
@@ -85,8 +92,8 @@ def _agreed(agent: str, analyst: str) -> bool:
                 or (agent == "open_case" and analyst == "approve_block"))
 
 
-def feedback_cases(silver: dict[str, pl.DataFrame]) -> pl.DataFrame:
-    cases = silver["cases"].filter(pl.col("run_id").is_null() & ~pl.col("synthetic"))
+def feedback_cases(silver: dict[str, pl.DataFrame], scope: pl.Expr = OPERATION) -> pl.DataFrame:
+    cases = silver["cases"].filter(scope & ~pl.col("synthetic"))
     events = silver["case_events"].filter(pl.col("case_id").is_in(cases["case_id"].implode()))
     blocked = set(events.filter((pl.col("type") == "card_blocked")
                                 & ~pl.col("actor").str.starts_with("analyst:"))["case_id"])
@@ -111,15 +118,20 @@ def build(silver: dict[str, pl.DataFrame]) -> dict[str, pl.DataFrame]:
     return {"ops_kpis": ops_kpis(silver), "feedback_cases": feedback_cases(silver)}
 
 
+def rate(r: dict[str, Any], name: str) -> dict[str, Any]:
+    return {"value": r[name], "numerator": r[f"{name}_numerator"], "denominator": r[f"{name}_denominator"]}
+
+
+def day_row(r: dict[str, Any]) -> dict[str, Any]:
+    """One `ops_kpis` row as a `days` entry of ops_kpis.json (§7.4)."""
+    return {"day": r["day"].isoformat(), "cases": r["cases"], "receipt_rate": rate(r, "receipt_rate"),
+            "escalation_rate": rate(r, "escalation_rate"), "unsafe_outcomes": r["unsafe_outcomes"],
+            "cost_per_case": r["cost_per_case"], "latency_p95_ms": r["latency_p95_ms"], "denials": r["denials"]}
+
+
 def summary(tables: dict[str, pl.DataFrame], mode: str) -> dict[str, Optional[Any]]:
     """The `data` of ops_kpis.json (spec 14 §7.4) for one mode; every figure is `[simulated]`."""
-    def rate(r: dict[str, Any], name: str) -> dict[str, Any]:
-        return {"value": r[name], "numerator": r[f"{name}_numerator"], "denominator": r[f"{name}_denominator"]}
-
-    days = [{"day": r["day"].isoformat(), "cases": r["cases"], "receipt_rate": rate(r, "receipt_rate"),
-             "escalation_rate": rate(r, "escalation_rate"), "unsafe_outcomes": r["unsafe_outcomes"],
-             "cost_per_case": r["cost_per_case"], "latency_p95_ms": r["latency_p95_ms"], "denials": r["denials"]}
-            for r in tables["ops_kpis"].filter(pl.col("mode") == mode).iter_rows(named=True)]
+    days = [day_row(r) for r in tables["ops_kpis"].filter(pl.col("mode") == mode).iter_rows(named=True)]
     feedback = tables["feedback_cases"].filter(pl.col("mode") == mode)
     return {"label": "[simulated]", "mode": mode, "days": days,
             "feedback": {"decided": feedback.height, "agreed": int(feedback["agreed"].sum())}}

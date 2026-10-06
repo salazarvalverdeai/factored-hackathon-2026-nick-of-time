@@ -82,6 +82,52 @@ def from_memory(store: Any) -> Snapshot:
     return Snapshot("memory", rows, counts, high)
 
 
+ORDER = {"cases": "case_id", "case_events": "case_id, seq", "product_overrides": "row_no",
+         "notifications": "notification_id", "notification_deliveries": "row_no", "policy_denials": "denial_id",
+         "llm_calls": "call_id", "settings_events": "row_no"}         # a stable order: one snapshot, one bronze
+
+
+def _plain(value: Any) -> Any:
+    """A Postgres value as the in-memory path holds it: a timestamp in UTC (the server's zone never shows)."""
+    if isinstance(value, dt.datetime) and value.tzinfo is not None:
+        return value.astimezone(dt.UTC)
+    return value
+
+
+def snapshot_of(rows: dict[str, list[dict[str, Any]]],
+                stats: dict[str, tuple[int, Optional[dt.datetime]]]) -> Snapshot:
+    """T5, pure: the rows read from Postgres (only the schema.sql columns of the eight §7.1 tables) and each table's
+    own `count(*)` and `max(created_at)` from the same transaction, as a `Snapshot` the job reads like the memory
+    one. A table the read did not return is an error, never an empty table."""
+    missing = [t for t in TABLES if t not in rows or t not in stats]
+    if missing:
+        raise RuntimeError(f"postgres snapshot: tables not read: {missing}")
+    return Snapshot("postgres", {t: [{c: _plain(r[c]) for c in COLUMNS[t]} for r in rows[t]] for t in TABLES},
+                    {t: int(stats[t][0]) for t in TABLES}, {t: _plain(stats[t][1]) for t in TABLES})
+
+
+def from_postgres(dsn: str) -> Snapshot:
+    """T5: one read-only REPEATABLE READ transaction over the eight §7.1 tables (rows, counts and high-water marks
+    all see the same data); it never writes and ends in a rollback. Only the schema.sql columns are selected, so a
+    table that lost one fails here. `dsn` comes from `--dsn` or DATABASE_URL, never from the repo."""
+    import psycopg
+    from psycopg.rows import dict_row
+
+    rows, stats = {}, {}
+    with psycopg.connect(dsn, row_factory=dict_row) as conn:          # not autocommit: one transaction
+        conn.execute("set transaction isolation level repeatable read, read only")
+        if conn.execute("show transaction_read_only").fetchone()["transaction_read_only"] != "on":
+            raise RuntimeError("postgres snapshot: the transaction is not read-only")
+        conn.execute("set local time zone 'UTC'")
+        for table in TABLES:
+            cols = ", ".join(COLUMNS[table])
+            rows[table] = conn.execute(f"select {cols} from {table} order by {ORDER[table]}").fetchall()
+            got = conn.execute(f"select count(*) as n, max(created_at) as high from {table}").fetchone()
+            stats[table] = (got["n"], got["high"])
+        conn.rollback()
+    return snapshot_of(rows, stats)
+
+
 def _text(value: Any) -> Optional[str]:
     if value is None:
         return None
