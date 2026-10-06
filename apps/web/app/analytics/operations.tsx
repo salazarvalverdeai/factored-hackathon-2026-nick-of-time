@@ -10,14 +10,15 @@ import type { KeyboardEvent } from "react";
 import { DetailField, DetailFields, DetailPanel } from "@/components/detail-panel";
 import { EmptyState } from "@/components/states";
 import {
-  OPS_INTRO, POSITIONS, SAME_CONTACT, SAME_CONTACT_NOTE, chartDetail, daysText, introDetail, opsState, pct, pendingDetail, tableRows,
-  type Chart, type Detail, type OpsSeries, type Position,
+  OPS_INTRO, POSITIONS, SAME_CONTACT, SAME_CONTACT_NOTE, chartDetail, dayName, daysText, introDetail, liveDetail, opsState, pct,
+  pendingDetail, tableRows, type Chart, type Detail, type LiveView, type ModeKey, type OpsSeries, type Position,
 } from "@/lib/ops";
-import { FOCUS, PALETTE, TableView, TipBody, useTip } from "./charts";
+import { FOCUS, PALETTE, Swatch, TableView, TipBody, useTip } from "./charts";
 import { CountText, Crossfade, GrowBar, Stagger } from "@/components/motion";
 import { fitStep } from "@/lib/motion";
 
 const COLOR: Record<string, string> = { bank_today: "var(--series-1)", replay: "var(--series-2)" };
+const MODE_COLOR: Record<ModeKey, string> = { live: "var(--series-1)", replay: "var(--series-2)" };
 const fmt = (chart: Chart, v: number | null) => (chart.metric.kind === "rate" ? pct(v) : daysText(chart.metric.id, v));
 /** The one line under a chart: the first sentence of its note; the whole note is in the detail panel's method. */
 const firstSentence = (text: string) => text.split(/(?<=\.)\s+/)[0];
@@ -131,6 +132,88 @@ function MetricChart({ chart, color, other, tag, onDetail }: {
   );
 }
 
+/** The Live position when its file is ready: public demo traffic in both modes, four headline cards, the cases per day
+ * (each column split by mode), the mode breakdown, one plain line with "Detail →" and the table, collapsed. */
+function LiveSection({ view, onDetail }: { view: LiveView; onDetail: () => void }) {
+  const { bind, node } = useTip();
+  const { live } = view;
+  const short = (d: string) => dayName(d).replace(/, \d{4}$/, "");
+  return (
+    <div className="mt-6">
+      <h3 className="text-base font-semibold">{live.message}</h3>
+      <Stagger className="mt-3 grid grid-cols-2 gap-4 lg:grid-cols-4" step={90}>
+        {view.cards.map((card) => (
+          <div key={card.id} className="min-w-0 rounded-lg border bg-card p-4 text-card-foreground">
+            <p className="text-sm text-muted-foreground">{card.title}</p>
+            <p className="mt-1 flex flex-wrap items-baseline gap-x-2">
+              <CountText className="text-3xl font-semibold tracking-tight tabular-nums" text={card.value} />
+              <span className="font-mono text-xs text-muted-foreground">{live.label}</span>
+            </p>
+            <p className="mt-1 text-xs text-muted-foreground">{card.sub}</p>
+          </div>
+        ))}
+      </Stagger>
+      <div className="mt-4 grid gap-4 md:grid-cols-2">
+        <figure className="min-w-0 rounded-lg border bg-card p-6 text-card-foreground">
+          <h4 className="text-sm font-semibold">Cases per day</h4>
+          <p className="text-xs text-muted-foreground">By the UTC day the case was written, split by mode</p>
+          <div role="group" aria-label="Cases per day" className="mt-4 flex h-28 items-end gap-2 border-b">
+            {view.bars.map((bar, i) => (
+              <GrowBar
+                key={bar.day}
+                axis="y"
+                delay={i * fitStep(view.bars.length, 50, 500)}
+                tabIndex={0}
+                role="img"
+                aria-label={`${dayName(bar.day)}: ${bar.detail.map(([k, v]) => `${k} ${v}`).join(", ")}`}
+                className={`flex max-w-14 min-w-0 flex-1 flex-col-reverse overflow-hidden rounded-t-[2px] hover:brightness-110 ${FOCUS}`}
+                style={{ height: `${Math.max(1.5, (bar.cases / view.scaleMax) * 100)}%` }}
+                {...bind(<TipBody title={dayName(bar.day)} rows={bar.detail} />)}
+              >
+                <span style={{ flexGrow: bar.byMode.replay, background: MODE_COLOR.replay }} />
+                <span style={{ flexGrow: bar.byMode.live, background: MODE_COLOR.live }} />
+              </GrowBar>
+            ))}
+          </div>
+          <div className="mt-1 flex gap-2 text-[11px] text-muted-foreground" aria-hidden>
+            {view.bars.map((bar) => (
+              <span key={bar.day} className="max-w-14 min-w-0 flex-1 truncate text-center">{short(bar.day)}</span>
+            ))}
+          </div>
+        </figure>
+        <figure className="min-w-0 rounded-lg border bg-card p-6 text-card-foreground">
+          <h4 className="text-sm font-semibold">By mode</h4>
+          <p className="text-xs text-muted-foreground">Share of the {view.live.total.cases} cases</p>
+          <div className="mt-4 flex h-3 overflow-hidden rounded-full bg-muted" aria-hidden>
+            {view.modes.map((m, i) => (
+              <GrowBar key={m.mode} axis="x" delay={i * 120} className="h-full" style={{ width: `${m.share * 100}%`, background: MODE_COLOR[m.mode] }} />
+            ))}
+          </div>
+          <ul className="mt-4 space-y-2 text-sm">
+            {view.modes.map((m) => (
+              <li key={m.mode} className="flex flex-wrap items-center gap-x-2">
+                <Swatch color={MODE_COLOR[m.mode]} />
+                <span className="font-medium">{m.title}</span>
+                <CountText className="tabular-nums" text={`${m.text} (${pct(m.share)})`} />
+                <span className="text-xs text-muted-foreground">{m.note}</span>
+              </li>
+            ))}
+          </ul>
+        </figure>
+      </div>
+      <p className="mt-4 text-sm">
+        {view.line}{" "}
+        <button type="button" onClick={onDetail} className={`${LINK} rounded-sm`}>
+          Detail →
+        </button>
+      </p>
+      <TableView head={view.head} rows={view.rows} />
+      <p className="mt-6 font-mono text-xs break-words text-muted-foreground">{view.footer}</p>
+      {node}
+    </div>
+  );
+}
+
 export function Operations({ file }: { file: { data?: { series?: OpsSeries } } | null }) {
   const [position, setPosition] = useState<Position>("bank_today");
   const state = opsState(file, position);
@@ -165,6 +248,8 @@ export function Operations({ file }: { file: { data?: { series?: OpsSeries } } |
             </button>
           </p>
         </>
+      ) : state.kind === "live" ? (
+        <LiveSection view={state.view} onDetail={() => setDetail(liveDetail(state.view.live))} />
       ) : (
         <>
           <Crossfade id={position}>

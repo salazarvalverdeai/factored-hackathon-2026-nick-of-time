@@ -22,6 +22,9 @@ from nick_of_time.store.accounts import DENIAL_ACTOR
 
 TS = pl.Datetime("us", "UTC")
 STATUS_TO = ["verification", "review", "resolved", "closed"]                    # spec 01 §6.5 status_changed
+# AC-08: `reason` is read from the analyst's and the status change's payloads only; a customer's
+# `reevaluation_requested` reason and `customer_info_added` text are the customer's own words and stay in bronze.
+REASON_FROM = ("analyst_action", "status_changed")
 
 
 def _c(dtype: Any, *checks: pa.Check, required: bool = True, unique: bool = False) -> pa.Column:
@@ -67,8 +70,8 @@ def _load(text: Any) -> Any:
 
 
 def _payload(frame: pl.DataFrame) -> pl.DataFrame:
-    """Typed columns from `payload`; the payload itself (receipt and handoff text) does not reach silver. A payload
-    that is not a JSON object is flagged in `_payload_ok` and quarantined."""
+    """Typed columns from `payload`; the payload itself (receipt, handoff and customer text) does not reach silver. A
+    payload that is not a JSON object is flagged in `_payload_ok` and quarantined."""
     parsed = [_load(p) for p in frame["payload"].to_list()]
     loaded = [p if isinstance(p, dict) else {} for p in parsed]
     receipt = [p.get("receipt") if t == "receipt_issued" else None for p, t in zip(loaded, frame["type"])]
@@ -78,7 +81,8 @@ def _payload(frame: pl.DataFrame) -> pl.DataFrame:
                                 for p, t in zip(loaded, frame["type"])], pl.Utf8),
         pl.Series("action", [p.get("action") if t == "analyst_action" else None
                              for p, t in zip(loaded, frame["type"])], pl.Utf8),
-        pl.Series("reason", [p.get("reason") for p in loaded], pl.Utf8),
+        pl.Series("reason", [p.get("reason") if t in REASON_FROM else None
+                             for p, t in zip(loaded, frame["type"])], pl.Utf8),
         pl.Series("receipt_has_deadline", [isinstance(r, dict) and isinstance(r.get("deadline"), dict)
                                            if r is not None else None for r in receipt], pl.Boolean))
 

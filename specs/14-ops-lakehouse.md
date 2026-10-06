@@ -2,8 +2,9 @@
 
 - **Feature:** the system learns from its own operation: the records of the cases it handles go bronze → silver → gold
   and produce the daily KPIs of `/analytics` and the analysts' decisions as labels for the next evaluation set.
-- **Status:** In progress — T1–T4 and T8 done offline on the in-memory store (2026-10-05); T5 (Postgres source) and the
-  `/analytics` KPIs (spec 12 T6) wait for live traffic
+- **Status:** In progress — T1–T5 and T8 done (T1–T4 offline on the in-memory store, 2026-10-05; T5, the Postgres
+  source and `make ops-live`, run on the restored production backup of 2026-10-06, §11.5); the Live position of
+  `/analytics` (spec 12 T6) draws it as "Public demo traffic". T6 and T7 (P2) are open
 - **Owner:** @vldiego (follow-ups from 2026-10-05: @salazarvalverdeai) · **Priority:** P1 (Databricks: P2) ·
   **Size:** M–L
 - **Challenge dimension:** Data Engineering, Data Analytics
@@ -55,7 +56,8 @@ definition of 2026-10-04 (issue comment). Evidence: [T] test · [C] command · [
   complaints that month; if the search finds several candidate charges, or none, then it shall ask, as
   `PolicyEngine.decide` does in production, and open no case (§11). · [T]
 - **AC-15 [P1]** — `ops_kpis.json` shall carry the series Bank today `[data]`, With Nick of Time `[simulated]` and
-  Live (pending until T5), each with its label, source, window and method notes (§7.4, §11). · [T]
+  Live ("Public demo traffic", pending until T5), each with its label, source, window and method notes (§7.4, §11).
+  · [T]
 - **AC-16 [P1]** — A row written by an evaluation run (`run_id` set) shall never be counted in the replay series. · [T]
 - **AC-17 [P1]** — Two runs of `make ops-replay` on the same commit and gold shall write byte-identical
   `ops_kpis.json` files: the export carries no manifest version or other local state, and the replay rebuilds its
@@ -130,7 +132,13 @@ the only pairs shown side by side: `{bank_today: first_contact_resolution, repla
 `escalated`, `outside_sla_at_intake` and `resolution_days` `{p50, n}`. Replay: `complete_intake`, and as context
 `handed_to_analyst`, `opened_without_deadline`, `safe_automated_resolution`, `asked_several`, `asked_none`,
 `cases_opened` and `confirmations_assumed`; plus `sensitivity` `{variant, named, amount_and_date}`, each with
-`complete_intake` and `asked`. `live` is `{key, name, status: "pending", message, reason}` until T5. `days` and
+`complete_intake` and `asked`. `live` (named "Public demo traffic", §8) is `{key, name, status: "pending", message,
+reason}` while the source has no case of a public demo session or of operation; `make ops-live` (T5, §11.5) replaces
+it with `{key, name, status: "ready", label: "[simulated]", message, reason, source, window: [first day, last day],
+as_of, days, total, feedback, notes}`, where `days` has the shape of `data.days` plus `automated_rate` and
+`cases_by_mode` `{live, replay}`, and `total` the same fields over the window plus `cost_usd`, `demo_sessions`,
+`cases_without_demo_session`, `synthetic_charges` and `by_mode` `{live, replay}`, each with `cases`, `receipt_rate`,
+`escalation_rate`, `automated_rate`, `unsafe_outcomes`, `demo_sessions` and `synthetic_charges`. `days` and
 `feedback` keep their meaning: here they are the replay's, `[simulated]`. `generated_at` is the HEAD commit time
 (AC-17).
 
@@ -144,7 +152,8 @@ the only pairs shown side by side: `{bank_today: first_contact_resolution, repla
 - **Q4 (@salazarvalverdeai) — AC-10.** The per-engine outcomes need the auditor findings and the judge's opinions to be
   stored (spec 18, P1). Default: P2, built only if those tables exist by then.
 - **Q5 (@gianzk) — schedule.** "Scheduled" in AC-01: a cron entry on the EC2 that runs `make ops` after the demo
-  seeder, or manual only for the submission? Default: manual, with the cron line documented.
+  seeder, or manual only for the submission? Default: manual, with the cron line documented. Answered in T5: see the
+  Schedule line of §11.5.
 - **Q6 (@salazarvalverdeai) — Databricks.** Is there a workspace that can read the bucket? Without one AC-06 stays a
   documented path.
 - Assumption: until the backend of spec 05 is deployed, the job is developed and tested against the in-memory store
@@ -157,6 +166,18 @@ the only pairs shown side by side: `{bank_today: first_contact_resolution, repla
 - The readings of §11 (replay and Bank today) are listed in §11.3.
 - Assumption: with a handful of demo cases the daily rates are illustrations, not measurements; the page shows the
   counts next to every rate. `[assumption]`
+- Readings of T5 `[assumption]`: every public session runs under its own `demo-` run (ADR 0026); any `run_id` that
+  is not null and does not start with `demo-` is an evaluation run and never counts (AC-07). The gold tables stay
+  operation only (`run_id` null). The lifecycle check (A7) runs per mode and run, so two demo sessions on one charge
+  are not a duplicate. A `reason` reaches silver only from `analyst_action` and `status_changed`: a customer's
+  `reevaluation_requested` reason is free text and stays in bronze (AC-08).
+- **Live is the public demo traffic (lead's decision, 2026-10-06, option B).** Live mode alone had one case in the
+  first production backup, so the Live series, named "Public demo traffic" (key `live`), counts the cases of the
+  public demo sessions (`demo-` runs) and of operation (`run_id` null) in **both** modes, with a `by_mode` breakdown
+  (live, replay) in `total` and `cases_by_mode` per day. Message: "Public demo traffic on the deployed app since
+  <first day>". Label `[simulated]`: replay-mode demos run over the historical gold state with the fixed demo date
+  2026-06-01, and live-mode charges are synthetic (ADR 0020). A case's day is the UTC date its row was written
+  (`created_at`), because a replay-mode case's `opened_on` is always the demo date. Evaluation runs never count.
 
 ## 9. Out of scope
 Real streaming · automatic retraining · turning `feedback_cases` into evaluation cases (a new sealed set, ADR 0021) ·
@@ -175,7 +196,11 @@ Implementation goes in `feat/14-…` branches once this spec is approved, after 
       AC-17 · `queries/ops/asis_monthly.sql`, `queries/ops/replay_sample.sql`, `data/ops/replay.py`,
       `data/ops/series.py`, [T]
       `tests/test_spec14_replay.py`
-- [ ] T5 — run against Postgres (after spec 05 is deployed); schedule documented · covers AC-01
+- [x] T5 — run against Postgres (after spec 05 is deployed); schedule documented · covers AC-01, AC-07, AC-08,
+      AC-09 · `bronze.from_postgres`, `series.live`, `run.update_live`, `make ops-live`, [T]
+      `tests/test_spec14_postgres.py` (the Postgres tests run in CI's postgres:16 service); run on the restored
+      production backup `nickoftime-2026-10-06T035613Z` (§11.5): only `data.series.live` changed, a rerun wrote the
+      same bytes, and no display name, id, address or free text of the backup is in the export
 - [ ] T6 [P2] — per-engine outcomes · covers AC-10
 - [ ] T7 [P2] — Delta tables and notebooks on Databricks · covers AC-06
 
@@ -251,3 +276,46 @@ figures. The versioned measure of this limitation, shown on `/data`, is `queries
 `[data]`: over 2025-07..2026-05 (so the 30-day look-back stays inside gold), 22.1% of W3 complainants have a card
 transaction in the 30 days before the complaint (21.5% for other complaints), and 2 of 579 claimed amounts (0.3%)
 match one within ±2% in the same currency. The counts above are this replay's own first run, over its 12-month window.
+
+### 11.5 Live: the Postgres source (T5, `make ops-live`)
+`python -m data.ops run --source postgres` (`make ops-live`) reads the eight §7.1 tables in one read-only REPEATABLE
+READ transaction (`set transaction ... read only`, checked with `show transaction_read_only`, ended by a rollback), with
+the row count and maximum `created_at` of each table taken in the same transaction (AC-01). It selects only the
+schema.sql columns, never `sessions` (display name, OTP hash), `customer_channels` (addresses) or `link_tokens`, and
+writes nothing to the source. The layers go to `data/ops/live/` (git-ignored, rebuilt each run); in the committed
+`apps/web/public/data/ops_kpis.json` only `data.series.live` changes, so Bank today, the replay, `days`, `feedback` and
+the envelope keep their bytes, and the same snapshot writes the same file (AC-05). Live is "Public demo traffic" (§8,
+lead's decision 2026-10-06): the demo sessions and operation in both modes, labeled "Public demo traffic on the
+deployed app since <first day>" and `[simulated]`, because replay-mode demos run over the historical gold state with
+the fixed demo date and live-mode charges are synthetic (ADR 0020). With no such case it stays pending. The DSN comes
+from `--dsn` or `DATABASE_URL`, never from the repo; the target does not echo it.
+
+**First run (2026-10-06, backup `nickoftime-2026-10-06T035613Z`)** `[simulated]`: 18 cases from 2026-10-05 to
+2026-10-06 (17 demo sessions, 1 run-null case), 1 in live mode and 17 in replay mode; a receipt with its legal deadline
+in 14 of 18 (77.8%), handed to an analyst 14 of 18 (77.8%), 0 unsafe outcomes. Only `data.series.live` changed, a
+rerun wrote the same bytes, and none of the backup's display names, case, customer, transaction or run ids, addresses
+or free-text reasons is in the export (checked against the restored tables). The dump and the container were deleted
+after the run.
+
+Run on a restored production backup (the daily `infra/backup.sh` dump; the lead's `nickoftime` AWS profile; the real
+gold at `data/gold` or `GOLD_PATH`; run after any `make ops-replay`, which resets Live to pending):
+
+```bash
+aws s3 ls s3://nickoftime-gold-061039767206/backups/postgres/ --profile nickoftime
+LATEST=$(aws s3 ls s3://nickoftime-gold-061039767206/backups/postgres/ --profile nickoftime | sort | tail -1 | awk '{print $4}')
+aws s3 cp "s3://nickoftime-gold-061039767206/backups/postgres/$LATEST" /tmp/nickoftime-ops.sql.gz --profile nickoftime
+docker run -d --rm --name nickoftime-ops-pg -e POSTGRES_USER=nickoftime -e POSTGRES_PASSWORD=local_only -e POSTGRES_DB=nickoftime -p 55432:5432 postgres:16
+sleep 5
+gunzip -c /tmp/nickoftime-ops.sql.gz | docker exec -i nickoftime-ops-pg psql -q -U nickoftime -d nickoftime
+make ops-live DSN=postgresql://nickoftime:local_only@localhost:55432/nickoftime
+git diff --stat apps/web/public/data/ops_kpis.json
+docker stop nickoftime-ops-pg
+rm /tmp/nickoftime-ops.sql.gz
+```
+
+The local container and its password exist only for the run. The command prints the source rows, the eval rows left
+out, the silver checks and the Live status; the export is then committed through a PR like any other.
+
+**Schedule:** manual after demos for the submission (the steps above). After the submission, a daily cron on the EC2
+after the 07:17 backup, with a read-only role's DSN from SSM: `47 7 * * * root cd /opt/nickoftime && make ops-live`
+`[assumption]`; not installed yet.

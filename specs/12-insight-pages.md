@@ -31,7 +31,8 @@ comment). AC-04 onward are added by this spec. Evidence: [T] test · [C] command
   `eval/PROTOCOL.md`. · [U]
 - **AC-02 (P1)** — `/analytics` shall show the pitch numbers with their `[data]` label and source, plus the
   operational KPIs of spec 14. · [U] (pitch numbers done in PR #72; the Operation section with Bank today and the
-  replay done in T6; its Live position waits for spec 14 T5, the run on live traffic)
+  replay done in T6; its Live position, "Public demo traffic", draws the spec 14 T5 run on a restored production
+  backup since 2026-10-06)
 - **AC-03 (P1)** — `/data` shall show the medallion, the quality report, the manifest versions and the late-arrival
   fixture result. · [U]
 - **AC-04** — While a result file of §7.1 does not exist, its section shall show "Results pending" with what is
@@ -133,8 +134,8 @@ denominator: the committed output of `queries/data/d01_complaint_transaction_lin
 - Assumption: results from a development run may be shown only under the notice of AC-05. `[assumption]`
 
 ## 9. Out of scope
-Power BI · computing any metric in the browser (the pages only display) · the operational lakehouse (spec 14) and,
-until spec 14 T5 runs on live traffic, its KPIs on `/analytics` (T6) · the landing page and the slides (E1) · P2:
+Power BI · computing any metric in the browser (the pages only display) · the operational lakehouse (spec 14) ·
+the landing page and the slides (E1) · P2:
 auditor findings and judge–analyst agreement.
 
 ## 10. Plan, tasks and verification
@@ -162,14 +163,19 @@ Implementation goes in `feat/12-…` branches once this spec is approved.
       `apps/web/lib/pipelines.test.ts`, `apps/web/lib/evaluation.test.ts`
 - [x] T6 — operational KPIs on `/analytics` · covers AC-02, AC-04, AC-07, AC-09 · needs spec 14 · done 2026-10-05
       (lead's E1): an "Operation" section with a three-position switch, Bank today `[data]` | With Nick of Time
-      (simulated) `[simulated]` | Live, read from `ops_kpis.json` `data.series` (spec 14 §7.4, §11), 2026-01..2026-05.
+      (simulated) `[simulated]` | Public demo traffic `[simulated]`, read from `ops_kpis.json` `data.series` (spec 14
+      §7.4, §11), the first two over 2026-01..2026-05.
       The headline pairs the bank's FCR with complete intake at first contact (spec 10 §4.1), with a plain sentence
       that they measure different things; safe automated resolution and the no-merchant sensitivity are small
       secondary figures. Only the `compare` pairs of the file (the headline and the days to a receipt) are side by
       side; every other figure is marked "Context · <series> only", with its own definition and its own axis. One chart per
       metric with its 5-month total, the other series' total, a plain line from the file's notes and a "Detail →"
-      link; one axis per metric across both series; tooltips on hover and focus; a table view. Live shows "Pending:
-      no live traffic yet" until spec 14 T5; a missing series shows "Results pending" (AC-04). The final resolution time
+      link; one axis per metric across both series; tooltips on hover and focus; a table view. The third position,
+      key `live`, is "Public demo traffic" (lead's decision 2026-10-06): while its `status` is "pending" it shows
+      "Pending: no public demo traffic yet"; when "ready" it draws four headline cards with the kit's count-up (cases,
+      receipt with a legal deadline, handed to an analyst, unsafe outcomes), the cases per day split by mode, the
+      live/replay breakdown, one plain line with "Detail →" and the table, collapsed; a missing series shows
+      "Results pending" (AC-04). The final resolution time
       is shown for the bank only. [T] `apps/web/lib/ops.test.ts`; 390 px checked with `scripts/web/insight_screenshots.py`
       (no horizontal overflow, both themes)
 - [x] T12 — "The data at a glance" on `/data`: the five charts of `profile` (§7.3), drawn with the motion kit and the

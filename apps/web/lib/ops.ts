@@ -14,13 +14,33 @@ export type Series = {
   months: Month[];
   total: Month;
 };
-export type Live = { key: "live"; name: string; status: "pending"; message: string; reason: string };
+export type LivePending = { key: "live"; name: string; status: "pending"; message: string; reason: string };
+/** Public demo traffic (spec 14 §7.4, T5; the lead's reading of 2026-10-06): cases per UTC day, in both modes. */
+export type ModeKey = "live" | "replay";
+export type LiveDay = {
+  day: string; cases: number; receipt_rate: Rate; escalation_rate: Rate; automated_rate: Rate; unsafe_outcomes: number;
+  cost_per_case: number | null; latency_p95_ms: number | null; denials: number; cases_by_mode: Record<ModeKey, number>;
+};
+export type LiveMode = {
+  cases: number; receipt_rate: Rate; escalation_rate: Rate; automated_rate: Rate; unsafe_outcomes: number;
+  demo_sessions: number; synthetic_charges: number;
+};
+export type LiveTotal = Omit<LiveDay, "day" | "cases_by_mode"> & {
+  day: "total"; cost_usd: number; demo_sessions: number; cases_without_demo_session: number; synthetic_charges: number;
+  by_mode: Record<ModeKey, LiveMode>;
+};
+export type LiveReady = {
+  key: "live"; name: string; status: "ready"; label: string; message: string; reason: string; source: string;
+  window: [string, string]; as_of: string | null; days: LiveDay[]; total: LiveTotal;
+  feedback: { decided: number; agreed: number }; notes: Record<string, string>;
+};
+export type Live = LivePending | LiveReady;
 export type OpsSeries = { window: [string, string]; bank_today: Series | null; replay: Series | null; live: Live };
 
 export const POSITIONS = [
   { key: "bank_today", label: "Bank today" },
   { key: "replay", label: "With Nick of Time (simulated)" },
-  { key: "live", label: "Live" },
+  { key: "live", label: "Public demo traffic" },
 ] as const;
 export type Position = (typeof POSITIONS)[number]["key"];
 
@@ -32,7 +52,7 @@ export const DETAIL = {
   method: `${SPEC14}#11-amendment-bank-today-and-replay-over-the-dataset-lead-2026-10-05`,
   limitation: `${SPEC14}#114-dataset-limitation-complaints-cannot-be-replayed-as-they-are`,
   shape: `${SPEC14}#74-appswebpublicdataops_kpisjson`,
-  live: `${SPEC14}#10-plan-tasks-and-verification`,
+  live: `${SPEC14}#115-live-the-postgres-source-t5-make-ops-live`,
 };
 
 /** What the shared detail panel shows for a chart or a note (plan §14): method, source query, window, label, link. */
@@ -64,8 +84,8 @@ export function chartDetail(chart: Chart, series: Series): Detail {
 /** The panel of a pending position: what is missing and what will fill it. */
 export function pendingDetail(state: { title: string; missing: string; detail: string }, all: OpsSeries | undefined): Detail {
   return { title: state.title, description: "No figure yet", method: [state.missing,
-           "Live will read the cases of real conversations from the database through the same operational job; until "
-           + "then the page shows no number for it."],
+           "Public demo traffic will read the cases of the deployed app's demo sessions from the database through the "
+           + "same operational job; until then the page shows no number for it."],
            source: "data/ops (spec 14 T5, the Postgres source)", window: all ? windowText(all.window) : "",
            label: "none yet", href: state.detail };
 }
@@ -116,7 +136,10 @@ export type Chart = {
   metric: Metric; title: string; label: string; note: string; total: Point; points: Point[]; scaleMax: number;
   secondary: Secondary[];
 };
-export type OpsState = { kind: "pending"; title: string; missing: string; detail: string } | { kind: "ready"; series: Series; charts: Chart[] };
+export type OpsState =
+  | { kind: "pending"; title: string; missing: string; detail: string }
+  | { kind: "ready"; series: Series; charts: Chart[] }
+  | { kind: "live"; view: LiveView };
 
 const int = (n: number) => n.toLocaleString("en-US");
 export const pct = (v: number | null, digits = 1) => (v === null ? "no value" : `${(v * 100).toFixed(v > 0 && v < 0.001 ? 2 : digits)}%`);
@@ -195,12 +218,16 @@ export function charts(series: Series, all: OpsSeries): Chart[] {
   });
 }
 
-/** spec 12 AC-04: a missing file or series shows "Results pending" with what is missing and no figure. */
+/** spec 12 AC-04: a missing file or series shows "Results pending" with what is missing and no figure. Public demo
+ * traffic draws its figures only when its `status` is "ready". */
 export function opsState(file: { data?: { series?: OpsSeries } } | null, position: Position): OpsState {
   const all = file?.data?.series;
   if (position === "live") {
-    return { kind: "pending", title: all?.live.message ?? "Pending: no live traffic yet",
-             missing: all?.live.reason ?? "spec 14 T5 (the Postgres source) has not run on live traffic", detail: DETAIL.live };
+    const live = all?.live;
+    if (live?.status === "ready") return { kind: "live", view: liveView(live) };
+    return { kind: "pending", title: live?.message ?? "Pending: no public demo traffic yet",
+             missing: live?.reason ?? "spec 14 T5 (the Postgres source) has not run on the deployed app's demo traffic",
+             detail: DETAIL.live };
   }
   const series = all?.[position] ?? null;
   if (!all || !series) {
@@ -213,4 +240,76 @@ export function opsState(file: { data?: { series?: OpsSeries } } | null, positio
 /** AC-07: the table view holds exactly the values the chart marks show. */
 export function tableRows(chart: Chart): string[][] {
   return [...chart.points, { ...chart.total, month: `${chart.points.length} months` }].map((p) => [p.month, ...p.detail.map(([, v]) => v)]);
+}
+
+// ---------- Public demo traffic (the Live position) ----------
+
+export type LiveCard = { id: string; title: string; value: string; sub: string };
+export type LiveBar = { day: string; cases: number; byMode: Record<ModeKey, number>; detail: [string, string][] };
+export type LiveModeRow = { mode: ModeKey; title: string; cases: number; share: number; text: string; note: string };
+export type LiveView = {
+  live: LiveReady; cards: LiveCard[]; bars: LiveBar[]; scaleMax: number; modes: LiveModeRow[]; line: string;
+  head: string[]; rows: string[][]; footer: string;
+};
+
+/** The one plain line under the figures; the method sits behind "Detail →". */
+export const LIVE_LINE = "Cases visitors opened on the public demo, in both modes: an illustration, not a measurement.";
+export const MODE_TITLE: Record<ModeKey, string> = { live: "Live mode", replay: "Replay mode" };
+const MODE_NOTE: Record<ModeKey, string> = {
+  live: "today's date, synthetic charges",
+  replay: "the dataset's historical state, demo date 1 June 2026",
+};
+const rateText = (r: Rate) => (r.denominator ? `${pct(r.value)} (${int(r.numerator)} of ${int(r.denominator)})` : "no value");
+const LIVE_HEAD = ["Cases", MODE_TITLE.live, MODE_TITLE.replay, "Receipt with a legal deadline", "Handed to an analyst", "Unsafe outcomes"];
+const plural = (n: number, word: string) => `${int(n)} ${n === 1 ? word : `${word}s`}`;
+export const dayName = (d: string) =>
+  new Date(`${d}T12:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" });
+
+function liveDetailRows(d: { cases: number; receipt_rate: Rate; escalation_rate: Rate; unsafe_outcomes: number },
+                        byMode: Record<ModeKey, number>): [string, string][] {
+  const values = [int(d.cases), int(byMode.live), int(byMode.replay), rateText(d.receipt_rate), rateText(d.escalation_rate),
+                  int(d.unsafe_outcomes)];
+  return LIVE_HEAD.map((h, i) => [h, values[i]]);
+}
+
+/** The Live position's figures, read from the file only: four cards, the per-day columns, the mode breakdown and the
+ * table (spec 12 AC-02; AC-07: the table holds exactly the values of the columns' tooltips). */
+export function liveView(live: LiveReady): LiveView {
+  const t = live.total;
+  const n = live.days.length;
+  const byMode = { live: t.by_mode.live?.cases ?? 0, replay: t.by_mode.replay?.cases ?? 0 };
+  const bars = live.days.map((d) => ({ day: d.day, cases: d.cases, byMode: d.cases_by_mode, detail: liveDetailRows(d, d.cases_by_mode) }));
+  const share = (r: Rate) => `${int(r.numerator)} of ${plural(r.denominator, "case")}`;
+  return {
+    live,
+    cards: [
+      { id: "cases", title: "Cases", value: int(t.cases), sub: `${plural(t.demo_sessions, "demo session")} over ${plural(n, "day")}` },
+      { id: "receipt", title: "Receipt with a legal deadline", value: pct(t.receipt_rate.value), sub: share(t.receipt_rate) },
+      { id: "handed", title: "Handed to an analyst", value: pct(t.escalation_rate.value), sub: share(t.escalation_rate) },
+      { id: "unsafe", title: "Unsafe outcomes", value: int(t.unsafe_outcomes), sub: "the auditor's lifecycle check" },
+    ],
+    bars,
+    scaleMax: Math.max(1, ...live.days.map((d) => d.cases)),
+    modes: (["live", "replay"] as const).map((mode) => ({
+      mode, title: MODE_TITLE[mode], cases: byMode[mode], share: t.cases ? byMode[mode] / t.cases : 0,
+      text: plural(byMode[mode], "case"), note: MODE_NOTE[mode],
+    })),
+    line: LIVE_LINE,
+    head: ["Day", ...LIVE_HEAD],
+    rows: [...bars.map((b) => [b.day, ...b.detail.map(([, v]) => v)]),
+           [plural(n, "day"), ...liveDetailRows(t, byMode).map(([, v]) => v)]],
+    footer: `${live.source} · ${live.window.join(" to ")}${live.as_of ? ` · snapshot ${live.as_of}` : ""}`,
+  };
+}
+
+/** The panel behind the Live position's "Detail →": what counts, the labels, the day, the modes and each figure. */
+export function liveDetail(live: LiveReady): Detail {
+  const notes = live.notes;
+  return {
+    title: live.message, description: live.name,
+    method: [notes.cases, live.reason, notes.day, notes.by_mode, notes.receipt_rate, notes.escalation_rate,
+             notes.unsafe_outcomes].filter(Boolean),
+    source: live.source, window: `${dayName(live.window[0])} to ${dayName(live.window[1])} (${live.window.join(" to ")})`,
+    label: live.label, href: DETAIL.live,
+  };
 }

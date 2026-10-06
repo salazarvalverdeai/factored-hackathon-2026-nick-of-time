@@ -44,10 +44,12 @@ def git_sha() -> str:
 
 def run(snapshot: bronze.Snapshot, *, gold_path: Path, out: Path = OPS_DIR, web: Optional[Path] = None,
         mode: str = "replay", now: Optional[dt.datetime] = None, contacts: Optional[pl.DataFrame] = None,
-        asis: Optional[pl.DataFrame] = None, variant: Optional[pl.DataFrame] = None) -> dict[str, Any]:
+        asis: Optional[pl.DataFrame] = None, variant: Optional[pl.DataFrame] = None,
+        live_web: Optional[Path] = None) -> dict[str, Any]:
     """Run the job on one snapshot; returns the manifest. `web` is where ops_kpis.json goes (AC-09). `contacts` (one
     outcome row per replayed contact) becomes gold `replay_contacts`; with `asis` the export carries the series, and
-    `variant` (the same contacts with no merchant in the message) its sensitivity figure."""
+    `variant` (the same contacts with no merchant in the message) its sensitivity figure. With `live_web` (T5) only
+    the Live series of that existing export is replaced (`update_live`)."""
     now = now or dt.datetime.now(dt.UTC)
     stamp = now.isoformat(timespec="seconds")
     sources = bronze.build(snapshot, out / "bronze", now)
@@ -85,7 +87,23 @@ def run(snapshot: bronze.Snapshot, *, gold_path: Path, out: Path = OPS_DIR, web:
     if web is not None:
         built = series.build(tables, contacts, asis, variant) if asis is not None or contacts is not None else None
         export(tables, web, mode=mode, source=snapshot.source, now=now, series=built)
+    if live_web is not None:
+        high = [h for h in snapshot.high_water.values() if h is not None]
+        as_of = max(high).strftime("%Y-%m-%dT%H:%M:%SZ") if high else None      # the snapshot's, never the clock
+        update_live(live_web, series.live(built["tables"], as_of))
     return manifest
+
+
+def update_live(path: Path, live: dict[str, Any]) -> None:
+    """T5: replace `data.series.live` of the committed export and nothing else, so the Bank today and replay series,
+    `days`, `feedback` and the envelope keep their bytes; the same snapshot writes the same file (AC-05)."""
+    if not path.exists():
+        raise SystemExit(f"{path} does not exist: run `make ops-replay` first, then `make ops-live`")
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance((payload.get("data") or {}).get("series"), dict):
+        raise SystemExit(f"{path} has no data.series: run `make ops-replay` first, then `make ops-live`")
+    payload["data"]["series"]["live"] = live
+    path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
 
 def export(tables: dict[str, pl.DataFrame], path: Path, *, mode: str, source: str, now: dt.datetime,
