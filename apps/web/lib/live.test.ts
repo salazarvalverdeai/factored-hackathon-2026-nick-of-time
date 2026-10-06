@@ -314,6 +314,102 @@ test("the SSE reader splits events across chunks and drops a malformed one", asy
   assert.deepEqual(out, [{ event: "progress", data: { a: 1 } }, { event: "turn", data: { b: 2 } }]);
 });
 
+// --- demo-mode start screen (spec 07 §8, D-068; spec 05 AC-14 to AC-20) ----------------------------------------------
+
+const DEMO_ROUTES: Record<string, Handler> = {
+  "GET /api/demo/scenarios?language=es&country=MX": () => jsonResponse([{ scenario_id: "SCN-MX-1", title: "Cargo no reconocido", country: "MX", language: "es", segment: "mass", customer_name: "Ana", cases: [], tags: [] }]),
+  "GET /api/demo/scenarios?language=pt": () => jsonResponse([]),
+  "POST /api/sessions": () => jsonResponse({ session_id: "S-9", mode: "live", today: "2026-10-05", otp_demo: "654321", expires_at: "2026-10-05T15:15:00Z" }, 201),
+  "POST /api/sessions/S-9/verify": () => jsonResponse({ verified: true, expires_at: "2026-10-05T15:15:00Z" }),
+};
+
+async function demoLogin(api: ReturnType<typeof setup>["api"], name?: string) {
+  const otp = await api.startDemoSession({ displayName: name, language: "es", country: "MX", scenario: "SCN-MX-1" });
+  return api.verifyOtp(otp);
+}
+
+test("spec 07 AC-01: the scenario cards come from the api for a language and a country, with no customer id", async () => {
+  const { api, calls } = setup(DEMO_ROUTES);
+  const list = await api.listScenarios({ language: "es", country: "MX" });
+  assert.deepEqual(list.map((s) => [s.scenario_id, s.customer_name]), [["SCN-MX-1", "Ana"]]);
+  assert.ok(!JSON.stringify(list).match(/customer_id|score|zone/));
+  assert.equal(calls[0].url, "http://api.test/api/demo/scenarios?language=es&country=MX");
+  assert.deepEqual(await api.listScenarios({ language: "pt" }), []);
+});
+
+test("spec 07 §8.5: a demo session is opened by scenario and the body never carries a customer id", async () => {
+  const { api, calls } = setup(DEMO_ROUTES);
+  const otp = await api.startDemoSession({ displayName: "  Ana  ", language: "es", country: "MX", scenario: "SCN-MX-1" });
+  assert.equal(otp, "654321");
+  assert.deepEqual(calls[0].body, { display_name: "Ana", language: "es", country: "MX", scenario: "SCN-MX-1" });
+  assert.ok(!JSON.stringify(calls[0].body).includes("customer_id"));
+});
+
+test("spec 07 §8.1: with no name the request carries none, and 'assign me one' sends auto", async () => {
+  const { api, calls } = setup(DEMO_ROUTES);
+  await api.startDemoSession({ displayName: "   ", language: "pt", scenario: "auto" });
+  assert.deepEqual(calls[0].body, { language: "pt", scenario: "auto" });
+});
+
+test("spec 07 §8.1: the api's 422 message for a name is what the page shows", async () => {
+  const { api } = setup({ ...DEMO_ROUTES, "POST /api/sessions": () => jsonResponse({ code: "INVALID", message: "Use a plain first name" }, 422) });
+  await assert.rejects(api.startDemoSession({ displayName: "x@y.co", language: "es", scenario: "auto" }), (e: unknown) => e instanceof ApiError && e.status === 422 && /plain first name/.test(e.message));
+});
+
+test("spec 07 §8.5: after the code the demo session knows its name, language and mode, and no customer", async () => {
+  const { api } = setup(DEMO_ROUTES);
+  const session = await demoLogin(api, "Ana");
+  assert.deepEqual(session, { customerId: "", expiresAt: Date.parse("2026-10-05T15:15:00Z"), language: "es", displayName: "Ana", mode: "live" });
+});
+
+test("spec 07 §8.6: the recent charges are read for the verified session, and not before the code", async () => {
+  const txs = [{ transaction_id: "T-1", date: "2026-10-05", amount: 99.5, currency: "MXN", merchant: "TIENDA X", last4: "4417", synthetic: true }];
+  const { api, calls } = setup({ ...DEMO_ROUTES, "GET /api/sessions/S-9/recent-transactions?limit=10": () => jsonResponse(txs) });
+  await assert.rejects(api.listRecentTransactions(), (e: unknown) => e instanceof ApiError && e.code === "SESSION_EXPIRED");
+  await api.startDemoSession({ language: "es", scenario: "auto" });
+  await assert.rejects(api.listRecentTransactions(), (e: unknown) => e instanceof ApiError, "a session that is not verified has no charges");
+  await api.verifyOtp("654321");
+  assert.deepEqual(await api.listRecentTransactions(), txs);
+  assert.ok(calls.some((c) => c.url.endsWith("/api/sessions/S-9/recent-transactions?limit=10")));
+});
+
+test("spec 07 §8.7: a test charge carries only an amount and a store, and the chip list reads again", async () => {
+  const { api, calls } = setup({
+    ...DEMO_ROUTES,
+    "POST /api/sessions/S-9/synthetic-charge": () => jsonResponse({ transaction_id: "T-9", date: "2026-10-05", amount: 1250.5, currency: "MXN", merchant: "TIENDA Y", last4: "4417", synthetic: true, label: "[simulated]" }, 201),
+  });
+  await demoLogin(api);
+  let changes = 0;
+  api.subscribe(() => changes++);
+  const charge = await api.registerTestCharge(1250.5, "TIENDA Y");
+  assert.equal(charge.label, "[simulated]");
+  assert.deepEqual(calls.find((c) => c.url.endsWith("/synthetic-charge"))!.body, { amount: 1250.5, merchant: "TIENDA Y" });
+  assert.equal(changes, 1, "pages read the list again");
+});
+
+test("spec 07 §8.7: a 429 and a 403 reach the page as they are", async () => {
+  const { api } = setup({
+    ...DEMO_ROUTES,
+    "POST /api/sessions/S-9/synthetic-charge": () => jsonResponse({ code: "DENY", message: "One synthetic charge per minute, three per session" }, 429),
+  });
+  await demoLogin(api);
+  await assert.rejects(api.registerTestCharge(10, "TIENDA"), (e: unknown) => e instanceof ApiError && e.status === 429);
+  const replay = setup({ ...DEMO_ROUTES, "POST /api/sessions/S-9/synthetic-charge": () => jsonResponse({ code: "DENY", message: "Synthetic charges exist only in a live demo session" }, 403) });
+  await demoLogin(replay.api);
+  await assert.rejects(replay.api.registerTestCharge(10, "TIENDA"), (e: unknown) => e instanceof ApiError && e.status === 403);
+});
+
+test("spec 07 §8.8: a persona answer is a suggested draft, and the chosen charge goes with it only when there is one", async () => {
+  const draft = { message: "Mira, no reconozco ese cargo.", source: "template", language: "es", character: "aggressive", transaction_id: "T-1", synthetic: false, suggested: true };
+  const { api, calls } = setup({ ...DEMO_ROUTES, "POST /api/demo/persona": () => jsonResponse(draft) });
+  await demoLogin(api);
+  const out = await api.suggestPersona("aggressive");
+  assert.equal(out.source, "template");
+  await api.suggestPersona("terse", "T-1");
+  const bodies = calls.filter((c) => c.url.endsWith("/api/demo/persona")).map((c) => c.body);
+  assert.deepEqual(bodies, [{ character: "aggressive" }, { character: "terse", transaction_id: "T-1" }]);
+});
+
 // --- case pages ---------------------------------------------------------------------------------------------------
 
 test("spec 05 AC-09: the case page maps the customer's projection and never asks for internals", async () => {

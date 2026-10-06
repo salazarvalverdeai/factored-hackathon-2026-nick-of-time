@@ -20,10 +20,15 @@ import type {
   CustomerCaseView,
   CustomerSession,
   DemoCustomer,
+  DemoStart,
   HandoffCard,
   Language,
   NotificationEntry,
+  PersonaCharacter,
+  PersonaDraft,
   Receipt,
+  RecentTransaction,
+  Scenario,
   SessionSnapshot,
   Suggestion,
   TurnAction,
@@ -211,6 +216,16 @@ function claimsOf(token: string): Record<string, unknown> {
   }
 }
 
+function sessionOf(c: NonNullable<Stored["customer"]>): CustomerSession {
+  return {
+    customerId: c.customerId,
+    expiresAt: c.expiresAt,
+    language: c.language,
+    ...(c.displayName ? { displayName: c.displayName } : {}),
+    ...(c.mode ? { mode: c.mode } : {}),
+  };
+}
+
 function browserSession(): Pick<Storage, "getItem" | "setItem" | "removeItem"> | null {
   try {
     return window.sessionStorage;
@@ -220,7 +235,15 @@ function browserSession(): Pick<Storage, "getItem" | "setItem" | "removeItem"> |
 }
 
 interface Stored {
-  customer: { customerId: string; expiresAt: number; language: Language } | null;
+  /** `sessionId` is what the session routes of the api take in the path (recent transactions, test charge); the same id the cookie holds. */
+  customer: {
+    customerId: string;
+    expiresAt: number;
+    language: Language;
+    sessionId?: string;
+    displayName?: string;
+    mode?: "live" | "replay";
+  } | null;
   analyst: { username: string; displayName: string; token: string; expiresAt: number } | null;
 }
 
@@ -243,12 +266,12 @@ export function createLiveApi(options: LiveOptions = {}): ApiClient {
   const stored: Stored = load();
   const SERVER: SessionSnapshot = { customerSession: null, analystSession: null, supervised: false, audit: [] };
   let snapshot: SessionSnapshot = {
-    customerSession: stored.customer ? { customerId: stored.customer.customerId, expiresAt: stored.customer.expiresAt } : null,
+    customerSession: stored.customer ? sessionOf(stored.customer) : null,
     analystSession: stored.analyst ? { username: stored.analyst.username, displayName: stored.analyst.displayName } : null,
     supervised: false,
     audit: [],
   };
-  let pending: { sessionId: string; customerId: string; language: Language } | null = null;
+  let pending: { sessionId: string; customerId: string; language: Language; displayName?: string; mode?: "live" | "replay" } | null = null;
   let threadId: string | null = null;
   let customers: Promise<DemoCustomer[]> | null = null;
 
@@ -274,6 +297,13 @@ export function createLiveApi(options: LiveOptions = {}): ApiClient {
     listeners.forEach((l) => l());
   }
 
+  function verifiedSessionId(): string {
+    if (!stored.customer?.sessionId || stored.customer.expiresAt <= now()) {
+      throw new ApiError("SESSION_EXPIRED", 401, "Session expired: verify again.");
+    }
+    return stored.customer.sessionId;
+  }
+
   const customerLanguage = (): Language => stored.customer?.language ?? "es";
 
   // --- http ----------------------------------------------------------------------------------------------------
@@ -297,7 +327,7 @@ export function createLiveApi(options: LiveOptions = {}): ApiClient {
   function expireLocally(): void {
     if (stored.customer) stored.customer = { ...stored.customer, expiresAt: now() };
     threadId = null;
-    commit({ customerSession: stored.customer ? { customerId: stored.customer.customerId, expiresAt: stored.customer.expiresAt } : null });
+    commit({ customerSession: stored.customer ? sessionOf(stored.customer) : null });
   }
 
   async function send(path: string, opts: { method?: string; body?: unknown; analyst?: boolean } = {}): Promise<Response> {
@@ -380,14 +410,64 @@ export function createLiveApi(options: LiveOptions = {}): ApiClient {
       return out.otp_demo;
     },
 
+    // Demo session (D-068, ADR 0026): the body never carries a customer id; the api chooses the customer from the scenario.
+    async startDemoSession(start: DemoStart) {
+      const name = start.displayName?.trim();
+      const out = await json<{ session_id: string; mode: "live" | "replay"; otp_demo: string }>("/api/sessions", {
+        method: "POST",
+        body: {
+          ...(name ? { display_name: name } : {}),
+          language: start.language,
+          ...(start.country ? { country: start.country } : {}),
+          scenario: start.scenario,
+        },
+      });
+      pending = { sessionId: out.session_id, customerId: "", language: start.language, displayName: name || undefined, mode: out.mode };
+      return out.otp_demo;
+    },
+
+    async listScenarios(filter) {
+      const q = new URLSearchParams({ language: filter.language, ...(filter.country ? { country: filter.country } : {}) });
+      return json<Scenario[]>(`/api/demo/scenarios?${q}`);
+    },
+
+    async listRecentTransactions(limit = 10): Promise<RecentTransaction[]> {
+      const id = verifiedSessionId();
+      return json<RecentTransaction[]>(`/api/sessions/${encodeURIComponent(id)}/recent-transactions?limit=${limit}`);
+    },
+
+    async registerTestCharge(amount, merchant): Promise<RecentTransaction> {
+      const id = verifiedSessionId();
+      const out = await json<RecentTransaction>(`/api/sessions/${encodeURIComponent(id)}/synthetic-charge`, {
+        method: "POST",
+        body: { amount, merchant },
+      });
+      commit({}); // the chip list reads again and shows the new charge first
+      return out;
+    },
+
+    async suggestPersona(character: PersonaCharacter, transactionId?: string): Promise<PersonaDraft> {
+      return json<PersonaDraft>("/api/demo/persona", {
+        method: "POST",
+        body: { character, ...(transactionId ? { transaction_id: transactionId } : {}) },
+      });
+    },
+
     async verifyOtp(otp) {
       if (!pending) throw new ApiError("UNAUTHORIZED", 401, "Ask for a code first.");
       const out = await json<{ expires_at: string }>(`/api/sessions/${encodeURIComponent(pending.sessionId)}/verify`, {
         method: "POST",
         body: { otp },
       });
-      const session: CustomerSession = { customerId: pending.customerId, expiresAt: Date.parse(out.expires_at) };
-      stored.customer = { ...session, language: pending.language };
+      stored.customer = {
+        customerId: pending.customerId,
+        expiresAt: Date.parse(out.expires_at),
+        language: pending.language,
+        sessionId: pending.sessionId,
+        displayName: pending.displayName,
+        mode: pending.mode,
+      };
+      const session = sessionOf(stored.customer);
       pending = null;
       threadId = null; // a new session never reuses another's thread
       commit({ customerSession: session });
