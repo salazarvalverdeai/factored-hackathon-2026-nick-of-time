@@ -52,20 +52,24 @@ function Switch({ value, onChange }: { value: Position; onChange: (p: Position) 
   );
 }
 
+const LINK = `whitespace-nowrap text-primary underline-offset-4 hover:underline ${FOCUS}`;
+
 function MetricChart({ chart, color, other }: { chart: Chart; color: string; other: { text: string; label: string } | null }) {
   const { bind, node } = useTip();
+  const months = `${chart.points.length} months`;
   return (
     <figure className="min-w-0 rounded-lg border bg-card p-5 text-card-foreground">
-      <h3 className="text-base font-semibold">{chart.metric.title}</h3>
+      <h3 className="text-base font-semibold">{chart.title}</h3>
       <p className="mt-2 flex flex-wrap items-baseline gap-x-2">
         <span className="text-3xl font-semibold tracking-tight tabular-nums">{fmt(chart, chart.total.value)}</span>
         <span className="font-mono text-xs text-muted-foreground">{chart.label}</span>
       </p>
       <p className="text-xs text-muted-foreground">
-        12 months{other ? ` · other series: ${other.text} ` : ""}
+        {months}
+        {other ? ` · other series: ${other.text} ` : ""}
         {other ? <span className="font-mono">{other.label}</span> : null}
       </p>
-      <div className="mt-4 flex h-24 items-end gap-[3px] border-b" aria-label={`${chart.metric.title} per month`} role="group">
+      <div className="mt-4 flex h-24 items-end gap-1 border-b" aria-label={`${chart.title} per month`} role="group">
         {chart.points.map((p) => (
           <div
             key={p.month}
@@ -88,10 +92,22 @@ function MetricChart({ chart, color, other }: { chart: Chart; color: string; oth
       </div>
       <p className="mt-3 text-sm">
         {chart.note}{" "}
-        <a href={chart.label === "[data]" ? DETAIL.bank_today : DETAIL.replay} className={`whitespace-nowrap text-primary underline-offset-4 hover:underline ${FOCUS}`}>
+        <a href={chart.label === "[data]" ? DETAIL.bank_today : DETAIL.replay} className={LINK}>
           Detail →
         </a>
       </p>
+      {chart.secondary ? (
+        <div className="mt-3 rounded-md border border-dashed px-3 py-2 text-xs text-muted-foreground">
+          <p>
+            <span className="text-foreground">{chart.secondary.title}: </span>
+            <span className="font-semibold text-foreground tabular-nums">
+              {chart.secondary.point.detail[1][1]} of {chart.secondary.point.detail[2][1]}
+            </span>{" "}
+            <span className="font-mono">{chart.label}</span>
+          </p>
+          <p className="mt-1">{chart.secondary.note}</p>
+        </div>
+      ) : null}
       <TableView head={["Month", ...chart.total.detail.map(([k]) => k)]} rows={tableRows(chart)} />
       {node}
     </figure>
@@ -101,32 +117,50 @@ function MetricChart({ chart, color, other }: { chart: Chart; color: string; oth
 export function Operations({ file }: { file: { data?: { series?: OpsSeries } } | null }) {
   const [position, setPosition] = useState<Position>("bank_today");
   const state = opsState(file, position);
-  const all = file?.data?.series;
   const otherKey = position === "bank_today" ? "replay" : "bank_today";
+  const twin = opsState(file, otherKey);
   return (
     <section aria-labelledby="ops-title" className={`mt-12 ${PALETTE}`}>
       <h2 id="ops-title" className="text-lg font-semibold">
         Operation
       </h2>
-      <p className="mt-1 max-w-3xl text-sm text-muted-foreground">
-        The bank&apos;s own unrecognized and wrongful charge complaints of the last twelve months, as the bank handled them
-        and as <Link href="/agent" className={`text-primary underline-offset-4 hover:underline ${FOCUS}`}>the system</Link>{" "}
-        would take them in. The simulation replays the bank&apos;s own complaints with the rules engine; it does not model
-        the final resolution time, which a person decides.
-      </p>
-      <p className="mt-2 max-w-3xl text-sm text-muted-foreground">
-        Most of these complaints cannot be tied to one card charge of the customer, so the system asks which charge it is
-        and the contact counts as not resolved. Cases opened in 2025 get no legal deadline, because the repository has
-        verified holiday calendars for 2026 only.{" "}
-        <a href={DETAIL.method} className={`whitespace-nowrap text-primary underline-offset-4 hover:underline ${FOCUS}`}>
-          Detail →
-        </a>
-      </p>
+      <div className="mt-1 max-w-3xl space-y-2 text-sm text-muted-foreground">
+        <p>
+          Bank today shows the bank&apos;s own unrecognized and wrongful charge complaints from January to May 2026. With
+          Nick of Time shows the same number of contacts each month taken in by{" "}
+          <Link href="/agent" className={LINK}>
+            the system
+          </Link>
+          : real card charges from the dataset, each reported by a customer in a written message that names the amount,
+          the date and the merchant, and run through the rules engine with no language model.
+        </p>
+        <p>
+          The two headline figures measure different things. The bank&apos;s first contact resolution means the complaint
+          was resolved in the first call. Ours means complete intake: a case on the right charge, its legal deadline and
+          the evidence handed to a person, who then decides. The simulation does not model the final resolution time,
+          which a person decides, and the customer names the charge exactly, so real customers will do less well.
+        </p>
+        <p>
+          The window starts in January 2026 because the repository has verified bank holiday calendars for 2026 only;
+          without them no legal deadline is computed. The bank&apos;s complaints could not be replayed as they are: the
+          dataset does not link a complaint to the charge it is about.{" "}
+          <a href={DETAIL.limitation} className={LINK}>
+            Detail →
+          </a>
+        </p>
+      </div>
       <div className="mt-4">
         <Switch value={position} onChange={setPosition} />
       </div>
       {state.kind === "pending" ? (
-        <EmptyState className="mt-4" title={state.title} hint={state.missing} />
+        <>
+          <EmptyState className="mt-4" title={state.title} hint={state.missing} />
+          <p className="mt-2 text-sm">
+            <a href={state.detail} className={LINK}>
+              Detail →
+            </a>
+          </p>
+        </>
       ) : (
         <>
           <p className="mt-3 font-mono text-xs break-words text-muted-foreground">
@@ -134,28 +168,15 @@ export function Operations({ file }: { file: { data?: { series?: OpsSeries } } |
           </p>
           <div className="mt-4 grid gap-4 md:grid-cols-2">
             {state.charts.map((chart) => {
-              const twin = all?.[otherKey];
-              const otherTotal = twin && chart.metric.key in twin.total ? opsState(file, otherKey) : null;
-              const match = otherTotal?.kind === "ready" ? otherTotal.charts.find((c) => c.metric.key === chart.metric.key) : undefined;
-              return (
-                <MetricChart
-                  key={chart.metric.key}
-                  chart={chart}
-                  color={COLOR[position]}
-                  other={match && twin ? { text: `${twin.name} ${fmt(match, match.total.value)}`, label: twin.label } : null}
-                />
-              );
+              const match = twin.kind === "ready" ? twin.charts.find((c) => c.metric.id === chart.metric.id) : undefined;
+              const other = match && twin.kind === "ready"
+                ? { text: `${twin.series.name}, ${match.title.toLowerCase()} ${fmt(match, match.total.value)}`, label: match.label }
+                : null;
+              return <MetricChart key={chart.metric.id} chart={chart} color={COLOR[position]} other={other} />;
             })}
           </div>
         </>
       )}
-      {state.kind === "pending" ? (
-        <p className="mt-2 text-sm">
-          <a href={state.detail} className={`text-primary underline-offset-4 hover:underline ${FOCUS}`}>
-            Detail →
-          </a>
-        </p>
-      ) : null}
     </section>
   );
 }
