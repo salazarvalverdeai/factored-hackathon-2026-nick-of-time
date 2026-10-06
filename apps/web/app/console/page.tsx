@@ -1,5 +1,6 @@
 "use client";
 
+import { copilotActionLabel, formatTime, handoffReasonLabel } from "@/lib/handoff-labels";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { StatusBadge, ZoneBadge } from "@/components/badges";
@@ -202,7 +203,7 @@ function Console({ actor }: { actor: string }) {
                 <span className="font-medium">{a.action}</span> · {a.target}
                 {a.reason ? ` · ${a.reason}` : ""}
                 <p className="text-xs text-muted-foreground">
-                  {a.actor} · {new Date(a.at).toLocaleTimeString()}
+                  {a.actor} · {formatTime(a.at)}
                 </p>
               </li>
             ))}
@@ -315,7 +316,7 @@ function CaseDetail({
           </p>
           {h.handoff_reason ? (
             <p>
-              <b>Handoff reason:</b> {h.handoff_reason}
+              <b>Handoff reason:</b> {handoffReasonLabel(h.handoff_reason)}
             </p>
           ) : null}
           <p>
@@ -335,7 +336,7 @@ function CaseDetail({
           </p>
           {h.copilot_proposal ? (
             <p>
-              <b>Copilot proposal:</b> {h.copilot_proposal.action} (a person decides)
+              <b>Copilot proposal:</b> {copilotActionLabel(h.copilot_proposal.action)} (a person decides)
             </p>
           ) : null}
           <p className="text-xs text-muted-foreground">

@@ -10,6 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input, Textarea } from "@/components/ui/input";
 import { ApiError, api } from "@/lib/api";
 import { MESSAGES, fill } from "@/lib/mock/messages";
+import { formatDateTime } from "@/lib/handoff-labels";
 import { demoDateLabel } from "@/lib/demo-date";
 import { DEMO_TODAY, statusLabel } from "@/lib/mock/store";
 import type { Language, NotificationEntry } from "@/lib/types";
@@ -248,7 +249,7 @@ function NotificationItem({ n, lang }: { n: NotificationEntry; lang: Language })
           </span>
         ))}
       </span>
-      <span className="mt-1 block text-xs text-muted-foreground">{new Date(n.at).toLocaleString()}</span>
+      <span className="mt-1 block text-xs text-muted-foreground">{formatDateTime(n.at)}</span>
     </li>
   );
 }

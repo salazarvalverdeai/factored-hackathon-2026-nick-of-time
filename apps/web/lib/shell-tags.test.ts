@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import { demoDateLabel } from "./demo-date.ts";
+import { COPILOT_ACTION_LABELS, formatDateTime, HANDOFF_REASON_LABELS } from "./handoff-labels.ts";
 
 const src = (p: string) => readFileSync(new URL(p, import.meta.url), "utf-8");
 const TAG = /\[(simulated|assumption|data|external|projected)\]/;
@@ -31,4 +32,23 @@ test("spec 16: the site footer lists the team, the repo and the five labels, and
     assert.ok(f.includes(x), x);
   }
   assert.ok(src("../app/layout.tsx").includes("<SiteFooter />"));
+});
+
+test("spec 08: every handoff_reason and copilot action of the contract has a human label", () => {
+  const schema = JSON.parse(src("../../../contracts/handoff.schema.json"));
+  const reasons: string[] = schema.properties.handoff_reason.enum;
+  const actions: string[] = schema.properties.copilot_proposal.properties.action.enum;
+  for (const r of reasons) assert.ok(HANDOFF_REASON_LABELS[r] && !HANDOFF_REASON_LABELS[r].includes("_"), r);
+  for (const a of actions) assert.ok(COPILOT_ACTION_LABELS[a] && !COPILOT_ACTION_LABELS[a].includes("_"), a);
+  assert.equal(Object.keys(HANDOFF_REASON_LABELS).length, reasons.length);
+  assert.equal(Object.keys(COPILOT_ACTION_LABELS).length, actions.length);
+});
+
+test("spec 08 / spec 13: timeline dates are es-MX on a 24 h clock", () => {
+  const out = formatDateTime("2026-10-05T19:04:23Z");
+  assert.ok(!/AM|PM/i.test(out), out);
+  assert.match(out, /^\d{1,2}\/\d{1,2}\/2026, \d{2}:\d{2}:\d{2}$/);
+  for (const f of ["../app/console/page.tsx", "../components/timeline.tsx", "../app/case/[id]/case-view.tsx"]) {
+    assert.ok(!/toLocale(Time)?String\(\)/.test(src(f)), f);
+  }
 });
