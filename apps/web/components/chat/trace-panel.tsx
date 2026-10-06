@@ -1,5 +1,5 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { GUARDRAIL_LABELS, guardrailLabel } from "@/lib/trace";
+import { GUARDRAIL_LABELS, guardrailLabel, traceRow } from "@/lib/trace";
 import type { TraceStep } from "@/lib/types";
 
 const KIND_LABEL: Record<TraceStep["kind"], string> = {
@@ -22,6 +22,49 @@ const KIND_CLASS: Record<TraceStep["kind"], string> = {
   deny: "bg-red-500/15 text-red-700 dark:text-red-400",
 };
 
+/** The steps as a list: each row leads with its plain name (design pass 1, finding 4), then its result. */
+export function TraceSteps({ trace, guardrails }: { trace: TraceStep[]; guardrails: string[] }) {
+  return (
+    <>
+      {trace.length === 0 ? (
+        <p className="text-sm text-muted-foreground">No steps yet.</p>
+      ) : (
+        <ol className="space-y-2 text-sm">
+          {trace.map((t, i) => {
+            const row = traceRow(t);
+            return (
+              <li key={`${t.step}-${i}`} className="rounded-lg border p-2">
+                <span className="flex items-start justify-between gap-2">
+                  <span className="min-w-0 font-medium">{row.title}</span>
+                  <span className={`inline-flex h-5 shrink-0 items-center rounded-4xl px-2 text-xs font-medium ${KIND_CLASS[t.kind]}`}>
+                    {KIND_LABEL[t.kind]}
+                  </span>
+                </span>
+                {row.detail ? <span className="mt-1 block whitespace-pre-line break-words text-xs text-muted-foreground">{row.detail}</span> : null}
+              </li>
+            );
+          })}
+        </ol>
+      )}
+      <div className="mt-3 text-xs">
+        <b>Guardrails fired:</b>{" "}
+        {guardrails.length ? (
+          <ul className="mt-1 space-y-1">
+            {guardrails.map((g) => (
+              <li key={g}>
+                {guardrailLabel(g)}
+                {g in GUARDRAIL_LABELS ? <span className="font-mono text-muted-foreground"> ({g})</span> : null}
+              </li>
+            ))}
+          </ul>
+        ) : (
+          "none"
+        )}
+      </div>
+    </>
+  );
+}
+
 /**
  * Each step of the last turn with its result, and the guardrails that fired by name (spec 07 AC-03, AC-08).
  * "requested" is not "verified" (constitution #4). It shows no score, zone or policy id (D-013).
@@ -35,38 +78,7 @@ export function TracePanel({ trace, guardrails }: { trace: TraceStep[]; guardrai
           <CardDescription>What the agent did on the last message</CardDescription>
         </CardHeader>
         <CardContent>
-          {trace.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No steps yet.</p>
-          ) : (
-            <ol className="space-y-2 text-sm">
-              {trace.map((t, i) => (
-                <li key={`${t.step}-${i}`} className="rounded-lg border p-2">
-                  <span className="flex items-center justify-between gap-2">
-                    <span className="font-mono text-xs">{t.step}</span>
-                    <span className={`inline-flex h-5 shrink-0 items-center rounded-4xl px-2 text-xs font-medium ${KIND_CLASS[t.kind]}`}>
-                      {KIND_LABEL[t.kind]}
-                    </span>
-                  </span>
-                  <span className="mt-1 block whitespace-pre-line break-words text-xs text-muted-foreground">{t.result}</span>
-                </li>
-              ))}
-            </ol>
-          )}
-          <div className="mt-3 text-xs">
-            <b>Guardrails fired:</b>{" "}
-            {guardrails.length ? (
-              <ul className="mt-1 space-y-1">
-                {guardrails.map((g) => (
-                  <li key={g}>
-                    {guardrailLabel(g)}
-                    {g in GUARDRAIL_LABELS ? <span className="font-mono text-muted-foreground"> ({g})</span> : null}
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              "none"
-            )}
-          </div>
+          <TraceSteps trace={trace} guardrails={guardrails} />
         </CardContent>
       </Card>
     </aside>

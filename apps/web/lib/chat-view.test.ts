@@ -37,9 +37,14 @@ test("spec 07 AC-07: exactly one greeting: the web's goes once the agent greets,
 });
 
 test("spec 07 AC-09: chat bubbles keep line breaks as text, never as HTML", () => {
-  const page = readFileSync(new URL("../app/chat/page.tsx", import.meta.url), "utf8");
-  const panel = readFileSync(new URL("../components/chat/trace-panel.tsx", import.meta.url), "utf8");
-  assert.match(page, /whitespace-pre-line[^"`]*rounded-2xl/, "the message bubble keeps \\n as a line break");
+  const read = (path: string) => readFileSync(new URL(path, import.meta.url), "utf8");
+  const thread = read("../components/chat/thread.tsx");
+  const markdown = read("../components/chat/markdown.tsx");
+  const panel = read("../components/chat/trace-panel.tsx");
+  const page = read("../app/chat/page.tsx");
+  assert.match(thread, /whitespace-pre-line[^"`]*rounded-2xl/, "the customer bubble keeps \\n as a line break");
+  assert.match(markdown, /<p className="whitespace-pre-line/, "an agent paragraph keeps \\n as a line break");
+  assert.match(markdown, /skipHtml/, "raw HTML in a reply is skipped, never rendered");
   assert.match(panel, /whitespace-pre-line/, "the plan step keeps its numbered lines");
-  for (const src of [page, panel]) assert.ok(!src.includes("dangerouslySetInnerHTML"), "a reply is never parsed as HTML");
+  for (const src of [page, thread, markdown, panel]) assert.ok(!src.includes("dangerouslySetInnerHTML"), "a reply is never parsed as HTML");
 });

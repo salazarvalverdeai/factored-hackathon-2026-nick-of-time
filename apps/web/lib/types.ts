@@ -2,6 +2,7 @@
 // Shapes follow spec 01 §6.2 and packages/nick_of_time/contracts.py (customer projections: no score, zone, priority or
 // policy ids), contracts/handoff.schema.json (analyst only) and the case queue in contracts/policies.yaml.
 // Customer-facing types use the contract's snake_case names; the mock's internal records keep camelCase.
+import type { ToolEvent } from "./chat-stream.ts";
 
 export type Zone = "high" | "medium" | "human";
 export type Language = "es" | "pt";
@@ -238,6 +239,10 @@ export interface Receipt {
   /** Live: the verified facts and actions of the contract's receipt, shown as they are. */
   facts?: string[];
   actions?: { label: string; state: string; verification_id?: string }[];
+  /** The legal source of the deadlines, shown as a named link (never a raw URL); `url` only when the tool returned one. */
+  source?: { label: string; url: string | null; verified_on: string | null };
+  /** Live: the ruling date `YYYY-MM-DD`, when the country's clock has one. */
+  ruling_deadline?: string | null;
 }
 
 export interface Suggestion {
@@ -258,4 +263,8 @@ export interface AgentReply {
   suggestions?: Suggestion[];
   deny?: boolean;
   awaitingConfirmation?: boolean;
+  /** The plan the agent stated (`CustomerTurn.plan`), one line per step. */
+  plan?: string[];
+  /** The tool calls the turn streamed (spec 01 §6.4.1), settled: a call with no result is shown as failed. */
+  tools?: ToolEvent[];
 }

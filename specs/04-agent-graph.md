@@ -147,6 +147,23 @@ AC-01 to AC-08 come from issue #6 with the same numbers; the rest are added by t
 - **AC-27** — The graph shall use the session's mode (historical or live) for "today" and for which transactions exist;
   it shall never read the system clock directly. · [T]
 
+- **AC-37** — If the writer is `llm`, then `respond` shall have the §4.6 writer word the reply from the turn's facts only
+  (profile, options, plan, action records, deadlines, receipt, chips allowed), stream it as `text` chunks (spec 01
+  §6.4.1) and pass every line through the §4.3 grounding check; a line that fails, or any writer error, timeout or
+  budget stop, shall fall back to that line's template, and the receipt and the handoff card shall stay built by
+  `nick_of_time.receipt` from tool results only. · [T]
+- **AC-38** — While a tool call runs, the graph shall emit one `tool` event with `status: running` and then exactly one
+  `done` or `failed` with the same `id`, whose `cards[]` hold only fields a tool returned (spec 01 §6.4.1). · [T]
+- **AC-39** — If the writer is `llm`, then the reply's 2–3 chips shall be chosen and worded by the writer only from the
+  §4.5 row allowed for that turn; a chip outside the row, longer than 40 characters or holding a URL shall be dropped;
+  `talk_to_person` shall always be present; if fewer than 2 survive, the §4.5 row shall be used as today. · [T]
+- **AC-40** — With the writer set to `template`, every reply, chip and stream event other than `tool` shall be what
+  this spec produced before ADR 0030 (no `text` events, no writer call). · [T]
+- **AC-41** — [P1] (stage 2, behind `explore`) When the customer cannot name the charge ("no recuerdo el monto"),
+  `understand` may call the read-only tools `list_recent_transactions`, `search_transaction` and `get_case_status` (at
+  most 4 rounds) before `clarify`, and shall show the candidates as options instead of asking again; actions keep the
+  `decide → plan → act → verify` path. · [T]
+
 ## 4. Functional requirements
 
 ### 4.1 State (typed)
@@ -214,7 +231,7 @@ identity ─► greet ─► understand ─► route ─┬─► retrieve ─�
 | `clarify` | Options (1 to `max_candidate_transactions` candidates, as cards labelled amount · date · merchant) or a request for amount/date; an `unnamed` charge is one card with `clarify.confirm_one` and the `confirm_charge` chips, and a later confirm runs `decide` on that shown card as on a named charge (D-067). Only three things confirm it, and only right after a reply that offered the `confirm_charge` or `confirm_call` row: the chip, a tap on the card (option id = the shown transaction id), or a typed reply that, folded (accents, case) and without punctuation, EQUALS one entry of a closed list (ES "sí", "sí, es ese", "sí, es ese cargo", "correcto", "ese es", "ese mismo"; PT "sim", "sim, é essa cobrança", "é essa", "essa mesma", "correto"); "no", "no es ese cargo" and their PT forms decline. Anything longer ("Sí, quiero hablar con alguien", "Sí, el de Amazon") goes to the classifier, so a person request stays one (D-029). The medium-zone `confirm` row keeps its own words; counts turns; a declined confirm answers `plan.declined` and clears the selection. D-071: one named charge asked about because the intent is below τ is one card with `clarify.ask_intent` and the `ask_intent` row (AC-35); an `answer.keep` reply to the confirm question that is no yes or no gets `clarify.confirm_again` and the `confirm` row, with the charge and plan kept (AC-36) | templates in every arm; LLM wording deferred to spec 15's `word` gate (task 04f) |
 | `route` (other language) | A verified session whose message B0 flags `other_language` (spec 11, G-IN-03 `[assumption]`) gets `refuse.other_language` (session language plus the same sentence in English once) and the `other_language` chip row, by rule: no LLM, no case | `messages.yaml refuse.other_language` |
 | `refuse` | DENY or re-authenticate with no data and a way forward | templates in every arm (task 04f) |
-| `respond` | Receipt from verified facts; the handoff card from tool results, and it may also carry an accepted-but-unverified case, flagged in `open_questions` ("case K-… not read back by get_case: confirm it exists before acting") `[assumption]` (D-056, pending the lead); reply from templates in every arm (task 04f: S1/S2 rewording is deferred to spec 15's `word` gate; until it passes, no LLM call words a reply, and `build.never_send` is kept as a utility for it); suggestion chips from §4.5. Task 04d: the receipt only once `get_case` verified the case opened this turn (`issued_at` is the turn's last post-condition `read_at`, `receipt_id` a hash of run and case, `case_url` null until the public host is configured `[assumption]`); the handoff card for any case `open_case` returned this turn, verified or not, a verified high-zone block included (D-070, AC-34: an analyst closes every case; spec 04 wins over the earlier spec 09 §7.5 row), never for a `duplicate_of` case `[assumption]`: reason `tool_failure` on `escalate_unconfirmed_action`, `identity_unverified` when the session expired mid-turn `[assumption]` (D-056), else the decision's `handoff_reason` when the schema lists it; proposal `approve_block` in the high or medium zone without a verified block, `request_customer_info` in the human zone `[assumption]`; score with `score_source`/`score_version` (D-033). Both list only action ids a tool returned (§4.1) | `nick_of_time.receipt` · `send_case_summary` · `request_call` · `request_reevaluation` · `add_case_info` · `messages.yaml suggest.*` |
+| `respond` | Receipt from verified facts; the handoff card from tool results, and it may also carry an accepted-but-unverified case, flagged in `open_questions` ("case K-… not read back by get_case: confirm it exists before acting") `[assumption]` (D-056, pending the lead); reply from templates, or worded by the §4.6 writer when `writer = llm` (ADR 0030) (task 04f: S1/S2 rewording is deferred to spec 15's `word` gate; until it passes, no LLM call words a reply, and `build.never_send` is kept as a utility for it); suggestion chips from §4.5. Task 04d: the receipt only once `get_case` verified the case opened this turn (`issued_at` is the turn's last post-condition `read_at`, `receipt_id` a hash of run and case, `case_url` null until the public host is configured `[assumption]`); the handoff card for any case `open_case` returned this turn, verified or not, a verified high-zone block included (D-070, AC-34: an analyst closes every case; spec 04 wins over the earlier spec 09 §7.5 row), never for a `duplicate_of` case `[assumption]`: reason `tool_failure` on `escalate_unconfirmed_action`, `identity_unverified` when the session expired mid-turn `[assumption]` (D-056), else the decision's `handoff_reason` when the schema lists it; proposal `approve_block` in the high or medium zone without a verified block, `request_customer_info` in the human zone `[assumption]`; score with `score_source`/`score_version` (D-033). Both list only action ids a tool returned (§4.1) | `nick_of_time.receipt` · `send_case_summary` · `request_call` · `request_reevaluation` · `add_case_info` · `messages.yaml suggest.*` |
 
 ### 4.3 Grounding check (ADR 0016)
 Every number, date, time and id in `reply`, `receipt` and `handoff` is matched exactly against tool results and the
@@ -279,6 +296,23 @@ Rules: at most 3 chips; a path to a person is always among them, except right af
 `add_info`, `request_reevaluation`) only when the turn has a case, then a person chip is added and the row is filled to
 2 chips when needed (task 04d). No row offers a block chip, and the re-evaluation chip waits for AC-24; chips are stored with the reply exactly as shown and the web shows them only under the last reply (spec 07).
 
+### 4.6 Writer and conversation style (ADR 0030)
+The writer is the only LLM that words customer text. It runs inside `respond` when `configurable.writer = llm`
+(spec 01 §6.4.1) and is Sonnet 4.6 on Bedrock (`BEDROCK_MODEL_GRAPH`); Haiku 4.5 keeps classifying in `understand`.
+It receives the turn's facts as delimited data (never `policies.yaml`, never the score, never policy ids) and returns
+the reply text and the chip choice. Notifications (Telegram, e-mail) stay templates.
+
+Style (ES and PT, the session language; `docs/brand/BRAND.md` voice: calm and precise):
+- warm, second person (`tú` / `você`), the customer's first name from `get_customer_profile`;
+- 2–3 short sentences; a list only for a plan or options; one question at a time;
+- say what happened, what happens next and when (the deadline and its source come as a card, the text names it);
+- an action is told only in its state: in progress, requested, verified or not confirmed (constitution #4);
+- no score, zone number, policy id, internal id other than the case and verification ids a tool returned;
+- a refusal or an error in one sentence, then the next step; a person is always offered.
+
+Streaming: text without digits is released as it is written; a line with a digit is released when complete and
+grounded (spec 01 AC-10). Budget: the writer shares the per-day cap (G-OPS-01); past it the reply is the template.
+
 ## 5. Non-functional requirements
 - **Latency:** p95 per turn ≤ 6 s with S1 `[assumption]`; first progress label within 1 s.
 - **Cost:** ≤ 0.02 USD per case with S1 `[assumption]`, measured by the harness.
@@ -286,7 +320,7 @@ Rules: at most 3 chips; a path to a person is always among them, except right af
   as `S0` and says so in the trace. `[assumption]` The daily cap binds only runs the api starts (it passes the day's
   spend); runs started outside the api (Studio, the SDK, an eval run against the deployment) are not capped by it.
 - **Safety:** customer text and tool outputs reach the LLM as delimited data; the LLM never sees `policies.yaml` and
-  never writes outbound messages.
+  never writes outbound messages (notifications); it words chat replies only through the §4.6 writer.
 - **Observability:** LangSmith traces in development; the run's `trace` and `usage` are the source of truth for the api.
 - **Message format:** ≤ 3 lines per message, bullets for steps, cards for the receipt and options, one question at a time.
 

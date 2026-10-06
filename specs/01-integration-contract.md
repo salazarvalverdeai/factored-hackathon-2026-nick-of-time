@@ -2,7 +2,7 @@
 
 - **Feature:** the contract the three of us build against — folders, REST API, MCP tools, graph I/O, Postgres schema,
   customer receipt, evaluation hooks — plus stubs so nobody waits for anybody.
-- **Status:** Draft (contract 1.7.0, updated 2026-10-05: 16 customer tools, two time modes, action states, delivery
+- **Status:** Draft (contract 1.8.0, updated 2026-10-05: live stream events §6.4.1, ADR 0030; 16 customer tools, two time modes, action states, delivery
   status, the store's §6.5 rules, the lead's 2026-10-05 follow-ups)
 - **Owner:** @salazarvalverdeai · **Priority:** P0 · **Size:** M
 - **Challenge dimension:** AI Engineering, Technical Judgment
@@ -10,7 +10,7 @@
   0020
 - **Issue:** #3 · **Approval:** all three (@salazarvalverdeai, @gianzk, @vldiego)
 
-> Full profile: this spec *is* the contract. Contract version **1.7.0** (1.0.0 was the first review draft; 1.1.0 adds
+> Full profile: this spec *is* the contract. Contract version **1.8.0** (1.0.0 was the first review draft; 1.1.0 adds
 > the approved improvements #12–#16 before approval; 1.2.0 is additive: the handoff rules of §6.4, `GOLD_PATTERN`, the
 > `zone_medium` and `supervised_mode` handoff reasons; 1.3.0 is additive, from task 01c, §6.5: the `action_verified`
 > event type, `cases.opened_on` and the `on` business date of `status_changed` (D-023), an `action_id` on each customer
@@ -37,7 +37,8 @@
 > Telegram or e-mail channel (§6.8); 1.7.0 is additive, demo type C (DEMOCD, ADR 0026): `POST
 > /api/sessions/{id}/synthetic-charge` and `synthetic` on the recent transactions (§6.2), and `demo_transactions.run_id`
 > and `product_type` (§6.5): a live demo run's synthetic charges belong to that run only; and demo type D, `POST
-> /api/demo/persona` (§6.2).
+> /api/demo/persona` (§6.2); 1.8.0 is additive: the live stream events `tool` and `text` and the server-side
+> `writer` setting (§6.4.1, ADR 0030).
 > Any change after approval is a PR that all three approve and that bumps the version (minor = additive, major =
 > breaking).
 
@@ -80,6 +81,16 @@ Copied from issue #3 (same numbers). Evidence: [T] test · [C] command · [U] sc
   date served for that session shall come from `clock.today(mode)`. · [T]
 - **AC-08** — While a session is in `live` mode, `search_transaction` shall also return the customer's rows of
   `demo_transactions`, each flagged `synthetic: true`; the eval seed shall always create `replay` sessions. · [T]
+
+- **AC-09** — While a run streams, the api shall forward the graph's custom events only as `progress`, `tool` or
+  `text` in the shapes of §6.4.1, and shall drop any other chunk; no event shall carry a score, a zone threshold, a
+  `POL-…` id, a raw tool payload or a prompt. · [T]
+- **AC-10** — If the writer is `llm`, then a `text` chunk that completes a line holding a digit shall leave the api only
+  after that line passes the grounding check (spec 04 §4.3); the final `turn.reply` shall hold only released lines or
+  template lines. · [T]
+- **AC-11** — The writer (`template | llm`) shall be read only from the server-side setting and injected as
+  `configurable.writer`; a value sent by the client shall be ignored, and every change shall be audited with the
+  analyst's user. · [T]
 
 ## 4. Functional requirements
 - **FR-01** One shared Python package (`nick_of_time`) holds the contract models, the policy engine, the clock, the
@@ -299,6 +310,38 @@ shape of `data` is fixed in the producing spec.
   `G-…` guardrail ids may appear in the chat; `notifications.never_send.policy_ids` means `POL-…` rule ids; receipts
   and notifications carry neither. `denials[].detail` comes only from a `messages.yaml` template, never from engine
   output.
+
+#### 6.4.1 Live stream events (1.8.0, additive, ADR 0030)
+The graph writes these to LangGraph's `custom` stream; the api re-emits them as SSE on
+`POST /api/agent/threads/{id}/runs/stream`, in the order they happen, before the final `turn`. The names follow the
+AG-UI event model (step, tool call start and result, text message content) so standard agent chat components can
+render them. A chunk without `kind` is a `ProgressItem` (unchanged).
+
+| SSE event | Graph chunk | Shape | When |
+|---|---|---|---|
+| `progress` | `ProgressItem` (no `kind`) | unchanged | as today |
+| `tool` | `{"kind": "tool", …}` | `ToolEvent {id, step, title, status: running\|done\|failed, summary?, cards[], at}` | `running` when a tool call starts, then exactly one `done` or `failed` with the same `id` |
+| `text` | `{"kind": "text", …}` | `TextChunk {message_id, delta}` | only when the writer is `llm`; never for a `template` reply |
+| `turn` | final `values` | `CustomerTurn`, unchanged | last |
+| `error` | — | standard error shape, unchanged | on failure |
+
+- `step` is the tool or node: `search_transaction`, `list_recent_transactions`, `evaluate_policy`, `block_card`,
+  `open_case`, `get_case`, `compute_deadline`, `request_call`, `get_case_status`. `title` and `summary` are customer
+  text in the session language from `messages.yaml tool.*`, never engine output.
+- `cards[]` (on `done` only), a union by `type`, built from tool results and nothing else:
+  - `charge {transaction_id, date, amount, currency, merchant|null, last4, synthetic}`
+  - `verdict {headline, actions[]}`: the policy outcome in customer words from `messages.yaml verdict.*`; no score,
+    zone number or policy id
+  - `action {tool, state, verification_id|null}`: `state` is one of the four action states; `verified` only with a
+    `V-` id (constitution #4)
+  - `deadline {kind, date|null, source_label, source_url|null}`
+  - `case {case_id, status}`
+- `TextChunk.delta` is customer-visible text of the reply being written. When the writer is `llm`, a line that holds a
+  digit is held until it is complete and passes the grounding check; a line that fails is never released, the final
+  `turn.reply` carries the template line instead, and G-OUT-01 is logged. The web renders the streamed text and then
+  replaces it with `turn.reply` when the two differ.
+- `configurable.writer` (`template | llm`) comes from the console setting `writer`, like `supervised_mode`
+  (`/api/console/settings`); the client never sets it (AC-11).
 
 ### 6.5 Postgres schema (DDL in `packages/nick_of_time/store/schema.sql`, used through `nick_of_time.store`)
 `apps/api/migrations` adopts `schema.sql` as its first migration (D-002); a test keeps the file in step with this
