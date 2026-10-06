@@ -23,13 +23,14 @@
 #   {read_at} (contract 1.4.0); task 04h added clarify.confirm_one, clarify.confirm_call and
 #   suggest.confirm_charge (D-067).
 #   Task PROG (T7) added progress.* (AC-17). D-071 (lead, 2026-10-05) added clarify.ask_intent,
-#   clarify.confirm_again, suggest.intent_unrecognized and suggest.intent_wrongful (0.10.0).
+#   clarify.confirm_again, suggest.intent_unrecognized and suggest.intent_wrongful (0.10.0). ADR 0030 (spec 01
+#   §6.4.1, spec 04 AC-38) added tool.* (live tool event titles and summaries) and verdict.* (0.11.0).
 # - Chips: `kind` is static here; the action payload ({type}, spec 01 §6.4) is set by the server code.
 # - Never a placeholder or text for the fraud score, policy ids, rule ids, zones or the transcript
 #   (notifications.never_send in policies.yaml).
 # - Never promise an outcome or a provisional credit: a person reviews and decides (CLAUDE.md rule 6).
 # - Dates are absolute (YYYY-MM-DD) and come from tools; the template never computes them.
-version: "0.10.0"
+version: "0.11.0"
 
 system:
   # The agent platform is unreachable, timed out, answered an error or dropped the stream (spec 05 AC-05). Calm, no
@@ -501,3 +502,114 @@ progress:
   writing:
     es: "Preparando tu respuesta…"
     pt: "Preparando sua resposta…"
+
+tool:
+  # Spec 01 §6.4.1, spec 04 AC-38 (ADR 0030, 0.11.0): the title and summary of each live `tool` event. A title says
+  # what is being attempted; a summary says the tool's outcome in one short line, only on `done` or `failed`. The
+  # facts themselves travel as cards built from the tool result; no placeholders here.
+  search_transaction:
+    title:
+      es: "Buscando el cargo"
+      pt: "Procurando a cobrança"
+    found_one:
+      es: "Encontré un cargo que coincide."
+      pt: "Encontrei uma cobrança que corresponde."
+    found_many:
+      es: "Encontré varios cargos posibles."
+      pt: "Encontrei várias cobranças possíveis."
+    found_none:
+      es: "No encontré un cargo con esos datos."
+      pt: "Não encontrei uma cobrança com esses dados."
+    failed:
+      es: "No pude consultar tus cargos."
+      pt: "Não consegui consultar suas cobranças."
+  evaluate_policy:
+    title:
+      es: "Revisando qué corresponde hacer"
+      pt: "Vendo o que deve ser feito"
+    done:
+      es: "Listo el siguiente paso."
+      pt: "Próximo passo definido."
+  open_case:
+    title:
+      es: "Abriendo tu caso"
+      pt: "Abrindo seu caso"
+    verified:
+      es: "Caso abierto y confirmado con el sistema."
+      pt: "Caso aberto e confirmado com o sistema."
+    not_confirmed:
+      es: "El sistema aún no confirma el caso."
+      pt: "O sistema ainda não confirma o caso."
+    failed:
+      es: "No pude abrir el caso."
+      pt: "Não consegui abrir o caso."
+  block_card:
+    title:
+      es: "Bloqueando tu tarjeta"
+      pt: "Bloqueando seu cartão"
+    verified:
+      es: "Tarjeta bloqueada y confirmada con el sistema."
+      pt: "Cartão bloqueado e confirmado com o sistema."
+    not_confirmed:
+      es: "El sistema aún no confirma el bloqueo."
+      pt: "O sistema ainda não confirma o bloqueio."
+    held:
+      es: "Una persona decide el bloqueo después de la llamada."
+      pt: "Uma pessoa decide o bloqueio depois da ligação."
+    failed:
+      es: "No pude bloquear la tarjeta."
+      pt: "Não consegui bloquear o cartão."
+  request_call:
+    title:
+      es: "Pidiendo que una persona te llame"
+      pt: "Pedindo que uma pessoa ligue para você"
+    requested:
+      es: "Llamada solicitada."
+      pt: "Ligação solicitada."
+    verified:
+      es: "Llamada solicitada y confirmada con el sistema."
+      pt: "Ligação solicitada e confirmada com o sistema."
+    failed:
+      es: "No pude registrar la llamada."
+      pt: "Não consegui registrar a ligação."
+  get_case:
+    title:
+      es: "Consultando tu caso"
+      pt: "Consultando seu caso"
+    done:
+      es: "Estado leído ahora en el sistema."
+      pt: "Situação lida agora no sistema."
+    failed:
+      es: "No pude consultar el caso."
+      pt: "Não consegui consultar o caso."
+
+verdict:
+  # Spec 01 §6.4.1 `verdict` card (0.11.0): the decision of the turn in customer words, by decision. Never the
+  # score, a zone or a rule id; what is done is told only by the action cards and the reply.
+  block_and_open_case:
+    es: "Corresponde abrir un caso y proteger tu tarjeta."
+    pt: "O certo é abrir um caso e proteger seu cartão."
+  confirm:
+    es: "Puedo abrir un caso; antes necesito tu confirmación."
+    pt: "Posso abrir um caso; antes preciso da sua confirmação."
+  ask:
+    es: "Necesito identificar el cargo antes de actuar."
+    pt: "Preciso identificar a cobrança antes de agir."
+  handoff:
+    es: "Corresponde abrir un caso para que una persona lo revise."
+    pt: "O certo é abrir um caso para uma pessoa analisar."
+  connect_person:
+    es: "Corresponde que una persona te contacte."
+    pt: "O certo é uma pessoa entrar em contato com você."
+  deny:
+    es: "Eso no lo puedo hacer desde este chat."
+    pt: "Isso eu não posso fazer por este chat."
+  reauthenticate:
+    es: "Primero necesito verificar tu sesión."
+    pt: "Primeiro preciso verificar sua sessão."
+  escalate_unconfirmed_action:
+    es: "Una persona revisará lo que el sistema no confirmó."
+    pt: "Uma pessoa vai analisar o que o sistema não confirmou."
+  answer_status:
+    es: "Consulto el estado en el sistema."
+    pt: "Consulto a situação no sistema."

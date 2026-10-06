@@ -44,7 +44,9 @@ def stream(chat: Chat, text: str, language) -> list[tuple[str, dict]]:
 
 
 def progress(chunks) -> list[ProgressItem]:
-    return [ProgressItem.model_validate(chunk) for mode, chunk in chunks if mode == "custom"]
+    """The progress labels: custom chunks without `kind` (spec 01 §6.4.1; `tool` and `text` events are tested in
+    test_spec04_live_events.py)."""
+    return [ProgressItem.model_validate(chunk) for mode, chunk in chunks if mode == "custom" and "kind" not in chunk]
 
 
 @pytest.mark.parametrize("language, text", [("es", EV_0001), ("pt", EV_0001_PT)])

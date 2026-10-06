@@ -166,6 +166,22 @@ class LLMClient:
                          model=self.model, mode=None, temperature=self.temperature,
                          latency_ms=round((time.perf_counter() - t0) * 1000))
 
+    def stream(self, system: str, user: str, on_text, *, max_tokens: int = 512) -> LLMResult:
+        """Free text, handed to `on_text` in pieces as the provider writes it (spec 04 §4.6 writer, ADR 0030); returns
+        the billed call. This default makes one `complete()` call and hands its text over at once; a provider with a
+        streaming API overrides it."""
+        result = self.complete(system, user, max_tokens=max_tokens)
+        if result.text:
+            on_text(result.text)
+        return result
+
+    def _result(self, raw: dict[str, Any], t0: float) -> LLMResult:
+        """The LLMResult of a free-text call (no schema, no toolChoice mode)."""
+        return LLMResult(text=raw["text"], tool_input=None, stop_reason=raw["stop_reason"], tokens_in=raw["tokens_in"],
+                         tokens_out=raw["tokens_out"], cost_usd=cost_usd(self.prices, raw["tokens_in"], raw["tokens_out"]),
+                         provider=self.provider, model=self.model, mode=None, temperature=self.temperature,
+                         latency_ms=round((time.perf_counter() - t0) * 1000))
+
     @staticmethod
     def _check_tool_input(result: LLMResult, schema: dict) -> None:
         if not isinstance(result.tool_input, dict):
