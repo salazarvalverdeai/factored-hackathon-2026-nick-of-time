@@ -501,7 +501,8 @@ messages.
       `[assumption]`). An LLM error, a timeout (4 s read + 2 s connect per request, one attempt `[assumption]`), output
       that fails the schema or the slot contract, a missing price or the G-OPS-01 cap (0.02 USD per conversation,
       checked before calling, D-064) runs the step as S0, marks the `understand` trace step `error` with
-      `S1 -> S0: <reason>` and keeps any billed call in `usage`. D-058, availability first: a missing price (`anthropic`
+      `S1 -> S0: <reason>` and keeps any billed call in `usage`; the provider's own message (truncated) goes to the
+      server log as a warning, so bad credentials can be told apart from an outage (2026-10-13). D-058, availability first: a missing price (`anthropic`
       has none yet `[assumption]`) runs that turn as S0 (`no price (D-058)`); the graph's load only logs it, since S0
       and the echo graph share the Platform server, and CI's `config.check_prices()` test fails when a default
       production (bedrock) arm has no price row. Task PROG did AC-17: each step that runs streams one in-progress
