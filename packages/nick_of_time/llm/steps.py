@@ -11,6 +11,7 @@ runs the step as S0 (rules) and says so in the trace; every billed call is a `us
 import asyncio
 import datetime as dt
 import json
+import logging
 import os
 import re
 from typing import Any, Optional, get_args
@@ -56,6 +57,7 @@ UNDERSTAND = (
     "'.', currency ISO 4217 if stated, date YYYY-MM-DD from `today`, merchant as written. confidence: probability the "
     "intent is right.")
 _CLIENTS: dict[Any, llm.LLMClient] = {}
+log = logging.getLogger(__name__)
 
 
 def client_for(config: dict, cfg: Any) -> llm.LLMClient:
@@ -98,6 +100,9 @@ async def ask(state: dict, config: dict, node: str, system: str, payload: dict, 
         result, reason = exc.result, "no structured output"
     except Exception as exc:  # noqa: BLE001 — any provider failure degrades to S0 (spec 04 §5)
         reason = "timeout" if "timeout" in f"{type(exc).__name__} {exc}".lower() else type(exc).__name__
+        # the trace keeps only the reason; the provider's own message goes to the server log, so a misconfigured
+        # deployment (bad credentials, a model without access) can be told apart from an outage
+        log.warning("%s %s ran as S0: %s: %s", state["arm"], node, type(exc).__name__, str(exc)[:300])
     out = note(state, node, reason)
     if result is not None:
         cost = result.cost_usd or 0.0
