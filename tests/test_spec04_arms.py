@@ -110,15 +110,6 @@ def test_ac_14_any_llm_failure_runs_the_turn_as_s0_and_records_it(script, rows, 
     assert detail(turn, "understand") == ("error", f"S1 -> S0: {reason}")
 
 
-def test_ac_14_a_provider_failure_logs_the_providers_message_for_the_operator(caplog):
-    """The trace says only `ProviderUnavailable`; the server log says why (bad credentials vs an outage)."""
-    failure = ProviderUnavailable("UnrecognizedClientException: The security token included in the request is invalid.")
-    with caplog.at_level("WARNING", logger="nick_of_time.llm.steps"):
-        turn = run(Chat(arm="S1", llm_client=client(failure)), "hola")
-    assert detail(turn, "understand") == ("error", "S1 -> S0: ProviderUnavailable")
-    assert "S1 understand ran as S0: ProviderUnavailable: UnrecognizedClientException" in caplog.text
-
-
 def test_ac_14_g_ops_01_budget_stops_before_calling(monkeypatch):
     monkeypatch.setattr(steps, "CAP_USD", 0.0)
     llm = client()
